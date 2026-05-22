@@ -67,7 +67,10 @@ nav:
     - Shared Library:
       - ContentCenter: systems/content-center.md
   - 🛠️ Working in this Repo:
-    - Contributor Workflow: how-to-pr.md
+    - Onboarding:
+      - Inventor Workspace: contributor/inventor-workspace.md
+      - Contributing Assemblies: contributor/contributing-assemblies.md
+      - Git and Pull Requests: contributor/git-and-pr-workflow.md
     - Fabrication Notes: fabrication-notes.md
     - Drawings & PDFs: drawings.md
 
