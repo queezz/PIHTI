@@ -1,0 +1,11 @@
+# Autodesk Inventor cache / lock files
+*.lck
+*.lock
+*.tmp
+*.bak
+~*
+Thumbs.db
+Desktop.ini
+
+# Old version archives (recursive)
+**/OldVersions/
