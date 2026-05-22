@@ -118,7 +118,7 @@ simplest setup — no Conda required.
 ```powershell
 python -m venv $HOME\.venvs\mkdocs
 & "$HOME\.venvs\mkdocs\Scripts\Activate.ps1"
-pip install mkdocs-material
+pip install mkdocs-material mkdocs-glightbox
 ```
 
 Activate that environment in any later session with:

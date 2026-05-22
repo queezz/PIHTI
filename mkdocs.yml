@@ -3,19 +3,37 @@ site_description: Autodesk Inventor workspace for plasma, vacuum, and spectrosco
 docs_dir: docs
 site_dir: _site
 
+# repo_url: https://github.com/queezz/PIHTI
+# repo_name: queezz/PIHTI
+
 theme:
   name: material
-  palette:
-    scheme: slate
-    primary: indigo
-    accent: blue
+  icon:
+    repo: fontawesome/brands/github
   features:
-    - navigation.sections
+    - navigation.instant
+    - navigation.tracking
+    - navigation.tabs
     - navigation.top
-    - toc.integrate
-  font:
-    text: IBM Plex Sans
-    code: IBM Plex Mono
+    - content.code.copy
+    - content.image.zoom
+  palette:
+    - scheme: bh-dark
+      primary: custom
+      accent: yellow
+      toggle:
+        icon: material/weather-sunny
+        name: Switch to light mode
+    - scheme: default
+      primary: amber
+      accent: orange
+      toggle:
+        icon: material/weather-night
+        name: Switch to dark mode
+
+plugins:
+  - search
+  - glightbox
 
 nav:
   - Home: index.md
@@ -50,18 +68,30 @@ nav:
     - Drawings & PDFs: drawings.md
 
 markdown_extensions:
+  - admonition
+  - attr_list
+  - def_list
+  - footnotes
+  - md_in_html
   - toc:
       permalink: true
-  - admonition
-  - tables
-  - attr_list
+  - pymdownx.details
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.inlinehilite
+  - pymdownx.superfences
+  - pymdownx.tabbed:
+      alternate_style: true
   - pymdownx.snippets:
       base_path: ["."]
       check_paths: true
+  - tables
 
-# README.md (home page) contains links to INDEX.md and ContentCenter/README.md
-# using paths relative to the repo root, not the docs/ tree.
-# These are valid on GitHub but unresolvable by MkDocs — downgrade to warnings.
+extra_css:
+  - styles/brand.css
+
+# README.md (home page) links to INDEX.md and ContentCenter/README.md using
+# repo-root-relative paths that don't resolve inside the docs/ tree.
 validation:
   links:
     not_found: info
