@@ -14,6 +14,7 @@ theme:
     - navigation.instant
     - navigation.tracking
     - navigation.tabs
+    - navigation.expand
     - navigation.top
     - content.code.copy
     - content.image.zoom
@@ -36,33 +37,34 @@ plugins:
   - glightbox
 
 nav:
-  - Home: index.md
-  - Assembly Index: assembly-index.md
-  - Plasma Systems:
-    - Plasma Vessel: systems/plasma-vessel.md
-    - Sub-assemblies: systems/plasma-vessel-sub.md
-    - PLD: systems/pld.md
-  - Probes & Diagnostics:
-    - Boron Probe: systems/boron-probe.md
-    - PALP: systems/palp.md
-    - PALP sub-assemblies: systems/palp-sub.md
-    - LIBS: systems/libs.md
-    - LIBS components: systems/libs-sub.md
-  - Spectroscopy:
-    - Jobin-Yvon: systems/jobin-yvon.md
-  - Vacuum Hardware:
-    - TMP-PT-50 Adapters: systems/tmp-pt50.md
-  - Electronics:
-    - Temp Controller v2: systems/electronics.md
-    - Temp Controller: systems/temp-controllers.md
-    - ESP32 Logger: systems/esp32-logger.md
-    - Logger Rev1: systems/esp32-logger-rev1.md
-    - Misc Enclosures: systems/electronics-misc.md
-  - Support Hardware:
-    - Sample Holder / Scaffolding / Desks: systems/support.md
-  - Shared Library:
-    - ContentCenter: systems/content-center.md
-  - Working in this Repo:
+  - 🏠 Home: index.md
+  - 🧭 Assembly Index: assembly-index.md
+  - ⚙️ Systems:
+    - 🔬 Plasma:
+      - Plasma Vessel: systems/plasma-vessel.md
+      - Sub-assemblies: systems/plasma-vessel-sub.md
+      - PLD: systems/pld.md
+    - 📡 Probes & Diagnostics:
+      - Boron Probe: systems/boron-probe.md
+      - PALP: systems/palp.md
+      - PALP sub-assemblies: systems/palp-sub.md
+      - LIBS: systems/libs.md
+      - LIBS components: systems/libs-sub.md
+    - 🌈 Spectroscopy:
+      - Jobin-Yvon: systems/jobin-yvon.md
+    - Vacuum Hardware:
+      - TMP-PT-50 Adapters: systems/tmp-pt50.md
+    - 🧰 Electronics:
+      - Temp Controller v2: systems/electronics.md
+      - Temp Controller: systems/temp-controllers.md
+      - ESP32 Logger: systems/esp32-logger.md
+      - Logger Rev1: systems/esp32-logger-rev1.md
+      - Misc Enclosures: systems/electronics-misc.md
+    - Support Hardware:
+      - Sample Holder / Scaffolding / Desks: systems/support.md
+    - Shared Library:
+      - ContentCenter: systems/content-center.md
+  - 🛠️ Working in this Repo:
     - Contributor Workflow: how-to-pr.md
     - Fabrication Notes: fabrication-notes.md
     - Drawings & PDFs: drawings.md
