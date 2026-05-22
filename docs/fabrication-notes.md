@@ -1,96 +1,121 @@
 # Fabrication Notes
 
-Overview of available shop processes and what kinds of parts each is suited for.
-This is a working reference, not a manual.
+This is an experimental physics lab, not a machine shop. Fabrication is a supporting
+capability — the goal is working hardware, not manufacturing perfection. A large
+fraction of development happens through printed prototypes, opportunistic use of
+available stock, and iteration.
+
+When in doubt about a process or workflow, consult your supervisor before committing
+to a design.
 
 ---
 
 ## Wire EDM (wire cutter)
 
-Cuts conductive material (steel, copper, aluminium, brass) by electrical discharge
-along a programmed wire path. Produces very accurate 2D profiles with no cutting
-force on the workpiece.
+Use for conductive materials when accurate 2D geometry matters.
 
 Good for:
 
-- flat flanges and plates with precise bolt circles
-- thin-walled parts that would deflect under milling forces
-- internal cutouts that cannot be reached by a mill
-- stainless steel and hardened materials that are difficult to machine conventionally
+- complicated internal cutouts
+- thin stainless parts
+- vacuum flanges and precise plate geometry
+- shapes difficult or impractical to mill conventionally
 
-Export: DXF from Inventor drawing or part sketch. Confirm tolerances and material
-in the drawing notes before sending.
+A clear drawing is usually enough. Ask workshop staff what format they prefer — DXF
+from Inventor sketches or drawing views is typically sufficient.
 
 ---
 
 ## Milling machine
 
-General-purpose metal removal. Used for facing, pocketing, slotting, boring, and
-drilling on a coordinate table.
+General-purpose machining for holes, slots, faces, and custom parts.
 
-Good for:
+Important: aluminium extrusions, profile brackets, and many standard mechanical
+elements are bought rather than machined from scratch. Use milling when custom
+geometry is actually needed, not as a default.
 
-- aluminium enclosure panels and structural brackets
-- flanges that require face machining or stepped features
-- parts that need multiple setups and tight tolerances across faces
-- prototype vacuum parts before committing to EDM or turning
-
-Most of the aluminium profile brackets and enclosure panels in `ElectronicsBox/`
-were milled. Plasma-facing parts with complex port geometries were typically turned
-and milled in combination.
-
----
-
-## Drill press
-
-Column-mounted drilling for holes that do not require precise positioning.
-Used for through-holes in plates, clearance holes, and initial hole placement before
-reaming or tapping on the mill.
-
----
-
-## Lathe
-
-Turning for rotationally symmetric parts: nipples, adapters, spacers, shafts,
-flanges with a circular cross-section.
-
-Most vacuum nipples, feedthroughs, and port adapters in `Plasma Vessel/`, `PLD/`,
-and `PALP/` are turned parts. Export a 2D drawing with diameter, length, and
-surface finish callouts. Cross-sectional view is essential.
-
----
-
-## Laser cutting
-
-2D cutting of sheet material (metal, acrylic, thin aluminium). Faster than EDM for
-sheet parts that do not require tight tolerances.
-
-Output files live in `LaserCutting/`. DXF is the standard exchange format.
-Check kerf compensation if the part is designed for press-fit assembly — the laser
-removes material and the resulting part is slightly undersized relative to the
-nominal DXF.
+Workshop CNC capability exists, but discuss it with workshop staff before designing
+around it. Not everything is feasible as-drawn.
 
 ---
 
 ## 3D printing (FDM)
 
-Used for enclosure parts, brackets, cable guides, jigs, and non-structural mockups.
-Not suitable for vacuum-side parts or anything exposed to heat or plasma.
+Widely used for prototyping, fixtures, brackets, cable routing, and rapid iteration.
+A large portion of experimental development starts with printed parts.
 
-Output files live in `3D-printing/`. STL and 3MF are both present. Check orientation
-notes in the print file before slicing — some parts have preferred orientations for
-layer adhesion and support access.
+Useful for:
 
-The `PLD/` folder contains test geometry (`test-triangle-overhang.ipt`,
-`test-internal-cone-overhang.ipt`) used to characterise overhang limits before
-printing functional parts.
+- testing geometry before committing to machining
+- checking assembly clearances
+- temporary experimental parts and adapters
+- ergonomic improvements and cable management
+- lightweight holders and jigs
+
+Design for printing when practical: think about print orientation, avoid unnecessary
+support structures, and consider layer direction for load-bearing features.
+
+Output files live in `3D-printing/` (STL, 3MF). The `PLD/` folder also contains
+dedicated overhang and cone test prints used to characterise printer capability
+before committing to functional geometry.
+
+Not suitable for vacuum-side parts or plasma-facing surfaces.
+
+---
+
+## Laser cutting
+
+In-house laser cutting is mainly used for acrylic, plywood, and MDF — panel parts,
+enclosure faces, and fixtures.
+
+For simple flat parts: export a face or sketch as DXF. Use an older AutoCAD DXF
+format if compatibility issues appear.
+
+Metal cutting is generally outsourced when needed. For precision conductive flat
+parts, wire EDM is often preferred.
+
+Output files live in `LaserCutting/`.
+
+---
+
+## Lathe
+
+Used for rotationally symmetric parts: nipples, adapters, spacers, shafts, and
+flanges. Most vacuum nipples, feedthroughs, and port adapters in `Plasma Vessel/`,
+`PLD/`, and `PALP/` are turned parts.
+
+Provide a 2D drawing with diameter, length, tolerances, and a cross-section view.
+Surface finish callouts matter more for vacuum parts than tight dimensional
+tolerances in most cases.
+
+---
+
+## TIG welding
+
+Basic TIG capability exists in the lab, including stainless steel work.
+
+Useful for:
+
+- simple frames and support structures
+- vacuum hardware modifications
+- brackets, stands, and prototype welded assemblies
+
+Good preparation is critical: tight fit-up, accessible weld paths, proper fixturing,
+and clean material surfaces. Even non-vacuum welds benefit from careful joint
+preparation.
+
+Vacuum-tight welds are achievable but require test pieces and conservative design.
+Consult your supervisor before designing welded vacuum components.
 
 ---
 
 ## General notes
 
-- Always confirm material availability before finalising dimensions around stock sizes.
-- For vacuum parts, surface finish and cleanliness matter more than tight tolerances
-  in most cases. Call out finish requirements explicitly in the drawing.
-- When a part is modified after fabrication (reworked, re-drilled, etc.), note it in
-  the assembly README or drawing so the Inventor model and physical part stay in sync.
+- Confirm material and stock availability before finalising dimensions.
+- For vacuum parts, cleanliness and surface finish typically matter more than
+  tight tolerances. Call out requirements explicitly in the drawing.
+- When a part is reworked after fabrication (re-drilled, modified, etc.), note
+  it in the assembly README or drawing so the model and physical hardware stay
+  in sync.
+- When in doubt about any process or capability, ask workshop staff or your
+  supervisor before designing around an assumption.
