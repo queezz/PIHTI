@@ -1,0 +1,90 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!-- Created with Inkscape (http://www.inkscape.org/) -->
+
+<svg
+   width="49.668499mm"
+   height="46.907894mm"
+   viewBox="0 0 49.668499 46.907894"
+   version="1.1"
+   id="svg172"
+   inkscape:version="1.4 (86a8ad7, 2024-10-11)"
+   sodipodi:docname="pihtiicon.svg"
+   inkscape:export-filename="h2icon.png"
+   inkscape:export-xdpi="96"
+   inkscape:export-ydpi="96"
+   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
+   xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:svg="http://www.w3.org/2000/svg">
+  <sodipodi:namedview
+     id="namedview174"
+     pagecolor="#505050"
+     bordercolor="#eeeeee"
+     borderopacity="1"
+     inkscape:showpageshadow="0"
+     inkscape:pageopacity="0"
+     inkscape:pagecheckerboard="0"
+     inkscape:deskcolor="#505050"
+     inkscape:document-units="mm"
+     showgrid="false"
+     inkscape:zoom="2.587745"
+     inkscape:cx="74.58231"
+     inkscape:cy="86.755071"
+     inkscape:window-width="3840"
+     inkscape:window-height="2054"
+     inkscape:window-x="-11"
+     inkscape:window-y="-11"
+     inkscape:window-maximized="1"
+     inkscape:current-layer="layer1" />
+  <defs
+     id="defs169" />
+  <g
+     inkscape:label="Layer 1"
+     inkscape:groupmode="layer"
+     id="layer1"
+     transform="translate(0.5,-1.5448949)">
+    <rect
+       style="fill:#6c9bff;fill-opacity:1;stroke:none;stroke-width:2.47;stroke-linecap:round;stroke-linejoin:round;stroke-opacity:1"
+       id="rect1"
+       width="48.055027"
+       height="45.396656"
+       x="0.21571216"
+       y="2.1583645"
+       ry="7.6683559" />
+    <text
+       xml:space="preserve"
+       style="font-size:3.175px;fill:none;fill-opacity:1;stroke:none;stroke-width:1;stroke-dasharray:none;stroke-opacity:1"
+       x="11.349167"
+       y="16.563648"
+       id="text3557"><tspan
+         sodipodi:role="line"
+         id="tspan3555"
+         style="stroke-width:1"
+         x="11.349167"
+         y="16.563648" /></text>
+    <text
+       xml:space="preserve"
+       style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:37.7865px;font-family:Candara;-inkscape-font-specification:'Candara, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;fill:#af3628;fill-opacity:1;stroke:#af3628;stroke-width:2.58925;stroke-dasharray:none;stroke-opacity:1"
+       x="8.7472267"
+       y="44.993748"
+       id="text3561"
+       transform="scale(0.99879116,1.0012103)"><tspan
+         sodipodi:role="line"
+         id="tspan3563"
+         style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:37.7865px;font-family:Candara;-inkscape-font-specification:'Candara, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;fill:#af3628;fill-opacity:1;stroke:#af3628;stroke-width:2.58925;stroke-dasharray:none;stroke-opacity:1"
+         x="8.7472267"
+         y="44.993748">TI</tspan></text>
+    <text
+       xml:space="preserve"
+       style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:24.1807px;font-family:'BankGothic Md BT';-inkscape-font-specification:'BankGothic Md BT, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;fill:#714ff0;fill-opacity:1;stroke:#714ff0;stroke-width:0.576461;stroke-dasharray:none;stroke-opacity:1"
+       x="-0.93216735"
+       y="19.491051"
+       id="text3561-0"
+       transform="scale(1.0391483,0.96232655)"><tspan
+         sodipodi:role="line"
+         id="tspan3563-7"
+         style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:24.1807px;font-family:'BankGothic Md BT';-inkscape-font-specification:'BankGothic Md BT, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;fill:#714ff0;fill-opacity:1;stroke:#714ff0;stroke-width:0.576461;stroke-dasharray:none;stroke-opacity:1"
+         x="-0.93216735"
+         y="19.491051">PIH</tspan></text>
+  </g>
+</svg>

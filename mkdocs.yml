@@ -8,6 +8,8 @@ site_dir: _site
 
 theme:
   name: material
+  logo: assets/pihtiicon.svg
+  favicon: assets/pihtiicon.svg
   icon:
     repo: fontawesome/brands/github
   features:
