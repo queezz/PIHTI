@@ -43,6 +43,71 @@ without this documentation.
 
 ---
 
+## Assembly structure and shared geometry
+
+Assemblies in this repository reference parts from multiple folders. This is
+intentional — shared vessel geometry, vacuum hardware, and common flanges live in
+their canonical locations and are reused across subsystems.
+
+**Do not duplicate shared geometry into your working folder.**
+
+If your assembly needs a part from `Plasma Vessel/` or `ContentCenter/`, reference
+it in place. Copying creates divergence and breaks the shared design intent.
+
+**Modified parts belong in your subsystem folder.**
+
+If you need to change a shared part for your specific use, save the modified copy
+in your own folder with a clear name (e.g. `CF70-flange-modified-for-probe.ipt`).
+The original stays untouched.
+
+**New independent subsystems get top-level folders.**
+
+If you are developing a new probe, diagnostic, or standalone system, create a
+folder at the repository root (e.g. `Probes/`, `Diagnostics/`, `YourProject/`).
+Keep your parts and assemblies together there.
+
+**Modified vacuum assemblies stay local.**
+
+If you are adapting the main vessel or plasma chamber for your experiment, keep
+those modified assemblies in your subsystem tree. Do not overwrite the canonical
+`Plasma Vessel/` geometry unless coordinating a shared upgrade.
+
+---
+
+## Git workflow (quick start)
+
+If you are new to git, this is the minimum you need:
+
+**1. Create a branch for your work:**
+
+```bash
+git checkout -b my-feature-branch
+```
+
+**2. Stage and commit your changes:**
+
+```bash
+git add .
+git commit -m "Add probe flange adapter for PALP experiment"
+```
+
+Commit messages should say *what* changed and *why*, not just "updated files."
+
+**3. Push your branch:**
+
+```bash
+git push -u origin my-feature-branch
+```
+
+**4. Open a pull request on GitHub.**
+
+Go to the repository page, click "Compare & pull request," add a description and
+screenshots, then submit.
+
+Your supervisor or a collaborator will review the PR before merging.
+
+---
+
 ## Submitting a pull request
 
 **Include screenshots when the change is geometric.**
