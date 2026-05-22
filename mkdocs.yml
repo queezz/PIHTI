@@ -89,9 +89,3 @@ markdown_extensions:
 
 extra_css:
   - styles/brand.css
-
-# README.md (home page) links to INDEX.md and ContentCenter/README.md using
-# repo-root-relative paths that don't resolve inside the docs/ tree.
-validation:
-  links:
-    not_found: info
