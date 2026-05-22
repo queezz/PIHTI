@@ -14,6 +14,8 @@ to a design.
 
 Use for conductive materials when accurate 2D geometry matters.
 
+Background: [wire EDM](https://en.wikipedia.org/wiki/Electrical_discharge_machining#Wire-cut_EDM).
+
 Good for:
 
 - complicated internal cutouts
@@ -30,6 +32,8 @@ from Inventor sketches or drawing views is typically sufficient.
 
 General-purpose machining for holes, slots, faces, and custom parts.
 
+Background: [milling](https://en.wikipedia.org/wiki/Milling_(machining)).
+
 Important: aluminium extrusions, profile brackets, and many standard mechanical
 elements are bought rather than machined from scratch. Use milling when custom
 geometry is actually needed, not as a default.
@@ -43,6 +47,10 @@ around it. Not everything is feasible as-drawn.
 
 Widely used for prototyping, fixtures, brackets, cable routing, and rapid iteration.
 A large portion of experimental development starts with printed parts.
+
+Background: [fused filament fabrication](https://en.wikipedia.org/wiki/Fused_filament_fabrication),
+[STL files](https://en.wikipedia.org/wiki/STL_(file_format)), and
+[3MF files](https://en.wikipedia.org/wiki/3D_Manufacturing_Format).
 
 Useful for:
 
@@ -68,6 +76,9 @@ Not suitable for vacuum-side parts or plasma-facing surfaces.
 In-house laser cutting is mainly used for acrylic, plywood, and MDF — panel parts,
 enclosure faces, and fixtures.
 
+Background: [laser cutting](https://en.wikipedia.org/wiki/Laser_cutting) and
+[DXF files](https://en.wikipedia.org/wiki/AutoCAD_DXF).
+
 For simple flat parts: export a face or sketch as DXF. Use an older AutoCAD DXF
 format if compatibility issues appear.
 
@@ -84,6 +95,9 @@ Used for rotationally symmetric parts: nipples, adapters, spacers, shafts, and
 flanges. Most vacuum nipples, feedthroughs, and port adapters in `Plasma Vessel/`,
 `PLD/`, and `PALP/` are turned parts.
 
+Background: [lathe](https://en.wikipedia.org/wiki/Lathe) and
+[turning](https://en.wikipedia.org/wiki/Turning).
+
 Provide a 2D drawing with diameter, length, tolerances, and a cross-section view.
 Surface finish callouts matter more for vacuum parts than tight dimensional
 tolerances in most cases.
@@ -93,6 +107,8 @@ tolerances in most cases.
 ## TIG welding
 
 Basic TIG capability exists in the lab, including stainless steel work.
+
+Background: [TIG welding](https://en.wikipedia.org/wiki/Gas_tungsten_arc_welding).
 
 Useful for:
 
