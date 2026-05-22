@@ -109,6 +109,41 @@ Run with `--dry-run` to preview what would be written.
 
 ---
 
+## Local documentation environment
+
+The repository uses [MkDocs Material](https://squidfunk.github.io/mkdocs-material/)
+to render all `README.md` files as a browsable site. A dedicated venv is the
+simplest setup — no Conda required.
+
+```powershell
+python -m venv $HOME\.venvs\mkdocs
+& "$HOME\.venvs\mkdocs\Scripts\Activate.ps1"
+pip install mkdocs-material
+```
+
+Activate that environment in any later session with:
+
+```powershell
+& "$HOME\.venvs\mkdocs\Scripts\Activate.ps1"
+```
+
+**Serve locally** (live-reloading, available at `http://127.0.0.1:8000`):
+
+```powershell
+mkdocs serve
+```
+
+**Build and validate** (fails on broken nav links, use before pushing):
+
+```powershell
+mkdocs build --strict
+```
+
+GitHub Actions builds and deploys the site automatically on every push to `main`.
+See `.github/workflows/gh-pages.yml`.
+
+---
+
 ## Notes for collaborators and students
 
 - Open `PIHTI.ipj` in Inventor before opening any `.iam` or `.ipt` files. The project
