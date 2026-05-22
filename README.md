@@ -3,6 +3,8 @@
 Autodesk Inventor project archive for experimental plasma, vacuum, and spectroscopy hardware.
 Covers mechanical design from first concept through fabrication drawings.
 
+**📖 Documentation:** [queezz.github.io/PIHTI](https://queezz.github.io/PIHTI/)
+
 The project file is `PIHTI.ipj`.
 
 ---

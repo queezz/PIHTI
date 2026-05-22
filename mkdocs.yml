@@ -3,8 +3,8 @@ site_description: Autodesk Inventor workspace for plasma, vacuum, and spectrosco
 docs_dir: docs
 site_dir: _site
 
-# repo_url: https://github.com/queezz/PIHTI
-# repo_name: queezz/PIHTI
+repo_url: https://github.com/queezz/PIHTI
+repo_name: queezz/PIHTI
 
 theme:
   name: material
