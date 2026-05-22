@@ -1,0 +1,67 @@
+site_name: PIHTI Engineering Archive
+site_description: Autodesk Inventor workspace for plasma, vacuum, and spectroscopy hardware
+docs_dir: docs
+site_dir: _site
+
+theme:
+  name: material
+  palette:
+    scheme: slate
+    primary: indigo
+    accent: blue
+  features:
+    - navigation.sections
+    - navigation.top
+    - toc.integrate
+  font:
+    text: IBM Plex Sans
+    code: IBM Plex Mono
+
+nav:
+  - Home: index.md
+  - Assembly Index: assembly-index.md
+  - Plasma Systems:
+    - Plasma Vessel: systems/plasma-vessel.md
+    - Sub-assemblies: systems/plasma-vessel-sub.md
+    - PLD: systems/pld.md
+  - Probes & Diagnostics:
+    - Boron Probe: systems/boron-probe.md
+    - PALP: systems/palp.md
+    - PALP sub-assemblies: systems/palp-sub.md
+    - LIBS: systems/libs.md
+    - LIBS components: systems/libs-sub.md
+  - Spectroscopy:
+    - Jobin-Yvon: systems/jobin-yvon.md
+  - Vacuum Hardware:
+    - TMP-PT-50 Adapters: systems/tmp-pt50.md
+  - Electronics:
+    - Temp Controller v2: systems/electronics.md
+    - Temp Controller: systems/temp-controllers.md
+    - ESP32 Logger: systems/esp32-logger.md
+    - Logger Rev1: systems/esp32-logger-rev1.md
+    - Misc Enclosures: systems/electronics-misc.md
+  - Support Hardware:
+    - Sample Holder / Scaffolding / Desks: systems/support.md
+  - Shared Library:
+    - ContentCenter: systems/content-center.md
+  - Working in this Repo:
+    - Contributor Workflow: how-to-pr.md
+    - Fabrication Notes: fabrication-notes.md
+    - Drawings & PDFs: drawings.md
+
+markdown_extensions:
+  - toc:
+      permalink: true
+  - admonition
+  - tables
+  - attr_list
+  - pymdownx.snippets:
+      base_path: ["."]
+      check_paths: true
+
+# README.md (home page) contains links to INDEX.md and ContentCenter/README.md
+# using paths relative to the repo root, not the docs/ tree.
+# These are valid on GitHub but unresolvable by MkDocs — downgrade to warnings.
+validation:
+  links:
+    not_found: info

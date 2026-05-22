@@ -9,3 +9,6 @@ Desktop.ini
 
 # Old version archives (recursive)
 **/OldVersions/
+
+# MkDocs build output
+_site/

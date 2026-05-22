@@ -1,0 +1,1 @@
+--8<-- "ElectronicsBox/esp32-ambient-logger/TempLoggerRev1/README.md"
