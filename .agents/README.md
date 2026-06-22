@@ -36,6 +36,15 @@ Keep it short and skimmable:
 
 See [`handoff-template.md`](handoff-template.md) for a copy-paste skeleton.
 
+## Artifact types
+
+Use the file format to signal the intended reader:
+
+- `*.md` - human and agent orientation: goals, decisions, evidence summaries, cleanup plans, and next steps.
+- `*.json` / `*.csv` - machine-facing inventories and raw analysis outputs, especially duplicate/hash scans.
+
+Avoid committing generated mechanical Markdown reports. If a tool can emit both JSON and Markdown for the same inventory, keep the JSON as the durable machine record and write a short Markdown summary only when human judgment or handoff context is needed.
+
 ## Standing directions
 
 - [duplicate-inventory-direction.md](duplicate-inventory-direction.md) - bit/hash inventory workflow before CAD cleanup or staged imports.
