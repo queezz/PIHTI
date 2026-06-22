@@ -48,6 +48,7 @@ nav:
       - PLD: systems/pld.md
     - 📡 Probes & Diagnostics:
       - Boron Probe: systems/boron-probe.md
+      - Boron Probe Integration: systems/boron-probe-integration.md
       - PALP: systems/palp.md
       - PALP sub-assemblies: systems/palp-sub.md
       - LIBS: systems/libs.md

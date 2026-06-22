@@ -12,3 +12,11 @@ Desktop.ini
 
 # MkDocs build output
 _site/
+
+# Local import/staging area
+staging/
+
+# Python cache files
+__pycache__/
+**/__pycache__/
+*.pyc
