@@ -1,0 +1,7 @@
+<Resources>
+  <string id="%1%" value="稼働係数"/>
+  <string id="%2%" value="静的荷重"/>
+  <string id="%3%" value="繰返し荷重"/>
+  <string id="%4%" value="交番荷重"/>
+  <string id="%5%" value="係数"/>
+</Resources>

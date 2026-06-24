@@ -1,0 +1,11 @@
+<Resources>
+  <string id="%1%" value="ブレーキ圧力"/>
+  <string id="%2%" value="材料"/>
+  <string id="%3%" value="p[MPa]"/>
+  <string id="%4%" value="成形"/>
+  <string id="%5%" value="紡織"/>
+  <string id="%6%" value="焼結金属"/>
+  <string id="%7%" value="コルク"/>
+  <string id="%8%" value="木材"/>
+  <string id="%9%" value="鋳鉄、硬鋼"/>
+</Resources>

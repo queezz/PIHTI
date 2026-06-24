@@ -1,0 +1,18 @@
+<Resources>
+  <string id="%1%" value="呼び径"/>
+  <string id="%2%" value="最小クリアランス"/>
+  <string id="%3%" value="標準クリアランス"/>
+  <string id="%4%" value="最大クリアランス"/>
+  <string id="%5%" value="頭部の直径"/>
+  <string id="%6%" value="ざぐり深さ"/>
+  <string id="%7%" value="皿面取り角度"/>
+  <string id="%8%" value="DIN ドリル穴"/>
+  <string id="%9%" value="皿小ねじ DIN EN ISO 2009"/>
+  <string id="%10%" value="丸皿小ねじ ISO 2010"/>
+  <string id="%11%" value="六角穴付き小ねじ DIN EN 24017"/>
+  <string id="%12%" value="六角穴付き小ねじ DIN EN 24014 (ざぐり(SF))"/>
+  <string id="%13%" value="DIN 六角小ねじ"/>
+  <string id="%14%" value="六角穴付き皿小ねじ DIN EN ISO 10642"/>
+  <string id="%15%" value="六角穴付き小ねじ DIN EN ISO 4762"/>
+  <string id="%16%" value="すりわり付きチーズ小ねじ DIN 84"/>
+</Resources>

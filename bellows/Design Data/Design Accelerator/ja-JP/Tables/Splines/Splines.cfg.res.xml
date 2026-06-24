@@ -1,0 +1,15 @@
+<Resources>
+  <string id="%1%" value="S.A.E. - シリーズ A (永久はめあい)"/>
+  <string id="%2%" value="S.A.E. - シリーズ B (スライド - 荷重なし)"/>
+  <string id="%3%" value="S.A.E. - シリーズ C (スライド- 荷重下)"/>
+  <string id="%4%" value="ISO 14 - 軽荷重シリーズ"/>
+  <string id="%5%" value="ISO 14 - 中荷重シリーズ"/>
+  <string id="%6%" value="CSN 01 4942 - 重荷重シリーズ"/>
+  <string id="%7%" value="DIN 5462"/>
+  <string id="%8%" value="DIN 5463"/>
+  <string id="%9%" value="DIN 5464"/>
+  <string id="%10%" value="DIN 5472"/>
+  <string id="%11%" value="GOST 1139-80 1991 - 軽荷重シリーズ"/>
+  <string id="%12%" value="GOST 1139-80 1991 - 中荷重シリーズ"/>
+  <string id="%13%" value="GOST 1139-80 1991 - 重荷重シリーズ"/>  
+</Resources>

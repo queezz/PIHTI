@@ -1,0 +1,16 @@
+<Resources>
+  <string id="%1%" value="適用係数"/>
+  <string id="%2%" value="均一"/>
+  <string id="%3%" value="軽衝撃"/>
+  <string id="%4%" value="断続的衝撃"/>
+  <string id="%5%" value="重衝撃"/>
+  <string id="%6%" value="均一 (タービン、モータ)"/>
+  <string id="%7%" value="軽	(油圧モータ)"/>
+  <string id="%8%" value="中 (内燃機関)"/>
+  <string id="%9%" value="荷重のタイプ"/>
+  <string id="%10%" value="動力源"/>
+  <string id="%11%" value="(ジェネレータ-ファン)"/>
+  <string id="%12%" value="(オシレーティング、ポンプなど)"/>
+  <string id="%13%" value="(アクチュエーチング、ポンプ)"/>
+  <string id="%14%" value="(パンチ、せん断など)"/>  
+</Resources>

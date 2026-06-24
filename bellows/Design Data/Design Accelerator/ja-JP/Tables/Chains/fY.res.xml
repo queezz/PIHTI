@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="UTF-8"?><Resources>
+  <string id="%1%" value="衝撃係数"/>
+  <string id="%2%" value="従動装置"/>
+  <string id="%3%" value="電動機"/>
+  <string id="%4%" value="低速燃焼機関(1 気筒)"/>
+  <string id="%5%" value="低速燃焼機関(2 気筒)"/>
+  <string id="%6%" value="高速燃焼機関(1 気筒または 2 気筒)"/>
+  <string id="%7%" value="高速燃焼機関(4 気筒)"/>
+  <string id="%8%" value="高速燃焼機関(6 気筒以上)"/>
+  <string id="%9%" value="高速水力タービン"/>
+  <string id="%10%" value="低速水力タービン"/>
+  <string id="%11%" value="蒸気タービン"/>
+  <string id="%12%" value="蒸気エンジン"/>
+  <string id="%13%" value="トランスミッション ギアボックス出力"/>
+  <string id="%14%" value="旋盤、ドリル"/>
+  <string id="%15%" value="フライス盤"/>
+  <string id="%16%" value="平削り盤"/>
+  <string id="%17%" value="形削り盤、立削り盤"/>
+  <string id="%18%" value="伸び矯正機"/>
+  <string id="%19%" value="油圧プレス"/>
+  <string id="%20%" value="偏心プレス"/>
+  <string id="%21%" value="レバー プレス"/>
+  <string id="%22%" value="木工機械"/>
+  <string id="%23%" value="織機"/>
+  <string id="%24%" value="丸編み機"/>
+  <string id="%25%" value="靴下編機"/>
+  <string id="%26%" value="紡績機"/>
+  <string id="%27%" value="往復一段式圧縮機"/>
+  <string id="%28%" value="往復二段式圧縮機"/>
+  <string id="%29%" value="遠心一段式圧縮機"/>
+  <string id="%30%" value="遠心二段式圧縮機"/>
+  <string id="%31%" value="送風機"/>
+  <string id="%32%" value="換気扇"/>
+  <string id="%33%" value="往復一気筒ポンプ"/>
+  <string id="%34%" value="往復二気筒ポンプ"/>
+  <string id="%35%" value="遠心ポンプ"/>
+  <string id="%36%" value="複数架台圧搾機"/>
+  <string id="%37%" value="連続圧延機"/>
+  <string id="%38%" value="粉砕機"/>
+  <string id="%39%" value="パン ミル"/>
+  <string id="%40%" value="チューブ ミル"/>
+  <string id="%41%" value="ハンマー ミル"/>
+  <string id="%42%" value="伝導カレンダ"/>
+  <string id="%43%" value="直接カレンダ"/>
+  <string id="%44%" value="セルロース破砕機"/>
+  <string id="%45%" value="振動ふるい機"/>
+  <string id="%46%" value="圧入装置"/>
+  <string id="%47%" value="回転混合機"/>
+  <string id="%48%" value="掘削機"/>
+  <string id="%49%" value="ロータリー式耕耘機"/>
+  <string id="%50%" value="混合機"/>
+  <string id="%51%" value="ばら材用コンベア"/>
+  <string id="%52%" value="構造材用コンベヤ"/>
+  <string id="%53%" value="昇降機"/>
+  <string id="%54%" value="フォーク リフト"/>
+  <string id="%55%" value="採掘巻上げ機"/>
+  <string id="%56%" value="発電機 - 大型"/>
+  <string id="%57%" value="発電機 - 小型"/>
+  <string id="%58%" value="トランスミッション ギアボックス入力"/>
+</Resources>

@@ -1,0 +1,17 @@
+<Resources>
+  <string id="%1%" value="呼び径"/>
+  <string id="%2%" value="最小クリアランス"/>
+  <string id="%3%" value="標準クリアランス"/>
+  <string id="%4%" value="最大クリアランス"/>
+  <string id="%5%" value="頭部の直径"/>
+  <string id="%6%" value="ざぐり深さ"/>
+  <string id="%7%" value="皿面取り角度"/>
+  <string id="%8%" value="ANSI ユニファイねじ"/>
+  <string id="%9%" value="ANSI すりわり付き平小ねじ (82)"/>
+  <string id="%10%" value="ANSI すりわり付き平小ねじ (100)"/>
+  <string id="%11%" value="ANSI 六角ボルト"/>
+  <string id="%12%" value="ANSI すりわり付き六角小ねじ"/>
+  <string id="%13%" value="ANSI すりわり付き丸小ねじ"/>
+  <string id="%14%" value="ANSI 六角穴付き小ねじ"/>
+  <string id="%15%" value="ANSI すりわり付き平小ねじ (80)"/>
+</Resources>

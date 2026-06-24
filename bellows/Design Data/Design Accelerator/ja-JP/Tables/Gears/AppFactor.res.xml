@@ -1,0 +1,9 @@
+<Resources>
+  <string id="%1%" value="適用係数"/>
+  <string id="%2%" value="駆動側装置の衝撃"/>
+  <string id="%3%" value="従動側装置の衝撃"/>
+  <string id="%4%" value="緩やか"/>
+  <string id="%5%" value="軽衝撃"/>
+  <string id="%6%" value="中衝撃"/>
+  <string id="%7%" value="強衝撃"/>
+</Resources>

@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?><Resources>
+  <string id="%1%" value="稼働係数"/>
+  <string id="%2%" value="軽荷重用"/>
+  <string id="%3%" value="中荷重用"/>
+  <string id="%4%" value="重荷重用"/>
+  <string id="%5%" value="極重荷重用"/>
+  <string id="%6%" value="断続稼働"/>
+  <string id="%7%" value="標準稼働"/>
+  <string id="%8%" value="連続稼働"/>
+  <string id="%9%" value="3 ～ 5 時間/日"/>
+  <string id="%10%" value="8 ～ 10 時間/日"/>
+  <string id="%11%" value="16 ～ 24 時間/日"/>
+  <string id="%12%" value="駆動側装置"/>
+  <string id="%13%" value="従動装置"/>
+  <string id="%14%" value="標準トルク"/>
+  <string id="%15%" value="高トルク"/>
+</Resources>

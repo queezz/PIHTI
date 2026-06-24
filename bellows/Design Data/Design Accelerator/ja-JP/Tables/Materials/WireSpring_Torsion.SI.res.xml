@@ -1,0 +1,41 @@
+<Resources>
+<string id="%1%" value="ばねの材料"/>
+<string id="%2%" value="材料の指定"/>
+<string id="%3%" value="密度"/>
+<string id="%4%" value="kg/m^3"/>
+<string id="%5%" value="引張係数"/>
+<string id="%6%" value="MPa"/>
+<string id="%7%" value="許容曲げ応力と最大引張強さとの比率"/>
+<string id="%8%" value="最大引張応力"/>
+<string id="%9%" value="引抜きパテンティング - 炭素鋼 -1 級"/>
+<string id="%10%" value="引抜きパテンティング - 炭素鋼 -2 級"/>
+<string id="%11%" value="引抜きパテンティング - 炭素鋼 -3 級"/>
+<string id="%12%" value="引抜きパテンティング - 炭素鋼 -4 級"/>
+<string id="%13%" value="引抜きパテンティング - 炭素鋼 -5 級"/>
+<string id="%14%" value="熱処理炭素鋼線"/>
+<string id="%15%" value="熱処理鋼線 - Si-Cr (14 260)"/>
+<string id="%16%" value="焼なまし鋼線 - Si-Cr (14 260)"/>
+<string id="%17%" value="熱処理鋼線 - Mn-Cr-V (15 260)"/>
+<string id="%18%" value="焼なまし鋼線 - Mn-Cr-V (15 260)"/>
+<string id="%19%" value="引抜きステンレス鋼線 - Cr-Ni (17 242)"/>
+<string id="%20%" value="引抜き錫青銅(42 3016 および 42 3018)"/>
+<string id="%21%" value="引抜き真鍮(42 3210 および 42 3213)"/>
+<string id="%22%" value="材料"/>
+<string id="%23%" value="Std"/>
+<string id="%24%" value="標準"/>
+<string id="%25%" value="R|.o|"/>
+<string id="%26%" value="E"/>
+<string id="%27%" value="係数"/>
+<string id="%28%" value="WD"/>
+<string id="%29%" value="線径"/>
+<string id="%30%" value="mm"/>
+<string id="%31%" value="||s||.ult|"/>
+<string id="%32%" value="ISO"/>
+<string id="%33%" value="DIN"/>
+<string id="%34%" value="線径と最大引張強さ"/>
+<string id="%35%" value="ul"/>
+<string id="%36%" value="鋼線、クラス 1"/>
+<string id="%37%" value="鋼線、クラス 2 および 2A"/>
+<string id="%38%" value="鋼線、クラス 3"/>
+<string id="%39%" value="GOST"/>
+</Resources>

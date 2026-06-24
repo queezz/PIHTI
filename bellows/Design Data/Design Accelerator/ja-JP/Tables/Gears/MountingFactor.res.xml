@@ -1,0 +1,11 @@
+<Resources>
+  <string id="%1%" value="取付係数"/>
+  <string id="%2%" value="支持の特性"/>
+  <string id="%3%" value="歯幅 [インチ]"/>
+  <string id="%4%" value="0 ～ 2"/>
+  <string id="%5%" value="16 まで"/>
+  <string id="%6%" value="正確な取り付け、小型軸受のクリアランス、最小のたわみ、精密歯車"/>
+  <string id="%7%" value="剛性の低い取り付け、精度の低い歯車、全面にわたる接触"/>
+  <string id="%8%" value="全面接触未満の精度および取付"/>
+  <string id="%9%" value="2.2 超"/>
+</Resources>

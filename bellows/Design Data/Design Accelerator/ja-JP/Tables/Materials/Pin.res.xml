@@ -1,0 +1,13 @@
+<Resources>
+  <string id="%1%" value="ピンの材料 (ANSI)"/>
+  <string id="%2%" value="材料の指定"/>
+  <string id="%3%" value="許容せん断応力"/>
+  <string id="%4%" value="psi"/>
+  <string id="%5%" value="炭素鋼 1211; 1212; 1213"/>
+  <string id="%6%" value="高炭素鋼 1070 - 1095"/>
+  <string id="%7%" value="ステンレス鋼 302"/>
+  <string id="%8%" value="ステンレス鋼 410 - 420"/>
+  <string id="%9%" value="合金鋼 6150H"/>
+  <string id="%10%" value="材料"/>
+  <string id="%11%" value="||t||.Al|"/>
+</Resources>

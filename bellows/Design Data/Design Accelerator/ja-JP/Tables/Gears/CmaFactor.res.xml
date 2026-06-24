@@ -1,0 +1,6 @@
+<Resources>
+  <string id="%1%" value="開放式歯車装置"/>
+  <string id="%2%" value="商用密閉式歯車装置"/>
+  <string id="%3%" value="精密密閉式歯車装置"/>
+  <string id="%4%" value="超精密密閉式歯車装置"/>
+</Resources>

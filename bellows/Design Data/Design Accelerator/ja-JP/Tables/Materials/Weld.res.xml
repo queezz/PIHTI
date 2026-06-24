@@ -1,0 +1,216 @@
+<Resources>
+	<string id="%1%" value="継手の材料"/>
+	<string id="%2%" value="材料の指定"/>
+	<string id="%3%" value="降伏強さ"/>
+	<string id="%4%" value="psi"/>
+	<string id="%5%" value="引張強さ"/>
+	<string id="%6%" value="引張強さの許容限度"/>
+	<string id="%7%" value="標準"/>
+	<string id="%8%" value="材料のタイプ"/>
+	<string id="%9%" value="構造用鋼 A283- グレード C"/>
+	<string id="%10%" value="基本材料"/>
+	<string id="%11%" value="構造用鋼 A519-1020"/>
+	<string id="%12%" value="構造用鋼 A519-1035"/>
+	<string id="%13%" value="構造用鋼 A572- グレード 42"/>
+	<string id="%14%" value="構造用鋼 A572- グレード 50"/>
+	<string id="%15%" value="構造用鋼 A519-1050"/>
+	<string id="%16%" value="構造用鋼 A512-MT1010SR"/>
+	<string id="%17%" value="溶接棒 E60XX"/>
+	<string id="%18%" value="溶接の材料"/>
+	<string id="%19%" value="溶接棒 E70XX"/>
+	<string id="%20%" value="溶接棒 E80XX"/>
+	<string id="%21%" value="溶接棒 E90XX"/>
+	<string id="%22%" value="溶接棒 E100XX"/>
+	<string id="%23%" value="溶接棒 E120XX"/>
+	<string id="%24%" value="Std"/>
+	<string id="%25%" value="ANSI"/>
+	<string id="%26%" value="ISO"/>
+	<string id="%27%" value="DIN"/>
+	<string id="%28%" value="BS"/>
+	<string id="%29%" value="CSN"/>
+	<string id="%30%" value="NF"/>
+	<string id="%31%" value="JIS"/>
+	<string id="%32%" value="材料"/>
+	<string id="%33%" value="S|.y|"/>
+	<string id="%34%" value="S|.ult|"/>
+	<string id="%35%" value="S|.ult min| - S|.ult max|"/>
+	<string id="%36%" value="タイプ"/>
+	<string id="%37%" value="構造用鋼 S235JRG1"/>
+	<string id="%38%" value="構造用鋼 S235JRH"/>
+	<string id="%39%" value="構造用鋼 S235JRG21"/>
+	<string id="%40%" value="構造用鋼 S235J0"/>
+	<string id="%41%" value="構造用鋼 SPT360"/>
+	<string id="%42%" value="構造用鋼 SPT410"/>
+	<string id="%43%" value="構造用鋼 S275J2G3"/>
+	<string id="%44%" value="構造用鋼 S275J2HG3"/>
+	<string id="%45%" value="構造用鋼 S355J2G3"/>
+	<string id="%46%" value="構造用鋼 S355J2H"/>
+	<string id="%47%" value="構造用鋼 S355J0"/>
+	<string id="%48%" value="構造用鋼 S355J0H"/>
+	<string id="%49%" value="構造用鋼 SPT510"/>
+	<string id="%50%" value="構造用鋼 USt34-2"/>
+	<string id="%51%" value="構造用鋼 USt37-2"/>
+	<string id="%52%" value="構造用鋼 St37-2"/>
+	<string id="%53%" value="構造用鋼 Rst37-2"/>
+	<string id="%54%" value="構造用鋼 St37-3"/>
+	<string id="%55%" value="構造用鋼 St44-3"/>
+	<string id="%56%" value="構造用鋼 St44.0"/>
+	<string id="%57%" value="構造用鋼 St34-2BK"/>
+	<string id="%58%" value="構造用鋼 St52-3"/>
+	<string id="%59%" value="構造用鋼 St52.0"/>
+	<string id="%60%" value="構造用鋼 St37-2BK"/>
+	<string id="%61%" value="構造用鋼 St52-3BK"/>
+	<string id="%62%" value="溶接棒 E43XX"/>
+	<string id="%63%" value="溶接棒 E51XX"/>
+	<string id="%64%" value="構造用鋼 CFS3NBK"/>
+	<string id="%65%" value="構造用鋼 40A"/>
+	<string id="%66%" value="構造用鋼 40B"/>
+	<string id="%67%" value="構造用鋼 40C"/>
+	<string id="%68%" value="構造用鋼 43D"/>
+	<string id="%69%" value="構造用鋼 CFS6NBK"/>
+	<string id="%70%" value="構造用鋼 CFS8NBK"/>
+	<string id="%71%" value="構造用鋼 CEW2BK"/>
+	<string id="%72%" value="構造用鋼 50D"/>
+	<string id="%73%" value="構造用鋼 50C"/>
+	<string id="%74%" value="構造用鋼 CEW3BK"/>
+	<string id="%75%" value="構造用鋼 CEW5BK"/>
+	<string id="%76%" value="構造用鋼 11343"/>
+	<string id="%77%" value="構造用鋼 11353"/>
+	<string id="%78%" value="構造用鋼 11366"/>
+	<string id="%79%" value="構造用鋼 11368"/>
+	<string id="%80%" value="構造用鋼 11369"/>
+	<string id="%81%" value="構造用鋼 11373"/>
+	<string id="%82%" value="構造用鋼 11375"/>
+	<string id="%83%" value="構造用鋼 11378"/>
+	<string id="%84%" value="構造用鋼 11416"/>
+	<string id="%85%" value="構造用鋼 11418"/>
+	<string id="%86%" value="構造用鋼 11419"/>
+	<string id="%87%" value="構造用鋼 11425"/>
+	<string id="%88%" value="溶接棒 11366"/>
+	<string id="%89%" value="構造用鋼 A34-2"/>
+	<string id="%90%" value="構造用鋼 E24-2"/>
+	<string id="%91%" value="構造用鋼 E24-3"/>
+	<string id="%92%" value="構造用鋼 E28-4"/>
+	<string id="%93%" value="構造用鋼 E36-3"/>
+	<string id="%94%" value="構造用鋼 E36-4"/>
+	<string id="%95%" value="構造用鋼 STKM12A"/>
+	<string id="%96%" value="構造用鋼 SS330"/>
+	<string id="%97%" value="構造用鋼 STKM13B"/>
+	<string id="%98%" value="構造用鋼 STKM16A"/>
+	<string id="%99%" value="構造用鋼 SM520C"/>
+	<string id="%100%" value="構造用鋼 SM520B"/>
+	<string id="%101%" value="構造用鋼 STKM12C"/>
+	<string id="%102%" value="構造用鋼 STKM16C"/>
+	<string id="%103%" value="溶接棒 D43XX"/>
+	<string id="%104%" value="溶接棒 D50XX"/>
+	<string id="%105%" value="構造用鋼 A36"/>
+	<string id="%106%" value="GOST"/>
+	<string id="%107%" value="鉄鋼 ST0 GOST 380-94"/>
+	<string id="%108%" value="鉄鋼 ST1KP GOST 380-94"/>
+	<string id="%109%" value="鉄鋼 ST1PS GOST 380-94"/>
+	<string id="%110%" value="鉄鋼 ST1SP GOST 380-94"/>
+	<string id="%111%" value="鉄鋼 ST2KP GOST 380-94"/>
+	<string id="%112%" value="鉄鋼 ST2PS GOST 380-94"/>
+	<string id="%113%" value="鉄鋼 ST2SP GOST 380-94"/>
+	<string id="%114%" value="鉄鋼 ST3KP GOST 380-94"/>
+	<string id="%115%" value="鉄鋼 ST3PS GOST 380-94"/>
+	<string id="%116%" value="鉄鋼 ST3SP GOST 380-94"/>
+	<string id="%117%" value="鉄鋼 ST3GPS GOST 380-94"/>
+	<string id="%118%" value="鉄鋼 ST3GSP GOST 380-94"/>
+	<string id="%119%" value="鉄鋼 ST4KP GOST 380-94"/>
+	<string id="%120%" value="鉄鋼 ST4PS GOST 380-94"/>
+	<string id="%121%" value="鉄鋼 ST4SP GOST 380-94"/>
+	<string id="%122%" value="鉄鋼 ST5PS GOST 380-94"/>
+	<string id="%123%" value="鉄鋼 ST5SP GOST 380-94"/>
+	<string id="%124%" value="鉄鋼 ST5GSP GOST 380-94"/>
+	<string id="%125%" value="鉄鋼 ST6PS GOST 380-94"/>
+	<string id="%126%" value="鉄鋼 ST6SP GOST 380-94"/>
+	<string id="%127%" value="鉄鋼 08KP GOST 1050-88"/>
+	<string id="%128%" value="鉄鋼 10 GOST 1050-88"/>
+	<string id="%129%" value="鉄鋼 20 GOST 1050-88"/>
+	<string id="%130%" value="鉄鋼 35 GOST 1050-88"/>
+	<string id="%131%" value="鉄鋼 45 GOST 1050-88"/>
+	<string id="%132%" value="鋳鋼 25L GOST 977-88"/>
+	<string id="%133%" value="鋳鋼 35L GOST 977-88"/>
+	<string id="%134%" value="鉄鋼 20Ch GOST 4543-71"/>
+	<string id="%135%" value="鉄鋼 40Ch GOST 4543-71"/>
+	<string id="%136%" value="鉄鋼 18ChGT GOST 4543-71"/>
+	<string id="%137%" value="鉄鋼 30ChGSA GOST 4543-71"/>
+	<string id="%138%" value="鉄鋼 06G2SJu"/>
+	<string id="%139%" value="鉄鋼 06ChGSJu"/>
+	<string id="%140%" value="鉄鋼 08G2S"/>
+	<string id="%141%" value="鉄鋼 09G2 GOST 19281-89"/>
+	<string id="%142%" value="鉄鋼 09G2D GOST 19281-89"/>
+	<string id="%143%" value="鉄鋼 09G2S GOST 19281-89"/>
+	<string id="%144%" value="鉄鋼 09G2SD GOST 19281-89"/>
+	<string id="%145%" value="鉄鋼 10G2B GOST 19281-89"/>
+	<string id="%146%" value="鉄鋼 10G2BD GOST 19281-89"/>
+	<string id="%147%" value="鉄鋼 10G2S1 GOST 19281-89"/>
+	<string id="%148%" value="鉄鋼 10G2S1D GOST 19281-89"/>
+	<string id="%149%" value="鉄鋼 10GS2"/>
+	<string id="%150%" value="鉄鋼 10GT"/>
+	<string id="%151%" value="鉄鋼 10ChGSN1D GOST 19281-89"/>
+	<string id="%152%" value="鉄鋼 10ChNDP GOST 19281-89"/>
+	<string id="%153%" value="鉄鋼 10ChSND GOST 19281-89"/>
+	<string id="%154%" value="鉄鋼 12G2SMF"/>
+	<string id="%155%" value="鉄鋼 12GN2MFAJu"/>
+	<string id="%156%" value="鉄鋼 12GS GOST 19281-89"/>
+	<string id="%157%" value="鉄鋼 12ChGN2MFBAJu"/>
+	<string id="%158%" value="鉄鋼 14G2 GOST 19281"/>
+	<string id="%159%" value="鉄鋼 14G2AF GOST 19281"/>
+	<string id="%160%" value="鉄鋼 14G2AFD GOST 19281"/>
+	<string id="%161%" value="鉄鋼 14ChGS GOST 19281"/>
+	<string id="%162%" value="鉄鋼 15G2AFD GOST 19281-89"/>
+	<string id="%163%" value="鉄鋼 15G2AFDPS"/>
+	<string id="%164%" value="鉄鋼 15G2SF GOST 19281-89"/>
+	<string id="%165%" value="鉄鋼 15G2SFD GOST 19281-89"/>
+	<string id="%166%" value="鉄鋼 15GS"/>
+	<string id="%167%" value="鉄鋼 15GF GOST 19281-89"/>
+	<string id="%168%" value="鉄鋼 15GFD GOST 19281-89"/>
+	<string id="%169%" value="鉄鋼 15ChSND GOST 19281-89"/>
+	<string id="%170%" value="鉄鋼 16G2AF GOST 19281-89"/>
+	<string id="%171%" value="鉄鋼 16G2AFD GOST 19281-89"/>
+	<string id="%172%" value="鉄鋼 16GS GOST 19281-89"/>
+	<string id="%173%" value="鉄鋼 16D"/>
+	<string id="%174%" value="鉄鋼 17G1S GOST 19281-89"/>
+	<string id="%175%" value="鉄鋼 17GS GOST 19281-89"/>
+	<string id="%176%" value="鉄鋼 18G2AF GOST 19281-89"/>
+	<string id="%177%" value="鉄鋼 18G2AFD GOST 19281-89"/>
+	<string id="%178%" value="鉄鋼 18G2AFDPS"/>
+	<string id="%179%" value="鉄鋼 18G2AFPS"/>
+	<string id="%180%" value="鉄鋼 18G2S"/>
+	<string id="%181%" value="鉄鋼 1Ch2M1"/>
+	<string id="%182%" value="鉄鋼 20GS"/>
+	<string id="%183%" value="鉄鋼 20GS2"/>
+	<string id="%184%" value="鉄鋼 20ChG2C"/>
+	<string id="%185%" value="鉄鋼 23Ch2G2T"/>
+	<string id="%186%" value="鉄鋼 25G2S"/>
+	<string id="%187%" value="鉄鋼 25S2R"/>
+	<string id="%188%" value="鉄鋼 28S"/>
+	<string id="%189%" value="鉄鋼 30ChS2"/>
+	<string id="%190%" value="鉄鋼 35GS"/>
+	<string id="%191%" value="鉄鋼 80S"/>
+	<string id="%192%" value="溶接棒 E38"/>
+	<string id="%193%" value="溶接棒 E42"/>
+	<string id="%194%" value="溶接棒 E46"/>
+	<string id="%195%" value="溶接棒 E50"/>
+	<string id="%196%" value="溶接棒 E42A"/>
+	<string id="%197%" value="溶接棒 E46A"/>
+	<string id="%198%" value="溶接棒 E50A"/>
+	<string id="%199%" value="溶接棒 E55"/>
+	<string id="%200%" value="溶接棒 E60"/>
+	<string id="%201%" value="溶接棒 E70"/>
+	<string id="%202%" value="溶接棒 E85"/>
+	<string id="%203%" value="溶接棒 E100"/>
+	<string id="%204%" value="溶接棒 E125"/>
+	<string id="%205%" value="溶接棒 E150"/>
+	<string id="%206%" value="溶接棒 E-09M"/>
+	<string id="%207%" value="溶接棒 E-09MCh"/>
+	<string id="%208%" value="溶接棒 E-09Ch1M"/>
+	<string id="%209%" value="溶接棒 E-05Ch2M"/>
+	<string id="%210%" value="溶接棒 E-09Ch2M1"/>
+	<string id="%211%" value="溶接棒 E-09Ch1MF"/>
+	<string id="%212%" value="溶接棒 E-10Ch1M1NFB"/>
+	<string id="%213%" value="溶接棒 E-10Ch3M1BF"/>
+	<string id="%214%" value="溶接棒 E-10Ch5MF"/>
+</Resources>

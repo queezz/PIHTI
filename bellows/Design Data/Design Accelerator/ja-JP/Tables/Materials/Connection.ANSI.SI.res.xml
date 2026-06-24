@@ -1,0 +1,20 @@
+<Resources>
+  <string id="%1%" value="スプラインの材料"/>
+  <string id="%2%" value="材料の指定"/>
+  <string id="%3%" value="ブリネル硬度数"/>
+  <string id="%4%" value="ul"/>
+  <string id="%5%" value="ビッカース硬度数 (角錐)"/>
+  <string id="%6%" value="許容圧縮応力"/>
+  <string id="%7%" value="MPa"/>
+  <string id="%8%" value="許容せん断応力"/>
+  <string id="%9%" value="鉄鋼"/>
+  <string id="%10%" value="表面硬化鋼"/>
+  <string id="%11%" value="はだ焼き鋼"/>
+  <string id="%12%" value="材料"/>
+  <string id="%13%" value="B|.hn|"/>
+  <string id="%14%" value="HV"/>
+  <string id="%15%" value="S|.c|"/>
+  <string id="%16%" value="S|.s|"/>
+  <string id="%17%" value="許容引張応力"/>
+  <string id="%18%" value="S|.t|"/>
+</Resources>

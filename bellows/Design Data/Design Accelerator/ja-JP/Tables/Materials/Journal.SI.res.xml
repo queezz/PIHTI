@@ -1,0 +1,12 @@
+<Resources>
+  <string id="%1%" value="ジャーナルの材料"/>
+  <string id="%2%" value="材料の指定"/>
+  <string id="%3%" value="許容圧力"/>
+  <string id="%4%" value="MPa"/>
+  <string id="%5%" value="構造用鋼"/>
+  <string id="%6%" value="ハイグレード/合金鋼"/>
+  <string id="%7%" value="鋳鋼"/>
+  <string id="%8%" value="ねずみ鋳鉄"/>
+  <string id="%9%" value="材料"/>
+  <string id="%10%" value="||s||.al|"/>
+</Resources>

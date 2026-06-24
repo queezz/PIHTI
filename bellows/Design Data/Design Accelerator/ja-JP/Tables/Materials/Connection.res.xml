@@ -1,0 +1,20 @@
+<Resources>
+  <string id="%1%" value="材料"/>
+  <string id="%2%" value="材料の指定"/>
+  <string id="%3%" value="最大引張応力"/>
+  <string id="%4%" value="psi"/>
+  <string id="%5%" value="許容圧力"/>
+  <string id="%6%" value="許容せん断応力"/>
+  <string id="%7%" value="構造用鋼"/>
+  <string id="%8%" value="炭素鋼"/>
+  <string id="%9%" value="Refined and Alloyed Steel"/>
+  <string id="%10%" value="Surface-hardened steel"/>
+  <string id="%11%" value="はだ焼き鋼"/>
+  <string id="%12%" value="片状黒鉛鋳鉄"/>
+  <string id="%13%" value="球状黒鉛鋳鉄"/>
+  <string id="%14%" value="アルミニウム合金"/>
+  <string id="%15%" value="材料"/>
+  <string id="%16%" value="S|.ult|"/>
+  <string id="%17%" value="p|.A|"/>
+  <string id="%18%" value="||t||.Al|"/>
+</Resources>

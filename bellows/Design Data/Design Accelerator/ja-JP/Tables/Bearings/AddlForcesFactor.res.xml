@@ -1,0 +1,20 @@
+<Resources>
+  <string id="%1%" value="追加の力の係数"/>
+  <string id="%2%" value="係数"/>
+  <string id="%3%" value="機械の種類"/>
+  <string id="%4%" value="モーター、タービン、ターボコンプレッサ"/>
+  <string id="%5%" value="鉄道およびピストン エンジン"/>
+  <string id="%6%" value="ベルト コンベヤ、ロープウェイ、ポンプ、ファン"/>
+  <string id="%7%" value="クレーン、エレベータ、坑内ファン"/>
+  <string id="%8%" value="坑内エレベータおよびポンプ"/>
+  <string id="%9%" value="ピストン ポンプおよびコンプレッサ"/>
+  <string id="%10%" value="パン、チューブおよびハンマ ミル、粉砕機"/>
+  <string id="%11%" value="土砂除去用機械、深部掘削用機械"/>
+  <string id="%12%" value="乾燥用ドラム"/>
+  <string id="%13%" value="紙および繊維産業用機械"/>
+  <string id="%14%" value="食品加工産業用機械"/>
+  <string id="%15%" value="研削; 掘削、粉砕、縫製および木材切断機械"/>
+  <string id="%16%" value="旋盤、往復運動で切削加工を行う機械"/>
+  <string id="%17%" value="圧延機、鍛造ハンマー、シャーリング、掘削機"/>
+  <string id="%18%" value="粉砕機"/>
+</Resources>
