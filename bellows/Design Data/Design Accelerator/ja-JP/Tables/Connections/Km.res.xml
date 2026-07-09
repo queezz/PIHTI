@@ -1,0 +1,9 @@
+<Resources>
+  <string id="%1%" value="位置合わせ不良のフレキシブル スプラインの荷重分散係数"/>
+  <string id="%2%" value="位置合わせ不良、1 インチあたりのインチ数"/>
+  <string id="%3%" value="荷重分散係数、Km"/>
+  <string id="%4%" value="1/2 インチ歯幅"/>
+  <string id="%5%" value="1 インチ歯幅"/>
+  <string id="%6%" value="2 インチ歯幅"/>
+  <string id="%7%" value="4 インチ歯幅"/>
+</Resources>

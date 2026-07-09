@@ -1,0 +1,15 @@
+<Resources>
+  <string id="%1%" value="軸の材料"/>
+  <string id="%2%" value="材料の指定"/>
+  <string id="%3%" value="許容圧力"/>
+  <string id="%4%" value="MPa"/>
+  <string id="%5%" value="許容ねじり応力"/>
+  <string id="%6%" value="鉄鋼 gr. 37; 42; 4D"/>
+  <string id="%7%" value="ハイグレード/合金鋼"/>
+  <string id="%8%" value="鋳鋼"/>
+  <string id="%9%" value="ねずみ鋳鉄"/>
+  <string id="%10%" value="青銅"/>
+  <string id="%11%" value="材料"/>
+  <string id="%12%" value="||s||.Al|"/>
+  <string id="%13%" value="||t||.AlT|"/>
+</Resources>

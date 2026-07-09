@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?><Resources>
+  <string id="%1%" value="潤滑係数"/>
+  <string id="%2%" value="チェーン速度"/>
+  <string id="%3%" value="潤滑方法"/>
+  <string id="%4%" value="推奨潤滑"/>
+  <string id="%5%" value="適用可能な潤滑"/>
+  <string id="%6%" value="十分"/>
+  <string id="%7%" value="不十分"/>
+  <string id="%8%" value="潤滑なし"/>
+  <string id="%9%" value="清浄"/>
+  <string id="%10%" value="汚れあり"/>
+  <string id="%11%" value="4 m/s 以下"/>
+  <string id="%12%" value="7 m/s 以下"/>
+  <string id="%13%" value="12 m/s 以下"/>
+  <string id="%14%" value="12 m/s 以上"/>
+  <string id="%15%" value="滴下給油"/>
+  <string id="%16%" value="手動潤滑"/>
+  <string id="%17%" value="不可"/>
+  <string id="%18%" value="油浴またはディスク"/>
+  <string id="%19%" value="滴下給油"/>
+  <string id="%20%" value="強制給油"/>
+  <string id="%21%" value="噴霧、強制給油"/>
+v</Resources>

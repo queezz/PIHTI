@@ -1,0 +1,14 @@
+<Resources>
+  <string id="%1%" value="DIN 5480 - カッター タイプ"/>
+  <string id="%2%" value="タイプ"/>
+  <string id="%3%" value="傾斜の仕上げ"/>
+  <string id="%4%" value="h|.aP0|"/>
+  <string id="%5%" value="追加係数"/>  
+  <string id="%6%" value="ul"/>
+  <string id="%7%" value="破砕"/>
+  <string id="%8%" value="穿孔"/>  
+  <string id="%9%" value="ブローチ"/> 
+  <string id="%10%" value="固定"/>   
+  <string id="%11%" value="c|.FP0|"/>  
+  <string id="%12%" value="係数"/>      
+</Resources>

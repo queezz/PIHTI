@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?><Resources>
+  <string id="%1%" value="稼働係数"/>
+  <string id="%2%" value="低荷重"/>
+  <string id="%3%" value="一定荷重"/>
+  <string id="%4%" value="軽衝撃荷重"/>
+  <string id="%5%" value="中衝撃荷重"/>
+  <string id="%6%" value="重衝撃荷重"/>
+  <string id="%7%" value="断続稼働"/>
+  <string id="%8%" value="標準稼働"/>
+  <string id="%9%" value="連続稼働"/>
+  <string id="%10%" value="3～8 時間/日"/>
+  <string id="%11%" value="8～16 時間/日"/>
+  <string id="%12%" value="16 ～ 24 時間/日"/>
+  <string id="%13%" value="DriveR"/>
+  <string id="%14%" value="DriveN"/>
+  <string id="%15%" value="一定トルク"/>
+  <string id="%16%" value="高/不定トルク"/>
+</Resources>

@@ -1,0 +1,5 @@
+<Resources>
+  <string id="%1%" value="リード補正係数"/>
+  <string id="%2%" value="リード未修正の歯車"/>
+  <string id="%3%" value="クラウニングやリード補正によりリードが適切に修正された歯車"/>
+</Resources>

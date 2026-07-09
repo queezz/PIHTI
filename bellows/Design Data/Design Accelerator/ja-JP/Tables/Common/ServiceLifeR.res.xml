@@ -1,0 +1,12 @@
+<Resources>
+  <string id="%1%" value="必要な稼働寿命[100 万回転単位]"/>
+  <string id="%2%" value="低速回転(まれに使用)"/>
+  <string id="%3%" value="低速回転(断続的に使用)"/>
+  <string id="%4%" value="低速回転(連続的に使用)"/>
+  <string id="%5%" value="中速回転(まれに使用)"/>
+  <string id="%6%" value="中速回転(断続的に使用)"/>
+  <string id="%7%" value="中速回転(連続的に使用)"/>
+  <string id="%8%" value="高速回転(まれに使用)"/>
+  <string id="%9%" value="高速回転(断続的に使用)"/>
+  <string id="%10%" value="高速回転(連続的に使用)"/>
+</Resources>

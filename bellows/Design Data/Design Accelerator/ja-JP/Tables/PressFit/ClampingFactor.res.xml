@@ -1,0 +1,14 @@
+<Resources>
+  <string id="%1%" value="締付け係数"/>
+  <string id="%2%" value="圧入"/>
+  <string id="%3%" value="潤滑"/>
+  <string id="%4%" value="締付け係数"/>
+  <string id="%5%" value="リリース"/>
+  <string id="%6%" value="スライド"/>
+  <string id="%7%" value="円周"/>
+  <string id="%8%" value="軸方向"/>
+  <string id="%9%" value="収縮"/>
+  <string id="%10%" value="潤滑"/>
+  <string id="%11%" value="非潤滑"/>
+  <string id="%12%" value="プレス"/>
+</Resources>

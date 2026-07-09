@@ -1,0 +1,38 @@
+<Resources>
+	<string id="%1%" value="ばねの材料"/>
+	<string id="%2%" value="材料の指定"/>
+	<string id="%3%" value="弾性係数"/>
+	<string id="%4%" value="MPa"/>
+	<string id="%5%" value="ポアソン比"/>
+	<string id="%6%" value="AISI 1074 高炭素鋼 (ASTM A684、AMS 5120H)"/>
+	<string id="%7%" value="AISI 301 ステンレス鋼 (ASTM A666、AMS 5519)"/>
+	<string id="%8%" value="インコネル X-750 (硬化可 ニッケル クロム合金)"/>
+	<string id="%9%" value="リン青銅"/>
+	<string id="%10%" value="E"/>
+	<string id="%11%" value="||m|"/>
+	<string id="%12%" value="ul"/>
+	<string id="%13%" value="鉄鋼 65 GOST 14959-79"/>
+	<string id="%14%" value="鉄鋼 70 GOST 14959-79"/>
+	<string id="%15%" value="鉄鋼 75 GOST 14959-79"/>
+	<string id="%16%" value="鉄鋼 80 GOST 14959-79"/>
+	<string id="%17%" value="鉄鋼 85 GOST 14959-79"/>
+	<string id="%18%" value="鉄鋼 60G GOST 14959-79"/>
+	<string id="%19%" value="鉄鋼 65G GOST 14959-79"/>
+	<string id="%20%" value="鉄鋼 70G GOST 14959-79"/>
+	<string id="%21%" value="鉄鋼 55S2 GOST 14959-79"/>
+	<string id="%22%" value="鉄鋼 55S2A GOST 14959-79"/>
+	<string id="%23%" value="鉄鋼 60S2 GOST 14959-79"/>
+	<string id="%24%" value="鉄鋼 70S3A GOST 14959-79"/>
+	<string id="%25%" value="鉄鋼 60S2G GOST 14959-79"/>
+	<string id="%26%" value="鉄鋼 50ChG GOST 14959-79"/>
+	<string id="%27%" value="鉄鋼 50ChGA GOST 14959-79"/>
+	<string id="%28%" value="鉄鋼 55ChGR GOST 14959-79"/>
+	<string id="%29%" value="鉄鋼 60S2A GOST 14959-79"/>
+	<string id="%30%" value="鉄鋼 50ChFA GOST 14959-79"/>
+	<string id="%31%" value="鉄鋼 50ChGFA GOST 14959-79"/>
+	<string id="%32%" value="鉄鋼 55S2GF GOST 14959-79"/>
+	<string id="%33%" value="鉄鋼 60S2ChA GOST 14959-79"/>
+	<string id="%34%" value="鉄鋼 60S2ChFA GOST 14959-79"/>
+	<string id="%35%" value="鉄鋼 65S2VA GOST 14959-79"/>
+	<string id="%36%" value="鉄鋼 60S2N2A GOST 14959-79"/>
+</Resources>

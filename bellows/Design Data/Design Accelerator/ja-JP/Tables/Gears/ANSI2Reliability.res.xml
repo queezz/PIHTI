@@ -1,0 +1,8 @@
+<Resources>
+  <string id="%1%" value="信頼度係数"/>
+  <string id="%2%" value="信頼性 99.99%"/>
+  <string id="%3%" value="信頼性 99.9%"/>
+  <string id="%4%" value="信頼性 99%"/>
+  <string id="%5%" value="信頼性 90%"/>
+  <string id="%6%" value="信頼性 50%"/>
+</Resources>

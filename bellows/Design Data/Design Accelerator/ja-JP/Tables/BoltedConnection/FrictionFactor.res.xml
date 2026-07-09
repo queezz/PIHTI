@@ -1,0 +1,17 @@
+<Resources>
+  <string id="%1%" value="摩擦係数"/>
+  <string id="%2%" value="材料"/>
+  <string id="%3%" value="非潤滑"/>
+  <string id="%4%" value="潤滑"/>
+  <string id="%5%" value="鋼鉄 - 鋼鉄"/>
+  <string id="%6%" value="鋼鉄 - 鋳鉄"/>
+  <string id="%7%" value="鋼鉄 - 黄銅"/>
+  <string id="%8%" value="鋼鉄 - 黄銅"/>
+  <string id="%9%" value="鋳鉄 - 鋳鉄"/>
+  <string id="%10%" value="鋳鉄 - 青銅"/>
+  <string id="%11%" value="青銅 - 青銅"/>
+  <string id="%12%" value="アルミニウム - アルミニウム"/>
+  <string id="%13%" value="銅 - 銅"/>
+  <string id="%14%" value="鋼鉄 - プレキシグラス"/>
+  <string id="%15%" value="プレキシグラス - プレキシグラス"/>
+</Resources>

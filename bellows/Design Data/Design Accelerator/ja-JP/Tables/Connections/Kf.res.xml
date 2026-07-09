@@ -1,0 +1,7 @@
+<Resources>
+  <string id="%1%" value="疲労寿命係数"/>
+  <string id="%2%" value="単一方向"/>
+  <string id="%3%" value="完全反転"/>
+  <string id="%4%" value="トルクのサイクル数"/>
+  <string id="%5%" value="疲労寿命係数、Kf"/>
+</Resources>

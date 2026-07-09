@@ -1,0 +1,13 @@
+<Resources>
+  <string id="%1%" value="スプラインの材料"/>
+  <string id="%2%" value="材料の指定"/>
+  <string id="%3%" value="最大許容引張応力"/>
+  <string id="%4%" value="ポンド/平方インチ"/>
+  <string id="%5%" value="硬化鋼"/>
+  <string id="%6%" value="材料"/>
+  <string id="%7%" value="S|.u|"/>
+  <string id="%8%" value="硬さ"/>
+  <string id="%9%" value="HRC"/>
+  <string id="%10%" value="歯の側面の硬さ"/>
+  <string id="%11%" value="ul"/>
+</Resources>

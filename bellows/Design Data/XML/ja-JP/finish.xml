@@ -1,0 +1,120 @@
+<?xml version="1.0" encoding="utf-8"?><FinishFeatureDefinitions Version="1">
+	<Type Id="MaterialCoating">
+		<Process Name="Zn8/An">
+			<Appearance>Zinc</Appearance>
+			<Description>亜鉛の厚さ 8μm、透明パッシベーション</Description>
+			<ShortDescription>Zn8/An</ShortDescription>
+			<Thickness>8 micron</Thickness>
+			<Comment></Comment>
+		</Process>
+		<Process Name="Zn12/Cn/T2">
+			<Appearance>Turquoise</Appearance>
+			<Description>亜鉛厚さ 12 μm、虹色性転換被膜、シーラント付き</Description>
+			<ShortDescription>Zn12/Cn/T2</ShortDescription>
+			<Thickness>12 micron</Thickness>
+			<Comment></Comment>
+		</Process>
+		<Process Name="ZnNi8/An">
+			<Appearance>Yellow</Appearance>
+			<Description>亜鉛-ニッケル合金の厚さ 8 μm、黒のパッシベーション</Description>
+			<ShortDescription>ZnNi8/An</ShortDescription>
+			<Thickness>8 micron</Thickness>
+			<Comment></Comment>
+		</Process>
+	</Type>
+	<Type Id="HeatTreatment">
+		<Process Name="Carburize .040 - .030">
+			<Appearance>Anodized - Black</Appearance>
+			<Description>.040 ~ .030 の範囲で浸炭、焼き戻し 1 時間/分、350 F 分、HRC 55 ~ 60</Description>
+			<ShortDescription>.040 ~ .030の範囲で浸炭</ShortDescription>
+			<Depth>30 micron</Depth>
+			<Hardness>60 HRC</Hardness>
+			<Comment></Comment>
+		</Process>
+		<Process Name="Case Hardening 41-45HRC">
+			<Appearance>Dark Green</Appearance>
+			<Description>ケース硬化 3.00mm、41 ~ 45 HRC</Description>
+			<ShortDescription>ケース硬化 41 ~ 45HRC</ShortDescription>
+			<Depth>3.00 mm</Depth>
+			<Hardness>45 HRC</Hardness>
+			<Comment></Comment>
+		</Process>
+		<Process Name="Soft Annealing 225HB">
+			<Appearance>Dark Olive</Appearance>
+			<Description>ソフト アニーリング 225HB</Description>
+			<ShortDescription>ソフト アニーリング 225HB</ShortDescription>
+			<Depth>0 mm</Depth>
+			<Hardness>225 HB</Hardness>
+			<Comment></Comment>
+		</Process>
+		<Process Name="Case Hardening 55±5HRC">
+			<Appearance>Dark Red</Appearance>
+			<Description>55±5HRC の硬化</Description>
+			<ShortDescription>55±5HRC の硬化</ShortDescription>
+			<Depth>3.00 mm</Depth>
+			<Hardness>55 HRC</Hardness>
+			<Comment></Comment>
+		</Process>
+	</Type>
+	<Type Id="SurfaceTexture">
+		<Process Name="Barrel Finishing">
+			<Appearance>Blue - Wall Paint - Glossy</Appearance>
+			<Description>バレル仕上げ</Description>
+			<ShortDescription>バレル仕上げ</ShortDescription>
+			<Comment></Comment>
+		</Process>
+		<Process Name="Grinding">
+			<Appearance>Smooth - Purple</Appearance>
+			<Description>研削</Description>
+			<ShortDescription>研削</ShortDescription>
+			<Comment></Comment>
+		</Process>
+		<Process Name="Honing">
+			<Appearance>Smooth - White</Appearance>
+			<Description>ホーニング</Description>
+			<ShortDescription>ホーニング</ShortDescription>
+			<Comment></Comment>
+		</Process>
+		<Process Name="Lapping">
+			<Appearance>Smooth - Yellow</Appearance>
+			<Description>ラップ</Description>
+			<ShortDescription>ラップ</ShortDescription>
+			<Comment></Comment>
+		</Process>
+		<Process Name="Polishing">
+			<Appearance>Smooth - Dark Forest Green</Appearance>
+			<Description>研磨</Description>
+			<ShortDescription>研磨</ShortDescription>
+			<Comment></Comment>
+		</Process>
+		<Process Name="Superfinishing">
+			<Appearance>Flaked Satin - Blue</Appearance>
+			<Description>超仕上げ</Description>
+			<ShortDescription>超仕上げ</ShortDescription>
+			<Comment></Comment>
+		</Process>
+	</Type>
+	<Type Id="PaintColor">
+		<Process Name="Prime/Paint RAL 3018">
+			<Appearance>Red</Appearance>
+			<Description>プライム/ペイント RAL 3018</Description>
+			<ShortDescription>RAL 3018</ShortDescription>
+			<Thickness>50 micron</Thickness>
+			<Comment></Comment>
+		</Process>
+		<Process Name="Prime/Paint RAL 2008">
+			<Appearance>Orange</Appearance>
+			<Description>プライム/ペイント RAL 2008</Description>
+			<ShortDescription>RAL 2008</ShortDescription>
+			<Thickness>50 micron</Thickness>
+			<Comment></Comment>
+		</Process>
+		<Process Name="Prime/Paint RAL 6003">
+			<Appearance>Olive Green</Appearance>
+			<Description>プライム/ペイント RAL 6003</Description>
+			<ShortDescription>RAL 6003</ShortDescription>
+			<Thickness>50 micron</Thickness>
+			<Comment></Comment>
+		</Process>
+	</Type>
+</FinishFeatureDefinitions>

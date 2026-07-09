@@ -1,0 +1,9 @@
+<Resources>
+  <string id="%1%" value="ねじ摩擦係数"/>
+  <string id="%2%" value="ねじの表面"/>
+  <string id="%3%" value="非潤滑"/>
+  <string id="%4%" value="潤滑"/>
+  <string id="%5%" value="黒皮膜または燐酸皮膜"/>
+  <string id="%6%" value="ガルバニック亜鉛皮膜"/>
+  <string id="%7%" value="カドミウムめっき"/>
+</Resources>

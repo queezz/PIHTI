@@ -1,0 +1,6 @@
+<Resources>
+  <string id="%1%" value="継手設計係数"/>
+  <string id="%2%" value="固定接続"/>
+  <string id="%3%" value="荷重なしのスライド継手"/>
+  <string id="%4%" value="荷重が加わるスライド継手"/>
+</Resources>

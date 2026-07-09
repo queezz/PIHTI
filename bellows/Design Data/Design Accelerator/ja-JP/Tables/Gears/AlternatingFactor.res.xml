@@ -1,0 +1,6 @@
+<Resources>
+  <string id="%1%" value="交番係数"/>
+  <string id="%2%" value="繰返し荷重"/>
+  <string id="%3%" value="交番荷重 (アイドラーなど)"/>
+  <string id="%4%" value="両方向の動作"/>
+</Resources>

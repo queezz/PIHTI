@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="utf-8"?><Resources>
+  <string id="%1%" value="ANSI"/>
+  <string id="%2%" value="すりわり付き平小ねじ (82)"/>
+  <string id="%3%" value="すりわり付き平小ねじ (100)"/>
+  <string id="%4%" value="六角ボルト"/>
+  <string id="%5%" value="すりわり付き六角小ねじ"/>
+  <string id="%6%" value="すりわり付き丸小ねじ"/>
+  <string id="%7%" value="六角穴付き小ねじ"/>
+  <string id="%8%" value="ANSI (メートル系)"/>
+  <string id="%9%" value="すりわり付き平小ねじ"/>
+  <string id="%10%" value="六角穴付き小ねじ"/>
+  <string id="%11%" value="すりわり付き六角小ねじ"/>
+  <string id="%12%" value="DIN"/>
+  <string id="%13%" value="皿小ねじ"/>
+  <string id="%14%" value="丸皿小ねじ"/>
+  <string id="%15%" value="六角小ねじ"/>
+  <string id="%16%" value="六角穴付き皿小ねじ"/>
+  <string id="%17%" value="六角穴付き小ねじ"/>
+  <string id="%18%" value="ISO"/>
+  <string id="%19%" value="六角穴付き皿小ねじ"/>
+  <string id="%20%" value="JIS"/>
+  <string id="%21%" value="ドリル穴"/>
+  <string id="%22%" value="すりわり付き平小ねじ (80)"/>
+  <string id="%23%" value="皿小ねじ DIN EN ISO 2009"/>
+  <string id="%24%" value="丸皿小ねじ ISO 2010"/>
+  <string id="%25%" value="六角穴付き小ねじ DIN EN 24018"/>
+  <string id="%26%" value="六角穴付き小ねじ DIN EN 24015 (ざぐり(SF))"/>
+  <string id="%27%" value="六角穴付き皿小ねじ DIN EN ISO 10642"/>
+  <string id="%28%" value="六角穴付き小ねじ DIN EN ISO 4762"/>
+  <string id="%29%" value="すりわり付きチーズ小ねじ DIN 84"/>
+  <string id="%30%" value="皿小ねじ DIN EN ISO 2009/7046"/>
+  <string id="%31%" value="丸皿小ねじ ISO 2010/7047"/>
+  <string id="%32%" value="六角穴付き小ねじ ISO 24018"/>
+  <string id="%33%" value="六角穴付き小ねじ ISO 24015 (ざぐり(SF))"/>
+  <string id="%34%" value="六角穴付き皿小ねじ ISO 10642"/>
+  <string id="%35%" value="六角穴付き小ねじ ISO 4762"/>
+  <string id="%36%" value="すりわり付きチーズ小ねじ ISO 1207"/>
+  <string id="%37%" value="GOST"/>
+  <string id="%38%" value="GOST 12876-67"/>
+  <string id="%39%" value="皿小ねじ GOST 12876-67"/>
+  <string id="%40%" value="皿小ねじ + 座金 GOST 12876-67"/>
+  <string id="%41%" value="六角ボルト / ナット GOST 12876-67"/>  
+  <string id="%42%" value="六角ボルト / ナット (小型) GOST 12876-67"/>
+  <string id="%43%" value="六角ボルト / ナット (大型座金) GOST 12876-67"/>
+  <string id="%44%" value="六角穴付き平小ねじ GOST 12876-67"/>
+  <string id="%45%" value="六角穴付き平小ねじ + 座金 GOST 12876-67"/>
+  <string id="%46%" value="すりわり付き平小ねじ GOST 12876-67"/>
+  <string id="%47%" value="すりわり付き平小ねじ + 座金 GOST 12876-67"/>
+</Resources>

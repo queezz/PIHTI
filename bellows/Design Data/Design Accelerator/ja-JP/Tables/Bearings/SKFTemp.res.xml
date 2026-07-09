@@ -1,0 +1,5 @@
+<Resources>
+  <string id="%1%" value="動作温度に基づく軸受の荷重定格軽減係数 (SKF)"/>
+  <string id="%2%" value="温度"/>
+  <string id="%3%" value="荷重定格軽減係数"/>
+</Resources>

@@ -1,0 +1,34 @@
+<Resources>
+<string id="%1%" value="ばねの材料"/>
+<string id="%2%" value="材料の指定"/>
+<string id="%3%" value="密度"/>
+<string id="%4%" value="lb/ft^3"/>
+<string id="%5%" value="せん断係数"/>
+<string id="%6%" value="psi"/>
+<string id="%7%" value="許容ねじり応力と最大引張強さとの比率"/>
+<string id="%8%" value="最大引張応力"/>
+<string id="%9%" value="硬引抜き鋼線 QQ-W-428"/>
+<string id="%10%" value="ピアノ線 QQ-W-470"/>
+<string id="%11%" value="オイルテンパ線 QQ-W-428"/>
+<string id="%12%" value="クロムシリコン合金ワイヤ QQ-W-412"/>
+<string id="%13%" value="耐食鋼線 QQ-W-423"/>
+<string id="%14%" value="クロムバナジウム合金鋼線"/>
+<string id="%15%" value="シリコンマンガン鋼線"/>
+<string id="%16%" value="バルブスプリング品質線材"/>
+<string id="%17%" value="ステンレス鋼 304 および 420"/>
+<string id="%18%" value="ステンレス鋼 316"/>
+<string id="%19%" value="ステンレス鋼 431 および 17-7PH"/>
+<string id="%20%" value="材料"/>
+<string id="%21%" value="Std"/>
+<string id="%22%" value="標準"/>
+<string id="%23%" value="R|.o|"/>
+<string id="%24%" value="G"/>
+<string id="%25%" value="係数"/>
+<string id="%26%" value="WD"/>
+<string id="%27%" value="線径"/>
+<string id="%28%" value="in"/>
+<string id="%29%" value="||s||.ult|"/>
+<string id="%30%" value="ANSI"/>
+<string id="%31%" value="線径と最大引張強さ"/>
+<string id="%32%" value="ul"/>
+</Resources>

@@ -1,0 +1,21 @@
+<Resources>
+  <string id="%1%" value="継手の材料"/>
+  <string id="%2%" value="材料の指定"/>
+  <string id="%3%" value="許容圧力(静的荷重)"/>
+  <string id="%4%" value="MPa"/>
+  <string id="%5%" value="弾性係数"/>
+  <string id="%6%" value="鉄鋼 gr. 37; 42"/>
+  <string id="%7%" value="鉄鋼 gr. 50"/>
+  <string id="%8%" value="鉄鋼 gr. 60"/>
+  <string id="%9%" value="鉄鋼 gr. 70"/>
+  <string id="%10%" value="鋳鋼"/>
+  <string id="%11%" value="ねずみ鋳鉄"/>
+  <string id="%12%" value="青銅"/>
+  <string id="%13%" value="材料"/>
+  <string id="%14%" value="||s||.A1|"/>
+  <string id="%15%" value="E"/>
+  <string id="%16%" value="許容圧力(繰返し荷重)"/>
+  <string id="%17%" value="許容圧力(交番荷重)"/>
+  <string id="%18%" value="||s||.A2|"/>
+  <string id="%19%" value="||s||.A3|"/>
+</Resources>
