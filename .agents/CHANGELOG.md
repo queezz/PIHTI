@@ -6,6 +6,11 @@ remains authoritative for exact file changes.
 
 ## 2026-08-05
 
+- Quarantined 41 confirmed byte-identical copies from merged submission trees as
+  a separate CAD cleanup: 40 merge-added PR #1 members and the individually
+  reviewed `BoronProbe_2026/parts/B_probe_bearing_without_holes.ipt` member.
+  Every removed path had a hash-identical surviving copy; recovery remains
+  available from Git history and the local quarantine manifests.
 - Shipped `pihti-dedup` 0.2.0: split the wide-screen review context across two
   stationary rails without internal scrollbars; added the established
   `2024-interactive-diagram` favicon; and added dry-run plus guarded, recoverable
