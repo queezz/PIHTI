@@ -5,6 +5,8 @@ Covers mechanical design from first concept through fabrication drawings.
 
 **📖 Documentation:** [queezz.github.io/PIHTI](https://queezz.github.io/PIHTI/)
 
+**Agent cold start:** [`README_SHORT.md`](README_SHORT.md)
+
 The project file is `PIHTI.ipj`.
 
 ---
@@ -113,8 +115,9 @@ Run with `--dry-run` to preview what would be written.
 
 The local duplicate viewer finds repeated CAD filenames across the Inventor
 workspace, then uses SHA-256 to distinguish byte-identical copies from files
-whose contents conflict. It is read-only: it does not move files, choose a
-canonical part, or rewrite assembly references.
+whose contents conflict. Scanning is read-only. Explicit cleanup actions move
+validated byte-identical files to recoverable quarantine; the tool never chooses
+a canonical part or rewrites assembly references.
 
 From the repository root, install it into the external environment and scan:
 
@@ -131,6 +134,45 @@ lab pihti
 
 It opens `http://127.0.0.1:4185/duplicates`. The direct module command remains
 available for development, but `lab pihti` is the normal operating surface.
+
+Use the two right rails to review one duplicate kind, project folder, or recent
+merged PR at a time. PR filters come from local first-parent Git history and do
+not require GitHub access. Each member row copies only that file's
+project-relative Windows path for manual lookup in Inventor. Rows include size,
+modified time, and the short byte hash.
+
+Byte-identical rows also have a **Delete** action. Its confirmation revalidates
+the selected file's path, size, modified time, and SHA-256, requires another
+identical survivor, then moves only that member to gitignored quarantine and
+writes a restoration manifest. `*.newVer.ipt` pairs are called out separately:
+the current workspace has seven base/`newVer` pairs with identical bytes and
+timestamps, but that evidence does not prove which program created the suffix.
+The complete review context—text, kind, folder, merged PR, extension,
+cross-folder scope, and vendor scope—survives deletion, rescans, and reloads.
+After a mutation, the refreshed list keeps the next visible group at the same
+viewport position and reports success in a fixed toast instead of inserting a
+banner that shifts the results.
+
+For a merged PR, preview merge-added same-name, byte-identical copies from the
+viewer or CLI:
+
+```powershell
+& "$HOME\.venvs\pihti-dedup\Scripts\python.exe" -m pihti_dedup merge-cleanup . --pr 3 --dry
+```
+
+After checking the affected references in Inventor or Design Assistant, apply
+the same plan with:
+
+```powershell
+& "$HOME\.venvs\pihti-dedup\Scripts\python.exe" -m pihti_dedup merge-cleanup . --pr 3 --apply --references-checked
+```
+
+Apply mode never permanently deletes files. It revalidates path, size, modified
+time, and SHA-256; keeps
+at least one identical copy outside the merge, moves only merge-added candidates
+to gitignored `.pihti-dedup/quarantine/`, writes a restoration manifest, and
+rescans. Modified pre-existing files and groups introduced entirely by the same
+merge are protected.
 
 Pack-and-Go support files under `bellows/Design Data/` and
 `bellows/Templates/` are excluded by default and can be included from the

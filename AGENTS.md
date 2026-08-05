@@ -39,11 +39,16 @@ Current gates:
 
 ## Read first
 
-1. `README.md`
-2. `.agents/README.md`
-3. the newest `.agents/log/` entry, when present
-4. `.agents/duplicate-inventory-direction.md`
-5. fleet `RULES.md` and `MAP.md`
+1. `README_SHORT.md` — cold-start route and current boundary summary
+2. `README.md`
+3. `.agents/README.md`
+4. the newest `.agents/log/` entry, when present
+5. `.agents/duplicate-inventory-direction.md`
+6. fleet `RULES.md` and `MAP.md`
+
+Do not infer house rules from a sibling application's appearance or from an old
+session. Follow this repository's files first, then the live fleet rules. The
+fleet documents are linked context; do not copy their full policy into PIHTI.
 
 Use `.agents/REPOSITORY_MAP.md` for the folder/boundary map and
 `.agents/directions.md` for open work. Shipped milestones belong in
@@ -74,8 +79,8 @@ Use `.agents/REPOSITORY_MAP.md` for the folder/boundary map and
 ## Commits and handoffs
 
 Follow `.agents/commit-culture.md`: deliberate path staging, a short imperative
-title, and a final `agent: <name>` trailer for agent-authored commits. Never add
-`Co-Authored-By`.
+title, a version in the title when the commit earns a bump, and a final
+`agent: <name>` trailer for agent-authored commits. Never add `Co-Authored-By`.
 
 After meaningful work, write `.agents/log/YYYY-MM-DD-<kebab>.md` with goal,
 decisions, changed paths, verification, and next steps.

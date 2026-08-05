@@ -1,125 +1,170 @@
-<section class="summary-strip" aria-label="Scan summary">
-  <div class="summary-stat critical"><strong>{{ inventory.summary.collision_groups }}</strong><span>filename collisions</span></div>
-  <div class="summary-stat exact"><strong>{{ inventory.summary.exact_groups }}</strong><span>same-name exact groups</span></div>
-  <div class="summary-stat renamed"><strong>{{ inventory.summary.renamed_groups }}</strong><span>renamed-copy groups</span></div>
-  <div class="summary-stat neutral"><strong>{{ inventory.summary.files }}</strong><span>CAD files scanned</span></div>
-</section>
+<div class="work-grid">
+  <div class="work-main">
+    <section class="filterbar" aria-label="Duplicate filters">
+      <label class="searchbox">
+        <span class="sr-only">Filter by filename or path</span>
+        <span aria-hidden="true">⌕</span>
+        <input type="search" data-filter-search placeholder="Filename or path" autocomplete="off">
+      </label>
+      <label class="select-wrap compact">
+        <span class="sr-only">Extension</span>
+        <select data-filter-extension>
+          <option value="">All types</option>
+          {% for extension in extensions %}<option value="{{ extension }}">{{ extension }}</option>{% endfor %}
+        </select>
+      </label>
+      <label class="check-control"><input type="checkbox" data-filter-cross> Cross-folder only</label>
+      <span class="shown-count"><strong data-visible-count>{{ inventory.groups|length }}</strong> shown</span>
+    </section>
 
-<section class="filterbar" aria-label="Duplicate filters">
-  <label class="searchbox">
-    <span class="sr-only">Filter by filename or path</span>
-    <span aria-hidden="true">⌕</span>
-    <input type="search" data-filter-search placeholder="Filename or path" autocomplete="off">
-  </label>
-  <div class="kind-switch" aria-label="Duplicate kind">
-    <button type="button" class="kind-button is-active" data-kind="all" aria-pressed="true">All</button>
-    <button type="button" class="kind-button" data-kind="collision" aria-pressed="false">Collisions</button>
-    <button type="button" class="kind-button" data-kind="exact" aria-pressed="false">Exact</button>
-    <button type="button" class="kind-button" data-kind="renamed" aria-pressed="false">Renamed</button>
-  </div>
-  <label class="select-wrap">
-    <span class="sr-only">System folder</span>
-    <select data-filter-system>
-      <option value="">All systems</option>
-      {% for system in systems %}<option value="{{ system|lower }}">{{ system }}</option>{% endfor %}
-    </select>
-  </label>
-  <label class="select-wrap compact">
-    <span class="sr-only">Extension</span>
-    <select data-filter-extension>
-      <option value="">All types</option>
-      {% for extension in extensions %}<option value="{{ extension }}">{{ extension }}</option>{% endfor %}
-    </select>
-  </label>
-  <label class="check-control"><input type="checkbox" data-filter-cross> Cross-folder only</label>
-  <span class="shown-count"><strong data-visible-count>{{ inventory.groups|length }}</strong> shown</span>
-</section>
-
-<div class="rail-grid">
-  <section class="group-list" aria-label="Duplicate groups">
-    {% for group in inventory.groups %}
-    <article
-      class="dup-card kind-{{ group.kind }}"
-      id="group-{{ group.id }}"
-      data-group
-      data-kind="{{ group.kind }}"
-      data-systems="{{ group.systems|join('|')|lower }}"
-      data-extensions="{{ group.extensions|join('|') }}"
-      data-cross="{{ 'true' if group.cross_folder else 'false' }}"
-      data-search="{{ group.title|lower }} {{ group.names|join(' ')|lower }} {% for record in group.records %}{{ record.path|lower }} {% endfor %}">
-      <header class="group-head">
-        <div class="kind-icon" aria-hidden="true">
-          {% if group.kind == 'collision' %}≠{% elif group.kind == 'exact' %}={% elif group.kind == 'renamed' %}↔{% else %}?{% endif %}
-        </div>
-        <div class="group-title">
-          <div class="title-line">
-            <h2>{{ group.title }}</h2>
-            <span class="kind-badge">{% if group.kind == 'collision' %}different bytes{% elif group.kind == 'exact' %}identical bytes{% elif group.kind == 'renamed' %}renamed copy{% else %}unverified{% endif %}</span>
-          </div>
-          <p>
-            {{ group.records|length }} files
-            <span aria-hidden="true">·</span>
-            {{ group.hashes|length }} distinct {{ 'hash' if group.hashes|length == 1 else 'hashes' }}
-            {% if group.cross_folder %}<span aria-hidden="true">·</span> crosses systems{% endif %}
-          </p>
-        </div>
-        <button class="copy-group" type="button" data-copy="{% for record in group.records %}{{ record.path }}{% if not loop.last %}&#10;{% endif %}{% endfor %}" title="Copy member paths">Copy paths</button>
+    <section class="dry-plan" data-plan-panel hidden aria-live="polite">
+      <header>
+        <div><span class="plan-mode">Dry run</span><h2 data-plan-title>Merge cleanup preview</h2></div>
+        <button type="button" class="copy-path" data-plan-close>Close</button>
       </header>
+      <p data-plan-summary></p>
+      <ul data-plan-list></ul>
+    </section>
 
-      <div class="members">
-        {% for record in group.records %}
-        <div class="member">
-          <span class="filetype">{{ record.suffix[1:]|upper or 'FILE' }}</span>
-          <div class="member-path">
-            <strong>{{ record.name }}</strong>
-            <span>{{ record.path }}</span>
+    <section class="group-list" aria-label="Duplicate groups">
+      {% for group in inventory.groups %}
+      <article
+        class="dup-card kind-{{ group.kind }}"
+        id="group-{{ group.id }}"
+        data-group
+        data-kind="{{ group.kind }}"
+        data-characterization="{{ group.characterization or '' }}"
+        data-systems="{{ group.systems|join('|')|lower }}"
+        data-merges="{{ group_merges[group.id]|join('|') }}"
+        data-extensions="{{ group.extensions|join('|') }}"
+        data-cross="{{ 'true' if group.cross_folder else 'false' }}"
+        data-search="{{ group.title|lower }} {{ group.names|join(' ')|lower }} {% for record in group.records %}{{ record.path|lower }} {% endfor %}">
+        <header class="group-head">
+          <span class="kind-icon" aria-hidden="true">
+            {% if group.kind == 'collision' %}≠{% elif group.kind == 'exact' %}={% elif group.kind == 'renamed' %}↔{% else %}?{% endif %}
+          </span>
+          <div class="group-title">
+            <div class="title-line">
+              <h2>{{ group.title }}</h2>
+              <span class="kind-label">{% if group.kind == 'collision' %}different bytes{% elif group.kind == 'exact' %}identical bytes{% elif group.characterization == 'newver' %}newVer pair{% elif group.kind == 'renamed' %}renamed copy{% else %}unverified{% endif %}</span>
+            </div>
+            <p>
+              {{ group.records|length }} files
+              <span aria-hidden="true">·</span>
+              {{ group.hashes|length }} distinct {{ 'hash' if group.hashes|length == 1 else 'hashes' }}
+              {% if group.cross_folder %}<span aria-hidden="true">·</span> crosses folders{% endif %}
+              {% if group.characterization == 'newver' %}<span aria-hidden="true">·</span> same bytes{% if group.records|map(attribute='mtime_ns')|unique|list|length == 1 %} and modified time{% endif %}; origin unproven{% endif %}
+            </p>
           </div>
-          <div class="member-meta">
-            <span>{{ record.size|filesize }}</span>
-            {% if record.sha256 %}<code title="{{ record.sha256 }}">{{ record.sha256[:10] }}</code>{% endif %}
+        </header>
+
+        <div class="members">
+          {% for record in group.records %}
+          {% set member_plan = member_plans.get((group.id, record.path)) %}
+          <div class="member">
+            <span class="filetype">{{ record.suffix[1:]|upper or 'FILE' }}</span>
+            <div class="member-path">
+              <strong>{{ record.name }}</strong>
+              <span title="{{ record.path|winpath }}">{{ record.path|winpath }}</span>
+            </div>
+            <div class="member-meta">
+              <span>{{ record.size|filesize }}</span>
+              <time datetime="{{ record.mtime_ns }}" title="Modified time">{{ record.mtime_ns|filetime }}</time>
+              {% if record.sha256 %}<code title="{{ record.sha256 }}">{{ record.sha256[:10] }}</code>{% endif %}
+            </div>
+            <div class="member-actions">
+              <button class="copy-path" type="button" data-copy="{{ record.path|winpath }}" title="Copy this member path">Copy</button>
+              {% if member_plan %}
+              <button
+                class="delete-member"
+                type="button"
+                data-member-delete
+                data-delete-src="{{ url_for('member_cleanup_apply', group_id=group.id) }}"
+                data-path="{{ record.path }}"
+                data-display-path="{{ record.path|winpath }}"
+                data-signature="{{ member_plan.signature }}"
+                data-keep="{{ member_plan.candidate.keep_paths|map('winpath')|join(' · ') }}"
+                title="Move this file to recoverable quarantine after confirmation">Delete</button>
+              {% endif %}
+            </div>
           </div>
+          {% endfor %}
         </div>
-        {% endfor %}
+      </article>
+      {% endfor %}
+
+      <div class="no-results" data-no-results hidden>
+        <strong>No groups match these filters.</strong>
+        <span>Clear a filter to bring them back.</span>
       </div>
-    </article>
-    {% endfor %}
+    </section>
+  </div>
 
-    <div class="no-results" data-no-results hidden>
-      <strong>No groups match these filters.</strong>
-      <span>Clear a filter to bring them back.</span>
-    </div>
-  </section>
-
-  <aside class="rail-side" aria-label="Scan context">
+  <aside class="rail-side rail-primary" aria-label="Duplicate classification and folders">
     <section class="rail-card">
-      <h2>Scan scope</h2>
+      <h2>Groups</h2>
+      <div class="rail-filters" role="group" aria-label="Filter by duplicate kind">
+        <button type="button" class="rail-filter is-active" data-kind-filter="all" aria-pressed="true"><span>All</span><strong>{{ inventory.groups|length }}</strong></button>
+        <button type="button" class="rail-filter collision" data-kind-filter="collision" aria-pressed="false"><span>Collisions</span><strong>{{ inventory.summary.collision_groups }}</strong></button>
+        <button type="button" class="rail-filter exact" data-kind-filter="exact" aria-pressed="false"><span>Exact copies</span><strong>{{ inventory.summary.exact_groups }}</strong></button>
+        <button type="button" class="rail-filter renamed" data-kind-filter="renamed" aria-pressed="false"><span>Renamed copies</span><strong>{{ inventory.summary.renamed_groups }}</strong></button>
+      </div>
+    </section>
+
+    <section class="rail-card">
+      <h2>Folders</h2>
+      <nav class="rail-nav" aria-label="Filter by project folder">
+        <button type="button" class="rail-navrow is-active" data-system-filter="" aria-pressed="true"><span>All folders</span><strong>{{ inventory.groups|length }}</strong></button>
+        {% for folder in folder_stats %}
+        <button type="button" class="rail-navrow" data-system-filter="{{ folder.name|lower }}" aria-pressed="false">
+          <span title="{{ folder.name }}">{{ folder.name }}</span>
+          <strong>{{ folder.groups }}</strong>
+        </button>
+        {% endfor %}
+      </nav>
+    </section>
+  </aside>
+
+  <aside class="rail-side rail-secondary" aria-label="Merged pull requests and scan actions">
+    {% if merge_views %}
+    <section class="rail-card">
+      <h2>Merged PRs</h2>
+      <nav class="rail-nav merge-nav" aria-label="Filter by merged pull request">
+        <button type="button" class="rail-navrow is-active" data-merge-filter="" aria-pressed="true"><span>All merges</span></button>
+        {% for merge in merge_views %}
+        <button type="button" class="rail-navrow merge-row" data-merge-filter="{{ merge.key }}" data-plan-src="{{ url_for('merge_cleanup_plan', pr_number=merge.number) }}" data-apply-src="{{ url_for('merge_cleanup_apply', pr_number=merge.number) }}" data-cleanup-candidates="{{ merge.cleanup_candidates }}" aria-pressed="false">
+          <span><b>PR #{{ merge.number }}</b>{{ merge.branch }}<small>{{ merge.cad_files }} CAD · {{ merge.folders|length }} folders · {{ merge.cleanup_candidates }} removable</small></span>
+          <strong>{{ merge.groups }}</strong>
+        </button>
+        {% endfor %}
+      </nav>
+    </section>
+    {% endif %}
+
+    <section class="rail-card cleanup-card" data-cleanup-card data-form-token="{{ form_token }}">
+      <h2>Merge cleanup</h2>
+      <p class="rail-note" data-cleanup-note>Select one merged PR.</p>
+      <button class="button full" type="button" data-plan-run disabled>Preview --dry</button>
+      <label class="reference-check"><input type="checkbox" data-references-checked disabled> Inventor references checked</label>
+      <button class="button full apply-button" type="button" data-cleanup-apply disabled>Apply to quarantine</button>
+      <p class="rail-note muted">Apply revalidates the preview and writes a restoration manifest.</p>
+    </section>
+
+    <section class="rail-card">
+      <h2>Scan</h2>
       <dl class="scope-list">
         <div><dt>Workspace</dt><dd>{{ inventory.root.name }}</dd></div>
-        <div><dt>Files</dt><dd>{{ inventory.summary.files }}</dd></div>
+        <div><dt>CAD files</dt><dd>{{ inventory.summary.files }}</dd></div>
         <div><dt>Read</dt><dd>{{ inventory.summary.bytes|filesize }}</dd></div>
         <div><dt>Exact redundancy</dt><dd>{{ inventory.summary.redundant_bytes|filesize }}</dd></div>
       </dl>
       <label class="vendor-toggle">
         <input type="checkbox" data-include-vendor {% if inventory.include_vendor %}checked{% endif %}>
-        <span><strong>Include Pack-and-Go support</strong><small>bellows/Design Data and Templates</small></span>
+        <span><strong>Pack-and-Go support</strong><small>Design Data and Templates</small></span>
       </label>
-      <button class="button full" type="button" data-refresh>Rescan workspace</button>
-    </section>
-
-    <section class="rail-card">
-      <h2>Review order</h2>
-      <ol class="review-order">
-        <li><span class="legend-dot collision"></span><div><strong>Different bytes</strong><small>Same filename, conflicting hashes. Open in Inventor before deciding.</small></div></li>
-        <li><span class="legend-dot exact"></span><div><strong>Identical bytes</strong><small>Same filename and hash. A consolidation candidate, not an automatic deletion.</small></div></li>
-        <li><span class="legend-dot renamed"></span><div><strong>Renamed copy</strong><small>Different filenames with the same bytes. Storage evidence, not an Inventor collision.</small></div></li>
-      </ol>
-    </section>
-
-    <section class="rail-card quiet">
-      <h2>Boundary</h2>
-      <p>This view never moves files, chooses a canonical part, or rewrites assembly references.</p>
+      <button class="button full" type="button" data-refresh>Rescan</button>
       {% if inventory.errors %}
-      <details><summary>{{ inventory.errors|length }} scan warning{% if inventory.errors|length != 1 %}s{% endif %}</summary>
+      <details class="scan-errors"><summary>{{ inventory.errors|length }} scan warning{% if inventory.errors|length != 1 %}s{% endif %}</summary>
         <ul>{% for error in inventory.errors %}<li>{{ error }}</li>{% endfor %}</ul>
       </details>
       {% endif %}

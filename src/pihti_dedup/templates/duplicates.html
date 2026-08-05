@@ -2,14 +2,6 @@
 {% block title %}Filename review · PIHTI{% endblock %}
 {% block body %}
 <main class="page">
-  <section class="page-heading">
-    <div>
-      <p class="eyebrow">Inventor workspace · {{ workspace }}</p>
-      <h1>Filename review</h1>
-    </div>
-    <p class="heading-note">Same name first. Hashes tell us whether the bytes agree.</p>
-  </section>
-
   <div id="dup-results" data-src="{{ url_for('duplicates_results') }}" aria-live="polite">
     <div class="loading-card" role="status">
       <span class="spinner" aria-hidden="true"></span>

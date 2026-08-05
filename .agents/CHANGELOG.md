@@ -6,6 +6,21 @@ remains authoritative for exact file changes.
 
 ## 2026-08-05
 
+- Shipped `pihti-dedup` 0.2.0: split the wide-screen review context across two
+  stationary rails without internal scrollbars; added the established
+  `2024-interactive-diagram` favicon; and added dry-run plus guarded, recoverable
+  quarantine for exact copies introduced by merged PRs. Member rows now show
+  modified time and valid Windows paths, exact-byte members have an individually
+  confirmed Delete-to-quarantine action, and `*.newVer.ipt` pairs are separately
+  characterized without asserting unproven Inventor provenance. Following
+  Paperlib's duplicate-session precedent, all review filters now survive delete,
+  rescan, and reload; fragment refreshes preserve the visible group and scroll
+  position, while success uses a non-layout-shifting toast. Added a fleet-style
+  `README_SHORT.md` cold-start route and clarified the authoritative rule order.
+- Shipped `pihti-dedup` 0.1.1: corrected the viewer to the fleet/Paperlib shell,
+  kept the right rail stationary, moved counts into actionable rail filters,
+  added project-folder and local merged-PR analysis, and changed copy behavior
+  from whole groups to one member path at a time.
 - Shipped `pihti-dedup` 0.1.0: read-only filename-first scanning, Flask review
   UI, portable JSON/CLI output, opt-in Pack-and-Go scope, and compatibility with
   the earlier `scripts/find_duplicates.py` reports. This version labels the tool,

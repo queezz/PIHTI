@@ -12,6 +12,8 @@ This is kept separate from `docs/`:
 
 ## Layout
 
+- `../README_SHORT.md` - pasteable cold-start route; it points here rather than
+  duplicating the repository rules.
 - `REPOSITORY_MAP.md` - folder roles and project boundaries.
 - `directions.md` - forward-looking open work only.
 - `CHANGELOG.md` - shipped archive milestones.
@@ -67,3 +69,10 @@ Avoid committing generated mechanical Markdown reports. If a tool can emit both 
 - [duplicate-inventory-direction.md](duplicate-inventory-direction.md) - bit/hash inventory workflow before CAD cleanup or staged imports.
 - [dedup-viewer-design.md](dedup-viewer-design.md) - architecture and safety
   boundary for the paperlib-style duplicate review server.
+
+## Cold sessions
+
+Start at [`../README_SHORT.md`](../README_SHORT.md), then follow its ordered
+list. `AGENTS.md` is the repository authority; fleet `RULES.md` and `MAP.md` are
+read afterwards for shared culture and sibling boundaries. If those sources
+disagree, stop and report the exact conflict instead of blending the rules.

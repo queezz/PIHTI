@@ -13,8 +13,8 @@ session evidence in `log/`.
   UI or a separate related-artifacts view.
 - Add an “open containing folder” action only with a strict localhost boundary
   and a test proving requests cannot escape the configured workspace.
-- Add a CLI twin, complete preview, reference review, and recoverable quarantine
-  before considering any mutating web action.
+- Add a tested restore command for `.pihti-dedup/quarantine/` manifests before
+  expanding cleanup beyond the guarded merged-PR exact-copy operation.
 
 Implemented architecture and baseline: `dedup-viewer-design.md` and
 `log/2026-08-05-pr-orientation-and-dedup-viewer.md`.

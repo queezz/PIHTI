@@ -5,16 +5,17 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="color-scheme" content="dark light">
   <title>{% block title %}PIHTI dedup{% endblock %}</title>
+  <link rel="icon" href="{{ url_for('static', filename='favicon.ico') }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='dedup.css') }}">
 </head>
 <body>
   <header class="topbar">
     <a class="brand" href="{{ url_for('duplicates') }}" aria-label="PIHTI duplicate review">
       <span class="brand-mark" aria-hidden="true">P</span>
-      <span><strong>PIHTI</strong><small>duplicate review</small></span>
+      <span><strong>PIHTI</strong><small>filename review</small></span>
     </a>
     <div class="topbar-meta">
-      <span class="read-only"><span aria-hidden="true">●</span> read-only</span>
+      <span class="local-tool"><span aria-hidden="true">●</span> local quarantine</span>
       <span class="version">v{{ version }}</span>
     </div>
   </header>

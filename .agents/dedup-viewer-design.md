@@ -2,10 +2,14 @@
 
 ## Status
 
-The read-only first slice shipped as `pihti-dedup` 0.1.0 on 2026-08-05. The
-shared scanner lives in `src/pihti_dedup/inventory.py`; the CLI and Flask viewer
-consume the same classifications, and `scripts/find_duplicates.py` remains a
-compatibility entry point for earlier reports.
+The read-only first slice shipped as `pihti-dedup` 0.1.0 on 2026-08-05. Version
+0.1.1 corrected the working shell against the fleet/Paperlib precedent and added
+local merged-PR and folder analysis. Version 0.2.0 split the context across two
+stationary rails and added preview-first, recoverable cleanup for exact copies
+introduced by a merge. The shared scanner lives in
+`src/pihti_dedup/inventory.py`; the CLI and Flask viewer consume the same
+classifications, and `scripts/find_duplicates.py` remains a compatibility entry
+point for earlier reports.
 
 ## Purpose
 
@@ -63,38 +67,94 @@ committed on every scan.
 
 ### Web layer
 
-Follow paperlib's proven shape:
+Follow paperlib's proven shape, specifically its Duplicates screen and
+`.folder-grid` / `.folder-panel` working shell:
 
 - Flask, server-rendered HTML, progressive enhancement, no frontend framework.
-- `GET /duplicates` returns an immediate shell with a sticky right rail.
+- `GET /duplicates` returns an immediate shell whose top bar names the view; do
+  not repeat that identity with a large page heading or introductory block.
 - `GET /duplicates/results` performs or retrieves the scan asynchronously and
   returns the result fragment.
-- Default bind is `127.0.0.1`; the first slice has no mutating routes.
+- The result fragment begins with one shared three-column grid: results plus two
+  fixed-width rails. Both rails start at their sticky offset, never move when the
+  page scrolls, and never get an internal scrollbar. On narrower screens they
+  stack after the results.
+- Default bind is `127.0.0.1`. Actual cleanup is localhost-only; the remaining
+  routes are read-only.
 - Client-side text and kind filters operate on the loaded groups without rescans.
+- Follow Paperlib's `pl-dup-filter` decision: persist the complete working review
+  context in local storage and reapply it after every async fragment replacement.
+  PIHTI includes text, kind, folder, merged PR, extension, cross-folder, and
+  vendor scope rather than only Paperlib's kind and text.
+- Colored group counts in the rail are buttons because they filter. Group state
+  inside result cards is plain text/icon metadata, not button-like pills.
+- Every member row has its own copy-path action. There is no group-level bulk
+  copy because the Inventor review proceeds one path at a time.
+- Member paths are rendered and copied with Windows separators. Rows show the
+  local modified time as evidence alongside size and a short hash.
+- A cleanup/rescan keeps the old list visible but dimmed while the fresh scan is
+  fetched. It restores an unaffected visible group to the same viewport offset,
+  moves keyboard focus to that group's next action after a deletion, and uses a
+  fixed toast for success. Do not prepend a notice or replace the working list
+  with a spinner during a mutation; both cause avoidable spatial resets.
 
 Primary filters:
 
 - filename collision / exact copy / renamed copy
-- system folder or submission tree
+- project folder
+- recent merged PR, derived from local first-parent Git history
 - extension
 - cross-folder only
 - include vendor/package data
 
 Each group shows its filename, classification, copy count, distinct-hash count,
-sizes, and project-relative member paths. The right rail explains the kinds and
-shows scan scope/statistics. An “open containing folder” action can be localhost-
-only; opening the actual assembly remains an Inventor operation.
+sizes, modified times, and project-relative member paths. The two right rails
+hold actionable kind, folder, and merged-PR selectors plus compact scan
+statistics. Zero-result folders and PRs remain visible because absence of
+duplicate evidence is itself useful after a merge. An “open containing folder”
+action can be localhost-only; opening the actual assembly remains an Inventor
+operation.
+
+### Merged-PR cleanup
+
+`merge-cleanup --pr N --dry` and the web preview share one planner. Candidates
+must be same-name, byte-identical files added by that merge, with at least one
+current identical survivor outside the merge. Modified paths, renamed-only hash
+matches, and groups whose every copy came from the merge are protected.
+
+Actual execution requires `--apply --references-checked` or the equivalent
+localhost-only, token-protected web confirmation. It re-scans, compares the dry
+plan signature, verifies every candidate's path, size, modified time, and SHA-256, then moves
+files to `.pihti-dedup/quarantine/<timestamp>-pr-N/`. A JSON manifest records
+original paths, surviving copies, hashes, and the required post-apply Inventor
+assembly check. A mid-operation failure rolls moved files back.
+
+### Individual exact-copy cleanup and `newVer`
+
+Every member of an exact or renamed exact-byte group may be explicitly selected
+with **Delete**. The confirmation names that Windows path and at least one
+byte-identical survivor. The localhost/token-protected endpoint force-rescans,
+compares a signature covering path, size, modified time, and SHA-256, and moves
+the one selected member to recoverable quarantine with its own manifest.
+Different-byte collisions never receive this action.
+
+Seven current renamed-copy groups match `name.ipt` plus `name.newVer.ipt`. In
+all seven, the two files have identical SHA-256 values and identical filesystem
+modified timestamps. The UI characterizes these as **newVer pairs** but says
+“origin unproven”: neither the bytes nor the timestamp establishes that Autodesk
+Inventor created the suffix, and no Autodesk documentation for it was found.
 
 ### Decisions
 
-The first slice is report-only. A later review sidecar may record a stable group
+The 0.1 first slice was report-only. Version 0.2 adds guarded merged-PR and
+individually confirmed exact-byte quarantine operations. A later review sidecar may record a stable group
 signature, disposition (`canonical`, `keep-both`, `needs-inventor`, `package-
 baggage`), canonical path, reviewer, date, and note. Recording a decision must not
 move CAD.
 
-Before any web mutation ships:
+Before any broader web mutation ships:
 
-- add a CLI twin
+- retain a CLI twin
 - preview the complete operation
 - verify Inventor references or record the verification gap
 - move to recoverable quarantine rather than delete
@@ -116,8 +176,15 @@ not block the useful read-only viewer.
 
 ## Sources and precedents
 
-- paperlib `src/paperlib/webapp.py`: server-rendered shell, sticky rail, async
-  `/duplicates/results`, local/read-only boundaries.
+- fleet `RULES.md` section 10: stationary navigation rail, shared grid, rail-card
+  vocabulary, and Paperlib-before-new-UI rule.
+- paperlib `src/paperlib/webapp.py` `_DUPLICATES` screen and `.folder-grid` /
+  `.folder-panel` CSS: server-rendered shell, rail aligned at its sticky top from
+  initial paint, async `/duplicates/results`, real filter buttons, and local
+  read-only boundaries. Attendance-style dashboard headers are not a precedent
+  for this viewer.
+- lecturedeck `STYLE_GUIDE.md`: accents communicate semantic emphasis and are not
+  decoration applied to every object.
 - paperlib `src/paperlib/library.py`: signal grouping followed by stronger
   fingerprint classification.
 - Autodesk Inventor Help, “To Work with Projects”:

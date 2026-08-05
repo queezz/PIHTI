@@ -19,7 +19,7 @@ CAD_EXTENSIONS = frozenset(
     {".3mf", ".dwg", ".dxf", ".iam", ".idw", ".ipj", ".ipn", ".ipt", ".step", ".stl", ".stp"}
 )
 DEFAULT_SKIP_DIRS = frozenset(
-    {".git", ".pytest_cache", ".ruff_cache", "__pycache__", "_site", "staging"}
+    {".git", ".pihti-dedup", ".pytest_cache", ".ruff_cache", "__pycache__", "_site", "staging"}
 )
 VENDOR_PREFIXES = frozenset({("bellows", "design data"), ("bellows", "templates")})
 HASH_CHUNK_SIZE = 1024 * 1024
@@ -55,6 +55,7 @@ class DuplicateGroup:
     extensions: tuple[str, ...]
     cross_folder: bool
     redundant_bytes: int
+    characterization: str | None = None
 
     def to_dict(self) -> dict:
         payload = asdict(self)
@@ -212,8 +213,11 @@ def _iter_files(
         if not root.exists():
             errors.append(f"missing path: {root}")
             continue
+
         def record_walk_error(error: OSError) -> None:
-            errors.append(f"cannot traverse {relative_path(Path(error.filename or root), display_root)}: {error}")
+            errors.append(
+                f"cannot traverse {relative_path(Path(error.filename or root), display_root)}: {error}"
+            )
 
         for dirpath, dirnames, filenames in os.walk(root, onerror=record_walk_error):
             folder = Path(dirpath)
@@ -253,9 +257,7 @@ def _make_group(kind: str, records: Sequence[FileRecord], title: str) -> Duplica
     hashes = tuple(sorted({record.sha256 for record in ordered if record.sha256}))
     systems = tuple(sorted({record.system for record in ordered}, key=str.casefold))
     extensions = tuple(sorted({record.suffix for record in ordered}))
-    signature = "\n".join(
-        [kind, *[f"{record.path}\0{record.sha256 or ''}" for record in ordered]]
-    )
+    signature = "\n".join([kind, *[f"{record.path}\0{record.sha256 or ''}" for record in ordered]])
     group_id = hashlib.sha256(signature.encode("utf-8")).hexdigest()[:16]
 
     hash_buckets: dict[str, list[FileRecord]] = defaultdict(list)
@@ -265,6 +267,9 @@ def _make_group(kind: str, records: Sequence[FileRecord], title: str) -> Duplica
     redundant_bytes = sum(
         group[0].size * (len(group) - 1) for group in hash_buckets.values() if len(group) > 1
     )
+    characterization = "newver" if kind == "renamed" and _is_newver_pair(ordered) else None
+    if characterization == "newver":
+        title = "newVer pair — identical bytes"
     return DuplicateGroup(
         id=group_id,
         kind=kind,
@@ -276,10 +281,30 @@ def _make_group(kind: str, records: Sequence[FileRecord], title: str) -> Duplica
         extensions=extensions,
         cross_folder=len(systems) > 1,
         redundant_bytes=redundant_bytes,
+        characterization=characterization,
     )
 
 
-def classify(records: Sequence[FileRecord]) -> tuple[tuple[DuplicateGroup, ...], tuple[DuplicateGroup, ...]]:
+def _newver_base_name(name: str) -> str | None:
+    path = Path(name)
+    marker = ".newver"
+    if not path.stem.casefold().endswith(marker):
+        return None
+    return f"{path.stem[: -len(marker)]}{path.suffix}".casefold()
+
+
+def _is_newver_pair(records: Sequence[FileRecord]) -> bool:
+    names = {record.name_key for record in records}
+    return any(
+        base_name is not None and base_name in names
+        for record in records
+        if (base_name := _newver_base_name(record.name)) is not None
+    )
+
+
+def classify(
+    records: Sequence[FileRecord],
+) -> tuple[tuple[DuplicateGroup, ...], tuple[DuplicateGroup, ...]]:
     by_name: dict[str, list[FileRecord]] = defaultdict(list)
     by_hash: dict[str, list[FileRecord]] = defaultdict(list)
     for record in records:
@@ -298,7 +323,9 @@ def classify(records: Sequence[FileRecord]) -> tuple[tuple[DuplicateGroup, ...],
             kind = "exact"
         else:
             kind = "unverified"
-        filename_groups.append(_make_group(kind, group, sorted(group, key=lambda r: r.name)[0].name))
+        filename_groups.append(
+            _make_group(kind, group, sorted(group, key=lambda r: r.name)[0].name)
+        )
 
     renamed_groups: list[DuplicateGroup] = []
     for group in by_hash.values():
@@ -375,7 +402,9 @@ def scan_paths(
         excluded=tuple(excluded),
         errors=tuple(errors),
         include_vendor=include_vendor,
-        extensions=(tuple(sorted(normalized_extensions)) if normalized_extensions is not None else None),
+        extensions=(
+            tuple(sorted(normalized_extensions)) if normalized_extensions is not None else None
+        ),
         generated_at=datetime.now(timezone.utc).isoformat(),
     )
 

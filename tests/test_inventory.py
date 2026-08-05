@@ -81,3 +81,14 @@ def test_no_hash_marks_repeated_names_unverified(tmp_path: Path) -> None:
 
     assert {group.kind for group in inventory.filename_groups} == {"unverified"}
     assert inventory.renamed_groups == ()
+
+
+def test_newver_exact_pair_gets_conservative_characterization(tmp_path: Path) -> None:
+    _write(tmp_path / "Parts" / "Part5.ipt", b"same")
+    _write(tmp_path / "Parts" / "Part5.newVer.ipt", b"same")
+
+    group = scan_workspace(tmp_path).renamed_groups[0]
+
+    assert group.characterization == "newver"
+    assert group.title == "newVer pair — identical bytes"
+    assert group.to_dict()["characterization"] == "newver"
