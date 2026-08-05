@@ -10,13 +10,12 @@ session evidence in `log/`.
    family as mkdocs, tables + fenced code), rendered view by default with an
    Edit toggle back to the raw textarea. Applies to part pages, folder pages,
    and catalog note excerpts.
-2. **STL/STEP/DWG previews**: integrate per the spike verdict in
-   `log/` (spike report pending as of this writing; scripts in the session
-   scratchpad may have aged out — the report is the contract). Expected shape:
-   numpy z-buffer renderer for STL (in-house), `cascadio` as an optional extra
-   for STEP with graceful placeholder fallback, DWG embedded-bitmap extraction
-   if present. Same PNG serving pipeline and cache keying as Inventor
-   thumbnails.
+2. **STL/STEP/DWG previews**: spike complete — verdicts, timings, gotchas,
+   and the integration contract are in
+   `log/2026-08-05-mesh-preview-spike.md`; working spike code is preserved in
+   `.agents/spikes/mesh-preview/`. All three formats proven on every matching
+   repo file (STL in-house, STEP via optional `cascadio` extra, DWG embedded
+   PNG). DXF remains an open gap.
 
 ## Dedup viewer — next review slice
 
