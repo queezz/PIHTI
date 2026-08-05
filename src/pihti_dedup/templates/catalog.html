@@ -1,5 +1,32 @@
 {% extends "base.html" %}
 {% block title %}Catalog · PIHTI{% endblock %}
+
+{% macro tree_node(node, depth) %}
+<div class="tree-node" data-tree-node style="--tree-depth: {{ depth }}">
+  <div class="tree-row">
+    {% if node.children %}
+    <button class="tree-toggle" type="button" data-tree-toggle="{{ node.path }}" aria-expanded="false" aria-controls="tree-{{ node.key }}">
+      <span aria-hidden="true">▸</span>
+      <span class="sr-only">Expand {{ node.path }}</span>
+    </button>
+    {% else %}
+    <span class="tree-toggle is-leaf" aria-hidden="true"></span>
+    {% endif %}
+    {% if node.anchor %}
+    <a class="tree-name" href="#{{ node.anchor }}" title="{{ node.path|winpath }}">{{ node.name }}</a>
+    {% else %}
+    <span class="tree-name is-branch" title="{{ node.path|winpath }}">{{ node.name }}</span>
+    {% endif %}
+    <strong>{{ node.count }}</strong>
+  </div>
+  {% if node.children %}
+  <div class="tree-children" id="tree-{{ node.key }}" data-tree-children="{{ node.path }}" hidden>
+    {% for child in node.children %}{{ tree_node(child, depth + 1) }}{% endfor %}
+  </div>
+  {% endif %}
+</div>
+{% endmacro %}
+
 {% block body %}
 <main class="page">
   <div class="work-grid one-rail">
@@ -13,12 +40,38 @@
         <span class="shown-count"><strong data-catalog-count>{{ file_count }}</strong> of {{ file_count }} files</span>
       </section>
 
+      {% if saved %}<p class="metadata-notice" role="status">Folder note saved.</p>{% endif %}
+
       {% for folder in folders %}
       <section class="catalog-folder" id="{{ folder.anchor }}" data-catalog-folder>
         <header>
-          <h2>{{ folder.name|winpath }}</h2>
+          <div class="folder-heading">
+            <h2>{{ folder.name|winpath }}</h2>
+            {% if folder.excerpt %}
+            <p class="folder-excerpt">{{ folder.excerpt }}</p>
+            {% elif folder.editable %}
+            <p class="folder-excerpt muted">No folder note yet.</p>
+            {% endif %}
+          </div>
           <span>{{ folder.files|length }} file{% if folder.files|length != 1 %}s{% endif %}</span>
         </header>
+
+        {% if folder.editable %}
+        <details class="folder-note" id="{{ folder.note_anchor }}">
+          <summary>Folder note — <code>{{ folder.name|winpath }}\README.md</code>{% if folder.note and folder.note.generated %} <em>(generated index; saving makes it a note)</em>{% endif %}</summary>
+          <form method="post" action="{{ url_for('folder_note', relative_folder=folder.name) }}" class="metadata-form">
+            <input type="hidden" name="token" value="{{ form_token }}">
+            <input type="hidden" name="origin" value="catalog">
+            <label class="sr-only" for="note-{{ folder.key }}">Folder note for {{ folder.name }}</label>
+            <textarea id="note-{{ folder.key }}" name="text" rows="10" spellcheck="false">{{ folder.note_text or folder.note_default }}</textarea>
+            <div class="folder-note-actions">
+              <button class="button" type="submit">Save note</button>
+              <a class="button" href="{{ url_for('folder_page', relative_folder=folder.name) }}">Open folder page</a>
+            </div>
+          </form>
+        </details>
+        {% endif %}
+
         <div class="thumb-grid">
           {% for record in folder.files %}
           <a class="thumb-tile" href="{{ url_for('part_page', relative_path=record.path) }}"
@@ -38,19 +91,7 @@
       </div>
     </div>
 
-    <aside class="rail-side" aria-label="Folders and scan scope">
-      <section class="rail-card">
-        <h2>Folders</h2>
-        <nav class="rail-nav" aria-label="Jump to a folder">
-          {% for folder in folders %}
-          <a class="rail-navrow" href="#{{ folder.anchor }}">
-            <span title="{{ folder.name|winpath }}">{{ folder.name|winpath }}</span>
-            <strong>{{ folder.files|length }}</strong>
-          </a>
-          {% endfor %}
-        </nav>
-      </section>
-
+    <aside class="rail-side" aria-label="Scan scope and folders">
       <section class="rail-card">
         <h2>Scan</h2>
         <dl class="scope-list">
@@ -59,6 +100,14 @@
           <div><dt>Folders</dt><dd>{{ folders|length }}</dd></div>
         </dl>
         <p class="rail-note muted">Previews come from the file's own embedded thumbnail. Files without one show a neutral placeholder.</p>
+      </section>
+
+      <section class="rail-card">
+        <h2>Folders</h2>
+        <nav class="folder-tree" data-folder-tree aria-label="Jump to a folder">
+          {% for node in tree %}{{ tree_node(node, 0) }}{% endfor %}
+        </nav>
+        <p class="rail-note muted">Counts include every file below a folder. Expanded branches are remembered.</p>
       </section>
     </aside>
   </div>

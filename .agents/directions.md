@@ -11,13 +11,21 @@ session evidence in `log/`.
   `package-baggage` keyed to a stable group signature, which the duplicate
   screen can read back.
 - Show an existing sidecar's status and tags in the duplicate rows and catalog
-  tiles, so a reviewed file is visibly reviewed without opening its page.
+  tiles, so a reviewed file is visibly reviewed without opening its page. The
+  0.4.0 folder-note excerpt does this for folders; files are still open.
 - Write quarantine outside the Inventor workspace by default. The store was
   moved to `../PIHTI-quarantine/` by hand on 2026-08-05 because unique-filename
   resolution could reach into `.pihti-dedup/`; the tool still defaults to the
   in-workspace path.
-- Link filename collisions to a recorded Inventor/Design Assistant “where used”
-  check; hash differences alone remain insufficient evidence.
+- Done in 0.4.0: filename collisions are linked to a machine-read “where used”
+  answer. `src/pihti_dedup/whereused.py` scans the embedded UTF-16LE reference
+  strings, the part page lists the referring documents, and a rename records
+  them in the ledger. Still open is confirming that read against Inventor's own
+  Design Assistant on a sample, and surfacing where-used counts on the duplicate
+  rows so a collision can be triaged without opening each member.
+- Renames recorded in `.agents/rename-ledger.jsonl` stay unsettled until every
+  referring assembly has been opened and repointed. Work the `/renames` page
+  down to zero unsettled entries before the next submission review.
 - Decide whether same-stem/different-extension families belong in the main review
   UI or a separate related-artifacts view.
 - Add an “open containing folder” action only with a strict localhost boundary
@@ -48,8 +56,10 @@ Implemented architecture and baseline: `dedup-viewer-design.md` and
   repository documentation rather than leaving the only explanation in the PR.
 - Add a short submission-manifest convention: primary assembly, project file,
   new parts, reused parts, exports, and one overview image.
-- Keep `INDEX.md` and generated folder READMEs navigational; design intent belongs
-  in `docs/` or a concise hand-authored README.
+- Keep `INDEX.md` navigational. A folder `README.md` is now the folder-note
+  surface as of 0.4.0: saving one through the viewer strips the generator marker
+  so `scripts/generate_readmes.py` leaves it alone from then on. Broader design
+  intent still belongs in `docs/`.
 
 ## Release/version policy
 

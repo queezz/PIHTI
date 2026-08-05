@@ -6,6 +6,28 @@ remains authoritative for exact file changes.
 
 ## 2026-08-05
 
+- Shipped `pihti-dedup` 0.4.0: renaming a CAD file now comes with the memo it
+  needs. A new where-used index reads the UTF-16LE reference strings embedded in
+  every `.iam`/`.idw`/`.ipn` and answers "which documents name this file?" for
+  the whole workspace in well under a second. The part page renames a file in
+  place — extension enforced, sidecar carried along — and refuses a new name
+  that already exists anywhere in the workspace. When the *old* name survives
+  elsewhere, the rename stops and names the assemblies that would silently
+  rebind to the wrong file, because `UsingUniqueFilenames=Yes` gives no dialog
+  in that case; proceeding takes an explicit second confirmation. Every rename
+  appends to the Git-tracked `.agents/rename-ledger.jsonl`, and a new `/renames`
+  page turns it into a worklist: old → new, the folder and full Windows paths
+  with copy buttons for Inventor's resolve dialog, the referring assemblies as a
+  checklist, a clear "Inventor will ask" versus "Inventor will NOT ask" split,
+  and a settled toggle written back to the ledger. Folder notes arrived on the
+  same release: each catalog section and a new `/folder/<path>` page read and
+  edit that folder's own `README.md`, showing an excerpt in the section header,
+  and `scripts/generate_readmes.py` now treats the absence of its own marker as
+  proof of a manual edit so a saved note can never be overwritten. The catalog
+  rail was rebuilt around the owner's rejection of inner scrolling: the scan
+  card is pinned at the top and 99 flat folders became a collapsible tree with
+  aggregate counts and remembered expansion. Renames are plain filesystem moves
+  and nothing is committed automatically.
 - Shipped `pihti-dedup` 0.3.0: the viewer now reads Inventor documents directly.
   A pure-Python MS-OLEPS parser extracts iProperties and the preview image that
   Inventor already embeds, with no Inventor, COM, or Windows API involved. Every

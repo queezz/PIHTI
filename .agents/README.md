@@ -21,6 +21,11 @@ This is kept separate from `docs/`:
 - `commit-culture.md` - repository commit contract.
 - `duplicate-inventory-direction.md` - safe duplicate review workflow.
 - `dedup-viewer-design.md` - local duplicate-review viewer architecture.
+- `rename-ledger.jsonl` - one appended line per CAD rename made through the
+  viewer: paths, the referring documents at the time, whether Inventor will
+  raise its resolve dialog, and whether the rename has been settled. Machine
+  record per the artifact-type rule below; `/renames` is its reader. Paths are
+  workspace-relative so nothing machine-specific is committed.
 - `handoff-template.md` - copy-paste session-log skeleton.
 
 The dated Markdown files directly under `.agents/` are legacy June 2026

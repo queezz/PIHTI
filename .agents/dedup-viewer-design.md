@@ -7,7 +7,10 @@ The read-only first slice shipped as `pihti-dedup` 0.1.0 on 2026-08-05. Version
 local merged-PR and folder analysis. Version 0.2.0 split the context across two
 stationary rails and added preview-first, recoverable cleanup for exact copies
 introduced by a merge. Version 0.3.0 added embedded-thumbnail reading, a catalog
-and part page, and portable metadata sidecars. The shared scanner lives in
+and part page, and portable metadata sidecars. Version 0.4.0 added the where-used
+index, the guarded rename action with its ledger and `/renames` memo page, folder
+notes on the folder's own `README.md`, and a collapsible catalog folder tree. The
+shared scanner lives in
 `src/pihti_dedup/inventory.py`; the CLI and Flask viewer consume the same
 classifications, and `scripts/find_duplicates.py` remains a compatibility entry
 point for earlier reports.
@@ -184,6 +187,76 @@ never commit: a sidecar simply appears as an untracked or modified file. The CLI
 twin is `meta seed --dry|--apply`, which seeds only Inventor documents in bulk
 because no other CAD extension carries iProperties.
 
+### Where-used index, rename, and the rename memo
+
+Version 0.4.0 answers the reference question the earlier slices deferred.
+`src/pihti_dedup/whereused.py` reads the raw bytes of every `.iam`/`.idw`/`.ipn`
+and pulls out the UTF-16LE reference strings Inventor stores there, walking back
+from each CAD extension to the nearest path separator. Only the filename is kept,
+because unique-filename resolution ignores the stored path. The workspace's 305
+referring documents index in about 0.2 s cold and 0.06 s warm behind a cache
+keyed by path and modification time. The index deliberately skips `OldVersions/`
+— a referrer is a document the owner would actually open — while the collision
+map behind renames deliberately includes it, because Inventor's filename search
+reaches everything under the workspace.
+
+Renaming turns on one asymmetry in Autodesk's search rules. If a referring
+document's stored path fails and **no** file with that filename exists, Inventor
+raises the resolve-link dialog and the user can paste a path. If **another** file
+with that filename exists, Inventor binds to it silently: no dialog, no warning,
+and an assembly that now consumes the wrong geometry. So:
+
+- A new name already present anywhere in the workspace is refused outright; it
+  would manufacture a fresh collision.
+- An old name that survives elsewhere after the rename stops the operation, names
+  the surviving copies and the assemblies that would rebind to them, and requires
+  a second explicit confirmation. The plan is rebuilt on that confirmation.
+- Paths past 260 characters, changed extensions, reserved device names, and
+  case-only changes are refused. Case-only is refused on purpose: Inventor
+  matches filenames case-insensitively, so it resolves identically and would
+  write a misleading ledger entry.
+- Only the four Inventor extensions can be renamed, because they are exactly the
+  set the index and the collision map cover.
+
+The rename is `Path.rename` and nothing else. The `<filename>.md` sidecar moves
+with it. Git is untouched; the moved file and the ledger line appear as ordinary
+changes in the owner's own commit.
+
+`.agents/rename-ledger.jsonl` is the durable record — Git-tracked, machine-facing
+JSON per the `.agents/` artifact convention, one appended line per rename holding
+timestamp, old and new workspace-relative paths, both filenames, the where-used
+list at rename time, `will_prompt`, and `settled`. Paths are workspace-relative
+so no machine-specific path is committed; `/renames` builds the absolute Windows
+paths at render time for its copy buttons. That page separates the two flavours
+explicitly — "Inventor will ask — paste this path" versus "Inventor will NOT ask
+— open these and repoint manually" — lists the referring assemblies as a local
+checklist, and writes only the settled toggle back to the ledger.
+
+### Folder notes
+
+A folder's note is its own `README.md`, not a parallel store, so it is the same
+file MkDocs and GitHub already show. `scripts/generate_readmes.py` had written an
+autogen notice since the beginning but never read it back: it skipped every
+existing README by mere existence, which was safe but left the marker
+decorative and any future refresh free to destroy notes. That marker is now
+load-bearing. `is_manually_edited()` reports true whenever a README does *not*
+open with the marker — which covers a hand-authored file, a rewritten generated
+one, and an unreadable one — and every write in the generator goes through one
+guard that consults it. Saving a note through the viewer strips the marker, so
+from that save on the generator must leave the file alone.
+`tests/test_foldernote.py` imports the generator and pins both halves.
+
+### Catalog folder rail
+
+The 0.3.0 rail was a flat list of 99 folders that pushed the scan card off the
+screen. The owner rejected an inner scrollbar as the fix, so 0.4.0 pins the scan
+card at the top of the rail and replaces the list with a collapsible tree: seven
+top-level systems, each carrying the file count of its whole subtree, expanded on
+click, with the open branches remembered in local storage under
+`pihti-catalog-tree`. Depth is a CSS custom-property indent, not a nested
+scrolling container, and a test asserts no rule in the stylesheet imposes a
+height ceiling.
+
 ### Decisions
 
 The 0.1 first slice was report-only. Version 0.2 adds guarded merged-PR and
@@ -209,10 +282,13 @@ Before any broader web mutation ships:
   path.
 - Inventor resaves can change bytes without a meaningful design change.
 
-Reference evidence remains a second phase. The practical first step is to link a
-collision group to an Inventor/Design Assistant “where used” check and record the
-human result. Direct automation through Inventor APIs is optional later and must
-not block the useful read-only viewer.
+Version 0.4.0's where-used index closes the fourth gap for `.iam`/`.idw`/`.ipn`
+referrers, but it reads embedded strings rather than asking Inventor. It says
+which documents *name* a file; it does not prove which one Inventor would bind
+today, and a reference held only in a form this scan does not recognise would be
+missed. Confirming it against Design Assistant on a sample remains open work.
+Direct automation through Inventor APIs is optional later and must not block the
+useful read-only viewer.
 
 ## Sources and precedents
 

@@ -1,4 +1,5 @@
 import os
+import re
 from pathlib import Path
 
 import pihti_dedup.web as web
@@ -6,6 +7,7 @@ from pihti_dedup.cleanup import plan_member_cleanup
 from pihti_dedup.git_history import PullRequestMerge
 from pihti_dedup.inventor_meta import DocumentMeta, Preview
 from pihti_dedup.inventory import scan_workspace
+from pihti_dedup.renames import read_ledger
 from pihti_dedup.sidecar import read_sidecar
 from pihti_dedup.web import create_app
 
@@ -450,3 +452,281 @@ def test_packaged_script_filters_the_catalog_without_a_rescan(tmp_path: Path) ->
     assert "data-catalog-search" in script
     assert "data-catalog-item" in script
     assert "filterCatalog" in script
+
+
+def assembly_bytes(*stored_paths: str) -> bytes:
+    payload = bytearray(b"\xde\xad" * 4)
+    for stored in stored_paths:
+        payload += b"\x00\x00" + stored.encode("utf-16-le") + b"\x00\x00"
+    return bytes(payload)
+
+
+def make_rename_workspace(root: Path) -> Path:
+    """One uniquely named part, one assembly that refers to it by filename."""
+
+    parts = root / "BoronProbe" / "parts"
+    parts.mkdir(parents=True)
+    (parts / "spacer.ipt").write_bytes(b"geometry")
+    (root / "BoronProbe" / "probe.iam").write_bytes(assembly_bytes("parts\\spacer.ipt"))
+    return root
+
+
+def test_catalog_rail_pins_the_scan_card_above_a_collapsible_folder_tree(tmp_path: Path) -> None:
+    root = make_workspace(tmp_path)
+    (root / "BoronProbe" / "drawings").mkdir()
+    (root / "BoronProbe" / "drawings" / "bearing.idw").write_bytes(b"drawing")
+    client = create_app(root).test_client()
+
+    html = client.get("/catalog").get_data(as_text=True)
+    rail = html.split('<aside class="rail-side"', 1)[1]
+
+    assert rail.index("<h2>Scan</h2>") < rail.index("<h2>Folders</h2>")
+    assert "data-folder-tree" in html
+    # The two BoronProbe subfolders collapse under one top-level node carrying both.
+    assert 'data-tree-toggle="BoronProbe"' in html
+    assert 'data-tree-children="BoronProbe"' in html
+    assert 'data-tree-children="BoronProbe" hidden' in html
+    assert 'aria-expanded="false"' in html
+    assert "rail-navrow" not in html
+
+
+def test_the_catalog_section_header_shows_the_folder_note_excerpt(tmp_path: Path) -> None:
+    root = make_workspace(tmp_path)
+    (root / "BoronProbe" / "parts" / "README.md").write_text(
+        "# parts\n\nPAEK bearing stack for the rotating head.\n", encoding="utf-8"
+    )
+    client = create_app(root).test_client()
+
+    html = client.get("/catalog").get_data(as_text=True)
+
+    assert "PAEK bearing stack for the rotating head." in html
+    assert "No folder note yet." in html
+    assert 'action="/folder/BoronProbe/parts/note"' in html
+
+
+def test_a_folder_note_is_written_to_that_folders_own_readme(tmp_path: Path) -> None:
+    app = create_app(make_workspace(tmp_path))
+    client = app.test_client()
+    readme = tmp_path / "BoronProbe" / "parts" / "README.md"
+
+    saved = client.post(
+        "/folder/BoronProbe/parts/note",
+        data={"token": app.config["FORM_TOKEN"], "text": "# parts\n\nThe bearing stack.\n"},
+    )
+
+    assert saved.status_code == 302
+    assert readme.read_text(encoding="utf-8") == "# parts\n\nThe bearing stack.\n"
+
+    page = client.get("/folder/BoronProbe/parts?saved=1").get_data(as_text=True)
+    assert "Folder note saved." in page
+    assert "The bearing stack." in page
+    assert "bearing.ipt" in page
+
+
+def test_folder_note_writes_keep_the_localhost_token_and_containment_guards(
+    tmp_path: Path,
+) -> None:
+    app = create_app(make_workspace(tmp_path))
+    client = app.test_client()
+    readme = tmp_path / "BoronProbe" / "parts" / "README.md"
+    note = {"token": app.config["FORM_TOKEN"], "text": "# parts\n\nProse.\n"}
+
+    remote = client.post(
+        "/folder/BoronProbe/parts/note", data=note, environ_base={"REMOTE_ADDR": "192.0.2.10"}
+    )
+    untokened = client.post("/folder/BoronProbe/parts/note", data={**note, "token": "guessed"})
+    escaped = client.post("/folder/..%2Foutside/note", data=note)
+    empty = client.post(
+        "/folder/BoronProbe/parts/note", data={"token": app.config["FORM_TOKEN"], "text": "  \n"}
+    )
+
+    assert remote.status_code == 403
+    assert untokened.status_code == 403
+    assert escaped.status_code == 404
+    assert empty.status_code == 400
+    assert "would erase" in empty.get_data(as_text=True)
+    assert not readme.exists()
+    assert client.get("/folder/BoronProbe/parts/bearing.ipt").status_code == 404
+
+
+def test_rename_moves_the_file_its_sidecar_and_writes_the_ledger(tmp_path: Path) -> None:
+    root = make_rename_workspace(tmp_path)
+    companion = root / "BoronProbe" / "parts" / "spacer.ipt.md"
+    companion.write_text("---\nstatus: draft\n---\n\nWhy.\n", encoding="utf-8")
+    app = create_app(root)
+    client = app.test_client()
+
+    page = client.get("/part/BoronProbe/parts/spacer.ipt").get_data(as_text=True)
+    assert "Rename in place" in page
+    assert "BoronProbe\\probe.iam" in page  # where-used, read out of the assembly bytes
+
+    renamed = client.post(
+        "/part/BoronProbe/parts/spacer.ipt/rename",
+        data={"token": app.config["FORM_TOKEN"], "new_name": "rear_spacer"},
+    )
+
+    assert renamed.status_code == 302
+    assert renamed.headers["Location"].endswith("/part/BoronProbe/parts/rear_spacer.ipt?renamed=1")
+    assert not (root / "BoronProbe" / "parts" / "spacer.ipt").exists()
+    assert (root / "BoronProbe" / "parts" / "rear_spacer.ipt").exists()
+    assert not companion.exists()
+    assert (root / "BoronProbe" / "parts" / "rear_spacer.ipt.md").is_file()
+
+    entries = read_ledger(root)
+    assert len(entries) == 1
+    assert entries[0].where_used == ("BoronProbe/probe.iam",)
+    assert entries[0].will_prompt is True
+
+
+def test_rename_refuses_a_name_that_already_exists_in_the_workspace(tmp_path: Path) -> None:
+    root = make_rename_workspace(tmp_path)
+    taken = root / "Plasma Vessel"
+    taken.mkdir()
+    (taken / "rear_spacer.ipt").write_bytes(b"someone else")
+    app = create_app(root)
+    client = app.test_client()
+
+    refused = client.post(
+        "/part/BoronProbe/parts/spacer.ipt/rename",
+        data={"token": app.config["FORM_TOKEN"], "new_name": "rear_spacer"},
+    )
+
+    assert refused.status_code == 400
+    assert "already exists in the workspace" in refused.get_data(as_text=True)
+    assert (root / "BoronProbe" / "parts" / "spacer.ipt").exists()
+    assert read_ledger(root) == ()
+
+
+def test_rename_warns_about_a_silent_rebind_before_it_will_proceed(tmp_path: Path) -> None:
+    root = make_workspace(tmp_path)  # three files all named bearing.ipt
+    (root / "BoronProbe" / "probe.iam").write_bytes(assembly_bytes("parts\\bearing.ipt"))
+    app = create_app(root)
+    client = app.test_client()
+    form = {"token": app.config["FORM_TOKEN"], "new_name": "probe_bearing"}
+
+    warned = client.post("/part/BoronProbe/parts/bearing.ipt/rename", data=form)
+    body = warned.get_data(as_text=True)
+
+    assert warned.status_code == 409
+    assert "Inventor will not warn you about this one." in body
+    assert "Plasma Vessel\\parts\\bearing.ipt" in body
+    assert "BoronProbe\\probe.iam" in body
+    assert 'name="confirm_collision" value="1"' in body
+    assert (root / "BoronProbe" / "parts" / "bearing.ipt").exists()
+    assert read_ledger(root) == ()
+
+    confirmed = client.post(
+        "/part/BoronProbe/parts/bearing.ipt/rename", data={**form, "confirm_collision": "1"}
+    )
+
+    assert confirmed.status_code == 302
+    assert (root / "BoronProbe" / "parts" / "probe_bearing.ipt").exists()
+    entry = read_ledger(root)[0]
+    assert entry.will_prompt is False
+    assert entry.where_used == ("BoronProbe/probe.iam",)
+
+
+def test_rename_keeps_the_localhost_token_and_containment_guards(tmp_path: Path) -> None:
+    app = create_app(make_rename_workspace(tmp_path))
+    client = app.test_client()
+    form = {"token": app.config["FORM_TOKEN"], "new_name": "rear_spacer"}
+
+    remote = client.post(
+        "/part/BoronProbe/parts/spacer.ipt/rename", data=form, environ_base={"REMOTE_ADDR": "1.1.1.1"}
+    )
+    untokened = client.post(
+        "/part/BoronProbe/parts/spacer.ipt/rename", data={**form, "token": "guessed"}
+    )
+    escaped = client.post("/part/..%2Foutside-secret.ipt/rename", data=form)
+
+    assert remote.status_code == 403
+    assert untokened.status_code == 403
+    assert escaped.status_code == 404
+    assert (tmp_path / "BoronProbe" / "parts" / "spacer.ipt").exists()
+
+
+def test_renames_page_separates_the_two_flavours_and_marks_an_entry_settled(
+    tmp_path: Path,
+) -> None:
+    root = make_rename_workspace(tmp_path)
+    app = create_app(root)
+    client = app.test_client()
+
+    assert "No renames recorded yet." in client.get("/renames").get_data(as_text=True)
+
+    client.post(
+        "/part/BoronProbe/parts/spacer.ipt/rename",
+        data={"token": app.config["FORM_TOKEN"], "new_name": "rear_spacer"},
+    )
+    entry = read_ledger(root)[0]
+
+    page = client.get("/renames").get_data(as_text=True)
+
+    assert "Inventor will ask." in page
+    assert "Inventor will NOT ask." not in page
+    assert "rear_spacer.ipt" in page
+    assert f'data-copy-text="{root / "BoronProbe" / "parts" / "rear_spacer.ipt"}"' in page
+    assert f'data-copy-text="{root / "BoronProbe" / "parts"}"' in page
+    assert f'data-referrer-check="{entry.id}::BoronProbe/probe.iam"' in page
+    assert f'data-rename-settled="{entry.id}"' in page
+    assert 'href="/renames"' in page
+
+    toggled = client.post(
+        f"/renames/{entry.id}/settled",
+        json={"settled": True},
+        headers={"X-PIHTI-Token": app.config["FORM_TOKEN"]},
+    )
+
+    assert toggled.status_code == 200
+    assert toggled.get_json() == {"id": entry.id, "settled": True}
+    assert read_ledger(root)[0].settled is True
+
+    blocked = client.post(
+        f"/renames/{entry.id}/settled",
+        json={"settled": False},
+        headers={"X-PIHTI-Token": app.config["FORM_TOKEN"]},
+        environ_base={"REMOTE_ADDR": "192.0.2.10"},
+    )
+    untokened = client.post(f"/renames/{entry.id}/settled", json={"settled": False})
+    unknown = client.post(
+        "/renames/0000000000000000/settled",
+        json={"settled": True},
+        headers={"X-PIHTI-Token": app.config["FORM_TOKEN"]},
+    )
+
+    assert blocked.status_code == 403
+    assert untokened.status_code == 403
+    assert unknown.status_code == 404
+    assert read_ledger(root)[0].settled is True
+
+
+def test_duplicate_rows_link_to_the_guarded_rename_action(tmp_path: Path) -> None:
+    client = create_app(make_workspace(tmp_path)).test_client()
+
+    result_html = client.get("/duplicates/results").get_data(as_text=True)
+
+    assert result_html.count('href="/part/BoronProbe/parts/bearing.ipt#rename"') == 1
+    assert result_html.count(">Rename<") == 3
+
+
+def test_packaged_script_drives_the_folder_tree_and_the_rename_ledger(tmp_path: Path) -> None:
+    script = create_app(tmp_path).test_client().get("/static/dedup.js").get_data(as_text=True)
+
+    assert "data-folder-tree" in script
+    assert "data-tree-toggle" in script
+    assert 'TREE_KEY = "pihti-catalog-tree"' in script
+    assert "localStorage.setItem(TREE_KEY" in script
+    assert "data-copy-text" in script
+    assert "data-rename-settled" in script
+    assert "data-rename-search" in script
+
+
+def test_styles_indent_the_folder_tree_without_an_inner_scrollbar(tmp_path: Path) -> None:
+    style = create_app(tmp_path).test_client().get("/static/dedup.css").get_data(as_text=True)
+
+    assert ".folder-tree" in style
+    assert "var(--tree-depth, 0)" in style  # depth indent, not a nested scroll container
+    assert "overflow-y: auto" not in style
+    assert "overflow-y: scroll" not in style
+    # The owner rejected inner scrolling: nothing may be given a height ceiling.
+    assert re.search(r"max-height:\s*\d", style) is None

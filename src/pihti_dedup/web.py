@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import hashlib
 import ipaddress
 import os
+import re
 import secrets
 import threading
 import time
@@ -22,11 +24,22 @@ from pihti_dedup.cleanup import (
     plan_member_cleanup,
     plan_merge_exact_cleanup,
 )
+from pihti_dedup.foldernote import FolderNoteError, read_folder_note, write_folder_note
 from pihti_dedup.git_history import PullRequestMerge, recent_pull_request_merges
 from pihti_dedup.inventor_meta import INVENTOR_EXTENSIONS, DocumentMeta, Preview, read_preview
 from pihti_dedup.inventor_meta import read_document as read_inventor_document
 from pihti_dedup.inventory import Inventory, scan_workspace
+from pihti_dedup.renames import (
+    LEDGER_RELATIVE,
+    RENAMEABLE_EXTENSIONS,
+    RenameError,
+    execute_rename,
+    plan_rename,
+    read_ledger,
+    set_settled,
+)
 from pihti_dedup.sidecar import SidecarError, read_sidecar, seed_text, sidecar_path, write_sidecar
+from pihti_dedup.whereused import ReferenceCache, build_index, filename_locations
 
 Scanner = Callable[..., Inventory]
 MergeReader = Callable[[Path], tuple[PullRequestMerge, ...]]
@@ -127,6 +140,19 @@ def placeholder_svg(suffix: str) -> str:
     )
 
 
+def _contained(root: Path, relative_path: str) -> Path | None:
+    candidate = (relative_path or "").replace("\\", "/").strip()
+    if not candidate or candidate.startswith("/"):
+        return None
+    try:
+        resolved = (root / candidate).resolve()
+    except (OSError, ValueError):
+        return None
+    if not resolved.is_relative_to(root) or resolved == root:
+        return None
+    return resolved
+
+
 def workspace_file(root: Path, relative_path: str) -> Path | None:
     """Resolve a repo-relative path inside the workspace, or None if it escapes.
 
@@ -134,18 +160,19 @@ def workspace_file(root: Path, relative_path: str) -> Path | None:
     all fail the containment check after resolution.
     """
 
-    candidate = (relative_path or "").replace("\\", "/").strip()
-    if not candidate or candidate.startswith("/"):
-        return None
-    try:
-        resolved = (root / candidate).resolve()
-        if not resolved.is_relative_to(root) or resolved == root:
-            return None
-        if not resolved.is_file():
-            return None
-    except (OSError, ValueError):
-        return None
-    return resolved
+    resolved = _contained(root, relative_path)
+    return resolved if resolved is not None and resolved.is_file() else None
+
+
+def workspace_folder(root: Path, relative_path: str) -> Path | None:
+    """Same containment rule for a directory.
+
+    The workspace root itself is refused: its `README.md` is the repository's
+    front door, not a folder note.
+    """
+
+    resolved = _contained(root, relative_path)
+    return resolved if resolved is not None and resolved.is_dir() else None
 
 
 def _flag(value: str | None) -> bool:
@@ -175,6 +202,61 @@ def _is_newver_name(value: str) -> bool:
     return Path(value).stem.casefold().endswith(".newver")
 
 
+def _anchor(name: str) -> str:
+    """A stable fragment id for a folder path, safe in a URL and unique.
+
+    The slug alone would collide (`a/b` and `a-b`), so a short digest of the
+    real path settles it; the readable part is kept for a usable address bar.
+    """
+
+    slug = re.sub(r"[^a-z0-9]+", "-", name.casefold()).strip("-")
+    digest = hashlib.sha256(name.encode("utf-8")).hexdigest()[:6]
+    return f"{slug[:48]}-{digest}" if slug else digest
+
+
+def _tree_list(store: dict) -> list[dict]:
+    return [
+        {**node, "children": _tree_list(node["children"])}
+        for node in sorted(store.values(), key=lambda item: item["name"].casefold())
+    ]
+
+
+def folder_tree(folders: list[dict]) -> list[dict]:
+    """Nest the flat catalog folder list into a tree with aggregate counts.
+
+    A flat rail of 99 folders buries the scan card and cannot be skimmed, and
+    the owner rejected an inner scrollbar as the fix. A tree shows the handful
+    of top-level systems, each carrying the file count of its whole subtree, and
+    opens only where asked.
+    """
+
+    roots: dict[str, dict] = {}
+    for folder in folders:
+        parts = folder["name"].split("/") if folder["name"] != "." else ["."]
+        store = roots
+        walked: list[str] = []
+        node: dict | None = None
+        for part in parts:
+            walked.append(part)
+            path = "/".join(walked)
+            node = store.setdefault(
+                part,
+                {
+                    "name": part,
+                    "path": path,
+                    "key": _anchor(path),
+                    "count": 0,
+                    "anchor": None,
+                    "children": {},
+                },
+            )
+            node["count"] += len(folder["files"])
+            store = node["children"]
+        if node is not None:
+            node["anchor"] = folder["anchor"]
+    return _tree_list(roots)
+
+
 def _is_loopback(address: str | None) -> bool:
     try:
         return ipaddress.ip_address(address or "").is_loopback
@@ -193,8 +275,10 @@ def create_app(
     app.config.update(WORKSPACE=root, VERSION=__version__, FORM_TOKEN=secrets.token_urlsafe(32))
     cache = InventoryCache(root, scanner)
     previews = PreviewCache()
+    references = ReferenceCache()
     app.extensions["pihti_inventory_cache"] = cache
     app.extensions["pihti_preview_cache"] = previews
+    app.extensions["pihti_reference_cache"] = references
     app.jinja_env.filters["filesize"] = _filesize
     app.jinja_env.filters["winpath"] = _windows_path
     app.jinja_env.filters["filetime"] = _filetime
@@ -362,16 +446,189 @@ def create_app(
     def catalog():
         include_vendor = _flag(request.args.get("include_vendor"))
         inventory = cache.get(include_vendor=include_vendor, hash_files=False)
-        folders = []
-        for index, (name, records) in enumerate(_folders(inventory), start=1):
-            folders.append({"name": name, "anchor": f"folder-{index}", "files": records})
+        folders = _catalog_folders(inventory)
         return render_template(
             "catalog.html",
             version=__version__,
             inventory=inventory,
             folders=folders,
+            tree=folder_tree(folders),
             file_count=len(inventory.records),
+            form_token=app.config["FORM_TOKEN"],
+            saved=_flag(request.args.get("saved")),
         )
+
+    @app.get("/folder/<path:relative_folder>")
+    def folder_page(relative_folder: str):
+        target = workspace_folder(root, relative_folder)
+        if target is None:
+            return render_template(
+                "_not_found.html", version=__version__, path=relative_folder
+            ), 404
+        return render_template("folder.html", **_folder_context(target))
+
+    @app.post("/folder/<path:relative_folder>/note")
+    def folder_note(relative_folder: str):
+        guard = _guard(request)
+        if guard is not None:
+            return guard
+        target = workspace_folder(root, relative_folder)
+        if target is None:
+            return render_template(
+                "_not_found.html", version=__version__, path=relative_folder
+            ), 404
+        text = request.form.get("text", "")
+        try:
+            write_folder_note(target, text)
+        except FolderNoteError as exc:
+            context = _folder_context(target)
+            context.update(error=str(exc), draft=text)
+            return render_template("folder.html", **context), 400
+        except OSError as exc:
+            context = _folder_context(target)
+            context.update(error=f"could not write the folder note: {exc}", draft=text)
+            return render_template("folder.html", **context), 500
+        relative = target.relative_to(root).as_posix()
+        if request.form.get("origin") == "catalog":
+            return redirect(url_for("catalog", saved="1") + f"#folder-note-{_anchor(relative)}")
+        return redirect(url_for("folder_page", relative_folder=relative, saved="1"))
+
+    @app.post("/part/<path:relative_path>/rename")
+    def part_rename(relative_path: str):
+        guard = _guard(request)
+        if guard is not None:
+            return guard
+        target = workspace_file(root, relative_path)
+        if target is None:
+            return render_template("_not_found.html", version=__version__, path=relative_path), 404
+        new_name = request.form.get("new_name", "")
+        confirmed = _flag(request.form.get("confirm_collision"))
+        index = build_index(root, cache=references)
+        try:
+            plan = plan_rename(
+                root,
+                target.relative_to(root).as_posix(),
+                new_name,
+                index=index,
+                locations=filename_locations(root),
+            )
+        except RenameError as exc:
+            context = _part_context(target)
+            context.update(rename_error=str(exc), rename_draft=new_name)
+            return render_template("part.html", **context), 400
+        if plan.needs_confirmation and not confirmed:
+            context = _part_context(target)
+            context.update(rename_pending=plan, rename_draft=plan.new_name)
+            return render_template("part.html", **context), 409
+        try:
+            result = execute_rename(root, plan, confirmed=confirmed)
+        except (RenameError, OSError) as exc:
+            context = _part_context(target)
+            context.update(rename_error=str(exc), rename_draft=new_name)
+            return render_template("part.html", **context), 409
+        cache.clear()
+        return redirect(url_for("part_page", relative_path=result.entry.new_path, renamed="1"))
+
+    @app.get("/renames")
+    def renames():
+        entries = list(reversed(read_ledger(root)))
+        views = [_rename_view(entry) for entry in entries]
+        return render_template(
+            "renames.html",
+            version=__version__,
+            workspace=root.name,
+            entries=views,
+            open_count=sum(not entry.settled for entry in entries),
+            prompt_count=sum(entry.will_prompt and not entry.settled for entry in entries),
+            ledger=LEDGER_RELATIVE,
+            form_token=app.config["FORM_TOKEN"],
+        )
+
+    @app.post("/renames/<entry_id>/settled")
+    def rename_settled(entry_id: str):
+        if not _is_loopback(request.remote_addr):
+            return jsonify({"error": "the ledger is restricted to localhost"}), 403
+        if not secrets.compare_digest(
+            request.headers.get("X-PIHTI-Token", ""), app.config["FORM_TOKEN"]
+        ):
+            return jsonify({"error": "invalid form token"}), 403
+        payload = request.get_json(silent=True) or {}
+        try:
+            entry = set_settled(root, entry_id, bool(payload.get("settled")))
+        except RenameError as exc:
+            return jsonify({"error": str(exc)}), 404
+        except OSError as exc:
+            return jsonify({"error": f"could not write the ledger: {exc}"}), 500
+        return jsonify({"id": entry.id, "settled": entry.settled})
+
+    def _guard(current) -> Response | None:
+        if not _is_loopback(current.remote_addr):
+            return Response("editing is restricted to localhost", status=403)
+        supplied = current.headers.get("X-PIHTI-Token") or current.form.get("token", "")
+        if not secrets.compare_digest(supplied, app.config["FORM_TOKEN"]):
+            return Response("invalid form token", status=403)
+        return None
+
+    def _catalog_folders(inventory: Inventory) -> list[dict]:
+        folders = []
+        for name, records in _folders(inventory):
+            note = None
+            try:
+                note = read_folder_note(root / name) if name != "." else None
+            except FolderNoteError:
+                note = None
+            key = _anchor(name)
+            leaf = name.rsplit("/", 1)[-1]
+            folders.append(
+                {
+                    "name": name,
+                    "key": key,
+                    "anchor": f"folder-{key}",
+                    "note_anchor": f"folder-note-{key}",
+                    "files": records,
+                    "note": note,
+                    "note_text": note.text if note else "",
+                    "note_default": f"# {leaf}\n\nWhat this folder is for.\n",
+                    "excerpt": note.excerpt if note else "",
+                    "editable": name != ".",
+                }
+            )
+        return folders
+
+    def _folder_context(target: Path) -> dict:
+        relative = target.relative_to(root).as_posix()
+        inventory = cache.get(include_vendor=True, hash_files=False)
+        prefix = f"{relative}/"
+        files = [record for record in inventory.records if record.path.rsplit("/", 1)[0] == relative]
+        subtree = [record for record in inventory.records if record.path.startswith(prefix)]
+        error = None
+        try:
+            note = read_folder_note(target)
+        except FolderNoteError as exc:
+            note = None
+            error = str(exc)
+        return {
+            "version": __version__,
+            "path": relative,
+            "name": target.name,
+            "parent": relative.rsplit("/", 1)[0] if "/" in relative else "",
+            "files": files,
+            "subtree_count": len(subtree),
+            "note": note,
+            "note_text": note.text if note else "",
+            "form_token": app.config["FORM_TOKEN"],
+            "saved": _flag(request.args.get("saved")),
+            "error": error,
+            "draft": None,
+        }
+
+    def _rename_view(entry) -> dict:
+        return {
+            "entry": entry,
+            "full_path": str(root / entry.new_path),
+            "folder_path": str((root / entry.new_path).parent),
+            "search": f"{entry.old_name} {entry.new_name} {entry.new_path}".casefold(),
+        }
 
     @app.get("/part/<path:relative_path>")
     def part_page(relative_path: str):
@@ -435,11 +692,14 @@ def create_app(
         except (SidecarError, OSError) as exc:
             sidecar = None
             error = f"the existing sidecar could not be parsed: {exc}"
+        folder = relative.rsplit("/", 1)[0] if "/" in relative else "."
         return {
             "version": __version__,
             "path": relative,
             "name": target.name,
-            "folder": relative.rsplit("/", 1)[0] if "/" in relative else ".",
+            "stem": target.stem,
+            "folder": folder,
+            "folder_editable": folder != ".",
             "suffix": target.suffix.casefold(),
             "size": stat.st_size,
             "mtime_ns": stat.st_mtime_ns,
@@ -453,6 +713,12 @@ def create_app(
             "sidecar_name": companion.name,
             "sidecar_exists": companion.is_file(),
             "sidecar_text": companion.read_text(encoding="utf-8") if companion.is_file() else "",
+            "referrers": build_index(root, cache=references).referring(target.name),
+            "renameable": target.suffix.casefold() in RENAMEABLE_EXTENSIONS,
+            "rename_error": None,
+            "rename_pending": None,
+            "rename_draft": None,
+            "renamed": _flag(request.args.get("renamed")),
             "form_token": app.config["FORM_TOKEN"],
             "saved": _flag(request.args.get("saved")),
             "error": error,

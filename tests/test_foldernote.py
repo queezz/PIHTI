@@ -1,0 +1,145 @@
+import importlib.util
+from pathlib import Path
+from types import ModuleType
+
+import pytest
+
+from pihti_dedup.foldernote import (
+    AUTOGEN_MARKER,
+    FolderNoteError,
+    folder_note_path,
+    is_generated,
+    note_excerpt,
+    read_folder_note,
+    strip_autogen_marker,
+    write_folder_note,
+)
+
+GENERATOR_PATH = Path(__file__).resolve().parents[1] / "scripts" / "generate_readmes.py"
+
+
+def load_generator() -> ModuleType:
+    """Import `scripts/generate_readmes.py`, which is a script rather than a package."""
+
+    spec = importlib.util.spec_from_file_location("generate_readmes", GENERATOR_PATH)
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def make_folder(root: Path) -> Path:
+    folder = root / "BoronProbe"
+    folder.mkdir()
+    (folder / "probe.iam").write_bytes(b"assembly")
+    (folder / "bearing.ipt").write_bytes(b"part")
+    (folder / "shaft.ipt").write_bytes(b"part")
+    return folder
+
+
+def test_the_marker_is_the_same_string_on_both_sides() -> None:
+    generator = load_generator()
+
+    assert generator.AUTOGEN_MARKER == AUTOGEN_MARKER
+    assert generator.AUTOGEN_NOTICE.startswith(AUTOGEN_MARKER)
+
+
+def test_a_generated_index_carries_no_note_excerpt(tmp_path: Path) -> None:
+    generator = load_generator()
+    folder = make_folder(tmp_path)
+    text = generator.render_readme(folder, [folder / "probe.iam"], [folder / "bearing.ipt"])
+
+    assert is_generated(text) is True
+    assert note_excerpt(text) == ""
+
+
+def test_an_excerpt_is_the_first_line_of_real_prose() -> None:
+    text = (
+        "# BoronProbe\n\n"
+        "> a blockquote is not the note\n\n"
+        "The rotating boron probe head and its bearing stack.\n\n"
+        "## Notes\n- a bullet\n"
+    )
+
+    assert note_excerpt(text) == "The rotating boron probe head and its bearing stack."
+    assert note_excerpt("x" * 400, limit=20).endswith("…")
+    assert len(note_excerpt("x" * 400, limit=20)) == 20
+
+
+def test_saving_a_note_strips_the_generator_marker(tmp_path: Path) -> None:
+    generator = load_generator()
+    folder = make_folder(tmp_path)
+    generated = generator.render_readme(folder, [folder / "probe.iam"], [])
+    folder_note_path(folder).write_text(generated, encoding="utf-8")
+    assert read_folder_note(folder).generated is True
+
+    saved = write_folder_note(folder, generated + "\nThe probe head assembly.\n")
+
+    assert saved.generated is False
+    assert AUTOGEN_MARKER not in saved.text
+    assert saved.text.startswith("# BoronProbe")
+    assert read_folder_note(folder).excerpt == "The probe head assembly."
+
+
+def test_an_authored_comment_further_down_is_left_alone(tmp_path: Path) -> None:
+    folder = make_folder(tmp_path)
+    text = f"{AUTOGEN_MARKER}\n<!-- Do not edit -->\n\n# Head\n\n<!-- my own note to self -->\nProse.\n"
+
+    saved = write_folder_note(folder, text)
+
+    assert AUTOGEN_MARKER not in saved.text
+    assert "<!-- my own note to self -->" in saved.text
+
+
+def test_an_empty_note_is_refused_rather_than_erasing_the_readme(tmp_path: Path) -> None:
+    folder = make_folder(tmp_path)
+    folder_note_path(folder).write_text("# Keep me\n\nReal prose.\n", encoding="utf-8")
+
+    with pytest.raises(FolderNoteError):
+        write_folder_note(folder, "   \n\n")
+
+    assert folder_note_path(folder).read_text(encoding="utf-8") == "# Keep me\n\nReal prose.\n"
+
+
+def test_a_missing_note_reads_as_none_and_strip_is_a_no_op(tmp_path: Path) -> None:
+    folder = make_folder(tmp_path)
+
+    assert read_folder_note(folder) is None
+    assert strip_autogen_marker("# Hand written\n") == "# Hand written\n"
+    assert is_generated("# Hand written\n") is False
+
+
+def test_the_generator_never_rewrites_a_note_saved_here(tmp_path: Path) -> None:
+    generator = load_generator()
+    folder = make_folder(tmp_path)
+    generated = generator.render_readme(folder, [folder / "probe.iam"], [])
+    folder_note_path(folder).write_text(generated, encoding="utf-8")
+    write_folder_note(folder, generated + "\nPAEK bearing stack; bakeout limited.\n")
+    saved = folder_note_path(folder).read_text(encoding="utf-8")
+
+    assert generator.is_manually_edited(folder_note_path(folder)) is True
+
+    generator.run(tmp_path, dry_run=False, generate_index=False)
+
+    assert folder_note_path(folder).read_text(encoding="utf-8") == saved
+    assert "PAEK bearing stack" in saved
+
+
+def test_the_generator_still_recognises_its_own_untouched_output(tmp_path: Path) -> None:
+    generator = load_generator()
+    folder = make_folder(tmp_path)
+
+    generator.run(tmp_path, dry_run=False, generate_index=False)
+    readme = folder_note_path(folder)
+
+    assert readme.is_file()
+    assert generator.is_manually_edited(readme) is False
+    assert is_generated(readme.read_text(encoding="utf-8")) is True
+
+
+def test_an_unreadable_readme_counts_as_manual(tmp_path: Path) -> None:
+    generator = load_generator()
+    folder = make_folder(tmp_path)
+    folder_note_path(folder).write_bytes(b"\xff\xfe\x00 not valid utf-8 \xff")
+
+    assert generator.is_manually_edited(folder_note_path(folder)) is True

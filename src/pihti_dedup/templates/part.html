@@ -89,6 +89,67 @@
         </form>
         {% endif %}
       </section>
+
+      {% if renameable %}
+      <section class="part-card rename-editor" id="rename">
+        <h2>Rename in place</h2>
+        <p class="part-note muted">A plain filesystem rename inside this folder. The extension is fixed, the sidecar follows, and the move is recorded in the <a href="{{ url_for('renames') }}">rename ledger</a>. Nothing is committed for you.</p>
+
+        {% if renamed %}<p class="metadata-notice" role="status">Renamed. The ledger has the path to paste into Inventor's resolve dialog.</p>{% endif %}
+        {% if rename_error %}<p class="metadata-error" role="alert">{{ rename_error }}</p>{% endif %}
+
+        {% if rename_pending %}
+        <div class="rename-warning" role="alert">
+          <strong>Inventor will not warn you about this one.</strong>
+          <p>
+            After renaming to <code>{{ rename_pending.new_name }}</code>, the name
+            <code>{{ rename_pending.old_name }}</code> still exists elsewhere in the workspace:
+          </p>
+          <ul>{% for survivor in rename_pending.old_name_survivors %}<li><code>{{ survivor|winpath }}</code></li>{% endfor %}</ul>
+          <p>
+            With <code>UsingUniqueFilenames=Yes</code>, every document below will silently rebind to
+            that other file instead of raising the resolve dialog. Each one has to be opened and
+            repointed by hand.
+          </p>
+          {% if rename_pending.referrers %}
+          <ul>{% for referrer in rename_pending.referrers %}<li><code>{{ referrer|winpath }}</code></li>{% endfor %}</ul>
+          {% else %}
+          <p class="part-note muted">No document currently names <code>{{ rename_pending.old_name }}</code>, so nothing would rebind today.</p>
+          {% endif %}
+          <form method="post" action="{{ url_for('part_rename', relative_path=path) }}">
+            <input type="hidden" name="token" value="{{ form_token }}">
+            <input type="hidden" name="new_name" value="{{ rename_pending.new_name }}">
+            <input type="hidden" name="confirm_collision" value="1">
+            <button class="button apply-button" type="submit">Rename anyway — I will repoint them</button>
+          </form>
+        </div>
+        {% endif %}
+
+        <form method="post" action="{{ url_for('part_rename', relative_path=path) }}" class="rename-form">
+          <input type="hidden" name="token" value="{{ form_token }}">
+          <label for="new-name">New filename</label>
+          <div class="rename-input">
+            <input id="new-name" name="new_name" type="text" value="{{ rename_draft if rename_draft is not none else stem }}" autocomplete="off" spellcheck="false" required>
+            <span class="rename-suffix">{{ suffix }}</span>
+          </div>
+          <button class="button" type="submit">Rename</button>
+        </form>
+      </section>
+      {% endif %}
+
+      <section class="part-card">
+        <h2>Where used</h2>
+        {% if referrers %}
+        <p class="part-note muted">{{ referrers|length }} document{% if referrers|length != 1 %}s{% endif %} embed the name <code>{{ name }}</code>. Unique-filename resolution matches on that name, not on the stored path.</p>
+        <ul class="referrer-list">
+          {% for referrer in referrers %}
+          <li><a href="{{ url_for('part_page', relative_path=referrer) }}"><code>{{ referrer|winpath }}</code></a></li>
+          {% endfor %}
+        </ul>
+        {% else %}
+        <p class="part-note">No assembly, drawing, or presentation in the workspace names this file.</p>
+        {% endif %}
+      </section>
     </div>
 
     <aside class="rail-side" aria-label="File facts">
@@ -100,12 +161,15 @@
           <div><dt>Modified</dt><dd>{{ mtime_ns|filetime }}</dd></div>
         </dl>
         <p class="rail-note muted">{{ folder|winpath }}</p>
+        {% if folder_editable %}
+        <a class="button full" href="{{ url_for('folder_page', relative_folder=folder) }}">Folder note</a>
+        {% endif %}
         <a class="button full" href="{{ url_for('catalog') }}">Back to catalog</a>
       </section>
 
       <section class="rail-card">
         <h2>Boundary</h2>
-        <p class="rail-note muted">This page reads the CAD file and writes only its sidecar. It never renames, moves, or commits anything.</p>
+        <p class="rail-note muted">This page reads the CAD file and writes only its sidecar, its folder's note, and a rename inside this folder. It never edits geometry, rewrites an Inventor reference, or commits anything.</p>
       </section>
     </aside>
   </div>

@@ -1,0 +1,110 @@
+{% extends "base.html" %}
+{% block title %}Renames · PIHTI{% endblock %}
+{% block body %}
+<main class="page">
+  <div class="work-grid one-rail" data-rename-ledger data-form-token="{{ form_token }}">
+    <div class="work-main">
+      <section class="filterbar" aria-label="Rename filters">
+        <label class="searchbox">
+          <span class="sr-only">Filter by old or new filename</span>
+          <span aria-hidden="true">⌕</span>
+          <input type="search" data-rename-search placeholder="Old or new filename" autocomplete="off">
+        </label>
+        <span class="shown-count"><strong data-rename-count>{{ entries|length }}</strong> of {{ entries|length }} renames</span>
+      </section>
+
+      {% for view in entries %}
+      {% set entry = view.entry %}
+      <article class="rename-card{% if entry.settled %} is-settled{% endif %}{% if not entry.will_prompt %} is-silent{% endif %}"
+               id="rename-{{ entry.id }}" data-rename-entry data-search="{{ view.search }}">
+        <header class="rename-head">
+          <div class="rename-names">
+            <code class="old-name">{{ entry.old_name }}</code>
+            <span class="rename-arrow" aria-hidden="true">→</span>
+            <code class="new-name">{{ entry.new_name }}</code>
+          </div>
+          <time datetime="{{ entry.timestamp }}">{{ entry.timestamp }}</time>
+        </header>
+
+        {% if entry.will_prompt %}
+        <p class="rename-flavor prompt">
+          <strong>Inventor will ask.</strong>
+          No other file in the workspace carries <code>{{ entry.old_name }}</code>, so opening a
+          document that wants it raises the resolve-link dialog. Paste the full path below.
+        </p>
+        {% else %}
+        <p class="rename-flavor silent">
+          <strong>Inventor will NOT ask.</strong>
+          Another file named <code>{{ entry.old_name }}</code> is still in the workspace, so Inventor
+          binds to <em>that</em> file silently. Open each document below and repoint it by hand;
+          no dialog will warn you.
+        </p>
+        {% endif %}
+
+        <dl class="rename-paths">
+          <div>
+            <dt>Folder</dt>
+            <dd><code>{{ view.folder_path|winpath }}</code></dd>
+            <dd class="rename-copy"><button class="copy-path" type="button" data-copy-text="{{ view.folder_path|winpath }}">Copy</button></dd>
+          </div>
+          <div>
+            <dt>Full path</dt>
+            <dd><code>{{ view.full_path|winpath }}</code></dd>
+            <dd class="rename-copy"><button class="copy-path" type="button" data-copy-text="{{ view.full_path|winpath }}">Copy</button></dd>
+          </div>
+        </dl>
+
+        <div class="rename-referrers">
+          <h3>Referring documents at rename time <span>({{ entry.where_used|length }})</span></h3>
+          {% if entry.where_used %}
+          <ul class="referrer-list">
+            {% for referrer in entry.where_used %}
+            <li>
+              <label>
+                <input type="checkbox" data-referrer-check="{{ entry.id }}::{{ referrer }}">
+                <code>{{ referrer|winpath }}</code>
+              </label>
+            </li>
+            {% endfor %}
+          </ul>
+          {% else %}
+          <p class="part-note muted">No assembly, drawing, or presentation named this file when it was renamed.</p>
+          {% endif %}
+        </div>
+
+        <footer class="rename-foot">
+          <label class="reference-check">
+            <input type="checkbox" data-rename-settled="{{ entry.id }}" {% if entry.settled %}checked{% endif %}>
+            Settled — every referrer above opens correctly
+          </label>
+          <span class="rename-status" data-rename-status="{{ entry.id }}"></span>
+        </footer>
+      </article>
+      {% endfor %}
+
+      <div class="no-results" data-rename-empty {% if entries %}hidden{% endif %}>
+        <strong>{% if entries %}No renames match this filter.{% else %}No renames recorded yet.{% endif %}</strong>
+        <span>{% if entries %}Clear the search box to bring them back.{% else %}Rename a file from its part page and it lands here.{% endif %}</span>
+      </div>
+    </div>
+
+    <aside class="rail-side" aria-label="Rename ledger">
+      <section class="rail-card">
+        <h2>Ledger</h2>
+        <dl class="scope-list">
+          <div><dt>Workspace</dt><dd>{{ workspace }}</dd></div>
+          <div><dt>Recorded</dt><dd>{{ entries|length }}</dd></div>
+          <div><dt>Unsettled</dt><dd>{{ open_count }}</dd></div>
+          <div><dt>Will prompt</dt><dd>{{ prompt_count }}</dd></div>
+        </dl>
+        <p class="rail-note muted"><code>{{ ledger|winpath }}</code> — Git-tracked, workspace-relative. The absolute paths above are built for this machine at render time and are never stored.</p>
+      </section>
+
+      <section class="rail-card">
+        <h2>Why this page</h2>
+        <p class="rail-note muted">The project file sets <code>UsingUniqueFilenames=Yes</code>, so Inventor resolves a broken reference by searching the workspace for the filename. One match rebinds silently; none raises the resolve dialog. This ledger is the record of which case each rename created.</p>
+      </section>
+    </aside>
+  </div>
+</main>
+{% endblock %}

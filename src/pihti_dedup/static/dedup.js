@@ -508,3 +508,170 @@
   search.addEventListener("input", filterCatalog);
   filterCatalog();
 })();
+
+(function () {
+  "use strict";
+
+  // Collapsible folder rail. A flat list of 99 folders pushed the scan card off
+  // screen and the owner rejected an inner scrollbar, so the tree opens only
+  // where asked and remembers which branches were open.
+  var tree = document.querySelector("[data-folder-tree]");
+  if (!tree) return;
+
+  var TREE_KEY = "pihti-catalog-tree";
+
+  function readExpanded() {
+    try {
+      var saved = JSON.parse(localStorage.getItem(TREE_KEY) || "[]");
+      return Array.isArray(saved) ? saved.filter(function (item) {
+        return typeof item === "string";
+      }) : [];
+    } catch (_) { return []; }
+  }
+
+  function saveExpanded(paths) {
+    try { localStorage.setItem(TREE_KEY, JSON.stringify(paths)); }
+    catch (_) { /* storage disabled — the tree still works for this visit */ }
+  }
+
+  var expanded = readExpanded();
+
+  function setOpen(path, open) {
+    var toggle = tree.querySelector('[data-tree-toggle="' + CSS.escape(path) + '"]');
+    var children = tree.querySelector('[data-tree-children="' + CSS.escape(path) + '"]');
+    if (!toggle || !children) return;
+    children.hidden = !open;
+    toggle.setAttribute("aria-expanded", open ? "true" : "false");
+    toggle.classList.toggle("is-open", open);
+  }
+
+  expanded.forEach(function (path) { setOpen(path, true); });
+
+  tree.addEventListener("click", function (event) {
+    var toggle = event.target.closest("[data-tree-toggle]");
+    if (!toggle) return;
+    var path = toggle.dataset.treeToggle;
+    var open = toggle.getAttribute("aria-expanded") !== "true";
+    setOpen(path, open);
+    expanded = expanded.filter(function (item) { return item !== path; });
+    if (open) expanded.push(path);
+    saveExpanded(expanded);
+  });
+
+  // An anchor jump into a collapsed branch is useless, so open its ancestors.
+  tree.addEventListener("click", function (event) {
+    var link = event.target.closest(".tree-name[href^='#']");
+    if (!link) return;
+    var row = link.closest("[data-tree-node]");
+    while (row) {
+      var parent = row.parentElement ? row.parentElement.closest("[data-tree-children]") : null;
+      if (!parent) break;
+      setOpen(parent.dataset.treeChildren, true);
+      if (expanded.indexOf(parent.dataset.treeChildren) === -1) {
+        expanded.push(parent.dataset.treeChildren);
+      }
+      row = parent.closest("[data-tree-node]");
+    }
+    saveExpanded(expanded);
+  });
+})();
+
+(function () {
+  "use strict";
+
+  // Copy-to-clipboard outside the duplicates fragment: the renames page pastes
+  // these straight into Inventor's resolve-link dialog.
+  document.querySelectorAll("[data-copy-text]").forEach(function (button) {
+    button.addEventListener("click", async function () {
+      var original = button.textContent;
+      try {
+        await navigator.clipboard.writeText(button.dataset.copyText);
+        button.textContent = "Copied";
+      } catch (_) {
+        button.textContent = "Copy failed";
+      }
+      window.setTimeout(function () { button.textContent = original; }, 1200);
+    });
+  });
+})();
+
+(function () {
+  "use strict";
+
+  var ledger = document.querySelector("[data-rename-ledger]");
+  if (!ledger) return;
+
+  var CHECK_KEY = "pihti-rename-referrers";
+  var search = ledger.querySelector("[data-rename-search]");
+  var cards = Array.from(ledger.querySelectorAll("[data-rename-entry]"));
+  var counter = ledger.querySelector("[data-rename-count]");
+  var empty = ledger.querySelector("[data-rename-empty]");
+
+  function readChecks() {
+    try {
+      var saved = JSON.parse(localStorage.getItem(CHECK_KEY) || "{}");
+      return saved && typeof saved === "object" ? saved : {};
+    } catch (_) { return {}; }
+  }
+
+  var checks = readChecks();
+
+  // Per-referrer ticks are a local worklist, not a claim about the archive, so
+  // they stay in localStorage. Only "settled" reaches the Git-tracked ledger.
+  ledger.querySelectorAll("[data-referrer-check]").forEach(function (box) {
+    var key = box.dataset.referrerCheck;
+    box.checked = Boolean(checks[key]);
+    box.addEventListener("change", function () {
+      if (box.checked) checks[key] = true;
+      else delete checks[key];
+      try { localStorage.setItem(CHECK_KEY, JSON.stringify(checks)); }
+      catch (_) { /* the tick still holds for this visit */ }
+    });
+  });
+
+  ledger.querySelectorAll("[data-rename-settled]").forEach(function (box) {
+    var id = box.dataset.renameSettled;
+    var status = ledger.querySelector('[data-rename-status="' + CSS.escape(id) + '"]');
+    box.addEventListener("change", async function () {
+      var wanted = box.checked;
+      box.disabled = true;
+      if (status) status.textContent = "Saving…";
+      try {
+        var response = await fetch("/renames/" + encodeURIComponent(id) + "/settled", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "X-PIHTI-Token": ledger.dataset.formToken,
+          },
+          body: JSON.stringify({ settled: wanted }),
+        });
+        var result = await response.json();
+        if (!response.ok) throw new Error(result.error || "Could not update the ledger");
+        box.checked = result.settled;
+        var card = box.closest("[data-rename-entry]");
+        if (card) card.classList.toggle("is-settled", result.settled);
+        if (status) status.textContent = result.settled ? "Settled" : "Reopened";
+      } catch (error) {
+        box.checked = !wanted;
+        if (status) status.textContent = error.message;
+      } finally {
+        box.disabled = false;
+      }
+    });
+  });
+
+  function filterRenames() {
+    var query = search ? search.value.trim().toLowerCase() : "";
+    var shown = 0;
+    cards.forEach(function (card) {
+      var match = !query || card.dataset.search.indexOf(query) !== -1;
+      card.hidden = !match;
+      if (match) shown += 1;
+    });
+    if (counter) counter.textContent = String(shown);
+    if (empty) empty.hidden = shown !== 0;
+  }
+
+  if (search) search.addEventListener("input", filterRenames);
+  filterRenames();
+})();
