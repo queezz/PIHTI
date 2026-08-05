@@ -109,6 +109,34 @@ python scripts/generate_readmes.py
 The script skips existing `README.md` files, so manually edited ones are safe.
 Run with `--dry-run` to preview what would be written.
 
+### Duplicate review
+
+The local duplicate viewer finds repeated CAD filenames across the Inventor
+workspace, then uses SHA-256 to distinguish byte-identical copies from files
+whose contents conflict. It is read-only: it does not move files, choose a
+canonical part, or rewrite assembly references.
+
+From the repository root, install it into the external environment and scan:
+
+```powershell
+& "$HOME\.venvs\pihti-dedup\Scripts\python.exe" -m pip install -e ".[dev]"
+& "$HOME\.venvs\pihti-dedup\Scripts\python.exe" -m pihti_dedup scan .
+```
+
+Start the viewer through the fleet launcher:
+
+```powershell
+lab pihti
+```
+
+It opens `http://127.0.0.1:4185/duplicates`. The direct module command remains
+available for development, but `lab pihti` is the normal operating surface.
+
+Pack-and-Go support files under `bellows/Design Data/` and
+`bellows/Templates/` are excluded by default and can be included from the
+viewer. The original `scripts/find_duplicates.py` command remains available for
+the earlier JSON/CSV/Markdown inventory workflow.
+
 ---
 
 ## Local documentation environment

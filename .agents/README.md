@@ -1,15 +1,32 @@
 # .agents/
 
-Working logs and handoffs for AI-assisted sessions on this engineering archive.
+Operational memory and workflows for AI-assisted work on this engineering
+archive. Read the repository root `AGENTS.md` first, then this file and the newest
+entry under `log/`.
 
-This is operational scratch space, kept separate from `docs/`:
+This is kept separate from `docs/`:
 
 - `docs/` - durable, published documentation about PIHTI hardware and repo workflows.
-- `.agents/` - session-by-session logs, decisions, searches, and handoffs. Not published to the MkDocs site.
+- `.agents/` - directions, decisions, inventories, workflows, and handoffs. Not
+  published to the MkDocs site.
+
+## Layout
+
+- `REPOSITORY_MAP.md` - folder roles and project boundaries.
+- `directions.md` - forward-looking open work only.
+- `CHANGELOG.md` - shipped archive milestones.
+- `log/` - dated session handoffs going forward.
+- `commit-culture.md` - repository commit contract.
+- `duplicate-inventory-direction.md` - safe duplicate review workflow.
+- `dedup-viewer-design.md` - local duplicate-review viewer architecture.
+- `handoff-template.md` - copy-paste session-log skeleton.
+
+The dated Markdown files directly under `.agents/` are legacy June 2026
+handoffs. They remain at their committed paths; create new handoffs in `log/`.
 
 ## Naming convention
 
-One file per session/handoff, named:
+One file per session/handoff under `log/`, named:
 
 ```text
 YYYY-MM-DD-short-title-kebab.md
@@ -48,3 +65,5 @@ Avoid committing generated mechanical Markdown reports. If a tool can emit both 
 ## Standing directions
 
 - [duplicate-inventory-direction.md](duplicate-inventory-direction.md) - bit/hash inventory workflow before CAD cleanup or staged imports.
+- [dedup-viewer-design.md](dedup-viewer-design.md) - architecture and safety
+  boundary for the paperlib-style duplicate review server.
