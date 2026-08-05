@@ -6,6 +6,19 @@ remains authoritative for exact file changes.
 
 ## 2026-08-05
 
+- Shipped `pihti-dedup` 0.4.1: the folder-note editor was showing a generated
+  `README.md`'s leading comment ("Do not edit by hand; re-run the script to
+  refresh") right next to the editor's own invitation to edit and save it —
+  the wording predated the 0.4.0 contract where editing (by hand or through the
+  editor) claims the file as a manual note. The catalog and `/folder/<path>`
+  textareas now strip that leading comment block for display when the loaded
+  README is still generated, reusing the same stripping `write_folder_note()`
+  already applies on save, and both hint labels read "Generated index — edit
+  and save to make it your folder note; the generator will then leave this
+  file alone." `scripts/generate_readmes.py`'s own comment and blockquote got
+  the same correction; the guard only matches the marker's first line, so all
+  existing generated READMEs — old or new wording — are still recognised and
+  never rewritten.
 - Shipped `pihti-dedup` 0.4.0: renaming a CAD file now comes with the memo it
   needs. A new where-used index reads the UTF-16LE reference strings embedded in
   every `.iam`/`.idw`/`.ipn` and answers "which documents name this file?" for

@@ -58,7 +58,7 @@
 
         {% if folder.editable %}
         <details class="folder-note" id="{{ folder.note_anchor }}">
-          <summary>Folder note — <code>{{ folder.name|winpath }}\README.md</code>{% if folder.note and folder.note.generated %} <em>(generated index; saving makes it a note)</em>{% endif %}</summary>
+          <summary>Folder note — <code>{{ folder.name|winpath }}\README.md</code>{% if folder.note and folder.note.generated %} <em>Generated index — edit and save to make it your folder note; the generator will then leave this file alone.</em>{% endif %}</summary>
           <form method="post" action="{{ url_for('folder_note', relative_folder=folder.name) }}" class="metadata-form">
             <input type="hidden" name="token" value="{{ form_token }}">
             <input type="hidden" name="origin" value="catalog">

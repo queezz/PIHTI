@@ -19,7 +19,7 @@
         {% if saved %}<p class="metadata-notice" role="status">Folder note saved.</p>{% endif %}
         {% if error %}<p class="metadata-error" role="alert">{{ error }}</p>{% endif %}
         {% if note and note.generated %}
-        <p class="part-note">This README is still the generated index. Saving here strips the generator's marker, so <code>scripts/generate_readmes.py</code> will treat it as manually edited and never rewrite it.</p>
+        <p class="part-note">Generated index — edit and save to make it your folder note; the generator will then leave this file alone.</p>
         {% endif %}
 
         <form method="post" action="{{ url_for('folder_note', relative_folder=path) }}" class="metadata-form">
