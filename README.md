@@ -179,6 +179,43 @@ Pack-and-Go support files under `bellows/Design Data/` and
 viewer. The original `scripts/find_duplicates.py` command remains available for
 the earlier JSON/CSV/Markdown inventory workflow.
 
+### Part catalog and metadata sidecars
+
+The same local server also serves `/catalog`, a folder-by-folder thumbnail grid
+of every scanned CAD file, and `/part/<path>` for one file. Thumbnails are the
+preview image Inventor already embedded in the document; nothing is rendered,
+and files without one (a few STEP imports) show a neutral placeholder. Duplicate
+rows in the review screen carry the same thumbnail, so same-name collisions can
+be triaged visually before opening Inventor.
+
+A part page reads iProperties straight out of the file: part number,
+description, material, designer, author, creation date, document subtype, and
+the Inventor build that last saved it. Mass, volume, density, and surface area
+appear only when Inventor's own `Valid MassProps` flag says its cached values
+are still good. When the Part Number differs from the filename, the page says so
+prominently — Inventor resolves references by filename, so the two records
+disagreeing is worth seeing.
+
+Free-form notes live in a **metadata sidecar**: a Markdown file named after the
+whole CAD filename, so `B_probe_bearing.ipt` gets `B_probe_bearing.ipt.md` next
+to it. It holds YAML frontmatter (`part_number`, `material`, `status`, `tags`,
+`supersedes`, `seeded_from_iproperties`) followed by free prose. The part page
+creates one seeded from iProperties, or edits the raw file in a textarea; the
+server refuses to write frontmatter it cannot parse. Sidecars are never
+committed for you — they appear as untracked or modified files in your own Git
+flow.
+
+To seed the whole workspace at once, preview first:
+
+```powershell
+& "$HOME\.venvs\pihti-dedup\Scripts\python.exe" -m pihti_dedup meta seed . --dry
+& "$HOME\.venvs\pihti-dedup\Scripts\python.exe" -m pihti_dedup meta seed . --apply
+```
+
+`--dry` prints counts and a sample and writes nothing. `--apply` writes sidecars
+only for `.ipt`, `.iam`, `.idw`, and `.ipn` files that do not have one yet;
+existing sidecars are never overwritten.
+
 ---
 
 ## Local documentation environment

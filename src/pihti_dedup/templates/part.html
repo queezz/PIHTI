@@ -1,0 +1,113 @@
+{% extends "base.html" %}
+{% block title %}{{ name }} · PIHTI{% endblock %}
+{% block body %}
+<main class="page">
+  <div class="work-grid one-rail">
+    <div class="work-main">
+      <section class="part-head">
+        <div class="part-preview">
+          <img src="{{ url_for('preview_image', relative_path=path) }}" alt="Embedded preview of {{ name }}" width="320" height="240">
+        </div>
+        <div class="part-identity">
+          <h1>{{ name }}</h1>
+          <p class="part-path" title="{{ path|winpath }}">{{ path|winpath }}</p>
+          {% if part_number_mismatch %}
+          <p class="part-mismatch">
+            <strong>Part Number differs from the filename.</strong>
+            iProperties say <code>{{ meta.part_number }}</code>; the file is named <code>{{ name }}</code>.
+            Inventor resolves references by filename, so the Part Number is the design intent record here.
+          </p>
+          {% endif %}
+          {% if meta.fields.description %}<p class="part-description">{{ meta.fields.description }}</p>{% endif %}
+        </div>
+      </section>
+
+      <section class="part-card">
+        <h2>iProperties</h2>
+        {% if properties %}
+        <dl class="fact-list">
+          {% for label, value in properties %}
+          <div><dt>{{ label }}</dt><dd>{{ value }}</dd></div>
+          {% endfor %}
+        </dl>
+        {% else %}
+        <p class="part-note">{{ meta.error or 'This file carries no readable iProperties.' }}</p>
+        {% endif %}
+
+        {% if mass %}
+        <h3>Mass properties</h3>
+        <dl class="fact-list">
+          {% for label, value, unit in mass %}
+          <div><dt>{{ label }}</dt><dd>{{ '%.4f'|format(value) }} {{ unit }}</dd></div>
+          {% endfor %}
+        </dl>
+        <p class="part-note muted">Inventor's cached values, reported only because it flagged them valid.</p>
+        {% elif mass_invalid %}
+        <p class="part-note muted">Mass properties are withheld: Inventor did not flag its cached values as valid.</p>
+        {% endif %}
+
+        {% if meta.user_defined %}
+        <h3>User-defined</h3>
+        <dl class="fact-list">
+          {% for label, value in meta.user_defined.items() %}
+          <div><dt>{{ label }}</dt><dd>{{ value }}</dd></div>
+          {% endfor %}
+        </dl>
+        {% endif %}
+      </section>
+
+      <section class="part-card metadata-card">
+        <h2>Metadata sidecar</h2>
+        <p class="part-note muted"><code>{{ sidecar_name }}</code> — a plain Markdown file beside the CAD file. Nothing is committed for you.</p>
+
+        {% if saved %}<p class="metadata-notice" role="status">Sidecar saved.</p>{% endif %}
+        {% if error %}<p class="metadata-error" role="alert">{{ error }}</p>{% endif %}
+
+        {% if not sidecar_exists %}
+        <p class="part-note">No sidecar yet. Seeding writes the Part Number, Material, and today's date into frontmatter and leaves the prose to you.</p>
+        <form method="post" action="{{ url_for('part_metadata', relative_path=path) }}">
+          <input type="hidden" name="token" value="{{ form_token }}">
+          <input type="hidden" name="action" value="create">
+          <button class="button" type="submit">Create metadata</button>
+        </form>
+        {% else %}
+        {% if sidecar %}
+        <dl class="fact-list">
+          <div><dt>Status</dt><dd>{{ sidecar.status or '—' }}</dd></div>
+          <div><dt>Tags</dt><dd>{{ sidecar.tags|join(', ') or '—' }}</dd></div>
+          <div><dt>Supersedes</dt><dd>{{ sidecar.frontmatter.supersedes|winpath if sidecar.frontmatter.supersedes else '—' }}</dd></div>
+          <div><dt>Seeded</dt><dd>{{ sidecar.frontmatter.seeded_from_iproperties or '—' }}</dd></div>
+        </dl>
+        {% if sidecar.body.strip() %}<div class="sidecar-prose">{{ sidecar.body.strip() }}</div>{% endif %}
+        {% endif %}
+        <form method="post" action="{{ url_for('part_metadata', relative_path=path) }}" class="metadata-form">
+          <input type="hidden" name="token" value="{{ form_token }}">
+          <input type="hidden" name="action" value="save">
+          <label class="sr-only" for="sidecar-text">Raw sidecar text</label>
+          <textarea id="sidecar-text" name="text" rows="18" spellcheck="false">{{ draft if draft is not none else sidecar_text }}</textarea>
+          <button class="button" type="submit">Save</button>
+        </form>
+        {% endif %}
+      </section>
+    </div>
+
+    <aside class="rail-side" aria-label="File facts">
+      <section class="rail-card">
+        <h2>File</h2>
+        <dl class="scope-list">
+          <div><dt>Type</dt><dd>{{ suffix[1:]|upper or 'FILE' }}</dd></div>
+          <div><dt>Size</dt><dd>{{ size|filesize }}</dd></div>
+          <div><dt>Modified</dt><dd>{{ mtime_ns|filetime }}</dd></div>
+        </dl>
+        <p class="rail-note muted">{{ folder|winpath }}</p>
+        <a class="button full" href="{{ url_for('catalog') }}">Back to catalog</a>
+      </section>
+
+      <section class="rail-card">
+        <h2>Boundary</h2>
+        <p class="rail-note muted">This page reads the CAD file and writes only its sidecar. It never renames, moves, or commits anything.</p>
+      </section>
+    </aside>
+  </div>
+</main>
+{% endblock %}

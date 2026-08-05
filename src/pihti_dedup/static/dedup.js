@@ -478,3 +478,33 @@
 
   loadResults({ includeVendor: filterState.includeVendor });
 })();
+
+(function () {
+  "use strict";
+
+  var search = document.querySelector("[data-catalog-search]");
+  if (!search) return;
+
+  var tiles = Array.from(document.querySelectorAll("[data-catalog-item]"));
+  var folders = Array.from(document.querySelectorAll("[data-catalog-folder]"));
+  var counter = document.querySelector("[data-catalog-count]");
+  var empty = document.querySelector("[data-catalog-empty]");
+
+  function filterCatalog() {
+    var query = search.value.trim().toLowerCase();
+    var shown = 0;
+    tiles.forEach(function (tile) {
+      var match = !query || tile.dataset.search.indexOf(query) !== -1;
+      tile.hidden = !match;
+      if (match) shown += 1;
+    });
+    folders.forEach(function (folder) {
+      folder.hidden = !folder.querySelector("[data-catalog-item]:not([hidden])");
+    });
+    if (counter) counter.textContent = String(shown);
+    if (empty) empty.hidden = shown !== 0;
+  }
+
+  search.addEventListener("input", filterCatalog);
+  filterCatalog();
+})();

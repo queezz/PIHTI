@@ -5,8 +5,17 @@ session evidence in `log/`.
 
 ## Dedup viewer — next review slice
 
-- Add an optional, portable review sidecar for human dispositions without moving
-  CAD or turning scan results into a database.
+- Partly done in 0.3.0: per-file metadata sidecars (`<cad filename>.md`) now
+  record intent next to the CAD file. Still open is the *review* disposition —
+  a per-group record of `canonical` / `keep-both` / `needs-inventor` /
+  `package-baggage` keyed to a stable group signature, which the duplicate
+  screen can read back.
+- Show an existing sidecar's status and tags in the duplicate rows and catalog
+  tiles, so a reviewed file is visibly reviewed without opening its page.
+- Write quarantine outside the Inventor workspace by default. The store was
+  moved to `../PIHTI-quarantine/` by hand on 2026-08-05 because unique-filename
+  resolution could reach into `.pihti-dedup/`; the tool still defaults to the
+  in-workspace path.
 - Link filename collisions to a recorded Inventor/Design Assistant “where used”
   check; hash differences alone remain insufficient evidence.
 - Decide whether same-stem/different-extension families belong in the main review

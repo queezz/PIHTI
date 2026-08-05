@@ -6,7 +6,8 @@ The read-only first slice shipped as `pihti-dedup` 0.1.0 on 2026-08-05. Version
 0.1.1 corrected the working shell against the fleet/Paperlib precedent and added
 local merged-PR and folder analysis. Version 0.2.0 split the context across two
 stationary rails and added preview-first, recoverable cleanup for exact copies
-introduced by a merge. The shared scanner lives in
+introduced by a merge. Version 0.3.0 added embedded-thumbnail reading, a catalog
+and part page, and portable metadata sidecars. The shared scanner lives in
 `src/pihti_dedup/inventory.py`; the CLI and Flask viewer consume the same
 classifications, and `scripts/find_duplicates.py` remains a compatibility entry
 point for earlier reports.
@@ -143,6 +144,45 @@ all seven, the two files have identical SHA-256 values and identical filesystem
 modified timestamps. The UI characterizes these as **newVer pairs** but says
 “origin unproven”: neither the bytes nor the timestamp establishes that Autodesk
 Inventor created the suffix, and no Autodesk documentation for it was found.
+
+### Catalog, part page, and metadata sidecars
+
+Version 0.3.0 adds a document-reading layer beside the filesystem scanner.
+`src/pihti_dedup/inventor_meta.py` parses the MS-OLEPS property sets inside
+`.ipt`/`.iam`/`.idw`/`.ipn` with `olefile` only — no Inventor, COM, or Windows
+API. Inventor scrambles its property-stream names, so sets are matched by FMTID
+and never by stream name; PID 255 carries each set's own name as the fallback for
+an unknown FMTID. Design Tracking ids were cross-checked against this workspace,
+and Mass/SurfaceArea/Volume/Density (58/59/60/61) were confirmed arithmetically
+because `Mass == Volume * Density` on every part carrying all three. Mass
+properties are a cached snapshot, so they are reported only when `Valid
+MassProps` (PID 62) is present and non-zero.
+
+Thumbnails are the preview image Inventor already embedded; nothing is rendered.
+`GET /preview/<repo-relative-path>` resolves the path, refuses anything that does
+not stay inside the workspace, and serves the bytes with a content type taken
+from the image magic. Old headerless DIB previews get a BITMAPFILEHEADER
+prepended. A process-local cache keyed by path and modification time holds both
+hits and misses. Of 999 Inventor documents in the current workspace, 996 carry a
+PNG preview; the three STEP-imported parts without one get a neutral inline SVG
+placeholder rather than a broken image.
+
+`GET /catalog` is a per-folder thumbnail grid over the existing scanner's file
+list, and `GET /part/<repo-relative-path>` shows one file's preview,
+iProperties, file facts, and sidecar. Both use the established shell with a
+single rail. The part page states a Part Number that disagrees with the filename,
+because Inventor resolves references by filename and the mismatch is real
+evidence: 227 of 999 documents disagree today.
+
+A metadata sidecar is `<cad filename>.md` — the whole filename plus `.md`, so a
+part and its drawing never collide — holding YAML frontmatter
+(`part_number`, `material`, `status`, `tags`, `supersedes`,
+`seeded_from_iproperties`) and free prose. Seeding copies iProperties and leaves
+judgement blank. Writes reuse the loopback-plus-token boundary of the cleanup
+endpoints, validate that the frontmatter parses before touching the file, and
+never commit: a sidecar simply appears as an untracked or modified file. The CLI
+twin is `meta seed --dry|--apply`, which seeds only Inventor documents in bulk
+because no other CAD extension carries iProperties.
 
 ### Decisions
 

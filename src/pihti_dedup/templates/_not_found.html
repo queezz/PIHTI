@@ -1,0 +1,11 @@
+{% extends "base.html" %}
+{% block title %}Not in this workspace · PIHTI{% endblock %}
+{% block body %}
+<main class="page">
+  <div class="error-card">
+    <h2>No such workspace file</h2>
+    <p>Nothing readable resolves inside the workspace for <code>{{ path }}</code>.</p>
+    <a class="button" href="{{ url_for('catalog') }}">Back to catalog</a>
+  </div>
+</main>
+{% endblock %}

@@ -62,12 +62,15 @@
           {% for record in group.records %}
           {% set member_plan = member_plans.get((group.id, record.path)) %}
           <div class="member">
-            <span class="filetype">{{ record.suffix[1:]|upper or 'FILE' }}</span>
+            <a class="member-thumb" href="{{ url_for('part_page', relative_path=record.path) }}" title="Open {{ record.name }}" tabindex="-1" aria-hidden="true">
+              <img src="{{ url_for('preview_image', relative_path=record.path) }}" alt="" loading="lazy" decoding="async" width="64" height="48">
+            </a>
             <div class="member-path">
-              <strong>{{ record.name }}</strong>
+              <strong><a href="{{ url_for('part_page', relative_path=record.path) }}">{{ record.name }}</a></strong>
               <span title="{{ record.path|winpath }}">{{ record.path|winpath }}</span>
             </div>
             <div class="member-meta">
+              <span class="filetype">{{ record.suffix[1:]|upper or 'FILE' }}</span>
               <span>{{ record.size|filesize }}</span>
               <time datetime="{{ record.mtime_ns }}" title="Modified time">{{ record.mtime_ns|filetime }}</time>
               {% if record.sha256 %}<code title="{{ record.sha256 }}">{{ record.sha256[:10] }}</code>{% endif %}

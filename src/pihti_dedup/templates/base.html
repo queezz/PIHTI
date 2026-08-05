@@ -14,6 +14,10 @@
       <span class="brand-mark" aria-hidden="true">P</span>
       <span><strong>PIHTI</strong><small>filename review</small></span>
     </a>
+    <nav class="topnav" aria-label="Views">
+      <a href="{{ url_for('duplicates') }}" {% if request.endpoint == 'duplicates' %}class="is-current" aria-current="page"{% endif %}>Duplicates</a>
+      <a href="{{ url_for('catalog') }}" {% if request.endpoint in ('catalog', 'part_page') %}class="is-current" aria-current="page"{% endif %}>Catalog</a>
+    </nav>
     <div class="topbar-meta">
       <span class="local-tool"><span aria-hidden="true">●</span> local quarantine</span>
       <span class="version">v{{ version }}</span>

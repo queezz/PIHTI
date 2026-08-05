@@ -1,9 +1,12 @@
 import os
 from pathlib import Path
 
+import pihti_dedup.web as web
 from pihti_dedup.cleanup import plan_member_cleanup
 from pihti_dedup.git_history import PullRequestMerge
+from pihti_dedup.inventor_meta import DocumentMeta, Preview
 from pihti_dedup.inventory import scan_workspace
+from pihti_dedup.sidecar import read_sidecar
 from pihti_dedup.web import create_app
 
 
@@ -241,3 +244,209 @@ def test_newver_pair_is_characterized_and_offers_confirmed_member_delete(
     payload = applied.get_json()
     assert payload["execution"]["moved"] == ["Parts/Part5.newVer.ipt"]
     assert (tmp_path / payload["execution"]["manifest"]).exists()
+
+
+def make_document(**fields) -> DocumentMeta:
+    return DocumentMeta(path="stub", ok=True, fields=fields)
+
+
+def test_duplicate_rows_show_a_preview_and_link_to_the_part_page(tmp_path: Path) -> None:
+    client = create_app(make_workspace(tmp_path)).test_client()
+
+    result_html = client.get("/duplicates/results").get_data(as_text=True)
+
+    assert result_html.count('class="member-thumb"') == 3
+    assert 'src="/preview/BoronProbe_2026/parts/bearing.ipt"' in result_html
+    assert 'href="/part/BoronProbe_2026/parts/bearing.ipt"' in result_html
+    assert 'loading="lazy"' in result_html
+
+
+def test_preview_serves_the_embedded_image_with_a_content_type_from_magic(
+    tmp_path: Path, monkeypatch
+) -> None:
+    png = b"\x89PNG\r\n\x1a\n" + b"body bytes"
+    monkeypatch.setattr(web, "read_preview", lambda _path: Preview(data=png, image_format="png"))
+    client = create_app(make_workspace(tmp_path)).test_client()
+
+    response = client.get("/preview/BoronProbe/parts/bearing.ipt")
+
+    assert response.status_code == 200
+    assert response.mimetype == "image/png"
+    assert response.get_data() == png
+
+
+def test_preview_falls_back_to_a_neutral_placeholder(tmp_path: Path) -> None:
+    client = create_app(make_workspace(tmp_path)).test_client()
+
+    response = client.get("/preview/BoronProbe/parts/bearing.ipt")
+    body = response.get_data(as_text=True)
+
+    assert response.status_code == 200
+    assert response.mimetype == "image/svg+xml"
+    assert "No embedded preview" in body
+    assert ">IPT<" in body
+
+
+def test_preview_and_part_reject_traversal_and_unknown_paths(tmp_path: Path) -> None:
+    outside = tmp_path.parent / "outside-secret.ipt"
+    outside.write_bytes(b"not in the workspace")
+    client = create_app(make_workspace(tmp_path)).test_client()
+
+    assert client.get("/preview/BoronProbe/parts/absent.ipt").status_code == 404
+    assert client.get("/preview/..%2Foutside-secret.ipt").status_code == 404
+    assert client.get("/preview/..%2F..%2FWindows%2Fwin.ini").status_code == 404
+    assert client.get("/preview/C:%5CWindows%5Cwin.ini").status_code == 404
+    assert client.get("/part/..%2Foutside-secret.ipt").status_code == 404
+
+
+def test_catalog_lists_every_folder_as_a_thumbnail_grid(tmp_path: Path) -> None:
+    client = create_app(make_workspace(tmp_path)).test_client()
+
+    html = client.get("/catalog").get_data(as_text=True)
+
+    assert 'class="thumb-grid"' in html
+    assert "BoronProbe\\parts" in html
+    assert 'href="/part/Plasma%20Vessel/parts/bearing.ipt"' in html
+    assert 'src="/preview/Plasma%20Vessel/parts/bearing.ipt"' in html
+    assert "Design Data" not in html
+    assert html.count("data-catalog-item") == 3
+    assert 'class="work-grid one-rail"' in html
+
+
+def test_part_page_shows_iproperties_and_flags_a_part_number_mismatch(
+    tmp_path: Path, monkeypatch
+) -> None:
+    monkeypatch.setattr(
+        web,
+        "read_inventor_document",
+        lambda _path: make_document(
+            part_number="UFC-152",
+            description="Rotating feedthrough body",
+            material="Stainless Steel",
+            designer="zetsu",
+            mass=32.07,
+            volume=4.008,
+            density=8.0,
+            valid_massprops=17,
+        ),
+    )
+    client = create_app(make_workspace(tmp_path)).test_client()
+
+    html = client.get("/part/BoronProbe/parts/bearing.ipt").get_data(as_text=True)
+
+    assert "Part Number differs from the filename" in html
+    assert "UFC-152" in html
+    assert "Rotating feedthrough body" in html
+    assert "Stainless Steel" in html
+    assert "32.0700 g" in html
+    assert "8.0000 g/cm" in html
+    assert "BoronProbe\\parts\\bearing.ipt" in html
+    assert "Create metadata" in html
+
+
+def test_part_page_withholds_mass_when_inventor_did_not_flag_it_valid(
+    tmp_path: Path, monkeypatch
+) -> None:
+    monkeypatch.setattr(
+        web,
+        "read_inventor_document",
+        lambda _path: make_document(part_number="bearing", mass=32.07, valid_massprops=0),
+    )
+    client = create_app(make_workspace(tmp_path)).test_client()
+
+    html = client.get("/part/BoronProbe/parts/bearing.ipt").get_data(as_text=True)
+
+    assert "Mass properties are withheld" in html
+    assert "32.07" not in html
+    assert "Part Number differs" not in html
+
+
+def test_metadata_sidecar_is_seeded_then_edited_through_the_part_page(
+    tmp_path: Path, monkeypatch
+) -> None:
+    monkeypatch.setattr(
+        web,
+        "read_inventor_document",
+        lambda _path: make_document(part_number="bearing", material="PAEK resin"),
+    )
+    app = create_app(make_workspace(tmp_path))
+    client = app.test_client()
+    companion = tmp_path / "BoronProbe" / "parts" / "bearing.ipt.md"
+
+    created = client.post(
+        "/part/BoronProbe/parts/bearing.ipt/metadata",
+        data={"action": "create", "token": app.config["FORM_TOKEN"]},
+    )
+
+    assert created.status_code == 302
+    assert companion.exists()
+    seeded = read_sidecar(companion)
+    assert seeded is not None
+    assert seeded.frontmatter["part_number"] == "bearing"
+    assert seeded.frontmatter["material"] == "PAEK resin"
+    assert seeded.body == ""
+
+    page = client.get("/part/BoronProbe/parts/bearing.ipt?saved=1").get_data(as_text=True)
+    assert "Sidecar saved." in page
+    assert "bearing.ipt.md" in page
+    assert "Create metadata" not in page
+
+    edited = companion.read_text(encoding="utf-8").replace("status: ''", "status: draft")
+    saved = client.post(
+        "/part/BoronProbe/parts/bearing.ipt/metadata",
+        data={"action": "save", "token": app.config["FORM_TOKEN"], "text": edited + "\nWhy.\n"},
+    )
+
+    assert saved.status_code == 302
+    reread = read_sidecar(companion)
+    assert reread is not None
+    assert reread.status == "draft"
+    assert reread.body.strip() == "Why."
+
+
+def test_invalid_sidecar_text_is_refused_and_the_file_is_untouched(tmp_path: Path) -> None:
+    app = create_app(make_workspace(tmp_path))
+    client = app.test_client()
+    companion = tmp_path / "BoronProbe" / "parts" / "bearing.ipt.md"
+    companion.write_text("---\nstatus: draft\n---\n\nKeep me.\n", encoding="utf-8")
+
+    rejected = client.post(
+        "/part/BoronProbe/parts/bearing.ipt/metadata",
+        data={
+            "action": "save",
+            "token": app.config["FORM_TOKEN"],
+            "text": "---\nstatus: shipped\n---\n",
+        },
+    )
+
+    assert rejected.status_code == 400
+    assert "status must be empty or one of" in rejected.get_data(as_text=True)
+    assert companion.read_text(encoding="utf-8") == "---\nstatus: draft\n---\n\nKeep me.\n"
+
+
+def test_metadata_writes_keep_the_localhost_and_token_guard(tmp_path: Path) -> None:
+    app = create_app(make_workspace(tmp_path))
+    client = app.test_client()
+    companion = tmp_path / "BoronProbe" / "parts" / "bearing.ipt.md"
+
+    remote = client.post(
+        "/part/BoronProbe/parts/bearing.ipt/metadata",
+        data={"action": "create", "token": app.config["FORM_TOKEN"]},
+        environ_base={"REMOTE_ADDR": "192.0.2.10"},
+    )
+    untokened = client.post(
+        "/part/BoronProbe/parts/bearing.ipt/metadata",
+        data={"action": "create", "token": "guessed"},
+    )
+
+    assert remote.status_code == 403
+    assert untokened.status_code == 403
+    assert not companion.exists()
+
+
+def test_packaged_script_filters_the_catalog_without_a_rescan(tmp_path: Path) -> None:
+    script = create_app(tmp_path).test_client().get("/static/dedup.js").get_data(as_text=True)
+
+    assert "data-catalog-search" in script
+    assert "data-catalog-item" in script
+    assert "filterCatalog" in script

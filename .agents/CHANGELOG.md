@@ -6,6 +6,19 @@ remains authoritative for exact file changes.
 
 ## 2026-08-05
 
+- Shipped `pihti-dedup` 0.3.0: the viewer now reads Inventor documents directly.
+  A pure-Python MS-OLEPS parser extracts iProperties and the preview image that
+  Inventor already embeds, with no Inventor, COM, or Windows API involved. Every
+  duplicate member row, a new `/catalog` thumbnail grid, and a new `/part/<path>`
+  page show that preview, so same-name collisions can be triaged visually. Part
+  pages report part number, description, material, designer, subtype, and the
+  saving Inventor build, flag a Part Number that disagrees with the filename, and
+  withhold mass properties unless Inventor's own validity flag vouches for its
+  cached values. Added portable metadata sidecars — `<cad filename>.md` with YAML
+  frontmatter plus prose — seeded from iProperties one file at a time in the
+  viewer or in bulk with `meta seed --dry|--apply`. Sidecar writes reuse the
+  localhost-and-token boundary, refuse frontmatter that does not parse, and are
+  never committed automatically.
 - Quarantined 41 confirmed byte-identical copies from merged submission trees as
   a separate CAD cleanup: 40 merge-added PR #1 members and the individually
   reviewed `BoronProbe_2026/parts/B_probe_bearing_without_holes.ipt` member.

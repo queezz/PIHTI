@@ -14,7 +14,11 @@ from typing import Sequence
 from pihti_dedup import __version__
 from pihti_dedup.cleanup import execute_cleanup, plan_merge_exact_cleanup
 from pihti_dedup.git_history import recent_pull_request_merges
+from pihti_dedup.inventor_meta import INVENTOR_EXTENSIONS, read_document
 from pihti_dedup.inventory import CAD_EXTENSIONS, scan_workspace
+from pihti_dedup.sidecar import SidecarError, seed_text, sidecar_path, write_sidecar
+
+SEED_SAMPLE = 10
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -50,6 +54,18 @@ def build_parser() -> argparse.ArgumentParser:
         help="Confirm Inventor/Design Assistant references were reviewed",
     )
     cleanup.add_argument("--json", metavar="PATH", help="Write the plan or result as JSON")
+
+    meta = subparsers.add_parser("meta", help="Metadata sidecars beside CAD files")
+    meta_commands = meta.add_subparsers(dest="meta_command", required=True)
+    seed = meta_commands.add_parser(
+        "seed", help="Create missing sidecars from Inventor iProperties"
+    )
+    seed.add_argument("workspace", nargs="?", default=".")
+    seed.add_argument("--include-vendor", action="store_true")
+    seed_mode = seed.add_mutually_exclusive_group(required=True)
+    seed_mode.add_argument("--dry", action="store_true", help="Count and sample only")
+    seed_mode.add_argument("--apply", action="store_true", help="Write the missing sidecars")
+    seed.add_argument("--json", metavar="PATH", help="Write the plan or result as JSON")
     return parser
 
 
@@ -92,6 +108,56 @@ def _print_cleanup_plan(plan) -> None:
             print(f"  KEEP {_windows_path(keep_path)}")
 
 
+def _seed_sidecars(workspace: Path, *, include_vendor: bool, apply: bool) -> dict:
+    """Seed sidecars for Inventor documents that do not have one yet.
+
+    Only `.ipt`/`.iam`/`.idw`/`.ipn` are seeded in bulk: other CAD files carry no
+    iProperties, so an automatic sidecar for them would be empty ceremony. This
+    writes files and never touches Git.
+    """
+
+    inventory = scan_workspace(workspace, include_vendor=include_vendor, hash_files=False)
+    targets = [
+        record
+        for record in inventory.records
+        if Path(record.path).suffix.casefold() in INVENTOR_EXTENSIONS
+    ]
+    missing = [record for record in targets if not sidecar_path(workspace / record.path).exists()]
+    print(f"workspace: {workspace}")
+    print(f"Inventor documents: {len(targets)}")
+    print(f"existing sidecars: {len(targets) - len(missing)}")
+    print(f"missing sidecars: {len(missing)}")
+
+    written: list[str] = []
+    failures: list[str] = []
+    if apply:
+        for record in missing:
+            path = workspace / record.path
+            try:
+                write_sidecar(sidecar_path(path), seed_text(read_document(path).fields))
+            except (SidecarError, OSError) as exc:
+                failures.append(f"{record.path}: {exc}")
+                continue
+            written.append(f"{record.path}.md")
+        print(f"SEEDED {len(written)} sidecars")
+        for failure in failures:
+            print(f"warning: {failure}", file=sys.stderr)
+    else:
+        print("DRY RUN — no files written")
+        for record in missing[:SEED_SAMPLE]:
+            print(f"WOULD SEED {_windows_path(record.path)}.md")
+        if len(missing) > SEED_SAMPLE:
+            print(f"... and {len(missing) - SEED_SAMPLE} more")
+
+    return {
+        "dry_run": not apply,
+        "documents": len(targets),
+        "missing": [record.path for record in missing],
+        "written": written,
+        "failures": failures,
+    }
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     workspace = Path(args.workspace).resolve()
@@ -111,6 +177,14 @@ def main(argv: Sequence[str] | None = None) -> int:
                 encoding="utf-8",
             )
         return 0
+
+    if args.command == "meta":
+        payload = _seed_sidecars(workspace, include_vendor=args.include_vendor, apply=args.apply)
+        if args.json:
+            Path(args.json).write_text(
+                json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
+            )
+        return 1 if payload["failures"] else 0
 
     if args.command == "merge-cleanup":
         merge = next(

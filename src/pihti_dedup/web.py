@@ -1,16 +1,19 @@
-"""Flask application for local duplicate review and guarded quarantine."""
+"""Flask application for local duplicate review, catalog, and guarded quarantine."""
 
 from __future__ import annotations
 
 import ipaddress
+import os
 import secrets
 import threading
 import time
+from collections import OrderedDict
 from datetime import datetime
 from pathlib import Path
 from typing import Callable
 
-from flask import Flask, jsonify, render_template, request
+from flask import Flask, Response, jsonify, redirect, render_template, request, url_for
+from markupsafe import escape
 
 from pihti_dedup import __version__
 from pihti_dedup.cleanup import (
@@ -20,10 +23,34 @@ from pihti_dedup.cleanup import (
     plan_merge_exact_cleanup,
 )
 from pihti_dedup.git_history import PullRequestMerge, recent_pull_request_merges
+from pihti_dedup.inventor_meta import INVENTOR_EXTENSIONS, DocumentMeta, Preview, read_preview
+from pihti_dedup.inventor_meta import read_document as read_inventor_document
 from pihti_dedup.inventory import Inventory, scan_workspace
+from pihti_dedup.sidecar import SidecarError, read_sidecar, seed_text, sidecar_path, write_sidecar
 
 Scanner = Callable[..., Inventory]
 MergeReader = Callable[[Path], tuple[PullRequestMerge, ...]]
+
+IPROPERTY_ROWS = (
+    ("part_number", "Part number"),
+    ("description", "Description"),
+    ("material", "Material"),
+    ("designer", "Designer"),
+    ("author", "Author"),
+    ("project", "Project"),
+    ("vendor", "Vendor"),
+    ("stock_number", "Stock number"),
+    ("creation_time", "Created"),
+    ("doc_subtype_name", "Document subtype"),
+    ("last_updated_with", "Last updated with"),
+    ("appearance", "Appearance"),
+)
+MASS_ROWS = (
+    ("mass", "Mass", "g"),
+    ("volume", "Volume", "cm³"),
+    ("density", "Density", "g/cm³"),
+    ("surface_area", "Surface area", "cm²"),
+)
 
 
 class InventoryCache:
@@ -34,20 +61,91 @@ class InventoryCache:
         self.scanner = scanner
         self.max_age = max_age
         self._lock = threading.Lock()
-        self._entries: dict[bool, tuple[float, Inventory]] = {}
+        self._entries: dict[tuple[bool, bool], tuple[float, Inventory]] = {}
 
-    def get(self, *, include_vendor: bool, force: bool = False) -> Inventory:
+    def get(
+        self, *, include_vendor: bool, hash_files: bool = True, force: bool = False
+    ) -> Inventory:
+        key = (include_vendor, hash_files)
         with self._lock:
-            cached = self._entries.get(include_vendor)
+            cached = self._entries.get(key)
             if cached and not force and time.monotonic() - cached[0] <= self.max_age:
                 return cached[1]
-            inventory = self.scanner(self.workspace, include_vendor=include_vendor)
-            self._entries[include_vendor] = (time.monotonic(), inventory)
+            inventory = self.scanner(
+                self.workspace, include_vendor=include_vendor, hash_files=hash_files
+            )
+            self._entries[key] = (time.monotonic(), inventory)
             return inventory
 
     def clear(self) -> None:
         with self._lock:
             self._entries.clear()
+
+
+class PreviewCache:
+    """Embedded previews keyed by path and modification time.
+
+    Parsing a document costs a few milliseconds, but a catalog page asks for
+    hundreds of previews at once and re-asks on every visit. Misses are cached
+    too, so the handful of STEP-imported parts without a preview stay cheap.
+    """
+
+    def __init__(self, limit: int = 512) -> None:
+        self.limit = limit
+        self._lock = threading.Lock()
+        self._entries: OrderedDict[tuple[str, int], Preview | None] = OrderedDict()
+
+    def get(self, path: Path, mtime_ns: int) -> Preview | None:
+        key = (os.path.normcase(str(path)), mtime_ns)
+        with self._lock:
+            if key in self._entries:
+                self._entries.move_to_end(key)
+                return self._entries[key]
+        preview = read_preview(path) if path.suffix.casefold() in INVENTOR_EXTENSIONS else None
+        with self._lock:
+            self._entries[key] = preview
+            self._entries.move_to_end(key)
+            while len(self._entries) > self.limit:
+                self._entries.popitem(last=False)
+        return preview
+
+
+def placeholder_svg(suffix: str) -> str:
+    """Neutral inline placeholder for a file that carries no embedded preview."""
+
+    label = escape(suffix.lstrip(".").upper()[:5] or "FILE")
+    return (
+        '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 120" role="img" '
+        'aria-label="No embedded preview">'
+        '<rect width="160" height="120" fill="#101822"/>'
+        '<rect x="0.5" y="0.5" width="159" height="119" fill="none" stroke="#283747"/>'
+        '<path d="M52 40h34l22 22v38H52z" fill="none" stroke="#3b4d61" stroke-width="2"/>'
+        '<path d="M86 40v22h22" fill="none" stroke="#3b4d61" stroke-width="2"/>'
+        f'<text x="80" y="86" fill="#697989" font-family="ui-monospace, monospace" '
+        f'font-size="13" text-anchor="middle">{label}</text>'
+        "</svg>"
+    )
+
+
+def workspace_file(root: Path, relative_path: str) -> Path | None:
+    """Resolve a repo-relative path inside the workspace, or None if it escapes.
+
+    Traversal, absolute paths, drive letters, and symlinks leaving the workspace
+    all fail the containment check after resolution.
+    """
+
+    candidate = (relative_path or "").replace("\\", "/").strip()
+    if not candidate or candidate.startswith("/"):
+        return None
+    try:
+        resolved = (root / candidate).resolve()
+        if not resolved.is_relative_to(root) or resolved == root:
+            return None
+        if not resolved.is_file():
+            return None
+    except (OSError, ValueError):
+        return None
+    return resolved
 
 
 def _flag(value: str | None) -> bool:
@@ -94,7 +192,9 @@ def create_app(
     app = Flask(__name__)
     app.config.update(WORKSPACE=root, VERSION=__version__, FORM_TOKEN=secrets.token_urlsafe(32))
     cache = InventoryCache(root, scanner)
+    previews = PreviewCache()
     app.extensions["pihti_inventory_cache"] = cache
+    app.extensions["pihti_preview_cache"] = previews
     app.jinja_env.filters["filesize"] = _filesize
     app.jinja_env.filters["winpath"] = _windows_path
     app.jinja_env.filters["filetime"] = _filetime
@@ -244,6 +344,120 @@ def create_app(
         cache.clear()
         refreshed = cache.get(include_vendor=include_vendor, force=True)
         return jsonify({"execution": execution.to_dict(), "post_scan": refreshed.summary})
+
+    @app.get("/preview/<path:relative_path>")
+    def preview_image(relative_path: str):
+        target = workspace_file(root, relative_path)
+        if target is None:
+            return Response("no such workspace file", status=404, mimetype="text/plain")
+        try:
+            preview = previews.get(target, target.stat().st_mtime_ns)
+        except OSError:
+            preview = None
+        if preview is None:
+            return Response(placeholder_svg(target.suffix), mimetype="image/svg+xml")
+        return Response(preview.data, mimetype=preview.media_type)
+
+    @app.get("/catalog")
+    def catalog():
+        include_vendor = _flag(request.args.get("include_vendor"))
+        inventory = cache.get(include_vendor=include_vendor, hash_files=False)
+        folders = []
+        for index, (name, records) in enumerate(_folders(inventory), start=1):
+            folders.append({"name": name, "anchor": f"folder-{index}", "files": records})
+        return render_template(
+            "catalog.html",
+            version=__version__,
+            inventory=inventory,
+            folders=folders,
+            file_count=len(inventory.records),
+        )
+
+    @app.get("/part/<path:relative_path>")
+    def part_page(relative_path: str):
+        target = workspace_file(root, relative_path)
+        if target is None:
+            return render_template("_not_found.html", version=__version__, path=relative_path), 404
+        return render_template("part.html", **_part_context(target))
+
+    @app.post("/part/<path:relative_path>/metadata")
+    def part_metadata(relative_path: str):
+        if not _is_loopback(request.remote_addr):
+            return Response("metadata editing is restricted to localhost", status=403)
+        supplied = request.headers.get("X-PIHTI-Token") or request.form.get("token", "")
+        if not secrets.compare_digest(supplied, app.config["FORM_TOKEN"]):
+            return Response("invalid form token", status=403)
+        target = workspace_file(root, relative_path)
+        if target is None:
+            return render_template("_not_found.html", version=__version__, path=relative_path), 404
+        context = _part_context(target)
+        if request.form.get("action") == "create":
+            text = seed_text(context["meta"].fields)
+        else:
+            text = request.form.get("text", "")
+        try:
+            write_sidecar(sidecar_path(target), text)
+        except SidecarError as exc:
+            context.update(error=str(exc), draft=text)
+            return render_template("part.html", **context), 400
+        except OSError as exc:
+            context.update(error=f"could not write the sidecar: {exc}", draft=text)
+            return render_template("part.html", **context), 500
+        return redirect(url_for("part_page", relative_path=context["path"], saved="1"))
+
+    def _folders(inventory: Inventory) -> list[tuple[str, list]]:
+        grouped: dict[str, list] = {}
+        for record in inventory.records:
+            parent = record.path.rsplit("/", 1)[0] if "/" in record.path else "."
+            grouped.setdefault(parent, []).append(record)
+        return sorted(grouped.items(), key=lambda item: item[0].casefold())
+
+    def _part_context(target: Path) -> dict:
+        relative = target.resolve().relative_to(root).as_posix()
+        stat = target.stat()
+        if target.suffix.casefold() in INVENTOR_EXTENSIONS:
+            meta = read_inventor_document(target)
+        else:
+            meta = DocumentMeta(path=str(target), ok=False, error="not an Inventor document")
+        properties = [
+            (label, meta.fields[key]) for key, label in IPROPERTY_ROWS if meta.fields.get(key)
+        ]
+        valid_mass = meta.mass_properties()
+        mass = [
+            (label, valid_mass[key], unit)
+            for key, label, unit in MASS_ROWS
+            if key in valid_mass
+        ]
+        companion = sidecar_path(target)
+        error = None
+        try:
+            sidecar = read_sidecar(companion)
+        except (SidecarError, OSError) as exc:
+            sidecar = None
+            error = f"the existing sidecar could not be parsed: {exc}"
+        return {
+            "version": __version__,
+            "path": relative,
+            "name": target.name,
+            "folder": relative.rsplit("/", 1)[0] if "/" in relative else ".",
+            "suffix": target.suffix.casefold(),
+            "size": stat.st_size,
+            "mtime_ns": stat.st_mtime_ns,
+            "meta": meta,
+            "properties": properties,
+            "mass": mass,
+            "mass_invalid": bool(meta.fields) and not valid_mass,
+            "part_number_mismatch": bool(meta.part_number)
+            and meta.part_number.casefold() != target.stem.casefold(),
+            "sidecar": sidecar,
+            "sidecar_name": companion.name,
+            "sidecar_exists": companion.is_file(),
+            "sidecar_text": companion.read_text(encoding="utf-8") if companion.is_file() else "",
+            "form_token": app.config["FORM_TOKEN"],
+            "saved": _flag(request.args.get("saved")),
+            "error": error,
+            "draft": None,
+        }
 
     @app.get("/duplicates/data")
     def duplicates_data():

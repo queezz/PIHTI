@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+{% block title %}Catalog · PIHTI{% endblock %}
+{% block body %}
+<main class="page">
+  <div class="work-grid one-rail">
+    <div class="work-main">
+      <section class="filterbar" aria-label="Catalog filters">
+        <label class="searchbox">
+          <span class="sr-only">Filter by filename or path</span>
+          <span aria-hidden="true">⌕</span>
+          <input type="search" data-catalog-search placeholder="Filename or folder" autocomplete="off">
+        </label>
+        <span class="shown-count"><strong data-catalog-count>{{ file_count }}</strong> of {{ file_count }} files</span>
+      </section>
+
+      {% for folder in folders %}
+      <section class="catalog-folder" id="{{ folder.anchor }}" data-catalog-folder>
+        <header>
+          <h2>{{ folder.name|winpath }}</h2>
+          <span>{{ folder.files|length }} file{% if folder.files|length != 1 %}s{% endif %}</span>
+        </header>
+        <div class="thumb-grid">
+          {% for record in folder.files %}
+          <a class="thumb-tile" href="{{ url_for('part_page', relative_path=record.path) }}"
+             data-catalog-item data-search="{{ record.path|lower }}" title="{{ record.path|winpath }}">
+            <img src="{{ url_for('preview_image', relative_path=record.path) }}" alt="" loading="lazy" decoding="async" width="160" height="120">
+            <span class="thumb-name">{{ record.name }}</span>
+            <span class="thumb-meta">{{ record.size|filesize }}</span>
+          </a>
+          {% endfor %}
+        </div>
+      </section>
+      {% endfor %}
+
+      <div class="no-results" data-catalog-empty hidden>
+        <strong>No files match this filter.</strong>
+        <span>Clear the search box to bring them back.</span>
+      </div>
+    </div>
+
+    <aside class="rail-side" aria-label="Folders and scan scope">
+      <section class="rail-card">
+        <h2>Folders</h2>
+        <nav class="rail-nav" aria-label="Jump to a folder">
+          {% for folder in folders %}
+          <a class="rail-navrow" href="#{{ folder.anchor }}">
+            <span title="{{ folder.name|winpath }}">{{ folder.name|winpath }}</span>
+            <strong>{{ folder.files|length }}</strong>
+          </a>
+          {% endfor %}
+        </nav>
+      </section>
+
+      <section class="rail-card">
+        <h2>Scan</h2>
+        <dl class="scope-list">
+          <div><dt>Workspace</dt><dd>{{ inventory.root.name }}</dd></div>
+          <div><dt>CAD files</dt><dd>{{ file_count }}</dd></div>
+          <div><dt>Folders</dt><dd>{{ folders|length }}</dd></div>
+        </dl>
+        <p class="rail-note muted">Previews come from the file's own embedded thumbnail. Files without one show a neutral placeholder.</p>
+      </section>
+    </aside>
+  </div>
+</main>
+{% endblock %}
