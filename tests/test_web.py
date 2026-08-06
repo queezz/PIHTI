@@ -46,6 +46,7 @@ def test_shell_is_immediate_and_results_are_loaded_separately(tmp_path: Path) ->
     assert "page-heading" not in html
     assert 'href="/static/favicon.ico"' in html
     assert 'class="brand" href="/catalog"' in html
+    assert html.index(">Catalog</a>") < html.index(">Duplicates</a>") < html.index(">Renames</a>")
 
     results = client.get("/duplicates/results")
     result_html = results.get_data(as_text=True)

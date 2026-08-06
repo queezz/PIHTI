@@ -15,8 +15,8 @@
       <span><strong>PIHTI</strong><small>CAD archive</small></span>
     </a>
     <nav class="topnav" aria-label="Views">
-      <a href="{{ url_for('duplicates') }}" {% if request.endpoint == 'duplicates' %}class="is-current" aria-current="page"{% endif %}>Duplicates</a>
       <a href="{{ url_for('catalog') }}" {% if request.endpoint in ('catalog', 'part_page', 'folder_page') %}class="is-current" aria-current="page"{% endif %}>Catalog</a>
+      <a href="{{ url_for('duplicates') }}" {% if request.endpoint == 'duplicates' %}class="is-current" aria-current="page"{% endif %}>Duplicates</a>
       <a href="{{ url_for('renames') }}" {% if request.endpoint == 'renames' %}class="is-current" aria-current="page"{% endif %}>Renames</a>
     </nav>
     <div class="topbar-meta">
