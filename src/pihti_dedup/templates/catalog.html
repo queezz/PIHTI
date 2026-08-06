@@ -59,16 +59,22 @@
         {% if folder.editable %}
         <details class="folder-note" id="{{ folder.note_anchor }}">
           <summary>Folder note — <code>{{ folder.name|winpath }}\README.md</code>{% if folder.note and folder.note.generated %} <em>Generated index — edit and save to make it your folder note; the generator will then leave this file alone.</em>{% endif %}</summary>
-          <form method="post" action="{{ url_for('folder_note', relative_folder=folder.name) }}" class="metadata-form">
-            <input type="hidden" name="token" value="{{ form_token }}">
-            <input type="hidden" name="origin" value="catalog">
-            <label class="sr-only" for="note-{{ folder.key }}">Folder note for {{ folder.name }}</label>
-            <textarea id="note-{{ folder.key }}" name="text" rows="10" spellcheck="false">{{ folder.note_text or folder.note_default }}</textarea>
-            <div class="folder-note-actions">
-              <button class="button" type="submit">Save note</button>
-              <a class="button" href="{{ url_for('folder_page', relative_folder=folder.name) }}">Open folder page</a>
-            </div>
-          </form>
+          {% if folder.note_html %}
+          <div class="note-rendered markdown-body">{{ folder.note_html }}</div>
+          {% endif %}
+          <details class="raw-editor">
+            <summary class="edit-toggle">Edit raw text</summary>
+            <form method="post" action="{{ url_for('folder_note', relative_folder=folder.name) }}" class="metadata-form">
+              <input type="hidden" name="token" value="{{ form_token }}">
+              <input type="hidden" name="origin" value="catalog">
+              <label class="sr-only" for="note-{{ folder.key }}">Folder note for {{ folder.name }}</label>
+              <textarea id="note-{{ folder.key }}" name="text" rows="10" spellcheck="false">{{ folder.note_text or folder.note_default }}</textarea>
+              <div class="folder-note-actions">
+                <button class="button" type="submit">Save note</button>
+                <a class="button" href="{{ url_for('folder_page', relative_folder=folder.name) }}">Open folder page</a>
+              </div>
+            </form>
+          </details>
         </details>
         {% endif %}
 

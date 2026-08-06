@@ -4,6 +4,22 @@ Shipped archive milestones only. PIHTI does not yet have a formal release/versio
 contract, so entries are dated rather than assigned software versions. Git history
 remains authoritative for exact file changes.
 
+## 2026-08-06
+
+- Shipped `pihti-dedup` 0.5.0: notes are shown rendered instead of as raw text.
+  Sidecar prose on a part page, the folder page's note, and an authored folder
+  note in a catalog section are rendered server-side with `python-markdown` —
+  tables, fenced code, and sane lists, the same engine family as the MkDocs
+  site — and the raw textarea moved behind an "Edit raw text" toggle beside it.
+  The token-protected save flow is untouched, so the file on disk is still
+  exactly what the owner types. Catalog section excerpts are reduced to plain
+  text before truncation, so `**bold**` reads as `bold` in a header; a
+  *generated* index is deliberately not rendered on the catalog, because it is
+  the same file list the thumbnail grid below already shows. Because these are
+  files that arrive through student pull requests, the renderer escapes raw HTML
+  instead of executing it, drops HTML comments, and strips link schemes other
+  than http, https, mailto, and relative.
+
 ## 2026-08-05
 
 - Shipped `pihti-dedup` 0.4.1: the folder-note editor was showing a generated

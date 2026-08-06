@@ -34,6 +34,7 @@ from pihti_dedup.git_history import PullRequestMerge, recent_pull_request_merges
 from pihti_dedup.inventor_meta import INVENTOR_EXTENSIONS, DocumentMeta, Preview, read_preview
 from pihti_dedup.inventor_meta import read_document as read_inventor_document
 from pihti_dedup.inventory import Inventory, scan_workspace
+from pihti_dedup.markdown_view import render as render_markdown
 from pihti_dedup.renames import (
     LEDGER_RELATIVE,
     RENAMEABLE_EXTENSIONS,
@@ -609,6 +610,12 @@ def create_app(
                     "files": records,
                     "note": note,
                     "note_text": _note_display_text(note),
+                    # A generated index is the folder's file list, which the
+                    # thumbnail grid three lines below already shows. Rendering
+                    # it inline for all 99 sections would add ~50 KB to a page
+                    # that is already ~1 MB, to say nothing new. The folder page
+                    # renders it in full; the catalog renders authored prose only.
+                    "note_html": render_markdown(note.text) if note and not note.generated else "",
                     "note_default": f"# {leaf}\n\nWhat this folder is for.\n",
                     "excerpt": note.excerpt if note else "",
                     "editable": name != ".",
@@ -637,6 +644,7 @@ def create_app(
             "subtree_count": len(subtree),
             "note": note,
             "note_text": _note_display_text(note),
+            "note_html": render_markdown(_note_display_text(note)),
             "form_token": app.config["FORM_TOKEN"],
             "saved": _flag(request.args.get("saved")),
             "error": error,
@@ -731,6 +739,7 @@ def create_app(
             "part_number_mismatch": bool(meta.part_number)
             and meta.part_number.casefold() != target.stem.casefold(),
             "sidecar": sidecar,
+            "sidecar_html": render_markdown(sidecar.body if sidecar else ""),
             "sidecar_name": companion.name,
             "sidecar_exists": companion.is_file(),
             "sidecar_text": companion.read_text(encoding="utf-8") if companion.is_file() else "",

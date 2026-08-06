@@ -5,12 +5,7 @@ session evidence in `log/`.
 
 ## Workbench — queued next (owner-approved 2026-08-05)
 
-1. **Markdown view (v0.5.0)**: render sidecar prose and folder notes as
-   markdown instead of raw text — server-side `python-markdown` (same engine
-   family as mkdocs, tables + fenced code), rendered view by default with an
-   Edit toggle back to the raw textarea. Applies to part pages, folder pages,
-   and catalog note excerpts.
-2. **STL/STEP/DWG previews**: spike complete — verdicts, timings, gotchas,
+1. **STL/STEP/DWG previews**: spike complete — verdicts, timings, gotchas,
    and the integration contract are in
    `log/2026-08-05-mesh-preview-spike.md`; working spike code is preserved in
    `.agents/spikes/mesh-preview/`. All three formats proven on every matching

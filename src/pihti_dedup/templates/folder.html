@@ -22,12 +22,21 @@
         <p class="part-note">Generated index — edit and save to make it your folder note; the generator will then leave this file alone.</p>
         {% endif %}
 
-        <form method="post" action="{{ url_for('folder_note', relative_folder=path) }}" class="metadata-form">
-          <input type="hidden" name="token" value="{{ form_token }}">
-          <label class="sr-only" for="folder-note-text">Raw folder note text</label>
-          <textarea id="folder-note-text" name="text" rows="20" spellcheck="false">{{ draft if draft is not none else note_text }}</textarea>
-          <button class="button" type="submit">Save note</button>
-        </form>
+        {% if note_html %}
+        <div class="note-rendered markdown-body">{{ note_html }}</div>
+        {% else %}
+        <p class="part-note muted">No folder note yet.</p>
+        {% endif %}
+
+        <details class="raw-editor" {% if error or draft is not none %}open{% endif %}>
+          <summary class="edit-toggle">Edit raw text</summary>
+          <form method="post" action="{{ url_for('folder_note', relative_folder=path) }}" class="metadata-form">
+            <input type="hidden" name="token" value="{{ form_token }}">
+            <label class="sr-only" for="folder-note-text">Raw folder note text</label>
+            <textarea id="folder-note-text" name="text" rows="20" spellcheck="false">{{ draft if draft is not none else note_text }}</textarea>
+            <button class="button" type="submit">Save note</button>
+          </form>
+        </details>
       </section>
 
       <section class="part-card">

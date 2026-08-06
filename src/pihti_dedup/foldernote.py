@@ -21,6 +21,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 
+from pihti_dedup.markdown_view import plain_text
+
 FOLDER_NOTE_NAME = "README.md"
 #: Must stay byte-identical to `AUTOGEN_NOTICE`'s first line in
 #: `scripts/generate_readmes.py`; a test asserts it.
@@ -82,13 +84,21 @@ def note_excerpt(text: str, limit: int = EXCERPT_LENGTH) -> str:
     A generated `README.md` is headings, bullet lists, and HTML placeholder
     comments, so it deliberately yields nothing: an empty excerpt means "no
     folder note yet", which is the honest reading.
+
+    The line is reduced to plain text before truncation, so `**bold**` reads as
+    `bold` in a catalog section header and the character budget is spent on
+    prose rather than on syntax. Stripping before truncating also means the cut
+    can never land inside a `**` pair and leave the marker showing.
     """
 
     for raw in text.splitlines():
         line = raw.strip()
         if not line or line.startswith(_SKIP_PREFIXES):
             continue
-        return line if len(line) <= limit else line[: limit - 1].rstrip() + "…"
+        prose = plain_text(line)
+        if not prose:
+            continue
+        return prose if len(prose) <= limit else prose[: limit - 1].rstrip() + "…"
     return ""
 
 

@@ -1,3 +1,3 @@
 """Duplicate review and guarded cleanup for the PIHTI Inventor workspace."""
 
-__version__ = "0.4.1"
+__version__ = "0.5.0"

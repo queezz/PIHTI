@@ -246,6 +246,32 @@ guard that consults it. Saving a note through the viewer strips the marker, so
 from that save on the generator must leave the file alone.
 `tests/test_foldernote.py` imports the generator and pins both halves.
 
+### Rendered Markdown view
+
+Version 0.5.0 shows notes the way MkDocs and GitHub already show them.
+`src/pihti_dedup/markdown_view.py` wraps `python-markdown` with `tables`,
+`fenced_code`, and `sane_lists` — the same engine family as the documentation
+site, so a table or a fenced block looks the same in both places. Sidecar prose,
+the folder page's note, and an authored catalog note render by default; the raw
+textarea and its unchanged token-protected Save move behind an "Edit raw text"
+disclosure, so the file on disk is still what the owner types.
+
+The renderer is narrowed twice, because it renders files that arrive through
+student pull requests into a page carrying the viewer's form token. The
+`html_block` preprocessor and the inline `html` pattern are deregistered, so raw
+HTML is escaped to visible text rather than executed; HTML comments are removed
+before rendering so a comment stays invisible instead of becoming literal text.
+A treeprocessor strips `href`/`src` values whose scheme is not http, https,
+mailto, or relative, which drops `javascript:` while keeping the link text.
+
+Two size decisions keep the catalog honest. Excerpts render to plain text, not
+markup, so `**bold**` reads as `bold` in a section header without adding markup
+to 99 sections, and the character budget is spent on prose. A *generated* index
+is not rendered on the catalog at all: it is the folder's file list, which the
+thumbnail grid three lines below already shows. Rendering every index would have
+added ~50 KB to a page already near 1 MB; the folder page renders it in full.
+Measured on this workspace, `/catalog` went from 939,953 to 955,555 bytes.
+
 ### Catalog folder rail
 
 The 0.3.0 rail was a flat list of 99 folders that pushed the scan card off the
