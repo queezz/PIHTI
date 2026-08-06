@@ -6,6 +6,13 @@ remains authoritative for exact file changes.
 
 ## 2026-08-06
 
+- Shipped `pihti-dedup` 0.7.1: rendered folder notes now use readable prose
+  sizing, heading hierarchy, line length, spacing, and a contained note surface.
+  The raw editor explains the small amount of Markdown structure it needs and
+  supplies a valid empty-note example. The hand-authored `bellows/README.md`
+  was normalized from six unstructured lines—which Markdown correctly collapsed
+  into one paragraph—into a heading, purpose paragraph, and labelled fact list.
+
 - Shipped `pihti-dedup` 0.7.0: the Catalog is now a folder-first browser instead
   of one 1,218-tile document sorted by full path. `/catalog` shows the immediate
   top-level systems and root files; `/catalog/<folder>` adds durable drill-down

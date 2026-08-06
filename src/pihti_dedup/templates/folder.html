@@ -30,10 +30,11 @@
 
         <details class="raw-editor" {% if error or draft is not none %}open{% endif %}>
           <summary class="edit-toggle">Edit raw text</summary>
+          <p class="editor-hint">Markdown needs explicit structure: use <code>#</code> for a title, leave a blank line before prose, and use <code>- **Label:** value</code> for facts.</p>
           <form method="post" action="{{ url_for('folder_note', relative_folder=path) }}" class="metadata-form">
             <input type="hidden" name="token" value="{{ form_token }}">
             <label class="sr-only" for="folder-note-text">Raw folder note text</label>
-            <textarea id="folder-note-text" name="text" rows="20" spellcheck="false">{{ draft if draft is not none else note_text }}</textarea>
+            <textarea id="folder-note-text" name="text" rows="20" spellcheck="false" placeholder="# {{ name }}&#10;&#10;What this folder contains and why it exists.&#10;&#10;## Details&#10;&#10;- **Owner:**&#10;- **Status:**">{{ draft if draft is not none else note_text }}</textarea>
             <button class="button" type="submit">Save note</button>
           </form>
         </details>

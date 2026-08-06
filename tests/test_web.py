@@ -207,6 +207,8 @@ def test_styles_keep_desktop_rail_at_its_initial_top_offset(tmp_path: Path) -> N
     assert "overflow-y: auto" not in style
     assert ".operation-toast" in style
     assert ".operation-notice" not in style
+    assert ".note-rendered" in style and "max-width: 82ch" in style
+    assert ".markdown-body h1 { font-size: 1.24rem" in style
 
 
 def test_web_cleanup_previews_then_quarantines_with_local_guard(tmp_path: Path) -> None:
@@ -821,6 +823,16 @@ def test_a_rendered_note_round_trips_the_raw_text_through_save_untouched(tmp_pat
     assert "<strong>bold</strong>" in html
     assert "<li>one</li>" in html
     assert "A **bold** claim." in editor  # the textarea is still the raw file
+
+
+def test_an_empty_folder_note_editor_teaches_valid_markdown_structure(tmp_path: Path) -> None:
+    client = create_app(make_workspace(tmp_path)).test_client()
+
+    html = client.get("/folder/BoronProbe").get_data(as_text=True)
+
+    assert "Markdown needs explicit structure" in html
+    assert "# BoronProbe&#10;&#10;What this folder contains" in html
+    assert "- **Owner:**" in html
 
 
 def test_the_catalog_renders_a_folder_note_and_strips_markdown_from_the_excerpt(

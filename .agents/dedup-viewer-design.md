@@ -345,6 +345,14 @@ file view already expresses it. Immediate child cards may show their plain-text
 excerpt, but no child note body or editor is loaded. Raw editing always takes a
 deliberate trip to `/folder/<path>`.
 
+Version 0.7.1 makes that rendered surface readable rather than treating prose
+like secondary UI chrome: notes use a bounded measure, normal prose size,
+visible heading hierarchy, and a contained background. The renderer still does
+not invent structure for invalid Markdown. Instead, an empty editor provides a
+valid heading/prose/fact-list example and the help text states the rules. The
+existing `bellows/README.md` was normalized accordingly; its earlier consecutive
+`label:value` lines were, correctly, one Markdown paragraph.
+
 ### Catalog folder rail
 
 The 0.3.0 rail was a flat list of 99 folders that pushed the scan card off the
