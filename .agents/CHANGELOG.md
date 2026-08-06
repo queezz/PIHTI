@@ -6,6 +6,18 @@ remains authoritative for exact file changes.
 
 ## 2026-08-06
 
+- Shipped `pihti-dedup` 0.7.0: the Catalog is now a folder-first browser instead
+  of one 1,218-tile document sorted by full path. `/catalog` shows the immediate
+  top-level systems and root files; `/catalog/<folder>` adds durable drill-down
+  URLs, breadcrumbs, immediate child-folder cards with subtree counts, the
+  current branch in the stationary rail, and only files directly at that level.
+  Large folders and global server-side searches reveal 48 thumbnails at a time
+  behind an explicit **Show 48 more** control. Folder notes are folded into the
+  current folder and raw editing stays on the dedicated note page. On the live
+  workspace the landing response fell from about 956 KB to 57 KB, from 1,218
+  file tiles to one root file and 18 system cards; `3D-printing` now sends 48 of
+  its 170 direct files until more are requested.
+
 - Shipped `pihti-dedup` 0.6.1: Catalog is now the landing view, including for
   `lab pihti`, and normal tab changes no longer expire a ten-second cache and
   hash the complete CAD tree again. The viewer persists a compact inventory

@@ -207,12 +207,19 @@ the earlier JSON/CSV/Markdown inventory workflow.
 
 ### Part catalog and metadata sidecars
 
-The same local server also serves `/catalog`, a folder-by-folder thumbnail grid
-of every scanned CAD file, and `/part/<path>` for one file. Thumbnails are the
-preview image Inventor already embedded in the document; nothing is rendered,
-and files without one (a few STEP imports) show a neutral placeholder. Duplicate
-rows in the review screen carry the same thumbnail, so same-name collisions can
-be triaged visually before opening Inventor.
+The same local server serves a hierarchical catalog at `/catalog`, folder routes
+below it such as `/catalog/Plasma%20Vessel`, and `/part/<path>` for one file.
+The landing view shows top-level systems, not every part in the archive. Opening
+a folder reveals only its immediate child folders and direct files; large file
+sets appear 48 at a time behind an explicit **Show 48 more** control. Search is
+global and server-side, with the same bounded result size, so the browser never
+constructs the former thousand-tile page merely to hide most of it. Breadcrumbs
+and the current branch in the right-hand tree keep the location visible.
+
+Thumbnails use the preview image Inventor already embedded or the cached
+geometry render described below; files without either show a neutral
+placeholder. Duplicate rows carry the same thumbnail, so same-name collisions
+can be triaged visually before opening Inventor.
 
 A part page reads iProperties straight out of the file: part number,
 description, material, designer, author, creation date, document subtype, and

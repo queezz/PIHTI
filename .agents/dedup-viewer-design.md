@@ -25,6 +25,15 @@ the default scope, and the explicit Duplicates Refresh remains a forced full
 verification. This is intentionally separate from the preview cache: inventory
 records classify duplicate bytes, while preview records cache rendered pixels.
 
+Version 0.7.0 replaces the flat all-files catalog with progressive disclosure.
+`/catalog` is the workspace level and `/catalog/<folder>` is a durable
+master/detail route: breadcrumbs and the rail locate the current folder, compact
+cards expose only immediate children, and the thumbnail grid contains only
+direct files. Global search is server-side rather than a filter over a prebuilt
+page, and both search and large leaf folders reveal 48 records at a time. The
+current tree ancestry opens on the server; unrelated expansions are deliberately
+not remembered, so the rail cannot accumulate into a second full catalog.
+
 ## Purpose
 
 Provide a local, human-in-the-loop view of filename collisions and byte-level
@@ -180,12 +189,12 @@ hits and misses. Of 999 Inventor documents in the current workspace, 996 carry a
 PNG preview; the three STEP-imported parts without one get a neutral inline SVG
 placeholder rather than a broken image.
 
-`GET /catalog` is a per-folder thumbnail grid over the existing scanner's file
-list, and `GET /part/<repo-relative-path>` shows one file's preview,
-iProperties, file facts, and sidecar. Both use the established shell with a
-single rail. The part page states a Part Number that disagrees with the filename,
-because Inventor resolves references by filename and the mismatch is real
-evidence: 227 of 999 documents disagree today.
+`GET /catalog` is the top-level system index; `GET /catalog/<folder>` shows one
+folder's immediate children and direct files; and `GET /part/<repo-relative-path>`
+shows one file's preview, iProperties, file facts, and sidecar. All use the
+established shell with a single rail. The part page states a Part Number that
+disagrees with the filename, because Inventor resolves references by filename
+and the mismatch is real evidence: 227 of 999 documents disagree today.
 
 A metadata sidecar is `<cad filename>.md` — the whole filename plus `.md`, so a
 part and its drawing never collide — holding YAML frontmatter
@@ -329,24 +338,23 @@ before rendering so a comment stays invisible instead of becoming literal text.
 A treeprocessor strips `href`/`src` values whose scheme is not http, https,
 mailto, or relative, which drops `javascript:` while keeping the link text.
 
-Two size decisions keep the catalog honest. Excerpts render to plain text, not
-markup, so `**bold**` reads as `bold` in a section header without adding markup
-to 99 sections, and the character budget is spent on prose. A *generated* index
-is not rendered on the catalog at all: it is the folder's file list, which the
-thumbnail grid three lines below already shows. Rendering every index would have
-added ~50 KB to a page already near 1 MB; the folder page renders it in full.
-Measured on this workspace, `/catalog` went from 939,953 to 955,555 bytes.
+Version 0.7.0 narrows the note contract with the rest of the page. Only the
+current folder's authored note is present, folded behind a disclosure; a
+generated index stays on the dedicated folder-note page because the adjacent
+file view already expresses it. Immediate child cards may show their plain-text
+excerpt, but no child note body or editor is loaded. Raw editing always takes a
+deliberate trip to `/folder/<path>`.
 
 ### Catalog folder rail
 
 The 0.3.0 rail was a flat list of 99 folders that pushed the scan card off the
-screen. The owner rejected an inner scrollbar as the fix, so 0.4.0 pins the scan
-card at the top of the rail and replaces the list with a collapsible tree: seven
-top-level systems, each carrying the file count of its whole subtree, expanded on
-click, with the open branches remembered in local storage under
-`pihti-catalog-tree`. Depth is a CSS custom-property indent, not a nested
-scrolling container, and a test asserts no rule in the stylesheet imposes a
-height ceiling.
+screen. The owner rejected an inner scrollbar as the fix, so 0.4.0 pinned the
+scan card at the top and introduced the collapsible tree. Version 0.7.0 turns
+that tree into route navigation: the current ancestry opens automatically,
+unrelated branches collapse again on navigation, every folder count includes
+its subtree, and the active leaf is marked. Depth is a CSS custom-property
+indent, not a nested scrolling container, and a test asserts no rule in the
+stylesheet imposes a height ceiling.
 
 ### Decisions
 

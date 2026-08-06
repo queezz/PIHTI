@@ -421,8 +421,8 @@ def _tree_list(store: dict) -> list[dict]:
     ]
 
 
-def folder_tree(folders: list[dict]) -> list[dict]:
-    """Nest the flat catalog folder list into a tree with aggregate counts.
+def folder_tree(folders: list[dict], current: str = ".") -> list[dict]:
+    """Nest the catalog folder index and open only the current branch.
 
     A flat rail of 99 folders buries the scan card and cannot be skimmed, and
     the owner rejected an inner scrollbar as the fix. A tree shows the handful
@@ -432,7 +432,9 @@ def folder_tree(folders: list[dict]) -> list[dict]:
 
     roots: dict[str, dict] = {}
     for folder in folders:
-        parts = folder["name"].split("/") if folder["name"] != "." else ["."]
+        if folder["name"] == ".":
+            continue
+        parts = folder["name"].split("/")
         store = roots
         walked: list[str] = []
         node: dict | None = None
@@ -446,14 +448,18 @@ def folder_tree(folders: list[dict]) -> list[dict]:
                     "path": path,
                     "key": _anchor(path),
                     "count": 0,
-                    "anchor": None,
+                    "current": False,
+                    "open": False,
                     "children": {},
                 },
             )
-            node["count"] += len(folder["files"])
             store = node["children"]
         if node is not None:
-            node["anchor"] = folder["anchor"]
+            node["count"] = folder["count"]
+            node["current"] = folder["name"] == current
+            node["open"] = current == folder["name"] or current.startswith(
+                f"{folder['name']}/"
+            )
     return _tree_list(roots)
 
 
@@ -661,21 +667,20 @@ def create_app(
         response.cache_control.no_cache = True  # revalidate, never serve stale
         return response.make_conditional(request)
 
-    @app.get("/catalog")
-    def catalog():
+    @app.get("/catalog", defaults={"relative_folder": None})
+    @app.get("/catalog/<path:relative_folder>")
+    def catalog(relative_folder: str | None):
         include_vendor = _flag(request.args.get("include_vendor"))
         inventory = cache.get(include_vendor=include_vendor, hash_files=False)
-        folders = _catalog_folders(inventory)
-        return render_template(
-            "catalog.html",
-            version=__version__,
-            inventory=inventory,
-            folders=folders,
-            tree=folder_tree(folders),
-            file_count=len(inventory.records),
-            form_token=app.config["FORM_TOKEN"],
-            saved=_flag(request.args.get("saved")),
-        )
+        current = "."
+        if relative_folder is not None:
+            target = workspace_folder(root, relative_folder)
+            if target is None:
+                return render_template(
+                    "_not_found.html", version=__version__, path=relative_folder
+                ), 404
+            current = target.relative_to(root).as_posix()
+        return render_template("catalog.html", **_catalog_context(inventory, current))
 
     @app.get("/folder/<path:relative_folder>")
     def folder_page(relative_folder: str):
@@ -788,37 +793,118 @@ def create_app(
             return Response("invalid form token", status=403)
         return None
 
-    def _catalog_folders(inventory: Inventory) -> list[dict]:
-        folders = []
-        for name, records in _folders(inventory):
-            note = None
-            try:
-                note = read_folder_note(root / name) if name != "." else None
-            except FolderNoteError:
-                note = None
-            key = _anchor(name)
-            leaf = name.rsplit("/", 1)[-1]
-            folders.append(
-                {
-                    "name": name,
-                    "key": key,
-                    "anchor": f"folder-{key}",
-                    "note_anchor": f"folder-note-{key}",
-                    "files": records,
-                    "note": note,
-                    "note_text": _note_display_text(note),
-                    # A generated index is the folder's file list, which the
-                    # thumbnail grid three lines below already shows. Rendering
-                    # it inline for all 99 sections would add ~50 KB to a page
-                    # that is already ~1 MB, to say nothing new. The folder page
-                    # renders it in full; the catalog renders authored prose only.
-                    "note_html": render_markdown(note.text) if note and not note.generated else "",
-                    "note_default": f"# {leaf}\n\nWhat this folder is for.\n",
-                    "excerpt": note.excerpt if note else "",
-                    "editable": name != ".",
-                }
-            )
-        return folders
+    def _catalog_index(inventory: Inventory) -> list[dict]:
+        stats: dict[str, dict] = {
+            ".": {"name": ".", "count": 0, "direct_count": 0, "children": set()}
+        }
+        for record in inventory.records:
+            parent = record.path.rsplit("/", 1)[0] if "/" in record.path else "."
+            stats["."]["count"] += 1
+            if parent == ".":
+                stats["."]["direct_count"] += 1
+                continue
+            ancestor = "."
+            walked: list[str] = []
+            for part in parent.split("/"):
+                walked.append(part)
+                path = "/".join(walked)
+                stats.setdefault(
+                    path,
+                    {"name": path, "count": 0, "direct_count": 0, "children": set()},
+                )
+                stats[path]["count"] += 1
+                stats[ancestor]["children"].add(path)
+                ancestor = path
+            stats[parent]["direct_count"] += 1
+        return [
+            {
+                "name": item["name"],
+                "count": item["count"],
+                "direct_count": item["direct_count"],
+                "child_count": len(item["children"]),
+                "children": tuple(sorted(item["children"], key=str.casefold)),
+            }
+            for item in sorted(stats.values(), key=lambda value: value["name"].casefold())
+        ]
+
+    def _read_catalog_note(path: str):
+        if path == ".":
+            return None
+        try:
+            return read_folder_note(root / path)
+        except (FolderNoteError, OSError):
+            return None
+
+    def _folder_card(item: dict) -> dict:
+        note = _read_catalog_note(item["name"])
+        return {
+            **item,
+            "label": item["name"].rsplit("/", 1)[-1],
+            "excerpt": note.excerpt if note and not note.generated else "",
+        }
+
+    def _breadcrumbs(path: str) -> list[dict]:
+        crumbs = [{"name": "Catalog", "path": "."}]
+        if path == ".":
+            return crumbs
+        walked: list[str] = []
+        for part in path.split("/"):
+            walked.append(part)
+            crumbs.append({"name": part, "path": "/".join(walked)})
+        return crumbs
+
+    def _catalog_context(inventory: Inventory, current: str) -> dict:
+        index = _catalog_index(inventory)
+        by_name = {item["name"]: item for item in index}
+        current_stats = by_name.get(
+            current,
+            {"name": current, "count": 0, "direct_count": 0, "children": ()},
+        )
+        query = request.args.get("q", "").strip()
+        try:
+            requested = int(request.args.get("show", "48"))
+        except ValueError:
+            requested = 48
+        show = max(48, min(requested, len(inventory.records) or 48))
+
+        if query:
+            folded = query.casefold()
+            matching = [record for record in inventory.records if folded in record.path.casefold()]
+            child_folders: list[dict] = []
+            files = matching[:show]
+            total = len(matching)
+        else:
+            child_folders = [_folder_card(by_name[name]) for name in current_stats["children"]]
+            files = [
+                record
+                for record in inventory.records
+                if (record.path.rsplit("/", 1)[0] if "/" in record.path else ".") == current
+            ][:show]
+            total = current_stats["direct_count"]
+
+        note = _read_catalog_note(current)
+        return {
+            "version": __version__,
+            "inventory": inventory,
+            "file_count": len(inventory.records),
+            "folder_count": max(0, len(index) - 1),
+            "path": current,
+            "name": "Catalog" if current == "." else current.rsplit("/", 1)[-1],
+            "breadcrumbs": _breadcrumbs(current),
+            "child_folders": child_folders,
+            "files": files,
+            "shown": len(files),
+            "result_total": total,
+            "query": query,
+            "next_show": min(total, show + 48),
+            "has_more": len(files) < total,
+            "subtree_count": current_stats["count"],
+            "direct_count": current_stats["direct_count"],
+            "tree": folder_tree(index, current=current),
+            "note": note,
+            "note_html": render_markdown(note.text) if note and not note.generated else "",
+            "include_vendor": inventory.include_vendor,
+        }
 
     def _folder_context(target: Path) -> dict:
         relative = target.relative_to(root).as_posix()

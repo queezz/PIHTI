@@ -1,26 +1,22 @@
 {% extends "base.html" %}
-{% block title %}Catalog · PIHTI{% endblock %}
+{% block title %}{% if query %}Search{% elif path != '.' %}{{ name }}{% else %}Catalog{% endif %} · PIHTI{% endblock %}
 
 {% macro tree_node(node, depth) %}
 <div class="tree-node" data-tree-node style="--tree-depth: {{ depth }}">
-  <div class="tree-row">
+  <div class="tree-row{% if node.current %} is-current{% endif %}">
     {% if node.children %}
-    <button class="tree-toggle" type="button" data-tree-toggle="{{ node.path }}" aria-expanded="false" aria-controls="tree-{{ node.key }}">
+    <button class="tree-toggle{% if node.open %} is-open{% endif %}" type="button" data-tree-toggle="{{ node.path }}" aria-expanded="{{ 'true' if node.open else 'false' }}" aria-controls="tree-{{ node.key }}">
       <span aria-hidden="true">▸</span>
       <span class="sr-only">Expand {{ node.path }}</span>
     </button>
     {% else %}
     <span class="tree-toggle is-leaf" aria-hidden="true"></span>
     {% endif %}
-    {% if node.anchor %}
-    <a class="tree-name" href="#{{ node.anchor }}" title="{{ node.path|winpath }}">{{ node.name }}</a>
-    {% else %}
-    <span class="tree-name is-branch" title="{{ node.path|winpath }}">{{ node.name }}</span>
-    {% endif %}
+    <a class="tree-name" href="{{ url_for('catalog', relative_folder=node.path, include_vendor='1' if include_vendor else none) }}" title="{{ node.path|winpath }}"{% if node.current %} aria-current="page"{% endif %}>{{ node.name }}</a>
     <strong>{{ node.count }}</strong>
   </div>
   {% if node.children %}
-  <div class="tree-children" id="tree-{{ node.key }}" data-tree-children="{{ node.path }}" hidden>
+  <div class="tree-children" id="tree-{{ node.key }}" data-tree-children="{{ node.path }}"{% if not node.open %} hidden{% endif %}>
     {% for child in node.children %}{{ tree_node(child, depth + 1) }}{% endfor %}
   </div>
   {% endif %}
@@ -31,89 +27,138 @@
 <main class="page">
   <div class="work-grid one-rail">
     <div class="work-main">
-      <section class="filterbar" aria-label="Catalog filters">
+      <form class="filterbar catalog-search" action="{{ url_for('catalog') }}" method="get" role="search">
         <label class="searchbox">
-          <span class="sr-only">Filter by filename or path</span>
+          <span class="sr-only">Search every CAD filename and path</span>
           <span aria-hidden="true">⌕</span>
-          <input type="search" data-catalog-search placeholder="Filename or folder" autocomplete="off">
+          <input type="search" name="q" value="{{ query }}" placeholder="Search every filename and path" autocomplete="off">
         </label>
-        <span class="shown-count"><strong data-catalog-count>{{ file_count }}</strong> of {{ file_count }} files</span>
-      </section>
+        {% if include_vendor %}<input type="hidden" name="include_vendor" value="1">{% endif %}
+        <button class="button" type="submit">Search</button>
+        {% if query %}<a class="button" href="{{ url_for('catalog', include_vendor='1' if include_vendor else none) }}">Clear</a>{% endif %}
+      </form>
 
-      {% if saved %}<p class="metadata-notice" role="status">Folder note saved.</p>{% endif %}
-
-      {% for folder in folders %}
-      <section class="catalog-folder" id="{{ folder.anchor }}" data-catalog-folder>
-        <header>
-          <div class="folder-heading">
-            <h2>{{ folder.name|winpath }}</h2>
-            {% if folder.excerpt %}
-            <p class="folder-excerpt">{{ folder.excerpt }}</p>
-            {% elif folder.editable %}
-            <p class="folder-excerpt muted">No folder note yet.</p>
-            {% endif %}
-          </div>
-          <span>{{ folder.files|length }} file{% if folder.files|length != 1 %}s{% endif %}</span>
-        </header>
-
-        {% if folder.editable %}
-        <details class="folder-note" id="{{ folder.note_anchor }}">
-          <summary>Folder note — <code>{{ folder.name|winpath }}\README.md</code>{% if folder.note and folder.note.generated %} <em>Generated index — edit and save to make it your folder note; the generator will then leave this file alone.</em>{% endif %}</summary>
-          {% if folder.note_html %}
-          <div class="note-rendered markdown-body">{{ folder.note_html }}</div>
-          {% endif %}
-          <details class="raw-editor">
-            <summary class="edit-toggle">Edit raw text</summary>
-            <form method="post" action="{{ url_for('folder_note', relative_folder=folder.name) }}" class="metadata-form">
-              <input type="hidden" name="token" value="{{ form_token }}">
-              <input type="hidden" name="origin" value="catalog">
-              <label class="sr-only" for="note-{{ folder.key }}">Folder note for {{ folder.name }}</label>
-              <textarea id="note-{{ folder.key }}" name="text" rows="10" spellcheck="false">{{ folder.note_text or folder.note_default }}</textarea>
-              <div class="folder-note-actions">
-                <button class="button" type="submit">Save note</button>
-                <a class="button" href="{{ url_for('folder_page', relative_folder=folder.name) }}">Open folder page</a>
-              </div>
-            </form>
-          </details>
-        </details>
+      <nav class="breadcrumbs" aria-label="Breadcrumb">
+        {% if query %}
+        <a href="{{ url_for('catalog') }}">Catalog</a><span aria-hidden="true">/</span><strong>Search</strong>
+        {% else %}
+        {% for crumb in breadcrumbs %}
+          {% if not loop.last %}
+          <a href="{{ url_for('catalog', relative_folder=crumb.path if crumb.path != '.' else none, include_vendor='1' if include_vendor else none) }}">{{ crumb.name }}</a><span aria-hidden="true">/</span>
+          {% else %}<strong aria-current="page">{{ crumb.name }}</strong>{% endif %}
+        {% endfor %}
         {% endif %}
+      </nav>
 
-        <div class="thumb-grid">
-          {% for record in folder.files %}
-          <a class="thumb-tile" href="{{ url_for('part_page', relative_path=record.path) }}"
-             data-catalog-item data-search="{{ record.path|lower }}" title="{{ record.path|winpath }}">
-            <img src="{{ url_for('preview_image', relative_path=record.path) }}" alt="" loading="lazy" decoding="async" width="160" height="120">
-            <span class="thumb-name">{{ record.name }}</span>
-            <span class="thumb-meta">{{ record.size|filesize }}</span>
+      <header class="catalog-heading">
+        <div>
+          <p class="micro-heading">{% if query %}Global results{% elif path == '.' %}Workspace{% else %}Folder{% endif %}</p>
+          <h1>{% if query %}“{{ query }}”{% else %}{{ name }}{% endif %}</h1>
+          {% if not query and path != '.' %}<p title="{{ path|winpath }}">{{ path|winpath }}</p>{% endif %}
+        </div>
+        <dl>
+          {% if query %}
+          <div><dt>Matches</dt><dd>{{ result_total }}</dd></div>
+          {% else %}
+          <div><dt>Direct files</dt><dd>{{ direct_count }}</dd></div>
+          <div><dt>Below here</dt><dd>{{ subtree_count }}</dd></div>
+          {% endif %}
+        </dl>
+      </header>
+
+      {% if note and path != '.' %}
+      <details class="catalog-note">
+        <summary>Folder note{% if note.excerpt %} — {{ note.excerpt }}{% endif %}</summary>
+        {% if note.generated %}
+        <p class="part-note muted">This is the generated folder index. Open the note page to read or claim it as authored documentation.</p>
+        {% elif note_html %}
+        <div class="markdown-body">{{ note_html }}</div>
+        {% endif %}
+        <a class="button" href="{{ url_for('folder_page', relative_folder=path) }}">Open or edit folder note</a>
+      </details>
+      {% elif not query and path != '.' %}
+      <div class="catalog-note-empty">
+        <span>No authored folder note.</span>
+        <a href="{{ url_for('folder_page', relative_folder=path) }}">Add one</a>
+      </div>
+      {% endif %}
+
+      {% if child_folders %}
+      <section class="catalog-section" aria-labelledby="folders-heading">
+        <header>
+          <div><p class="micro-heading">Browse</p><h2 id="folders-heading">Folders</h2></div>
+          <span>{{ child_folders|length }} here</span>
+        </header>
+        <div class="folder-card-grid">
+          {% for folder in child_folders %}
+          <a class="folder-card" href="{{ url_for('catalog', relative_folder=folder.name, include_vendor='1' if include_vendor else none) }}">
+            <span class="folder-glyph" aria-hidden="true"></span>
+            <span class="folder-card-body">
+              <strong>{{ folder.label }}</strong>
+              {% if folder.excerpt %}<small>{{ folder.excerpt }}</small>{% elif path != '.' %}<small>{{ folder.name|winpath }}</small>{% endif %}
+            </span>
+            <span class="folder-counts">
+              <b>{{ folder.count }}</b> file{% if folder.count != 1 %}s{% endif %}
+              {% if folder.child_count %}<small>{{ folder.child_count }} folder{% if folder.child_count != 1 %}s{% endif %}</small>{% endif %}
+            </span>
           </a>
           {% endfor %}
         </div>
       </section>
-      {% endfor %}
+      {% endif %}
 
-      <div class="no-results" data-catalog-empty hidden>
-        <strong>No files match this filter.</strong>
-        <span>Clear the search box to bring them back.</span>
-      </div>
+      <section class="catalog-section file-section" aria-labelledby="files-heading">
+        <header>
+          <div>
+            <p class="micro-heading">{% if query %}Across the workspace{% else %}This level only{% endif %}</p>
+            <h2 id="files-heading">{% if query %}Matching files{% else %}Files{% endif %}</h2>
+          </div>
+          <span>Showing {{ shown }} of {{ result_total }}</span>
+        </header>
+
+        {% if files %}
+        <div class="thumb-grid">
+          {% for record in files %}
+          <a class="thumb-tile" href="{{ url_for('part_page', relative_path=record.path) }}" title="{{ record.path|winpath }}">
+            <img src="{{ url_for('preview_image', relative_path=record.path) }}" alt="" loading="lazy" decoding="async" width="160" height="120">
+            <span class="thumb-name">{{ record.name }}</span>
+            {% if query %}<span class="thumb-location">{{ record.path.rsplit('/', 1)[0]|winpath if '/' in record.path else '.' }}</span>{% endif %}
+            <span class="thumb-meta">{{ record.size|filesize }}</span>
+          </a>
+          {% endfor %}
+        </div>
+        {% if has_more %}
+        <div class="catalog-more">
+          <a class="button" href="{{ url_for('catalog', relative_folder=path if not query and path != '.' else none, q=query or none, show=next_show, include_vendor='1' if include_vendor else none) }}">Show 48 more</a>
+          <span>{{ result_total - shown }} still hidden</span>
+        </div>
+        {% endif %}
+        {% else %}
+        <div class="no-results">
+          {% if query %}<strong>No CAD files match “{{ query }}”.</strong><span>Try part of a filename or folder path.</span>
+          {% else %}<strong>No CAD files sit directly in this folder.</strong><span>Choose a child folder above to continue.</span>{% endif %}
+        </div>
+        {% endif %}
+      </section>
     </div>
 
-    <aside class="rail-side" aria-label="Scan scope and folders">
+    <aside class="rail-side" aria-label="Catalog scope and folder tree">
       <section class="rail-card">
-        <h2>Scan</h2>
+        <h2>Catalog</h2>
         <dl class="scope-list">
           <div><dt>Workspace</dt><dd>{{ inventory.root.name }}</dd></div>
           <div><dt>CAD files</dt><dd>{{ file_count }}</dd></div>
-          <div><dt>Folders</dt><dd>{{ folders|length }}</dd></div>
+          <div><dt>Folders</dt><dd>{{ folder_count }}</dd></div>
         </dl>
-        <p class="rail-note muted">Inventor documents and DWGs show the preview they already embed; STL, STEP, and 3MF are rendered from their geometry and cached on disk. Anything else shows a neutral placeholder.</p>
+        <p class="rail-note muted">Only the current level is rendered. Search is global and returns bounded results.</p>
       </section>
 
       <section class="rail-card">
         <h2>Folders</h2>
-        <nav class="folder-tree" data-folder-tree aria-label="Jump to a folder">
+        <nav class="folder-tree" data-folder-tree aria-label="Browse folders">
           {% for node in tree %}{{ tree_node(node, 0) }}{% endfor %}
         </nav>
-        <p class="rail-note muted">Counts include every file below a folder. Expanded branches are remembered.</p>
+        <p class="rail-note muted">Counts include every CAD file below a folder.</p>
       </section>
     </aside>
   </div>

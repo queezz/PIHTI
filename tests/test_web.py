@@ -410,12 +410,12 @@ def test_the_part_page_and_catalog_show_the_rendered_export(tmp_path: Path) -> N
     client = create_app(root).test_client()
 
     part = client.get("/part/BoronProbe/exports/head.stl").get_data(as_text=True)
-    catalog = client.get("/catalog").get_data(as_text=True)
+    catalog = client.get("/catalog/BoronProbe/exports").get_data(as_text=True)
 
     assert 'src="/preview/BoronProbe/exports/head.stl"' in part
     assert "rendered from the geometry" in part
     assert 'src="/preview/BoronProbe/exports/head.stl"' in catalog
-    assert "STL, STEP, and 3MF are rendered from their geometry" in catalog
+    assert "head.stl" in catalog
 
 
 def test_a_missing_preview_extra_falls_back_to_the_placeholder(monkeypatch, tmp_path: Path) -> None:
@@ -480,18 +480,49 @@ def test_duplicate_rows_offer_rename_only_for_the_four_inventor_extensions(tmp_p
     assert "/part/A/head.stl#rename" not in html
 
 
-def test_catalog_lists_every_folder_as_a_thumbnail_grid(tmp_path: Path) -> None:
+def test_catalog_browses_one_folder_level_at_a_time(tmp_path: Path) -> None:
     client = create_app(make_workspace(tmp_path)).test_client()
 
-    html = client.get("/catalog").get_data(as_text=True)
+    landing = client.get("/catalog").get_data(as_text=True)
+    system = client.get("/catalog/BoronProbe").get_data(as_text=True)
+    folder = client.get("/catalog/BoronProbe/parts").get_data(as_text=True)
 
-    assert 'class="thumb-grid"' in html
-    assert "BoronProbe\\parts" in html
-    assert 'href="/part/Plasma%20Vessel/parts/bearing.ipt"' in html
-    assert 'src="/preview/Plasma%20Vessel/parts/bearing.ipt"' in html
-    assert "Design Data" not in html
-    assert html.count("data-catalog-item") == 3
-    assert 'class="work-grid one-rail"' in html
+    assert 'href="/catalog/BoronProbe"' in landing
+    assert 'href="/catalog/Plasma%20Vessel"' in landing
+    assert 'src="/preview/BoronProbe/parts/bearing.ipt"' not in landing
+    assert 'href="/catalog/BoronProbe/parts"' in system
+    assert 'src="/preview/BoronProbe/parts/bearing.ipt"' not in system
+    assert 'href="/part/BoronProbe/parts/bearing.ipt"' in folder
+    assert 'src="/preview/BoronProbe/parts/bearing.ipt"' in folder
+    assert folder.count('class="thumb-tile"') == 1
+    assert "Design Data" not in landing
+    assert 'class="work-grid one-rail"' in landing
+    assert client.get("/catalog/not-there").status_code == 404
+    assert client.get("/catalog/..%2Foutside").status_code == 404
+
+    vendor = client.get("/catalog/bellows/Design%20Data?include_vendor=1").get_data(as_text=True)
+    assert 'href="/catalog/bellows?include_vendor=1"' in vendor
+    assert 'href="/part/bellows/Design%20Data/vendor.ipt"' in vendor
+
+
+def test_catalog_search_and_large_folders_reveal_bounded_batches(tmp_path: Path) -> None:
+    bulk = tmp_path / "3D-printing"
+    bulk.mkdir()
+    for index in range(55):
+        (bulk / f"fixture-{index:02}.stl").write_bytes(str(index).encode())
+    client = create_app(tmp_path).test_client()
+
+    first = client.get("/catalog/3D-printing").get_data(as_text=True)
+    more = client.get("/catalog/3D-printing?show=96").get_data(as_text=True)
+    search = client.get("/catalog?q=fixture-0").get_data(as_text=True)
+
+    assert first.count('class="thumb-tile"') == 48
+    assert "7 still hidden" in first
+    assert "Show 48 more" in first
+    assert more.count('class="thumb-tile"') == 55
+    assert "still hidden" not in more
+    assert search.count('class="thumb-tile"') == 10
+    assert "Global results" in search
 
 
 def test_part_page_shows_iproperties_and_flags_a_part_number_mismatch(
@@ -625,12 +656,17 @@ def test_metadata_writes_keep_the_localhost_and_token_guard(tmp_path: Path) -> N
     assert not companion.exists()
 
 
-def test_packaged_script_filters_the_catalog_without_a_rescan(tmp_path: Path) -> None:
-    script = create_app(tmp_path).test_client().get("/static/dedup.js").get_data(as_text=True)
+def test_catalog_search_is_a_server_route_not_a_full_page_client_filter(tmp_path: Path) -> None:
+    client = create_app(make_workspace(tmp_path)).test_client()
+    page = client.get("/catalog?q=Plasma").get_data(as_text=True)
+    script = client.get("/static/dedup.js").get_data(as_text=True)
 
-    assert "data-catalog-search" in script
-    assert "data-catalog-item" in script
-    assert "filterCatalog" in script
+    assert 'action="/catalog"' in page
+    assert 'name="q" value="Plasma"' in page
+    assert 'href="/part/Plasma%20Vessel/parts/bearing.ipt"' in page
+    assert 'href="/part/BoronProbe/parts/bearing.ipt"' not in page
+    assert "filterCatalog" not in script
+    assert "data-catalog-item" not in script
 
 
 def assembly_bytes(*stored_paths: str) -> bytes:
@@ -656,17 +692,20 @@ def test_catalog_rail_pins_the_scan_card_above_a_collapsible_folder_tree(tmp_pat
     (root / "BoronProbe" / "drawings" / "bearing.idw").write_bytes(b"drawing")
     client = create_app(root).test_client()
 
-    html = client.get("/catalog").get_data(as_text=True)
-    rail = html.split('<aside class="rail-side"', 1)[1]
+    landing = client.get("/catalog").get_data(as_text=True)
+    current = client.get("/catalog/BoronProbe/parts").get_data(as_text=True)
+    rail = landing.split('<aside class="rail-side"', 1)[1]
 
-    assert rail.index("<h2>Scan</h2>") < rail.index("<h2>Folders</h2>")
-    assert "data-folder-tree" in html
+    assert rail.index("<h2>Catalog</h2>") < rail.index("<h2>Folders</h2>")
+    assert "data-folder-tree" in landing
     # The two BoronProbe subfolders collapse under one top-level node carrying both.
-    assert 'data-tree-toggle="BoronProbe"' in html
-    assert 'data-tree-children="BoronProbe"' in html
-    assert 'data-tree-children="BoronProbe" hidden' in html
-    assert 'aria-expanded="false"' in html
-    assert "rail-navrow" not in html
+    assert 'data-tree-toggle="BoronProbe" aria-expanded="false"' in landing
+    assert 'data-tree-children="BoronProbe" hidden' in landing
+    # Navigating opens only the current ancestry and marks the leaf.
+    assert 'data-tree-toggle="BoronProbe" aria-expanded="true"' in current
+    assert 'data-tree-children="BoronProbe">' in current
+    assert 'href="/catalog/BoronProbe/parts" title="BoronProbe\\parts" aria-current="page"' in current
+    assert "rail-navrow" not in landing
 
 
 def test_the_catalog_section_header_shows_the_folder_note_excerpt(tmp_path: Path) -> None:
@@ -676,11 +715,10 @@ def test_the_catalog_section_header_shows_the_folder_note_excerpt(tmp_path: Path
     )
     client = create_app(root).test_client()
 
-    html = client.get("/catalog").get_data(as_text=True)
+    html = client.get("/catalog/BoronProbe").get_data(as_text=True)
 
     assert "PAEK bearing stack for the rotating head." in html
-    assert "No folder note yet." in html
-    assert 'action="/folder/BoronProbe/parts/note"' in html
+    assert 'href="/catalog/BoronProbe/parts"' in html
 
 
 def test_a_folder_note_is_written_to_that_folders_own_readme(tmp_path: Path) -> None:
@@ -715,17 +753,19 @@ def test_generated_readme_editors_hide_the_leading_comment_but_keep_the_body(
     (root / "BoronProbe" / "parts" / "README.md").write_text(generated, encoding="utf-8")
     client = create_app(root).test_client()
 
-    catalog_html = client.get("/catalog").get_data(as_text=True)
+    catalog_html = client.get("/catalog/BoronProbe/parts").get_data(as_text=True)
     folder_html = client.get("/folder/BoronProbe/parts").get_data(as_text=True)
 
     for html in (catalog_html, folder_html):
         assert "This file was generated by scripts/generate_readmes.py" not in html
         assert "claims it as your folder note" not in html  # the comment block itself
-        assert "## Purpose" in html  # the rest of the generated body is still editable
-        assert (
-            "Generated index — edit and save to make it your folder note; "
-            "the generator will then leave this file alone." in html
-        )
+    assert "generated folder index" in catalog_html
+    assert "## Purpose" not in catalog_html  # raw source lives on the note page only
+    assert "## Purpose" in folder_html
+    assert (
+        "Generated index — edit and save to make it your folder note; "
+        "the generator will then leave this file alone." in folder_html
+    )
 
 
 def test_a_manually_edited_readme_is_shown_as_is_with_no_generated_hint(tmp_path: Path) -> None:
@@ -734,7 +774,7 @@ def test_a_manually_edited_readme_is_shown_as_is_with_no_generated_hint(tmp_path
     (root / "BoronProbe" / "parts" / "README.md").write_text(manual, encoding="utf-8")
     client = create_app(root).test_client()
 
-    catalog_html = client.get("/catalog").get_data(as_text=True)
+    catalog_html = client.get("/catalog/BoronProbe/parts").get_data(as_text=True)
     folder_html = client.get("/folder/BoronProbe/parts").get_data(as_text=True)
 
     for html in (catalog_html, folder_html):
@@ -792,12 +832,11 @@ def test_the_catalog_renders_a_folder_note_and_strips_markdown_from_the_excerpt(
     )
     client = create_app(root).test_client()
 
-    html = client.get("/catalog").get_data(as_text=True)
-    excerpt = html.split('<p class="folder-excerpt">', 1)[1].split("</p>", 1)[0]
+    html = client.get("/catalog/BoronProbe/parts").get_data(as_text=True)
 
-    assert "<strong>PAEK</strong>" in html  # rendered inside the folder-note details
-    assert excerpt.strip() == "The PAEK bearing stack."  # excerpt is plain text, not markup
-    assert 'class="raw-editor"' in html
+    assert "<strong>PAEK</strong>" in html  # rendered inside the folded folder note
+    assert "Folder note — The PAEK bearing stack." in html  # excerpt is plain text
+    assert 'class="raw-editor"' not in html  # editing stays on the dedicated note page
 
 
 def test_marker_stripping_composes_with_rendering_for_a_generated_readme(tmp_path: Path) -> None:
@@ -811,7 +850,7 @@ def test_marker_stripping_composes_with_rendering_for_a_generated_readme(tmp_pat
     (root / "BoronProbe" / "parts" / "README.md").write_text(generated, encoding="utf-8")
     client = create_app(root).test_client()
 
-    catalog_html = client.get("/catalog").get_data(as_text=True)
+    catalog_html = client.get("/catalog/BoronProbe/parts").get_data(as_text=True)
     folder_html = client.get("/folder/BoronProbe/parts").get_data(as_text=True)
 
     for html in (catalog_html, folder_html):
@@ -821,10 +860,11 @@ def test_marker_stripping_composes_with_rendering_for_a_generated_readme(tmp_pat
 
     assert "<h2>Purpose</h2>" in folder_html  # the rest of the body renders
     assert "<strong>index</strong>" in folder_html
-    # The catalog keeps a generated index unrendered: the thumbnail grid below
-    # already is the file list, and 99 rendered indexes would bloat the page.
+    # The catalog keeps a generated index unrendered and sends raw editing to
+    # the dedicated note page.
     assert "<h2>Purpose</h2>" not in catalog_html
-    assert "## Purpose" in catalog_html  # still editable as raw text
+    assert "## Purpose" not in catalog_html
+    assert "generated folder index" in catalog_html
 
 
 def test_folder_note_writes_keep_the_localhost_token_and_containment_guards(
@@ -1018,8 +1058,9 @@ def test_packaged_script_drives_the_folder_tree_and_the_rename_ledger(tmp_path: 
 
     assert "data-folder-tree" in script
     assert "data-tree-toggle" in script
-    assert 'TREE_KEY = "pihti-catalog-tree"' in script
-    assert "localStorage.setItem(TREE_KEY" in script
+    assert "setOpen" in script
+    assert 'TREE_KEY = "pihti-catalog-tree"' not in script
+    assert "localStorage.setItem(TREE_KEY" not in script
     assert "data-copy-text" in script
     assert "data-rename-settled" in script
     assert "data-rename-search" in script

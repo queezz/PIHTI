@@ -482,59 +482,11 @@
 (function () {
   "use strict";
 
-  var search = document.querySelector("[data-catalog-search]");
-  if (!search) return;
-
-  var tiles = Array.from(document.querySelectorAll("[data-catalog-item]"));
-  var folders = Array.from(document.querySelectorAll("[data-catalog-folder]"));
-  var counter = document.querySelector("[data-catalog-count]");
-  var empty = document.querySelector("[data-catalog-empty]");
-
-  function filterCatalog() {
-    var query = search.value.trim().toLowerCase();
-    var shown = 0;
-    tiles.forEach(function (tile) {
-      var match = !query || tile.dataset.search.indexOf(query) !== -1;
-      tile.hidden = !match;
-      if (match) shown += 1;
-    });
-    folders.forEach(function (folder) {
-      folder.hidden = !folder.querySelector("[data-catalog-item]:not([hidden])");
-    });
-    if (counter) counter.textContent = String(shown);
-    if (empty) empty.hidden = shown !== 0;
-  }
-
-  search.addEventListener("input", filterCatalog);
-  filterCatalog();
-})();
-
-(function () {
-  "use strict";
-
-  // Collapsible folder rail. A flat list of 99 folders pushed the scan card off
-  // screen and the owner rejected an inner scrollbar, so the tree opens only
-  // where asked and remembers which branches were open.
+  // The server opens the current folder's ancestry. Other branches reveal only
+  // when asked and reset on navigation, so the rail never grows into another
+  // rendering of the entire catalog.
   var tree = document.querySelector("[data-folder-tree]");
   if (!tree) return;
-
-  var TREE_KEY = "pihti-catalog-tree";
-
-  function readExpanded() {
-    try {
-      var saved = JSON.parse(localStorage.getItem(TREE_KEY) || "[]");
-      return Array.isArray(saved) ? saved.filter(function (item) {
-        return typeof item === "string";
-      }) : [];
-    } catch (_) { return []; }
-  }
-
-  function saveExpanded(paths) {
-    try { localStorage.setItem(TREE_KEY, JSON.stringify(paths)); }
-    catch (_) { /* storage disabled — the tree still works for this visit */ }
-  }
-
-  var expanded = readExpanded();
 
   function setOpen(path, open) {
     var toggle = tree.querySelector('[data-tree-toggle="' + CSS.escape(path) + '"]');
@@ -545,34 +497,12 @@
     toggle.classList.toggle("is-open", open);
   }
 
-  expanded.forEach(function (path) { setOpen(path, true); });
-
   tree.addEventListener("click", function (event) {
     var toggle = event.target.closest("[data-tree-toggle]");
     if (!toggle) return;
     var path = toggle.dataset.treeToggle;
     var open = toggle.getAttribute("aria-expanded") !== "true";
     setOpen(path, open);
-    expanded = expanded.filter(function (item) { return item !== path; });
-    if (open) expanded.push(path);
-    saveExpanded(expanded);
-  });
-
-  // An anchor jump into a collapsed branch is useless, so open its ancestors.
-  tree.addEventListener("click", function (event) {
-    var link = event.target.closest(".tree-name[href^='#']");
-    if (!link) return;
-    var row = link.closest("[data-tree-node]");
-    while (row) {
-      var parent = row.parentElement ? row.parentElement.closest("[data-tree-children]") : null;
-      if (!parent) break;
-      setOpen(parent.dataset.treeChildren, true);
-      if (expanded.indexOf(parent.dataset.treeChildren) === -1) {
-        expanded.push(parent.dataset.treeChildren);
-      }
-      row = parent.closest("[data-tree-node]");
-    }
-    saveExpanded(expanded);
   });
 })();
 

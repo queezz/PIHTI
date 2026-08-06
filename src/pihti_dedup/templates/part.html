@@ -172,7 +172,7 @@
         {% if folder_editable %}
         <a class="button full" href="{{ url_for('folder_page', relative_folder=folder) }}">Folder note</a>
         {% endif %}
-        <a class="button full" href="{{ url_for('catalog') }}">Back to catalog</a>
+        <a class="button full" href="{{ url_for('catalog', relative_folder=folder if folder != '.' else none) }}">Back to folder</a>
       </section>
 
       <section class="rail-card">

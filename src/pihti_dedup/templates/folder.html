@@ -65,7 +65,7 @@
           <div><dt>Below here</dt><dd>{{ subtree_count }}</dd></div>
         </dl>
         <p class="rail-note muted">{{ path|winpath }}</p>
-        <a class="button full" href="{{ url_for('catalog') }}">Back to catalog</a>
+        <a class="button full" href="{{ url_for('catalog', relative_folder=path) }}">Browse this folder</a>
       </section>
 
       <section class="rail-card">
