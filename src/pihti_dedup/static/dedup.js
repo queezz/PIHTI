@@ -482,6 +482,36 @@
 (function () {
   "use strict";
 
+  var dialogs = Array.from(document.querySelectorAll("dialog.note-dialog"));
+  if (!dialogs.length) return;
+
+  document.querySelectorAll("[data-dialog-open]").forEach(function (opener) {
+    opener.addEventListener("click", function () {
+      var dialog = document.getElementById(opener.dataset.dialogOpen);
+      if (dialog && !dialog.open) dialog.showModal();
+    });
+  });
+
+  document.querySelectorAll("[data-dialog-close]").forEach(function (closer) {
+    closer.addEventListener("click", function () {
+      var dialog = closer.closest("dialog");
+      if (dialog) dialog.close();
+    });
+  });
+
+  dialogs.forEach(function (dialog) {
+    // Native dialogs already close on Escape. Clicking the dimmed backdrop is
+    // the pointer equivalent; clicks inside the shell do not bubble as target.
+    dialog.addEventListener("click", function (event) {
+      if (event.target === dialog) dialog.close();
+    });
+    if (dialog.hasAttribute("data-auto-open")) dialog.showModal();
+  });
+})();
+
+(function () {
+  "use strict";
+
   // The server opens the current folder's ancestry. Other branches reveal only
   // when asked and reset on navigation, so the rail never grows into another
   // rendering of the entire catalog.

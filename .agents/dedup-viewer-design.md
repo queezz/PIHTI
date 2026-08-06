@@ -361,6 +361,19 @@ not empty authoring placeholders. `--refresh-only` performs this migration
 without creating files, and generator traversal now excludes staging, caches,
 save history, and vendor `Design Data/` and `Templates/` subtrees.
 
+Version 0.8.0 removes the three-click note path from Catalog. A single
+folder-note row opens a native modal containing the rendered document and raw
+editor together. The modal has explicit × and **Close** controls plus native
+Escape and backdrop dismissal. Catalog-origin saves redirect to the same folder,
+not the Catalog root, and the modal automatically reopens with success or
+validation feedback. The dedicated `/folder/<path>` page is retained only as an
+optional full-page view, with breadcrumbs and large rail actions back to the
+current folder, its parent, and Catalog home. Folder-note guidance treats the
+first prose line below `# Title` as a required one-sentence summary: the existing
+folder cards render that excerpt while the full note holds detailed structure.
+The Flask shell uses the same `pihtiicon.svg` bytes as MkDocs rather than a
+separate generic favicon.
+
 ### Catalog folder rail
 
 The 0.3.0 rail was a flat list of 99 folders that pushed the scan card off the

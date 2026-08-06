@@ -220,6 +220,17 @@ global and server-side, with the same bounded result size, so the browser never
 constructs the former thousand-tile page merely to hide most of it. Breadcrumbs
 and the current branch in the right-hand tree keep the location visible.
 
+Each non-root folder route opens its folder note in one click. A modal puts the
+rendered Markdown beside the raw editor; save returns to the same folder and
+reopens the modal with feedback. Close it with ×, **Close**, Escape, or the
+backdrop. The optional full-page editor has breadcrumb navigation and prominent
+rail cards back to the current folder, its parent, and the Catalog root.
+
+For useful browse cards, put a one-sentence folder summary directly below the
+note's `# Title`. The Catalog extracts that first prose line and shows it on the
+folder card; subsequent headings and labelled facts stay in the full note. The
+editor prompt and empty-note template make this structure explicit.
+
 Thumbnails use the preview image Inventor already embedded or the cached
 geometry render described below; files without either show a neutral
 placeholder. Duplicate rows carry the same thumbnail, so same-name collisions

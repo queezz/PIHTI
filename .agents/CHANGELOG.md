@@ -6,6 +6,18 @@ remains authoritative for exact file changes.
 
 ## 2026-08-06
 
+- Shipped `pihti-dedup` 0.8.0: folder notes on Catalog routes are now a
+  one-click modal instead of a disclosure → folder page → raw-editor chain.
+  Rendered Markdown and the token-protected editor sit side by side, generated
+  inventories are readable in place, and ×, **Close**, backdrop click, and
+  Escape all dismiss the modal. Save returns to the same Catalog folder and
+  automatically reopens the modal with success or validation feedback; the
+  dedicated folder page remains an optional full-page link with breadcrumb and
+  rail-card exits to the current folder, parent folder, and Catalog home. The
+  editor asks for a one-sentence summary below the title, which existing folder
+  cards render as their short description. The web app now uses the exact SVG
+  favicon configured for local MkDocs.
+
 - Shipped `pihti-dedup` 0.7.2: fixed folder-note Markdown at its source. The
   README generator now refreshes every file that still carries its ownership
   marker, including old generated files that no longer meet today's creation

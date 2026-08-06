@@ -705,16 +705,31 @@ def create_app(
         try:
             write_folder_note(target, text)
         except FolderNoteError as exc:
+            if request.form.get("origin") == "catalog":
+                return _catalog_note_error(target, text, str(exc), 400)
             context = _folder_context(target)
             context.update(error=str(exc), draft=text)
             return render_template("folder.html", **context), 400
         except OSError as exc:
+            if request.form.get("origin") == "catalog":
+                return _catalog_note_error(
+                    target, text, f"could not write the folder note: {exc}", 500
+                )
             context = _folder_context(target)
             context.update(error=f"could not write the folder note: {exc}", draft=text)
             return render_template("folder.html", **context), 500
         relative = target.relative_to(root).as_posix()
         if request.form.get("origin") == "catalog":
-            return redirect(url_for("catalog", saved="1") + f"#folder-note-{_anchor(relative)}")
+            return redirect(
+                url_for(
+                    "catalog",
+                    relative_folder=relative,
+                    saved="1",
+                    include_vendor=(
+                        "1" if _flag(request.form.get("include_vendor")) else None
+                    ),
+                )
+            )
         return redirect(url_for("folder_page", relative_folder=relative, saved="1"))
 
     @app.post("/part/<path:relative_path>/rename")
@@ -883,6 +898,7 @@ def create_app(
             total = current_stats["direct_count"]
 
         note = _read_catalog_note(current)
+        note_text = _note_display_text(note)
         return {
             "version": __version__,
             "inventory": inventory,
@@ -902,9 +918,27 @@ def create_app(
             "direct_count": current_stats["direct_count"],
             "tree": folder_tree(index, current=current),
             "note": note,
-            "note_html": render_markdown(note.text) if note and not note.generated else "",
+            "note_text": note_text,
+            "note_html": render_markdown(note_text),
+            "note_error": None,
+            "note_draft": None,
+            "note_dialog_open": _flag(request.args.get("saved")),
+            "saved": _flag(request.args.get("saved")),
+            "form_token": app.config["FORM_TOKEN"],
             "include_vendor": inventory.include_vendor,
         }
+
+    def _catalog_note_error(target: Path, draft: str, error: str, status: int):
+        relative = target.relative_to(root).as_posix()
+        include_vendor = _flag(request.form.get("include_vendor"))
+        inventory = cache.get(include_vendor=include_vendor, hash_files=False)
+        context = _catalog_context(inventory, relative)
+        context.update(
+            note_error=error,
+            note_draft=draft,
+            note_dialog_open=True,
+        )
+        return render_template("catalog.html", **context), status
 
     def _folder_context(target: Path) -> dict:
         relative = target.relative_to(root).as_posix()
@@ -923,6 +957,7 @@ def create_app(
             "path": relative,
             "name": target.name,
             "parent": relative.rsplit("/", 1)[0] if "/" in relative else "",
+            "breadcrumbs": _breadcrumbs(relative),
             "files": files,
             "subtree_count": len(subtree),
             "note": note,
