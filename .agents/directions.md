@@ -18,10 +18,12 @@ session evidence in `log/`.
 - Show an existing sidecar's status and tags in the duplicate rows and catalog
   tiles, so a reviewed file is visibly reviewed without opening its page. The
   0.4.0 folder-note excerpt does this for folders; files are still open.
-- Write quarantine outside the Inventor workspace by default. The store was
-  moved to `../PIHTI-quarantine/` by hand on 2026-08-05 because unique-filename
-  resolution could reach into `.pihti-dedup/`; the tool still defaults to the
-  in-workspace path.
+- Write quarantine outside the Inventor workspace by default — owner decided
+  2026-08-06: default store is `../PIHTI-quarantine/runs/<stamp>-<source>/`
+  (sibling of the repo, Dropbox-synced, not a git repo). The store already has
+  this layout with a root `README.md` explaining restore paths; the tool still
+  defaults to the in-workspace `.pihti-dedup/quarantine/` and must be updated
+  to match. Keep `.pihti-dedup/previews/` (cache) where it is — it is not CAD.
 - Done in 0.4.0: filename collisions are linked to a machine-read “where used”
   answer. `src/pihti_dedup/whereused.py` scans the embedded UTF-16LE reference
   strings, the part page lists the referring documents, and a rename records
