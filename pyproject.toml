@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "pihti-dedup"
-version = "0.6.0"
+version = "0.6.1"
 description = "Duplicate review and guarded cleanup for the PIHTI Inventor workspace"
 readme = "README.md"
 requires-python = ">=3.12"

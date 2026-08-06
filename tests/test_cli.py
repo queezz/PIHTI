@@ -5,6 +5,7 @@ from pathlib import Path
 import pytest
 
 import pihti_dedup.cli as cli
+import pihti_dedup.web as web
 from pihti_dedup import geometry_preview
 from pihti_dedup.git_history import PullRequestMerge
 from pihti_dedup.legacy import main as legacy_main
@@ -43,6 +44,33 @@ def test_scan_command_writes_portable_json(tmp_path: Path, capsys) -> None:
     assert payload["root"] == "."
     assert payload["summary"]["exact_groups"] == 1
     assert "same-name/exact-copy groups: 1" in capsys.readouterr().out
+
+
+def test_serve_opens_the_catalog_as_the_landing_view(monkeypatch, tmp_path: Path, capsys) -> None:
+    opened: list[str] = []
+    runs: list[dict] = []
+
+    class ImmediateTimer:
+        def __init__(self, _delay, callback) -> None:
+            self.callback = callback
+
+        def start(self) -> None:
+            self.callback()
+
+    class FakeApp:
+        def run(self, **kwargs) -> None:
+            runs.append(kwargs)
+
+    monkeypatch.setattr(cli.threading, "Timer", ImmediateTimer)
+    monkeypatch.setattr(cli.webbrowser, "open", opened.append)
+    monkeypatch.setattr(web, "create_app", lambda _workspace: FakeApp())
+
+    assert cli.main(["serve", str(tmp_path), "--open"]) == 0
+    assert opened == ["http://127.0.0.1:4185/catalog"]
+    assert runs == [
+        {"host": "127.0.0.1", "port": 4185, "threaded": True, "use_reloader": False}
+    ]
+    assert "PIHTI CAD viewer: http://127.0.0.1:4185/catalog" in capsys.readouterr().out
 
 
 def test_legacy_cli_retains_old_summary_and_group_keys(tmp_path: Path, capsys) -> None:

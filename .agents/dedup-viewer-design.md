@@ -15,6 +15,16 @@ shared scanner lives in
 classifications, and `scripts/find_duplicates.py` remains a compatibility entry
 point for earlier reports.
 
+Version 0.6.1 makes the catalog the landing surface and replaces the viewer's
+ten-second inventory TTL with disk-aware reuse. Each request performs a cheap
+metadata walk; if paths, sizes, and modification times match, the existing
+inventory and hashes remain authoritative. The compact records persist under
+gitignored `.pihti-dedup/`, so a process restart does not imply a rehash. New or
+changed files alone are hashed, the vendor superset borrows every digest from
+the default scope, and the explicit Duplicates Refresh remains a forced full
+verification. This is intentionally separate from the preview cache: inventory
+records classify duplicate bytes, while preview records cache rendered pixels.
+
 ## Purpose
 
 Provide a local, human-in-the-loop view of filename collisions and byte-level

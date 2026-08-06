@@ -154,10 +154,17 @@ def sha256_file(path: Path) -> str:
 
 
 def relative_path(path: Path, root: Path) -> str:
+    # Scanner paths are already absolute descendants of the resolved display
+    # root.  Keep that common path lexical: resolving every one of the 1,200+
+    # CAD files again turns a cheap metadata walk into most of a second on a
+    # Dropbox-backed Windows workspace.
     try:
-        return path.resolve().relative_to(root.resolve()).as_posix()
+        return path.relative_to(root).as_posix()
     except ValueError:
-        return path.resolve().as_posix()
+        try:
+            return path.resolve().relative_to(root.resolve()).as_posix()
+        except ValueError:
+            return path.resolve().as_posix()
 
 
 def _system_for(path: str) -> str:
@@ -167,7 +174,7 @@ def _system_for(path: str) -> str:
 
 def _vendor_reason(path: Path, display_root: Path) -> str | None:
     try:
-        parts = tuple(part.casefold() for part in path.resolve().relative_to(display_root).parts)
+        parts = tuple(part.casefold() for part in path.relative_to(display_root).parts)
     except ValueError:
         return None
     if len(parts) >= 2 and parts[:2] in VENDOR_PREFIXES:
@@ -243,7 +250,7 @@ def _iter_files(
 
     unique_files: dict[str, Path] = {}
     for path in files:
-        unique_files.setdefault(os.path.normcase(str(path.resolve())), path)
+        unique_files.setdefault(os.path.normcase(str(path)), path)
     files = sorted(
         unique_files.values(), key=lambda path: relative_path(path, display_root).casefold()
     )
@@ -355,7 +362,7 @@ def scan_paths(
     include_staging: bool = False,
     hash_files: bool = True,
 ) -> Inventory:
-    roots = [Path(path) for path in paths]
+    roots = [Path(path).resolve() for path in paths]
     root = display_root.resolve() if display_root else common_root(roots)
     normalized_extensions = normalize_extensions(extensions)
     normalized_skips = {name.casefold() for name in DEFAULT_SKIP_DIRS | set(skip_dirs)}

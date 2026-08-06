@@ -33,7 +33,7 @@ def build_parser() -> argparse.ArgumentParser:
     scan.add_argument("--no-hash", action="store_true")
     scan.add_argument("--json", metavar="PATH", help="Write the portable inventory as JSON")
 
-    serve = subparsers.add_parser("serve", help="Run the local duplicate viewer")
+    serve = subparsers.add_parser("serve", help="Run the local CAD viewer")
     serve.add_argument("workspace", nargs="?", default=".")
     serve.add_argument("--host", default="127.0.0.1")
     serve.add_argument("--port", type=int, default=4185)
@@ -292,9 +292,9 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     from pihti_dedup.web import create_app
 
-    url = f"http://{args.host}:{args.port}/duplicates"
+    url = f"http://{args.host}:{args.port}/catalog"
     if args.open:
         threading.Timer(0.7, lambda: webbrowser.open(url)).start()
-    print(f"PIHTI duplicate viewer: {url}")
+    print(f"PIHTI CAD viewer: {url}")
     create_app(workspace).run(host=args.host, port=args.port, threaded=True, use_reloader=False)
     return 0

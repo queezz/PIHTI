@@ -33,6 +33,10 @@ def make_workspace(root: Path) -> Path:
 def test_shell_is_immediate_and_results_are_loaded_separately(tmp_path: Path) -> None:
     client = create_app(make_workspace(tmp_path)).test_client()
 
+    landing = client.get("/")
+    assert landing.status_code == 302
+    assert landing.headers["Location"].endswith("/catalog")
+
     shell = client.get("/duplicates")
     html = shell.get_data(as_text=True)
     assert shell.status_code == 200
@@ -41,6 +45,7 @@ def test_shell_is_immediate_and_results_are_loaded_separately(tmp_path: Path) ->
     assert "bearing.ipt" not in html
     assert "page-heading" not in html
     assert 'href="/static/favicon.ico"' in html
+    assert 'class="brand" href="/catalog"' in html
 
     results = client.get("/duplicates/results")
     result_html = results.get_data(as_text=True)
@@ -55,6 +60,54 @@ def test_shell_is_immediate_and_results_are_loaded_separately(tmp_path: Path) ->
     assert 'data-system-filter="boronprobe_2026"' in result_html
     assert '<time datetime="' in result_html
     assert 'title="Modified time"' in result_html
+
+
+def test_inventory_cache_survives_restart_and_rehashes_only_changed_files(
+    monkeypatch, tmp_path: Path
+) -> None:
+    root = make_workspace(tmp_path)
+    first = web.InventoryCache(root, scan_workspace).get(include_vendor=False)
+
+    assert all(record.sha256 for record in first.records)
+    assert (root / ".pihti-dedup" / "inventory-default-v1.json").is_file()
+
+    original = web.sha256_file
+    hashed: list[str] = []
+
+    def record_hash(path: Path) -> str:
+        hashed.append(path.relative_to(root).as_posix())
+        return original(path)
+
+    monkeypatch.setattr(web, "sha256_file", record_hash)
+    unchanged = web.InventoryCache(root, scan_workspace).get(include_vendor=False)
+
+    assert unchanged.records == first.records
+    assert hashed == []
+
+    changed = root / "BoronProbe_2026" / "parts" / "bearing.ipt"
+    changed.write_bytes(b"new bearing revision")
+    refreshed = web.InventoryCache(root, scan_workspace).get(include_vendor=False)
+
+    assert len(refreshed.records) == len(first.records)
+    assert hashed == ["BoronProbe_2026/parts/bearing.ipt"]
+
+
+def test_vendor_scope_reuses_default_hashes(monkeypatch, tmp_path: Path) -> None:
+    root = make_workspace(tmp_path)
+    cache = web.InventoryCache(root, scan_workspace)
+    cache.get(include_vendor=False)
+    original = web.sha256_file
+    hashed: list[str] = []
+
+    def record_hash(path: Path) -> str:
+        hashed.append(path.relative_to(root).as_posix())
+        return original(path)
+
+    monkeypatch.setattr(web, "sha256_file", record_hash)
+    vendor = cache.get(include_vendor=True)
+
+    assert len(vendor.records) == 4
+    assert hashed == ["bellows/Design Data/vendor.ipt"]
 
 
 def test_results_offer_recent_pr_merge_as_a_real_filter(tmp_path: Path) -> None:

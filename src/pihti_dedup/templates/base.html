@@ -4,15 +4,15 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="color-scheme" content="dark light">
-  <title>{% block title %}PIHTI dedup{% endblock %}</title>
+  <title>{% block title %}PIHTI CAD{% endblock %}</title>
   <link rel="icon" href="{{ url_for('static', filename='favicon.ico') }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='dedup.css') }}">
 </head>
 <body>
   <header class="topbar">
-    <a class="brand" href="{{ url_for('duplicates') }}" aria-label="PIHTI duplicate review">
+    <a class="brand" href="{{ url_for('catalog') }}" aria-label="PIHTI CAD catalog">
       <span class="brand-mark" aria-hidden="true">P</span>
-      <span><strong>PIHTI</strong><small>filename review</small></span>
+      <span><strong>PIHTI</strong><small>CAD archive</small></span>
     </a>
     <nav class="topnav" aria-label="Views">
       <a href="{{ url_for('duplicates') }}" {% if request.endpoint == 'duplicates' %}class="is-current" aria-current="page"{% endif %}>Duplicates</a>

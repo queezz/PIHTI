@@ -4,12 +4,13 @@ from __future__ import annotations
 
 import hashlib
 import ipaddress
+import json
 import os
 import re
 import secrets
 import threading
-import time
 from collections import OrderedDict
+from dataclasses import asdict, replace
 from datetime import datetime
 from pathlib import Path
 from typing import Callable
@@ -33,7 +34,14 @@ from pihti_dedup.foldernote import (
 from pihti_dedup.git_history import PullRequestMerge, recent_pull_request_merges
 from pihti_dedup.inventor_meta import INVENTOR_EXTENSIONS, DocumentMeta, Preview, read_preview
 from pihti_dedup.inventor_meta import read_document as read_inventor_document
-from pihti_dedup.inventory import Inventory, scan_workspace
+from pihti_dedup.inventory import (
+    ExcludedPath,
+    FileRecord,
+    Inventory,
+    classify,
+    scan_workspace,
+    sha256_file,
+)
 from pihti_dedup.markdown_view import render as render_markdown
 from pihti_dedup.renames import (
     LEDGER_RELATIVE,
@@ -73,27 +81,157 @@ MASS_ROWS = (
 
 
 class InventoryCache:
-    """Small process-local cache so HTML and JSON views can share one scan."""
+    """Disk-aware inventory cache shared by every viewer surface.
 
-    def __init__(self, workspace: Path, scanner: Scanner, max_age: float = 10.0) -> None:
+    A ten-second time-to-live used to make normal tab switches hash the whole
+    workspace again.  This cache instead performs a metadata-only validation,
+    reuses hashes for files whose path, size, and modification time are
+    unchanged, and persists that knowledge beneath the viewer's ignored cache
+    directory so a server restart is not a cold start.
+    """
+
+    SCHEMA_VERSION = 1
+
+    def __init__(self, workspace: Path, scanner: Scanner) -> None:
         self.workspace = workspace
         self.scanner = scanner
-        self.max_age = max_age
         self._lock = threading.Lock()
-        self._entries: dict[tuple[bool, bool], tuple[float, Inventory]] = {}
+        self._entries: dict[bool, Inventory] = {}
+
+    def _path(self, include_vendor: bool) -> Path:
+        scope = "vendor" if include_vendor else "default"
+        return self.workspace / ".pihti-dedup" / f"inventory-{scope}-v1.json"
+
+    @staticmethod
+    def _same_file(left: FileRecord, right: FileRecord) -> bool:
+        return (
+            left.path == right.path
+            and left.size == right.size
+            and left.mtime_ns == right.mtime_ns
+        )
+
+    @classmethod
+    def _same_snapshot(cls, left: Inventory, right: Inventory) -> bool:
+        return (
+            len(left.records) == len(right.records)
+            and all(cls._same_file(a, b) for a, b in zip(left.records, right.records))
+            and left.excluded == right.excluded
+            and left.errors == right.errors
+        )
+
+    @staticmethod
+    def _inventory(snapshot: Inventory, records: list[FileRecord]) -> Inventory:
+        filename_groups, renamed_groups = classify(records)
+        return Inventory(
+            root=snapshot.root,
+            records=tuple(records),
+            filename_groups=filename_groups,
+            renamed_groups=renamed_groups,
+            excluded=snapshot.excluded,
+            errors=snapshot.errors,
+            include_vendor=snapshot.include_vendor,
+            extensions=snapshot.extensions,
+            generated_at=snapshot.generated_at,
+        )
+
+    def _merge_hashes(
+        self,
+        snapshot: Inventory,
+        previous: Inventory | None,
+        *,
+        hash_files: bool,
+        force: bool,
+    ) -> Inventory:
+        old = {record.path: record for record in previous.records} if previous else {}
+        records: list[FileRecord] = []
+        for record in snapshot.records:
+            prior = old.get(record.path)
+            digest = None
+            if not force and prior and self._same_file(record, prior):
+                digest = prior.sha256
+            if hash_files and digest is None:
+                try:
+                    digest = sha256_file(self.workspace / record.path)
+                except OSError as exc:
+                    errors = (*snapshot.errors, f"cannot hash {record.path}: {exc}")
+                    snapshot = replace(snapshot, errors=errors)
+            records.append(replace(record, sha256=digest))
+        return self._inventory(snapshot, records)
+
+    def _load(self, include_vendor: bool) -> Inventory | None:
+        try:
+            payload = json.loads(self._path(include_vendor).read_text(encoding="utf-8"))
+            if (
+                payload.get("schema_version") != self.SCHEMA_VERSION
+                or payload.get("include_vendor") != include_vendor
+            ):
+                return None
+            records = [FileRecord(**item) for item in payload["records"]]
+            snapshot = Inventory(
+                root=self.workspace,
+                records=(),
+                filename_groups=(),
+                renamed_groups=(),
+                excluded=tuple(ExcludedPath(**item) for item in payload.get("excluded", [])),
+                errors=tuple(payload.get("errors", [])),
+                include_vendor=include_vendor,
+                extensions=tuple(payload["extensions"]) if payload.get("extensions") else None,
+                generated_at=str(payload["generated_at"]),
+            )
+            return self._inventory(snapshot, records)
+        except (KeyError, OSError, TypeError, ValueError, json.JSONDecodeError):
+            return None
+
+    def _store(self, inventory: Inventory) -> None:
+        target = self._path(inventory.include_vendor)
+        temporary = target.with_suffix(".tmp")
+        payload = {
+            "schema_version": self.SCHEMA_VERSION,
+            "include_vendor": inventory.include_vendor,
+            "generated_at": inventory.generated_at,
+            "extensions": list(inventory.extensions) if inventory.extensions else None,
+            "records": [asdict(record) for record in inventory.records],
+            "excluded": [asdict(item) for item in inventory.excluded],
+            "errors": list(inventory.errors),
+        }
+        try:
+            target.parent.mkdir(parents=True, exist_ok=True)
+            temporary.write_text(json.dumps(payload, separators=(",", ":")), encoding="utf-8")
+            temporary.replace(target)
+        except OSError:
+            # This is a performance cache. A read-only workspace must still be
+            # fully usable; it simply pays for hashing again after a restart.
+            try:
+                temporary.unlink(missing_ok=True)
+            except OSError:
+                pass
 
     def get(
         self, *, include_vendor: bool, hash_files: bool = True, force: bool = False
     ) -> Inventory:
-        key = (include_vendor, hash_files)
         with self._lock:
-            cached = self._entries.get(key)
-            if cached and not force and time.monotonic() - cached[0] <= self.max_age:
-                return cached[1]
-            inventory = self.scanner(
-                self.workspace, include_vendor=include_vendor, hash_files=hash_files
+            previous = self._entries.get(include_vendor)
+            if previous is None:
+                previous = self._load(include_vendor)
+            if previous is None:
+                # The vendor scope is a superset of the default scope. Reuse
+                # every overlapping digest when the owner toggles that view
+                # instead of hashing the same thousand files a second time.
+                previous = self._entries.get(not include_vendor) or self._load(
+                    not include_vendor
+                )
+            snapshot = self.scanner(
+                self.workspace, include_vendor=include_vendor, hash_files=False
             )
-            self._entries[key] = (time.monotonic(), inventory)
+            if previous is not None and not force and self._same_snapshot(snapshot, previous):
+                if not hash_files or all(record.sha256 for record in previous.records):
+                    self._entries[include_vendor] = previous
+                    return previous
+            inventory = self._merge_hashes(
+                snapshot, previous, hash_files=hash_files, force=force
+            )
+            self._entries[include_vendor] = inventory
+            self._store(inventory)
             return inventory
 
     def clear(self) -> None:
@@ -360,10 +498,13 @@ def create_app(
         response.headers["Cache-Control"] = "no-store"
         return response
 
-    @app.get("/")
     @app.get("/duplicates")
     def duplicates():
         return render_template("duplicates.html", workspace=root.name, version=__version__)
+
+    @app.get("/")
+    def index():
+        return redirect(url_for("catalog"))
 
     @app.get("/duplicates/results")
     def duplicates_results():

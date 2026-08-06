@@ -6,6 +6,18 @@ remains authoritative for exact file changes.
 
 ## 2026-08-06
 
+- Shipped `pihti-dedup` 0.6.1: Catalog is now the landing view, including for
+  `lab pihti`, and normal tab changes no longer expire a ten-second cache and
+  hash the complete CAD tree again. The viewer persists a compact inventory
+  under gitignored `.pihti-dedup/`, validates current path/size/mtime metadata,
+  and reuses SHA-256 values across Catalog, Duplicates, vendor-scope changes,
+  and server restarts. Only new or changed files are hashed; the explicit
+  Duplicates Refresh still performs a complete verification. The metadata walk
+  itself stopped resolving every already-contained path, reducing the live
+  workspace check from about 0.69 s to 0.14 s; after a warm cache and simulated
+  restart, both main views rendered in about 0.19 s instead of Duplicates taking
+  about 1.8 s to rehash the archive.
+
 - Shipped `pihti-dedup` 0.6.0: the CAD files Inventor never embedded a thumbnail
   into now have previews. About 250 files in this workspace — 166 STL, 57
   STEP/STP, 22 3MF, 6 DWG — showed a grey placeholder in the catalog, the part

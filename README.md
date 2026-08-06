@@ -136,13 +136,19 @@ Start the viewer through the fleet launcher:
 lab pihti
 ```
 
-It opens `http://127.0.0.1:4185/duplicates`. The direct module command remains
+It opens `http://127.0.0.1:4185/catalog`. The direct module command remains
 available for development, but `lab pihti` is the normal operating surface.
 
-Use the two right rails to review one duplicate kind, project folder, or recent
-merged PR at a time. PR filters come from local first-parent Git history and do
-not require GitHub access. Each member row copies only that file's
-project-relative Windows path for manual lookup in Inventor. Rows include size,
+Catalog is the landing view; open **Duplicates** in the top navigation when the
+filename-collision inventory needs review. The server keeps a metadata-validated
+inventory under gitignored `.pihti-dedup/` and reuses unchanged SHA-256 values
+across tabs and restarts. A path is rehashed when its size or modification time
+changes; **Refresh** on Duplicates remains the explicit full verification.
+
+In Duplicates, use the two right rails to review one duplicate kind, project
+folder, or recent merged PR at a time. PR filters come from local first-parent
+Git history and do not require GitHub access. Each member row copies only that
+file's project-relative Windows path for manual lookup in Inventor. Rows include size,
 modified time, and the short byte hash.
 
 Byte-identical rows also have a **Delete** action. Its confirmation revalidates
