@@ -19,8 +19,12 @@ belongs to the separate pihtivacuum application. Install or refresh this project
 from the repository root with:
 
 ```powershell
-& "$HOME\.venvs\pihti-dedup\Scripts\python.exe" -m pip install -e ".[dev]"
+& "$HOME\.venvs\pihti-dedup\Scripts\python.exe" -m pip install -e ".[dev,preview,step]"
 ```
+
+`preview` and `step` are the optional geometry-preview extras. Without them the
+tool still runs and STL/STEP/3MF files fall back to the placeholder image, and
+the tests that need them skip rather than fail.
 
 Launch the viewer with `lab pihti`. The shared service declaration lives in the
 sibling `20-Code/lab-cli` registry; this machine maps its logical `drawings`

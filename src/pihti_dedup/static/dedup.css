@@ -211,6 +211,7 @@ button, select, input[type="checkbox"] { cursor: pointer; }
 
 .part-head { display: grid; grid-template-columns: 320px minmax(0, 1fr); gap: 18px; margin: 0 0 14px; padding: 15px; border: 1px solid var(--line); border-radius: 9px; background: var(--panel); }
 .part-preview img { display: block; width: 100%; height: auto; aspect-ratio: 4 / 3; object-fit: contain; border: 1px solid var(--line-soft); border-radius: 7px; background: #101822; }
+.preview-source { margin: 6px 0 0; color: var(--dim); font-size: 0.66rem; text-align: center; }
 .part-identity h1 { margin: 0; font-size: 1.06rem; overflow-wrap: anywhere; }
 .part-path { margin: 5px 0 0; color: var(--dim); font: 0.71rem ui-monospace, SFMono-Regular, Consolas, monospace; overflow-wrap: anywhere; }
 .part-description { margin: 11px 0 0; color: var(--muted); font-size: 0.8rem; line-height: 1.5; }

@@ -6,7 +6,8 @@
     <div class="work-main">
       <section class="part-head">
         <div class="part-preview">
-          <img src="{{ url_for('preview_image', relative_path=path) }}" alt="Embedded preview of {{ name }}" width="320" height="240">
+          <img src="{{ url_for('preview_image', relative_path=path) }}" alt="Preview of {{ name }}" width="320" height="240">
+          {% if preview_source %}<p class="preview-source muted">{{ preview_source }}</p>{% endif %}
         </div>
         <div class="part-identity">
           <h1>{{ name }}</h1>

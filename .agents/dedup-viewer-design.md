@@ -246,6 +246,61 @@ guard that consults it. Saving a note through the viewer strips the marker, so
 from that save on the generator must leave the file alone.
 `tests/test_foldernote.py` imports the generator and pins both halves.
 
+### Geometry previews for STL, STEP, 3MF, and DWG
+
+Version 0.6.0 fills in the previews Inventor never embedded. Roughly 250 files
+in this workspace — 166 STL, 57 STEP/STP, 22 3MF, 6 DWG — showed the neutral
+placeholder because only `.ipt`/`.iam`/`.idw`/`.ipn` carry a thumbnail.
+
+`src/pihti_dedup/mesh_render.py` is a numpy software rasterizer: orthographic
+isometric camera, z-buffer, flat shading from one key light plus ambient fill,
+2× supersampled to 512 px, transparent background. Two facts from the spike are
+load-bearing. Screen-bbox windows are bucketed **per axis**, not as a square
+`max(w, h)`: render cost tracks screen-space triangle area rather than triangle
+count, so the long thin slivers typical of low-poly CAD exports dominate, and
+the per-axis fix took the worst case from 31.7 s to 2.1 s. And a conservative
+centroid splat runs after the coverage pass, because a triangle thinner than a
+pixel covers no pixel centre and would erase wire forms and sheet edges
+entirely.
+
+`src/pihti_dedup/dwg_preview.py` unpacks the preview AutoCAD already stored:
+a 16-byte sentinel, a record table, and a BMP whose `BITMAPFILEHEADER` DWG
+strips and this code synthesizes. Inversion keys on the image's **mean
+luminance**, never the corner pixel — a paper-space preview is a white sheet on
+a dark backdrop, and keying off the corner turns that sheet solid black. The
+stored images are 180×180, so upscale is capped at 2.5× and the result is
+centred on a card: grid-quality only.
+
+`src/pihti_dedup/geometry_preview.py` is the front door and holds three
+contracts. `render()` returns the existing `inventor_meta.Preview` and never
+raises, so a corrupt mesh falls through to `placeholder_svg` exactly as a
+missing Inventor thumbnail does. Optional dependencies are probed with
+`find_spec` and imported only inside `render()`, so an install without the
+extras degrades to placeholders instead of failing to import;
+`available_extensions()` is the single truth about what an install can draw.
+And rendering is disk-cached under the gitignored `.pihti-dedup/previews/`,
+sharded two hex characters deep, written temp-then-replace, keyed by
+`sha256(normcased path, mtime_ns, st_size, render size, RENDERER_VERSION)` —
+the renderer version is in the key so a style change supersedes every stored
+PNG rather than serving it stale. Only successes are stored: a negative entry
+would outlive its reason, since installing the `step` extra does not invalidate
+a "cannot be rendered" marker.
+
+STEP costs seconds, so `pihti-dedup warm-previews` builds the whole workspace
+once instead of letting a catalog visit trigger 250 renders. `/preview/...` is
+the one route exempt from the blanket `Cache-Control: no-store`; it carries an
+ETag over path, mtime, size, renderer version, and whether the response is a
+real preview or the placeholder, plus `Last-Modified`, and answers a conditional
+request with 304.
+
+`cascadio` cannot open a non-ASCII path — OpenCascade's own IO limitation — so
+`load_step` stages a non-ASCII source through an ASCII temp file first. The
+tracked tree has no non-ASCII STEP today, but `staging/` holds ten and the
+`ボディ*.ipt` set proves non-ASCII CAD names are normal here.
+
+DXF stays uncovered. Unlike DWG it stores no raster to unpack, so it would need
+a real 2D renderer rather than an extraction.
+
 ### Rendered Markdown view
 
 Version 0.5.0 shows notes the way MkDocs and GitHub already show them.

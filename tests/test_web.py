@@ -1,8 +1,12 @@
 import os
 import re
+import struct
 from pathlib import Path
 
+import pytest
+
 import pihti_dedup.web as web
+from pihti_dedup import geometry_preview
 from pihti_dedup.cleanup import plan_member_cleanup
 from pihti_dedup.git_history import PullRequestMerge
 from pihti_dedup.inventor_meta import DocumentMeta, Preview
@@ -299,6 +303,127 @@ def test_preview_and_part_reject_traversal_and_unknown_paths(tmp_path: Path) -> 
     assert client.get("/preview/..%2F..%2FWindows%2Fwin.ini").status_code == 404
     assert client.get("/preview/C:%5CWindows%5Cwin.ini").status_code == 404
     assert client.get("/part/..%2Foutside-secret.ipt").status_code == 404
+
+
+def binary_stl(path: Path, triangles) -> Path:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with open(path, "wb") as handle:
+        handle.write(b"\0" * 80)
+        handle.write(struct.pack("<I", len(triangles)))
+        for triangle in triangles:
+            handle.write(struct.pack("<3f", 0, 0, 1))
+            for vertex in triangle:
+                handle.write(struct.pack("<3f", *vertex))
+            handle.write(b"\0\0")
+    return path
+
+
+def make_export_workspace(root: Path) -> Path:
+    """One STL export beside one Inventor part, in the same folder."""
+
+    binary_stl(
+        root / "BoronProbe" / "exports" / "head.stl",
+        [
+            [(0, 0, 0), (10, 0, 0), (0, 10, 0)],
+            [(0, 0, 0), (10, 0, 0), (0, 0, 10)],
+            [(0, 0, 0), (0, 10, 0), (0, 0, 10)],
+            [(10, 0, 0), (0, 10, 0), (0, 0, 10)],
+        ],
+    )
+    (root / "BoronProbe" / "exports" / "head.ipt").write_bytes(b"not really an ipt")
+    return root
+
+
+def test_an_stl_export_is_rendered_and_served_as_png(tmp_path: Path) -> None:
+    if ".stl" not in geometry_preview.available_extensions():
+        pytest.skip("the 'preview' extra is not installed")
+    root = make_export_workspace(tmp_path)
+    client = create_app(root).test_client()
+
+    response = client.get("/preview/BoronProbe/exports/head.stl")
+
+    assert response.status_code == 200
+    assert response.mimetype == "image/png"
+    assert response.get_data()[:8] == b"\x89PNG\r\n\x1a\n"
+    # The render landed in the gitignored on-disk cache, sharded.
+    stored = list((root / ".pihti-dedup" / "previews").rglob("*.png"))
+    assert len(stored) == 1
+    assert stored[0].read_bytes() == response.get_data()
+
+
+def test_the_part_page_and_catalog_show_the_rendered_export(tmp_path: Path) -> None:
+    root = make_export_workspace(tmp_path)
+    client = create_app(root).test_client()
+
+    part = client.get("/part/BoronProbe/exports/head.stl").get_data(as_text=True)
+    catalog = client.get("/catalog").get_data(as_text=True)
+
+    assert 'src="/preview/BoronProbe/exports/head.stl"' in part
+    assert "rendered from the geometry" in part
+    assert 'src="/preview/BoronProbe/exports/head.stl"' in catalog
+    assert "STL, STEP, and 3MF are rendered from their geometry" in catalog
+
+
+def test_a_missing_preview_extra_falls_back_to_the_placeholder(monkeypatch, tmp_path: Path) -> None:
+    root = make_export_workspace(tmp_path)
+    monkeypatch.setattr(geometry_preview, "available_extensions", frozenset)
+    client = create_app(root).test_client()
+
+    response = client.get("/preview/BoronProbe/exports/head.stl")
+    body = response.get_data(as_text=True)
+
+    assert response.status_code == 200
+    assert response.mimetype == "image/svg+xml"
+    assert ">STL<" in body
+    assert not (root / ".pihti-dedup").exists()
+
+
+def test_previews_are_exempt_from_no_store_and_revalidate_by_etag(tmp_path: Path) -> None:
+    root = make_export_workspace(tmp_path)
+    client = create_app(root).test_client()
+
+    page = client.get("/catalog")
+    first = client.get("/preview/BoronProbe/exports/head.stl")
+    again = client.get(
+        "/preview/BoronProbe/exports/head.stl", headers={"If-None-Match": first.headers["ETag"]}
+    )
+
+    assert page.headers["Cache-Control"] == "no-store"
+    assert "no-store" not in first.headers["Cache-Control"]
+    assert "no-cache" in first.headers["Cache-Control"]
+    assert first.headers["ETag"] and first.headers["Last-Modified"]
+    assert again.status_code == 304
+    assert again.get_data() == b""
+
+
+def test_a_resaved_file_gets_a_new_validator_so_the_browser_refetches(tmp_path: Path) -> None:
+    root = make_export_workspace(tmp_path)
+    target = root / "BoronProbe" / "exports" / "head.stl"
+    client = create_app(root).test_client()
+    before = client.get("/preview/BoronProbe/exports/head.stl").headers["ETag"]
+
+    stamp = target.stat().st_mtime_ns + 2_000_000_000
+    os.utime(target, ns=(stamp, stamp))
+
+    assert client.get("/preview/BoronProbe/exports/head.stl").headers["ETag"] != before
+
+
+def test_duplicate_rows_offer_rename_only_for_the_four_inventor_extensions(tmp_path: Path) -> None:
+    root = tmp_path
+    binary_stl(root / "A" / "head.stl", [[(0, 0, 0), (1, 0, 0), (0, 1, 0)]])
+    binary_stl(root / "B" / "head.stl", [[(0, 0, 0), (1, 0, 0), (0, 1, 0)]])
+    (root / "A" / "head.ipt").write_bytes(b"same")
+    (root / "B" / "head.ipt").write_bytes(b"same")
+    client = create_app(root).test_client()
+
+    html = client.get("/duplicates/results").get_data(as_text=True)
+
+    # Every member row carries a preview, including the two STL exports...
+    assert html.count('class="member-thumb"') == 4
+    assert 'src="/preview/A/head.stl"' in html
+    # ...but only the Inventor documents can be renamed through the ledger flow.
+    assert html.count(">Rename<") == 2
+    assert "/part/A/head.stl#rename" not in html
 
 
 def test_catalog_lists_every_folder_as_a_thumbnail_grid(tmp_path: Path) -> None:

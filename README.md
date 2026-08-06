@@ -122,9 +122,13 @@ a canonical part or rewrites assembly references.
 From the repository root, install it into the external environment and scan:
 
 ```powershell
-& "$HOME\.venvs\pihti-dedup\Scripts\python.exe" -m pip install -e ".[dev]"
+& "$HOME\.venvs\pihti-dedup\Scripts\python.exe" -m pip install -e ".[dev,preview,step]"
 & "$HOME\.venvs\pihti-dedup\Scripts\python.exe" -m pihti_dedup scan .
 ```
+
+The `preview` and `step` extras are optional. They add previews for CAD files
+that carry no embedded thumbnail; without them those files simply show the
+neutral placeholder.
 
 Start the viewer through the fleet launcher:
 
@@ -152,6 +156,22 @@ cross-folder scope, and vendor scope—survives deletion, rescans, and reloads.
 After a mutation, the refreshed list keeps the next visible group at the same
 viewport position and reports success in a fixed toast instead of inserting a
 banner that shifts the results.
+
+### Previews
+
+Inventor documents and DWG drawings show the preview image they already embed.
+STL, STEP/STP, and 3MF carry none, so the tool renders one from the geometry and
+caches the PNG under gitignored `.pihti-dedup/previews/`. A STEP render costs a
+second or two, so build them all once instead of paying for them on a catalog
+visit:
+
+```powershell
+& "$HOME\.venvs\pihti-dedup\Scripts\python.exe" -m pihti_dedup warm-previews .
+```
+
+The cache is keyed by the file's modification time and size, so a resaved part
+is redrawn automatically and nothing has to be cleared by hand. DXF is not
+covered and shows the placeholder.
 
 For a merged PR, preview merge-added same-name, byte-identical copies from the
 viewer or CLI:

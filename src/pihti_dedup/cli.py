@@ -55,6 +55,14 @@ def build_parser() -> argparse.ArgumentParser:
     )
     cleanup.add_argument("--json", metavar="PATH", help="Write the plan or result as JSON")
 
+    warm = subparsers.add_parser(
+        "warm-previews", help="Render and disk-cache STL, STEP, 3MF, and DWG previews"
+    )
+    warm.add_argument("workspace", nargs="?", default=".")
+    warm.add_argument("--include-vendor", action="store_true")
+    warm.add_argument("--quiet", action="store_true", help="Counts only, no per-file progress")
+    warm.add_argument("--json", metavar="PATH", help="Write the result as JSON")
+
     meta = subparsers.add_parser("meta", help="Metadata sidecars beside CAD files")
     meta_commands = meta.add_subparsers(dest="meta_command", required=True)
     seed = meta_commands.add_parser(
@@ -158,6 +166,47 @@ def _seed_sidecars(workspace: Path, *, include_vendor: bool, apply: bool) -> dic
     }
 
 
+def _warm_previews(workspace: Path, *, include_vendor: bool, quiet: bool) -> dict:
+    """Build every missing geometry preview so the next catalog visit is instant.
+
+    A cold whole-workspace build costs minutes, almost all of it STEP parsing,
+    so this exists as a command rather than as something a page visit triggers.
+    """
+
+    from pihti_dedup import geometry_preview
+
+    drawable = sorted(geometry_preview.available_extensions())
+    print(f"workspace: {workspace}")
+    print(f"renderable extensions: {', '.join(drawable) if drawable else 'none'}")
+    missing = geometry_preview.missing_extra()
+    if not drawable:
+        print(
+            f"error: nothing can be rendered; reinstall with the '{missing}' extra",
+            file=sys.stderr,
+        )
+        return geometry_preview.WarmResult().to_dict()
+    if missing:
+        print(f"note: the '{missing}' extra is absent, so some formats are skipped")
+    print(f"cache: {_windows_path(str(geometry_preview.preview_store(workspace)))}")
+
+    def report(index: int, total: int, path: str, state: str, seconds: float) -> None:
+        print(f"[{index:>4}/{total}] {state:<8} {seconds:5.2f}s  {_windows_path(path)}", flush=True)
+
+    result = geometry_preview.warm_previews(
+        workspace,
+        include_vendor=include_vendor,
+        progress=None if quiet else report,
+    )
+    print(
+        f"considered {result.considered} · rendered {result.rendered} · "
+        f"already cached {result.cached} · failed {result.failed} "
+        f"in {result.seconds:.1f}s"
+    )
+    for failure in result.failures:
+        print(f"warning: {failure}", file=sys.stderr)
+    return result.to_dict()
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     workspace = Path(args.workspace).resolve()
@@ -177,6 +226,16 @@ def main(argv: Sequence[str] | None = None) -> int:
                 encoding="utf-8",
             )
         return 0
+
+    if args.command == "warm-previews":
+        payload = _warm_previews(
+            workspace, include_vendor=args.include_vendor, quiet=args.quiet
+        )
+        if args.json:
+            Path(args.json).write_text(
+                json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
+            )
+        return 1 if payload["failures"] else 0
 
     if args.command == "meta":
         payload = _seed_sidecars(workspace, include_vendor=args.include_vendor, apply=args.apply)

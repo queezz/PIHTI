@@ -77,7 +77,7 @@
             </div>
             <div class="member-actions">
               <button class="copy-path" type="button" data-copy="{{ record.path|winpath }}" title="Copy this member path">Copy</button>
-              {% if record.suffix in ('.iam', '.idw', '.ipn', '.ipt') %}
+              {% if record.suffix in RENAMEABLE_EXTENSIONS %}
               <a class="copy-path" href="{{ url_for('part_page', relative_path=record.path) }}#rename" title="Rename this file on its part page, with the where-used check">Rename</a>
               {% endif %}
               {% if member_plan %}

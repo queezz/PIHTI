@@ -3,17 +3,13 @@
 Forward-looking work only. Move completed outcomes to `CHANGELOG.md` and keep
 session evidence in `log/`.
 
-## Workbench — queued next (owner-approved 2026-08-05)
-
-1. **STL/STEP/DWG previews**: spike complete — verdicts, timings, gotchas,
-   and the integration contract are in
-   `log/2026-08-05-mesh-preview-spike.md`; working spike code is preserved in
-   `.agents/spikes/mesh-preview/`. All three formats proven on every matching
-   repo file (STL in-house, STEP via optional `cascadio` extra, DWG embedded
-   PNG). DXF remains an open gap.
-
 ## Dedup viewer — next review slice
 
+- **DXF has no preview.** 0.6.0 covers STL, STEP, 3MF, and DWG; the six
+  scanner-visible `.dxf` files still show the neutral placeholder. A DXF is a
+  text vector format with no embedded raster, so unlike DWG there is nothing to
+  unpack — it would need an actual 2D renderer (`ezdxf` plus a matplotlib or
+  Pillow backend). Decide whether six files justify a third rendering path.
 - Partly done in 0.3.0: per-file metadata sidecars (`<cad filename>.md`) now
   record intent next to the CAD file. Still open is the *review* disposition —
   a per-group record of `canonical` / `keep-both` / `needs-inventor` /

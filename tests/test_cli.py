@@ -1,10 +1,33 @@
 import json
+import struct
 from pathlib import Path
 
+import pytest
+
 import pihti_dedup.cli as cli
+from pihti_dedup import geometry_preview
 from pihti_dedup.git_history import PullRequestMerge
 from pihti_dedup.legacy import main as legacy_main
 from pihti_dedup.sidecar import read_sidecar
+
+TETRAHEDRON = [
+    [(0, 0, 0), (10, 0, 0), (0, 10, 0)],
+    [(0, 0, 0), (10, 0, 0), (0, 0, 10)],
+    [(0, 0, 0), (0, 10, 0), (0, 0, 10)],
+    [(10, 0, 0), (0, 10, 0), (0, 0, 10)],
+]
+
+
+def write_stl(path: Path, triangles=TETRAHEDRON) -> Path:
+    with open(path, "wb") as handle:
+        handle.write(b"\0" * 80)
+        handle.write(struct.pack("<I", len(triangles)))
+        for triangle in triangles:
+            handle.write(struct.pack("<3f", 0, 0, 1))
+            for vertex in triangle:
+                handle.write(struct.pack("<3f", *vertex))
+            handle.write(b"\0\0")
+    return path
 
 
 def test_scan_command_writes_portable_json(tmp_path: Path, capsys) -> None:
@@ -82,6 +105,45 @@ def test_merge_cleanup_cli_has_dry_and_guarded_apply_modes(
     assert not candidate.exists()
     assert canonical.exists()
     assert "QUARANTINED 1 files" in capsys.readouterr().out
+
+
+def test_warm_previews_builds_the_disk_cache_and_reports_counts(tmp_path: Path, capsys) -> None:
+    if ".stl" not in geometry_preview.available_extensions():
+        pytest.skip("the 'preview' extra is not installed")
+    exports = tmp_path / "BoronProbe" / "exports"
+    exports.mkdir(parents=True)
+    write_stl(exports / "head.stl")
+    (exports / "head.ipt").write_bytes(b"cad")  # Inventor carries its own thumbnail
+    report = tmp_path / "warm.json"
+
+    assert cli.main(["warm-previews", str(tmp_path), "--json", str(report)]) == 0
+
+    out = capsys.readouterr().out
+    assert "renderable extensions: " in out
+    assert ".stl" in out.splitlines()[1]
+    assert "[   1/1] rendered" in out
+    assert "considered 1 · rendered 1 · already cached 0 · failed 0" in out
+    payload = json.loads(report.read_text(encoding="utf-8"))
+    assert payload["rendered"] == 1
+    assert payload["failures"] == []
+    assert len(list((tmp_path / ".pihti-dedup" / "previews").rglob("*.png"))) == 1
+
+    assert cli.main(["warm-previews", str(tmp_path), "--quiet"]) == 0
+    second = capsys.readouterr().out
+    assert "already cached 1" in second
+    assert "[   1/1]" not in second
+
+
+def test_warm_previews_reports_a_file_it_could_not_draw(tmp_path: Path, capsys) -> None:
+    if ".stl" not in geometry_preview.available_extensions():
+        pytest.skip("the 'preview' extra is not installed")
+    (tmp_path / "broken.stl").write_bytes(b"not an stl")
+
+    assert cli.main(["warm-previews", str(tmp_path), "--quiet"]) == 1
+    captured = capsys.readouterr()
+
+    assert "failed 1" in captured.out
+    assert "broken.stl" in captured.err
 
 
 def test_meta_seed_previews_then_writes_missing_sidecars(tmp_path: Path, capsys) -> None:

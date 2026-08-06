@@ -6,6 +6,24 @@ remains authoritative for exact file changes.
 
 ## 2026-08-06
 
+- Shipped `pihti-dedup` 0.6.0: the CAD files Inventor never embedded a thumbnail
+  into now have previews. About 250 files in this workspace — 166 STL, 57
+  STEP/STP, 22 3MF, 6 DWG — showed a grey placeholder in the catalog, the part
+  page, and the duplicate rows. STL, STEP, and 3MF are now rendered by an
+  in-house numpy z-buffer rasterizer (STEP tessellated through the optional
+  `cascadio` extra, staged via an ASCII temp path because OpenCascade cannot
+  open a non-ASCII filename), and a DWG reuses the preview AutoCAD already
+  stored inside it. Rendering never raises: anything unreadable falls back to
+  the same neutral placeholder as before, and an install without the optional
+  `preview`/`step` extras degrades to placeholders rather than failing. Because
+  a STEP render costs seconds, results are cached on disk under gitignored
+  `.pihti-dedup/previews/`, keyed by path, modification time, size, render size,
+  and a renderer version, and a new `pihti-dedup warm-previews` builds the whole
+  workspace in one pass. `/preview/...` is now exempt from the blanket
+  `no-store` header and revalidates by ETag instead, so a browser stops
+  refetching hundreds of images per catalog visit. DXF remains uncovered: it
+  stores no raster to unpack.
+
 - Shipped `pihti-dedup` 0.5.0: notes are shown rendered instead of as raw text.
   Sidecar prose on a part page, the folder page's note, and an authored folder
   note in a catalog section are rendered server-side with `python-markdown` —

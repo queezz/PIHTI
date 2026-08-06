@@ -17,7 +17,7 @@ from typing import Callable
 from flask import Flask, Response, jsonify, redirect, render_template, request, url_for
 from markupsafe import escape
 
-from pihti_dedup import __version__
+from pihti_dedup import __version__, geometry_preview
 from pihti_dedup.cleanup import (
     execute_cleanup,
     execute_member_cleanup,
@@ -102,31 +102,49 @@ class InventoryCache:
 
 
 class PreviewCache:
-    """Embedded previews keyed by path and modification time.
+    """Previews keyed by path and modification time.
 
-    Parsing a document costs a few milliseconds, but a catalog page asks for
-    hundreds of previews at once and re-asks on every visit. Misses are cached
-    too, so the handful of STEP-imported parts without a preview stay cheap.
+    Two sources sit behind one cache. An Inventor document already carries a
+    thumbnail, and lifting it out costs a few milliseconds. An `.stl`, `.step`,
+    `.3mf`, or `.dwg` does not, so `geometry_preview` draws one — and that costs
+    seconds for STEP, which is why it has a disk cache of its own underneath
+    this one.
+
+    A catalog page asks for hundreds of previews at once and re-asks on every
+    visit, so misses are memoized too: a `.dxf`, or a STEP file with the `step`
+    extra absent, stays cheap instead of being re-attempted per request. The
+    memo is per process; `geometry_preview` deliberately caches successes only.
     """
 
-    def __init__(self, limit: int = 512) -> None:
+    def __init__(self, workspace: Path, limit: int = 512) -> None:
+        self.workspace = workspace
         self.limit = limit
         self._lock = threading.Lock()
         self._entries: OrderedDict[tuple[str, int], Preview | None] = OrderedDict()
 
-    def get(self, path: Path, mtime_ns: int) -> Preview | None:
+    def get(self, path: Path, mtime_ns: int, st_size: int | None = None) -> Preview | None:
         key = (os.path.normcase(str(path)), mtime_ns)
         with self._lock:
             if key in self._entries:
                 self._entries.move_to_end(key)
                 return self._entries[key]
-        preview = read_preview(path) if path.suffix.casefold() in INVENTOR_EXTENSIONS else None
+        preview = self._read(path, mtime_ns, st_size)
         with self._lock:
             self._entries[key] = preview
             self._entries.move_to_end(key)
             while len(self._entries) > self.limit:
                 self._entries.popitem(last=False)
         return preview
+
+    def _read(self, path: Path, mtime_ns: int, st_size: int | None) -> Preview | None:
+        suffix = path.suffix.casefold()
+        if suffix in INVENTOR_EXTENSIONS:
+            return read_preview(path)
+        if suffix in geometry_preview.available_extensions():
+            return geometry_preview.get_or_render(
+                self.workspace, path, mtime_ns, st_size=st_size
+            )
+        return None
 
 
 def placeholder_svg(suffix: str) -> str:
@@ -144,6 +162,28 @@ def placeholder_svg(suffix: str) -> str:
         f'font-size="13" text-anchor="middle">{label}</text>'
         "</svg>"
     )
+
+
+def _preview_etag(path: Path, stat: os.stat_result, preview: Preview | None) -> str:
+    """A validator covering everything that can change the served bytes.
+
+    The URL stays the same when a CAD file is resaved, so the validator has to
+    carry the identity instead: path, modification time, size, the renderer
+    version that would draw it, and whether this response is a real preview or
+    the placeholder — installing the `step` extra turns the latter into the
+    former without touching the file.
+    """
+
+    raw = "\0".join(
+        [
+            os.path.normcase(str(path)),
+            str(stat.st_mtime_ns),
+            str(stat.st_size),
+            str(geometry_preview.RENDERER_VERSION),
+            preview.image_format if preview else "placeholder",
+        ]
+    )
+    return hashlib.sha256(raw.encode("utf-8")).hexdigest()[:32]
 
 
 def _contained(root: Path, relative_path: str) -> Path | None:
@@ -296,7 +336,7 @@ def create_app(
     app = Flask(__name__)
     app.config.update(WORKSPACE=root, VERSION=__version__, FORM_TOKEN=secrets.token_urlsafe(32))
     cache = InventoryCache(root, scanner)
-    previews = PreviewCache()
+    previews = PreviewCache(root)
     references = ReferenceCache()
     app.extensions["pihti_inventory_cache"] = cache
     app.extensions["pihti_preview_cache"] = previews
@@ -305,9 +345,18 @@ def create_app(
     app.jinja_env.filters["winpath"] = _windows_path
     app.jinja_env.filters["filetime"] = _filetime
     app.jinja_env.tests["newver_name"] = _is_newver_name
+    app.jinja_env.globals["RENAMEABLE_EXTENSIONS"] = RENAMEABLE_EXTENSIONS
 
     @app.after_request
     def no_store(response):
+        # `/preview/...` is exempt. Every other page reports live filesystem
+        # state that a cached copy would misreport, but a preview is keyed by
+        # the file's own modification time and carries an ETag and
+        # Last-Modified, so a conditional request is exact rather than
+        # optimistic. A rendered STEP costs seconds; making the browser refetch
+        # 280 of them on every catalog visit would defeat the disk cache.
+        if request.endpoint == "preview_image":
+            return response
         response.headers["Cache-Control"] = "no-store"
         return response
 
@@ -457,12 +506,19 @@ def create_app(
         if target is None:
             return Response("no such workspace file", status=404, mimetype="text/plain")
         try:
-            preview = previews.get(target, target.stat().st_mtime_ns)
+            stat = target.stat()
         except OSError:
-            preview = None
+            return Response("no such workspace file", status=404, mimetype="text/plain")
+        preview = previews.get(target, stat.st_mtime_ns, stat.st_size)
         if preview is None:
-            return Response(placeholder_svg(target.suffix), mimetype="image/svg+xml")
-        return Response(preview.data, mimetype=preview.media_type)
+            response = Response(placeholder_svg(target.suffix), mimetype="image/svg+xml")
+        else:
+            response = Response(preview.data, mimetype=preview.media_type)
+        response.last_modified = stat.st_mtime
+        response.set_etag(_preview_etag(target, stat, preview))
+        response.cache_control.private = True
+        response.cache_control.no_cache = True  # revalidate, never serve stale
+        return response.make_conditional(request)
 
     @app.get("/catalog")
     def catalog():
@@ -730,6 +786,7 @@ def create_app(
             "folder": folder,
             "folder_editable": folder != ".",
             "suffix": target.suffix.casefold(),
+            "preview_source": geometry_preview.preview_source(target.suffix),
             "size": stat.st_size,
             "mtime_ns": stat.st_mtime_ns,
             "meta": meta,
