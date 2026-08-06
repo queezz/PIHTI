@@ -1,0 +1,23 @@
+{% macro file_tile(item, query=false) %}
+{% set record = item.record %}
+<a class="thumb-tile{% if item.has_metadata %} has-metadata{% endif %}{% if item.has_story %} has-story{% endif %}" href="{{ url_for('part_page', relative_path=record.path) }}" title="{{ record.path|winpath }}">
+  <img src="{{ url_for('preview_image', relative_path=record.path) }}" alt="" loading="lazy" decoding="async" width="160" height="120">
+  <span class="thumb-content">
+    <span class="thumb-name">{{ record.name }}</span>
+    {% if item.summary %}<span class="thumb-summary">{{ item.summary }}</span>{% endif %}
+    {% if item.status or item.material or item.part_number or item.tags %}
+    <span class="thumb-facts" aria-label="File metadata">
+      {% if item.status %}<b class="metadata-chip status-{{ item.status }}">{{ item.status }}</b>{% endif %}
+      {% if item.material %}<span class="metadata-chip">{{ item.material }}</span>{% endif %}
+      {% if item.part_number %}<span class="metadata-chip">PN {{ item.part_number }}</span>{% endif %}
+      {% for tag in item.tags %}<span class="metadata-chip tag">#{{ tag }}</span>{% endfor %}
+    </span>
+    {% endif %}
+    {% if query %}<span class="thumb-location">{{ record.path.rsplit('/', 1)[0]|winpath if '/' in record.path else '.' }}</span>{% endif %}
+    <span class="thumb-footer">
+      <span class="thumb-meta">{{ record.size|filesize }}</span>
+      {% if item.sidecar %}<span class="metadata-source">documented</span>{% endif %}
+    </span>
+  </span>
+</a>
+{% endmacro %}

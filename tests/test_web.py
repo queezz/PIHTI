@@ -533,6 +533,103 @@ def test_catalog_search_and_large_folders_reveal_bounded_batches(tmp_path: Path)
     assert "Global results" in search
 
 
+def test_catalog_promotes_sidecar_prose_status_material_and_tags(tmp_path: Path) -> None:
+    root = make_workspace(tmp_path)
+    companion = root / "BoronProbe" / "parts" / "bearing.ipt.md"
+    companion.write_text(
+        "---\n"
+        "part_number: BRG-17\n"
+        "material: PAEK resin\n"
+        "status: manufactured\n"
+        "tags: [probe, bearing]\n"
+        "supersedes: ''\n"
+        "seeded_from_iproperties: 2026-08-06\n"
+        "---\n\n"
+        "Carries the rotating probe through the vacuum boundary.\n",
+        encoding="utf-8",
+    )
+    client = create_app(root).test_client()
+
+    html = client.get("/catalog/BoronProbe/parts").get_data(as_text=True)
+
+    assert 'class="thumb-tile has-metadata has-story"' in html
+    assert "Carries the rotating probe through the vacuum boundary." in html
+    assert 'class="metadata-chip status-manufactured">manufactured</b>' in html
+    assert 'class="metadata-chip">PAEK resin</span>' in html
+    assert 'class="metadata-chip">PN BRG-17</span>' in html
+    assert "#probe" in html and "#bearing" in html
+    assert 'class="metadata-source">documented</span>' in html
+
+
+def test_catalog_uses_useful_iproperties_when_no_sidecar_exists(
+    tmp_path: Path, monkeypatch
+) -> None:
+    monkeypatch.setattr(
+        web,
+        "read_inventor_document",
+        lambda _path: make_document(
+            part_number="BRG-17",
+            description="Radial bearing carrier for the probe head.",
+            material="Stainless Steel",
+        ),
+    )
+    client = create_app(make_workspace(tmp_path)).test_client()
+
+    html = client.get("/catalog/BoronProbe/parts").get_data(as_text=True)
+
+    assert 'class="thumb-tile has-metadata has-story"' in html
+    assert "Radial bearing carrier for the probe head." in html
+    assert "Stainless Steel" in html
+    assert "PN BRG-17" in html
+    assert "documented" not in html
+
+
+def test_catalog_iproperties_are_cached_until_the_cad_file_changes(
+    tmp_path: Path, monkeypatch
+) -> None:
+    calls: list[str] = []
+
+    def metadata(path: Path) -> DocumentMeta:
+        calls.append(path.name)
+        return make_document(description="Cached catalog description.")
+
+    monkeypatch.setattr(web, "read_inventor_document", metadata)
+    root = make_workspace(tmp_path)
+    app = create_app(root)
+    client = app.test_client()
+
+    client.get("/catalog/BoronProbe/parts")
+    client.get("/catalog/BoronProbe/parts")
+    assert calls == ["bearing.ipt"]
+
+    target = root / "BoronProbe" / "parts" / "bearing.ipt"
+    target.write_bytes(b"changed bearing metadata source")
+    client.get("/catalog/BoronProbe/parts")
+
+    assert calls == ["bearing.ipt", "bearing.ipt"]
+
+
+def test_catalog_root_and_folder_cards_promote_readme_summaries(tmp_path: Path) -> None:
+    root = make_workspace(tmp_path)
+    (root / "README.md").write_text(
+        "# Archive\n\nCurated plasma hardware from concept through fabrication\noutputs.\n",
+        encoding="utf-8",
+    )
+    (root / "Plasma Vessel" / "README.md").write_text(
+        "# Plasma Vessel\n\nHolds the plasma box inside the full vacuum vessel assembly.\n",
+        encoding="utf-8",
+    )
+    client = create_app(root).test_client()
+
+    landing = client.get("/catalog").get_data(as_text=True)
+    folder = client.get("/catalog/Plasma%20Vessel").get_data(as_text=True)
+
+    assert '<p class="catalog-description">Curated plasma hardware from concept through fabrication outputs.</p>' in landing
+    assert 'class="folder-card has-summary" href="/catalog/Plasma%20Vessel"' in landing
+    assert 'class="folder-summary">Holds the plasma box inside the full vacuum vessel assembly.</small>' in landing
+    assert '<p class="catalog-description">Holds the plasma box inside the full vacuum vessel assembly.</p>' in folder
+
+
 def test_part_page_shows_iproperties_and_flags_a_part_number_mismatch(
     tmp_path: Path, monkeypatch
 ) -> None:
@@ -1171,6 +1268,11 @@ def test_styles_indent_the_folder_tree_without_an_inner_scrollbar(tmp_path: Path
     assert "var(--tree-depth, 0)" in style  # depth indent, not a nested scroll container
     assert ".note-dialog::backdrop" in style
     assert ".dialog-close-x" in style
+    assert ".thumb-tile.has-metadata" in style
+    assert ".thumb-tile.has-story" in style
+    assert "grid-column: span 2" in style
+    assert ".folder-card.has-summary" in style
+    assert "-webkit-line-clamp: 2" in style
     assert "grid-template-columns: minmax(0, 1.08fr) minmax(0, 0.92fr)" in style
     assert "overflow-y: auto" not in style
     assert "overflow-y: scroll" not in style

@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "_file_tile.html" import file_tile %}
 {% block title %}{% if query %}Search{% elif path != '.' %}{{ name }}{% else %}Catalog{% endif %} · PIHTI{% endblock %}
 
 {% macro tree_node(node, depth) %}
@@ -54,7 +55,9 @@
         <div>
           <p class="micro-heading">{% if query %}Global results{% elif path == '.' %}Workspace{% else %}Folder{% endif %}</p>
           <h1>{% if query %}“{{ query }}”{% else %}{{ name }}{% endif %}</h1>
-          {% if not query and path != '.' %}<p title="{{ path|winpath }}">{{ path|winpath }}</p>{% endif %}
+          {% if not query and path != '.' %}<p class="catalog-path" title="{{ path|winpath }}">{{ path|winpath }}</p>{% endif %}
+          {% if not query and path == '.' and workspace_summary %}<p class="catalog-description">{{ workspace_summary }}</p>{% endif %}
+          {% if not query and path != '.' and note and note.excerpt %}<p class="catalog-description">{{ note.excerpt }}</p>{% endif %}
         </div>
         <dl>
           {% if query %}
@@ -70,7 +73,7 @@
       <button class="catalog-note-launch" type="button" data-dialog-open="folder-note-dialog" aria-haspopup="dialog" aria-controls="folder-note-dialog">
         <span>
           <strong>Folder note</strong>
-          <small>{% if note and note.generated %}Generated inventory{% elif note and note.excerpt %}{{ note.excerpt }}{% elif note %}Authored Markdown{% else %}No note yet{% endif %}</small>
+          <small>{% if note and note.generated %}Generated inventory{% elif note and note.excerpt %}Authored documentation{% elif note %}Authored Markdown{% else %}No note yet{% endif %}</small>
         </span>
         <b>View and edit <span aria-hidden="true">→</span></b>
       </button>
@@ -129,11 +132,11 @@
         </header>
         <div class="folder-card-grid">
           {% for folder in child_folders %}
-          <a class="folder-card" href="{{ url_for('catalog', relative_folder=folder.name, include_vendor='1' if include_vendor else none) }}">
+          <a class="folder-card{% if folder.excerpt %} has-summary{% endif %}" href="{{ url_for('catalog', relative_folder=folder.name, include_vendor='1' if include_vendor else none) }}">
             <span class="folder-glyph" aria-hidden="true"></span>
             <span class="folder-card-body">
               <strong>{{ folder.label }}</strong>
-              {% if folder.excerpt %}<small>{{ folder.excerpt }}</small>{% elif path != '.' %}<small>{{ folder.name|winpath }}</small>{% endif %}
+              {% if folder.excerpt %}<small class="folder-summary">{{ folder.excerpt }}</small>{% elif path != '.' %}<small>{{ folder.name|winpath }}</small>{% endif %}
             </span>
             <span class="folder-counts">
               <b>{{ folder.count }}</b> file{% if folder.count != 1 %}s{% endif %}
@@ -156,14 +159,7 @@
 
         {% if files %}
         <div class="thumb-grid">
-          {% for record in files %}
-          <a class="thumb-tile" href="{{ url_for('part_page', relative_path=record.path) }}" title="{{ record.path|winpath }}">
-            <img src="{{ url_for('preview_image', relative_path=record.path) }}" alt="" loading="lazy" decoding="async" width="160" height="120">
-            <span class="thumb-name">{{ record.name }}</span>
-            {% if query %}<span class="thumb-location">{{ record.path.rsplit('/', 1)[0]|winpath if '/' in record.path else '.' }}</span>{% endif %}
-            <span class="thumb-meta">{{ record.size|filesize }}</span>
-          </a>
-          {% endfor %}
+          {% for item in files %}{{ file_tile(item, query=query) }}{% endfor %}
         </div>
         {% if has_more %}
         <div class="catalog-more">

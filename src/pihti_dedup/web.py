@@ -27,6 +27,7 @@ from pihti_dedup.cleanup import (
 )
 from pihti_dedup.foldernote import (
     FolderNoteError,
+    note_excerpt,
     read_folder_note,
     strip_autogen_marker,
     write_folder_note,
@@ -482,6 +483,8 @@ def create_app(
     cache = InventoryCache(root, scanner)
     previews = PreviewCache(root)
     references = ReferenceCache()
+    catalog_metadata: dict[str, tuple[int, int, DocumentMeta]] = {}
+    catalog_metadata_lock = threading.RLock()
     app.extensions["pihti_inventory_cache"] = cache
     app.extensions["pihti_preview_cache"] = previews
     app.extensions["pihti_reference_cache"] = references
@@ -850,12 +853,82 @@ def create_app(
         except (FolderNoteError, OSError):
             return None
 
+    def _workspace_summary() -> str:
+        try:
+            note = read_folder_note(root)
+        except (FolderNoteError, OSError):
+            return ""
+        return note.excerpt if note else ""
+
     def _folder_card(item: dict) -> dict:
         note = _read_catalog_note(item["name"])
         return {
             **item,
             "label": item["name"].rsplit("/", 1)[-1],
             "excerpt": note.excerpt if note and not note.generated else "",
+        }
+
+    def _catalog_document_meta(record: FileRecord) -> DocumentMeta | None:
+        if record.suffix.casefold() not in INVENTOR_EXTENSIONS:
+            return None
+        with catalog_metadata_lock:
+            cached = catalog_metadata.get(record.path)
+            if cached and cached[:2] == (record.mtime_ns, record.size):
+                return cached[2]
+        target = root / record.path
+        try:
+            meta = read_inventor_document(target)
+        except OSError as exc:
+            meta = DocumentMeta(path=str(target), ok=False, error=str(exc))
+        with catalog_metadata_lock:
+            catalog_metadata[record.path] = (record.mtime_ns, record.size, meta)
+        return meta
+
+    def _catalog_file(record: FileRecord) -> dict:
+        target = root / record.path
+        companion = sidecar_path(target)
+        metadata_error = ""
+        try:
+            sidecar = read_sidecar(companion)
+        except (SidecarError, OSError, UnicodeDecodeError):
+            sidecar = None
+            metadata_error = "Metadata sidecar needs repair."
+
+        meta = _catalog_document_meta(record)
+        fields = meta.fields if meta else {}
+        description = str(fields.get("description") or "").strip()
+        summary = note_excerpt(sidecar.body, limit=180) if sidecar else ""
+        summary = summary or description
+        status = sidecar.status if sidecar else ""
+        tags = sidecar.tags[:3] if sidecar else ()
+        material = str(
+            (sidecar.frontmatter.get("material") if sidecar else "")
+            or fields.get("material")
+            or ""
+        ).strip()
+        if material.casefold() in {"generic", "default"}:
+            material = ""
+        part_number = str(
+            (sidecar.frontmatter.get("part_number") if sidecar else "")
+            or fields.get("part_number")
+            or ""
+        ).strip()
+        if part_number.casefold() == Path(record.name).stem.casefold():
+            part_number = ""
+        has_metadata = bool(
+            summary or status or tags or material or part_number or metadata_error
+        )
+        has_story = bool(summary or metadata_error)
+        return {
+            "record": record,
+            "summary": summary or metadata_error,
+            "status": status,
+            "tags": tags,
+            "material": material,
+            "part_number": part_number,
+            "has_metadata": has_metadata,
+            "has_story": has_story,
+            "sidecar": sidecar is not None,
         }
 
     def _breadcrumbs(path: str) -> list[dict]:
@@ -886,16 +959,18 @@ def create_app(
             folded = query.casefold()
             matching = [record for record in inventory.records if folded in record.path.casefold()]
             child_folders: list[dict] = []
-            files = matching[:show]
+            records = matching[:show]
             total = len(matching)
         else:
             child_folders = [_folder_card(by_name[name]) for name in current_stats["children"]]
-            files = [
+            records = [
                 record
                 for record in inventory.records
                 if (record.path.rsplit("/", 1)[0] if "/" in record.path else ".") == current
             ][:show]
             total = current_stats["direct_count"]
+
+        files = [_catalog_file(record) for record in records]
 
         note = _read_catalog_note(current)
         note_text = _note_display_text(note)
@@ -918,6 +993,7 @@ def create_app(
             "direct_count": current_stats["direct_count"],
             "tree": folder_tree(index, current=current),
             "note": note,
+            "workspace_summary": _workspace_summary() if current == "." else "",
             "note_text": note_text,
             "note_html": render_markdown(note_text),
             "note_error": None,
@@ -944,7 +1020,11 @@ def create_app(
         relative = target.relative_to(root).as_posix()
         inventory = cache.get(include_vendor=True, hash_files=False)
         prefix = f"{relative}/"
-        files = [record for record in inventory.records if record.path.rsplit("/", 1)[0] == relative]
+        files = [
+            _catalog_file(record)
+            for record in inventory.records
+            if record.path.rsplit("/", 1)[0] == relative
+        ]
         subtree = [record for record in inventory.records if record.path.startswith(prefix)]
         error = None
         try:

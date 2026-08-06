@@ -231,6 +231,15 @@ note's `# Title`. The Catalog extracts that first prose line and shows it on the
 folder card; subsequent headings and labelled facts stay in the full note. The
 editor prompt and empty-note template make this structure explicit.
 
+Catalog file tiles use the same principle. When a metadata sidecar contains
+prose, or an Inventor document carries a useful Description, the tile becomes a
+wider image-and-story card. Status, tags, material, and a nonredundant Part
+Number appear as readable chips; material-only records stay compact. Sidecar
+prose takes precedence over iProperties, and iProperties reads are cached until
+the CAD file's size or modification time changes. The Catalog root also shows
+the repository README's opening summary, so the archive has context before any
+folder is opened.
+
 Thumbnails use the preview image Inventor already embedded or the cached
 geometry render described below; files without either show a neutral
 placeholder. Duplicate rows carry the same thumbnail, so same-name collisions

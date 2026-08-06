@@ -106,6 +106,12 @@ def test_an_excerpt_is_the_first_line_of_real_prose() -> None:
     assert len(note_excerpt("x" * 400, limit=20)) == 20
 
 
+def test_an_excerpt_joins_a_wrapped_summary_paragraph() -> None:
+    text = "# Vessel\n\nHolds the plasma box inside the full vacuum vessel\nassembly.\n\n## Files\n"
+
+    assert note_excerpt(text) == "Holds the plasma box inside the full vacuum vessel assembly."
+
+
 def test_saving_a_note_strips_the_generator_marker(tmp_path: Path) -> None:
     generator = load_generator()
     folder = make_folder(tmp_path)

@@ -6,6 +6,15 @@ remains authoritative for exact file changes.
 
 ## 2026-08-06
 
+- Shipped `pihti-dedup` 0.9.0: metadata now tells the story directly in the
+  Catalog. Sidecar prose and useful Inventor Description values produce wide
+  image-and-story file cards; status, tags, material, and nonredundant Part
+  Numbers appear as compact chips. Metadata-poor files remain small, and
+  iProperties are cached until the source file's size or modification time
+  changes. Authored folder summaries use taller, multiline cards, the current
+  folder summary is promoted into its heading, and the Catalog root shows the
+  repository README's opening purpose statement.
+
 - Shipped `pihti-dedup` 0.8.0: folder notes on Catalog routes are now a
   one-click modal instead of a disclosure → folder page → raw-editor chain.
   Rendered Markdown and the token-protected editor sit side by side, generated

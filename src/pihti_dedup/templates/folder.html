@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "_file_tile.html" import file_tile %}
 {% block title %}{{ name }} · PIHTI{% endblock %}
 {% block body %}
 <main class="page">
@@ -51,13 +52,7 @@
         <h2>Files in this folder</h2>
         {% if files %}
         <div class="thumb-grid flush">
-          {% for record in files %}
-          <a class="thumb-tile" href="{{ url_for('part_page', relative_path=record.path) }}" title="{{ record.path|winpath }}">
-            <img src="{{ url_for('preview_image', relative_path=record.path) }}" alt="" loading="lazy" decoding="async" width="160" height="120">
-            <span class="thumb-name">{{ record.name }}</span>
-            <span class="thumb-meta">{{ record.size|filesize }}</span>
-          </a>
-          {% endfor %}
+          {% for item in files %}{{ file_tile(item) }}{% endfor %}
         </div>
         {% else %}
         <p class="part-note">No CAD files sit directly in this folder.</p>

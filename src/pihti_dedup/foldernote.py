@@ -79,7 +79,7 @@ def strip_autogen_marker(text: str) -> str:
 
 
 def note_excerpt(text: str, limit: int = EXCERPT_LENGTH) -> str:
-    """First line of real prose, or '' when the file is only a generated index.
+    """First paragraph of real prose, or '' for a generated-only index.
 
     A generated `README.md` is headings, bullet lists, and HTML placeholder
     comments, so it deliberately yields nothing: an empty excerpt means "no
@@ -91,11 +91,18 @@ def note_excerpt(text: str, limit: int = EXCERPT_LENGTH) -> str:
     can never land inside a `**` pair and leave the marker showing.
     """
 
-    for raw in text.splitlines():
+    lines = text.splitlines()
+    for index, raw in enumerate(lines):
         line = raw.strip()
         if not line or line.startswith(_SKIP_PREFIXES):
             continue
-        prose = plain_text(line)
+        paragraph = [line]
+        for continuation in lines[index + 1 :]:
+            continuation = continuation.strip()
+            if not continuation or continuation.startswith(_SKIP_PREFIXES):
+                break
+            paragraph.append(continuation)
+        prose = plain_text(" ".join(paragraph))
         if not prose:
             continue
         return prose if len(prose) <= limit else prose[: limit - 1].rstrip() + "…"

@@ -374,6 +374,16 @@ folder cards render that excerpt while the full note holds detailed structure.
 The Flask shell uses the same `pihtiicon.svg` bytes as MkDocs rather than a
 separate generic favicon.
 
+Version 0.9.0 makes metadata the narrative layer of Catalog cards. A file with
+sidecar prose or an Inventor Description gets a two-column image-and-story card;
+status, tags, material, and a nonredundant Part Number are compact chips. A file
+with facts but no prose remains compact, avoiding the empty wide cards found in
+visual QA. Sidecar prose wins over iProperties. Parsed Inventor metadata is
+cached in memory against the inventory record's modification time and size, so
+switching views does not reread unchanged documents. Folder-note excerpts are
+multiline, prominent card content, and the root heading derives its purpose
+summary from the repository `README.md` rather than hardcoded copy.
+
 ### Catalog folder rail
 
 The 0.3.0 rail was a flat list of 99 folders that pushed the scan card off the
