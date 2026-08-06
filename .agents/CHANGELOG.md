@@ -6,6 +6,16 @@ remains authoritative for exact file changes.
 
 ## 2026-08-06
 
+- Shipped `pihti-dedup` 0.7.2: fixed folder-note Markdown at its source. The
+  README generator now refreshes every file that still carries its ownership
+  marker, including old generated files that no longer meet today's creation
+  heuristic, while marker-free authored notes remain immutable. Its template is
+  now a clean generated inventory—title, explanation, main assembly, assemblies,
+  and parts—without empty Purpose/Notes/Status headings. A guarded
+  `--refresh-only` mode migrated all 36 generated folder READMEs and `INDEX.md`
+  without creating new documents. Staging, caches, save history, `Design Data/`,
+  and `Templates/` are explicitly excluded.
+
 - Shipped `pihti-dedup` 0.7.1: rendered folder notes now use readable prose
   sizing, heading hierarchy, line length, spacing, and a contained note surface.
   The raw editor explains the small amount of Markdown structure it needs and

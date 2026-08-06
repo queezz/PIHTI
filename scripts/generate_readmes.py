@@ -18,6 +18,7 @@ Usage:
 import argparse
 import datetime
 import os
+from functools import partial
 from pathlib import Path
 from typing import Callable
 
@@ -46,9 +47,22 @@ AUTOGEN_NOTICE = (
     "your folder note; the generator will then leave it alone. -->\n"
 )
 
-# Folder names (exact, case-insensitive) that mark a vendor/import subtree.
-# The matching folder AND all its descendants are skipped entirely.
-SKIP_DIR_NAMES = {"step", "steps", "stp"}
+# Folder names (exact, case-insensitive) whose entire subtree is outside the
+# curated documentation surface: caches, staging, save history, and vendor
+# support payloads.
+SKIP_DIR_NAMES = {
+    ".git",
+    ".pihti-dedup",
+    ".pytest_cache",
+    "_site",
+    "design data",
+    "oldversions",
+    "staging",
+    "step",
+    "steps",
+    "stp",
+    "templates",
+}
 
 # When Inventor imports a STEP file it generates generic part/assembly names.
 # If most files in a folder match these stems the folder is an imported model,
@@ -82,20 +96,36 @@ def is_manually_edited(path: Path) -> bool:
         return True
 
 
-def write_generated(path: Path, render: Callable[[], str], root: Path, dry_run: bool) -> None:
+def write_generated(
+    path: Path,
+    render: Callable[[], str],
+    root: Path,
+    dry_run: bool,
+    *,
+    create: bool = True,
+) -> None:
     """Write a generated file, never over content this script did not author.
 
     Every write in this script goes through here, so the manual-edit rule cannot
-    be bypassed by adding a new output later. `render` is deferred because
-    building a README costs a directory scan the skip path does not need.
+    be bypassed by adding a new output later. Marker-owned files are refreshed;
+    `create=False` limits a run to those existing outputs. `render` is deferred
+    because building a README costs a directory scan the skip path does not need.
     """
-    if path.exists():
-        label = "manual" if is_manually_edited(path) else "exists"
-        print(f"  [{label}] {path.relative_to(root)}")
+    if path.exists() and is_manually_edited(path):
+        print(f"  [manual] {path.relative_to(root)}")
         return
-    print(f"  [write]  {path.relative_to(root)}")
+    if not path.exists() and not create:
+        return
+
+    content = render()
+    if path.exists() and path.read_text(encoding="utf-8") == content:
+        print(f"  [current] {path.relative_to(root)}")
+        return
+
+    action = "refresh" if path.exists() else "write"
+    print(f"  [{action}] {path.relative_to(root)}")
     if not dry_run:
-        path.write_text(render(), encoding="utf-8")
+        path.write_text(content, encoding="utf-8", newline="\n")
 
 
 # ---------------------------------------------------------------------------
@@ -135,7 +165,7 @@ def is_content_center(folder: Path, root: Path) -> bool:
 
 
 def is_vendor_path(folder: Path, root: Path) -> bool:
-    """True if the folder itself or any ancestor is a known vendor/import directory."""
+    """True if the folder or an ancestor is excluded generated-document baggage."""
     try:
         rel = folder.relative_to(root)
     except ValueError:
@@ -215,17 +245,20 @@ def render_readme(folder: Path, iams: list[Path], ipts: list[Path]) -> str:
     lines.append(AUTOGEN_NOTICE)
     lines.append(f"# {title}\n")
     lines.append(
-        f"> Auto-generated index — {today}. "
-        "Editing this file (by hand or via the folder-note editor) claims it as "
-        "your folder note; the generator will then leave it alone.\n"
+        f"> Generated CAD inventory — {today}. "
+        "To document purpose or status, edit this file or use the folder-note "
+        "editor. Once authored, the generator will leave it alone.\n"
     )
+
+    if main:
+        lines.append("## Main Assembly\n")
+        lines.append(f"- **`{main.name}`** — selected from the assemblies below\n")
 
     # --- Assemblies --------------------------------------------------------
     lines.append("## Assemblies (`.iam`)\n")
     if iams:
         for p in iams:
-            marker = " ⭐" if p == main else ""
-            lines.append(f"- `{p.name}`{marker}")
+            lines.append(f"- `{p.name}`")
         lines.append("")
     else:
         lines.append("_No assemblies found._\n")
@@ -238,22 +271,6 @@ def render_readme(folder: Path, iams: list[Path], ipts: list[Path]) -> str:
         lines.append("")
     else:
         lines.append("_No parts found in this folder._\n")
-
-    # --- Placeholder sections ----------------------------------------------
-    lines.append("## Purpose\n")
-    lines.append("<!-- Describe what this assembly / sub-system is for. -->\n")
-
-    lines.append("## Main Assemblies\n")
-    if main:
-        lines.append(f"- **`{main.name}`** — primary assembly (auto-detected)\n")
-    else:
-        lines.append("<!-- List the key .iam files and what they represent. -->\n")
-
-    lines.append("## Notes\n")
-    lines.append("<!-- Add any relevant design notes, revisions, or known issues. -->\n")
-
-    lines.append("## Status\n")
-    lines.append("<!-- e.g. In progress / Complete / Legacy / Archived -->\n")
 
     return "\n".join(lines)
 
@@ -286,7 +303,7 @@ def render_content_center_readme(folder: Path) -> str:
             lines.append(f"- `{d.name}/`")
         lines.append("")
 
-    lines.append(f"## Summary\n")
+    lines.append("## Summary\n")
     lines.append(f"- **Assemblies (`.iam`):** {len(iams)}")
     lines.append(f"- **Parts (`.ipt`):** {len(ipts)}\n")
 
@@ -309,7 +326,7 @@ def write_gitignore(root: Path, dry_run: bool) -> None:
         existing = target.read_text(encoding="utf-8")
         # Check if our marker is already present
         if "Autodesk Inventor cache" in existing:
-            print(f"  [skip]  .gitignore already contains Inventor rules")
+            print("  [skip]  .gitignore already contains Inventor rules")
             return
         new_content = existing.rstrip("\n") + "\n\n" + GITIGNORE_RULES
         action = "update"
@@ -350,7 +367,13 @@ def render_index(root: Path, index_entries: list[tuple[Path, Path | None]]) -> s
 # Main scan + generate
 # ---------------------------------------------------------------------------
 
-def run(root: Path, dry_run: bool, generate_index: bool) -> None:
+def run(
+    root: Path,
+    dry_run: bool,
+    generate_index: bool,
+    *,
+    existing_only: bool = False,
+) -> None:
     root = root.resolve()
     print(f"Root: {root}")
     if dry_run:
@@ -358,9 +381,27 @@ def run(root: Path, dry_run: bool, generate_index: bool) -> None:
 
     content_center = root / "ContentCenter"
     index_entries: list[tuple[Path, Path | None]] = []
+    refreshed_folders: set[Path] = set()
 
-    # --- .gitignore --------------------------------------------------------
-    write_gitignore(root, dry_run)
+    # A refresh-only migration touches marker-owned Markdown and nothing else.
+    if not existing_only:
+        write_gitignore(root, dry_run)
+
+    # Refresh every surviving marker-owned README first, even if the folder no
+    # longer meets today's creation heuristic. This is the migration path for
+    # older generator templates; authored files have no marker and are never
+    # admitted here.
+    for readme in sorted(root.rglob("README.md"), key=lambda path: str(path).casefold()):
+        folder = readme.parent
+        if folder == root or is_vendor_path(folder, root) or is_manually_edited(readme):
+            continue
+        if folder == content_center:
+            render = partial(render_content_center_readme, folder)
+        else:
+            iams, ipts = collect_iams_ipts(folder)
+            render = partial(render_readme, folder, iams, ipts)
+        write_generated(readme, render, root, dry_run, create=False)
+        refreshed_folders.add(folder)
 
     # --- Walk all directories ----------------------------------------------
     all_dirs = sorted(root.rglob("*"), key=lambda p: str(p).lower())
@@ -376,12 +417,14 @@ def run(root: Path, dry_run: bool, generate_index: bool) -> None:
 
         # --- ContentCenter special handling --------------------------------
         if folder == content_center:
-            write_generated(
-                folder / "README.md",
-                lambda folder=folder: render_content_center_readme(folder),
-                root,
-                dry_run,
-            )
+            if folder not in refreshed_folders:
+                write_generated(
+                    folder / "README.md",
+                    lambda folder=folder: render_content_center_readme(folder),
+                    root,
+                    dry_run,
+                    create=not existing_only,
+                )
             visited_dirs.add(folder)
             continue
 
@@ -404,12 +447,16 @@ def run(root: Path, dry_run: bool, generate_index: bool) -> None:
             print(f"  [noise]  {folder.relative_to(root)}")
             continue
 
-        write_generated(
-            folder / "README.md",
-            lambda folder=folder, iams=iams, ipts=ipts: render_readme(folder, iams, ipts),
-            root,
-            dry_run,
-        )
+        if folder not in refreshed_folders:
+            write_generated(
+                folder / "README.md",
+                lambda folder=folder, iams=iams, ipts=ipts: render_readme(
+                    folder, iams, ipts
+                ),
+                root,
+                dry_run,
+                create=not existing_only,
+            )
 
         main = find_main_iam(iams)
         index_entries.append((folder, main))
@@ -421,6 +468,7 @@ def run(root: Path, dry_run: bool, generate_index: bool) -> None:
             lambda: render_index(root, index_entries),
             root,
             dry_run,
+            create=not existing_only,
         )
 
 
@@ -449,9 +497,14 @@ def main() -> None:
         action="store_false",
         help="Skip generating INDEX.md at the repository root",
     )
+    parser.add_argument(
+        "--refresh-only",
+        action="store_true",
+        help="Refresh marker-owned files but do not create new README.md or INDEX.md files",
+    )
     parser.set_defaults(index=True)
     args = parser.parse_args()
-    run(args.root, args.dry_run, args.index)
+    run(args.root, args.dry_run, args.index, existing_only=args.refresh_only)
 
 
 if __name__ == "__main__":

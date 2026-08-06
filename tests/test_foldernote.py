@@ -165,6 +165,75 @@ def test_the_generator_never_rewrites_a_note_saved_here(tmp_path: Path) -> None:
     assert "PAEK bearing stack" in saved
 
 
+def test_the_generator_refreshes_its_own_existing_readme(tmp_path: Path) -> None:
+    generator = load_generator()
+    folder = make_folder(tmp_path)
+    readme = folder_note_path(folder)
+    readme.write_text(
+        generator.AUTOGEN_MARKER
+        + "\n<!-- old generated template -->\n\n# stale\n\n## Purpose\n",
+        encoding="utf-8",
+    )
+
+    generator.run(tmp_path, dry_run=False, generate_index=False)
+    refreshed = readme.read_text(encoding="utf-8")
+
+    assert refreshed.startswith(generator.AUTOGEN_NOTICE)
+    assert "# BoronProbe" in refreshed
+    assert "Generated CAD inventory" in refreshed
+    assert "## Main Assembly" in refreshed
+    assert "## Purpose" not in refreshed
+
+
+def test_refresh_only_does_not_create_a_new_readme(tmp_path: Path) -> None:
+    generator = load_generator()
+    folder = make_folder(tmp_path)
+
+    generator.run(
+        tmp_path,
+        dry_run=False,
+        generate_index=False,
+        existing_only=True,
+    )
+
+    assert not folder_note_path(folder).exists()
+    assert not (tmp_path / ".gitignore").exists()
+
+
+def test_an_old_generated_readme_is_refreshed_even_without_a_current_assembly(
+    tmp_path: Path,
+) -> None:
+    generator = load_generator()
+    folder = tmp_path / "retired-subsystem"
+    folder.mkdir()
+    readme = folder_note_path(folder)
+    readme.write_text(
+        generator.AUTOGEN_MARKER + "\n<!-- old template -->\n\n# stale\n",
+        encoding="utf-8",
+    )
+
+    generator.run(
+        tmp_path,
+        dry_run=False,
+        generate_index=False,
+        existing_only=True,
+    )
+
+    refreshed = readme.read_text(encoding="utf-8")
+    assert "# retired-subsystem" in refreshed
+    assert "Generated CAD inventory" in refreshed
+    assert "## Assemblies" in refreshed
+
+
+def test_vendor_support_and_staging_trees_are_outside_generation(tmp_path: Path) -> None:
+    generator = load_generator()
+
+    for relative in ("staging/intake", "bellows/Design Data/library", "bellows/Templates/Metric"):
+        folder = tmp_path / relative
+        folder.mkdir(parents=True)
+        assert generator.is_vendor_path(folder, tmp_path) is True
+
+
 def test_the_generator_still_recognises_its_own_untouched_output(tmp_path: Path) -> None:
     generator = load_generator()
     folder = make_folder(tmp_path)

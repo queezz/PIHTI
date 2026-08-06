@@ -353,6 +353,14 @@ valid heading/prose/fact-list example and the help text states the rules. The
 existing `bellows/README.md` was normalized accordingly; its earlier consecutive
 `label:value` lines were, correctly, one Markdown paragraph.
 
+Version 0.7.2 fixes the producing system rather than one note. Every README that
+still starts with `AUTOGEN_MARKER` is refreshed from the current template even
+when its folder no longer meets the creation heuristic; marker-free authored
+notes remain untouched. Generated pages contain actual inventory sections only,
+not empty authoring placeholders. `--refresh-only` performs this migration
+without creating files, and generator traversal now excludes staging, caches,
+save history, and vendor `Design Data/` and `Templates/` subtrees.
+
 ### Catalog folder rail
 
 The 0.3.0 rail was a flat list of 99 folders that pushed the scan card off the
