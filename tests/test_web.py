@@ -8,6 +8,7 @@ import pytest
 import pihti_dedup.web as web
 from pihti_dedup import geometry_preview
 from pihti_dedup.cleanup import plan_member_cleanup
+from pihti_dedup.git_filename_history import FilenameHistory, FilenameOccurrence
 from pihti_dedup.git_history import PullRequestMerge
 from pihti_dedup.inventor_meta import DocumentMeta, Preview
 from pihti_dedup.inventory import scan_workspace
@@ -46,7 +47,12 @@ def test_shell_is_immediate_and_results_are_loaded_separately(tmp_path: Path) ->
     assert "page-heading" not in html
     assert 'type="image/svg+xml" href="/static/pihtiicon.svg"' in html
     assert 'class="brand" href="/catalog"' in html
-    assert html.index(">Catalog</a>") < html.index(">Duplicates</a>") < html.index(">Renames</a>")
+    assert (
+        html.index(">Catalog</a>")
+        < html.index(">Duplicates</a>")
+        < html.index(">Doctor</a>")
+        < html.index(">Renames</a>")
+    )
 
     favicon = client.get("/static/pihtiicon.svg")
     mkdocs_icon = Path(__file__).resolve().parents[1] / "docs" / "assets" / "pihtiicon.svg"
@@ -62,8 +68,12 @@ def test_shell_is_immediate_and_results_are_loaded_separately(tmp_path: Path) ->
     assert "data-filter-search" in result_html
     assert "data-include-vendor" in result_html
     assert "Copy paths" not in result_html
-    assert result_html.count('data-copy="') == 3
-    assert 'data-copy="BoronProbe_2026\\parts\\bearing.ipt"' in result_html
+    assert result_html.count('data-copy="') == 6
+    expected = tmp_path / "BoronProbe_2026" / "parts" / "bearing.ipt"
+    assert f'data-copy="{expected}"' in result_html
+    assert f'data-copy="{expected.parent}"' in result_html
+    assert 'data-copy-kind="file" title="Paste into Inventor\'s File name field"' in result_html
+    assert 'data-copy-kind="folder" title="Paste into Inventor\'s address bar"' in result_html
     assert 'data-system-filter="boronprobe_2026"' in result_html
     assert '<time datetime="' in result_html
     assert 'title="Modified time"' in result_html
@@ -118,24 +128,45 @@ def test_vendor_scope_reuses_default_hashes(monkeypatch, tmp_path: Path) -> None
 
 
 def test_results_offer_recent_pr_merge_as_a_real_filter(tmp_path: Path) -> None:
+    root = make_workspace(tmp_path)
+    canonical = root / "ContentCenter" / "parts" / "bearing.ipt"
+    canonical.parent.mkdir(parents=True)
+    canonical.write_bytes(b"new bearing")
     merge = PullRequestMerge(
         sha="a" * 40,
         number=3,
         branch="queezz/BoronProbe-update",
-        paths=frozenset({"BoronProbe_2026/parts/bearing.ipt"}),
-        folders=("BoronProbe_2026",),
+        paths=frozenset(
+            {
+                "BoronProbe_2026/parts/bearing.ipt",
+                "ContentCenter/parts/bearing.ipt",
+            }
+        ),
+        folders=("BoronProbe_2026", "ContentCenter"),
         added_paths=frozenset({"BoronProbe_2026/parts/bearing.ipt"}),
     )
-    client = create_app(make_workspace(tmp_path), merge_reader=lambda _root: (merge,)).test_client()
+    client = create_app(root, merge_reader=lambda _root: (merge,)).test_client()
 
     result_html = client.get("/duplicates/results").get_data(as_text=True)
 
-    assert "PR #3" in result_html
+    assert "PR folder #1, #3" in result_html
+    assert "No PR filter" in result_html
     assert "BoronProbe-update" in result_html
     assert 'data-merge-filter="3"' in result_html
+    assert 'class="member is-pr-member"' in result_html
+    assert "Edited PR #3" in result_html
     assert 'data-merges="3"' in result_html
     assert 'class="rail-side rail-primary"' in result_html
     assert 'class="rail-side rail-secondary"' in result_html
+    canonical_href = 'href="/part/ContentCenter/parts/bearing.ipt"'
+    canonical_index = result_html.index(canonical_href)
+    member_marker = '          <div\n            class="member'
+    canonical_start = result_html.rfind(member_marker, 0, canonical_index)
+    canonical_end = result_html.find(member_marker, canonical_index)
+    canonical_row = result_html[canonical_start:canonical_end]
+    assert "pr-badge" not in canonical_row
+    assert "pr-touch-badge" in canonical_row
+    assert "Edited PR #3" in canonical_row
 
 
 def test_zero_result_folders_and_merges_remain_visible(tmp_path: Path) -> None:
@@ -194,13 +225,19 @@ def test_packaged_script_contains_filter_and_rescan_behaviour(tmp_path: Path) ->
     assert "references_checked" in script
     assert "Apply to quarantine" in script
     assert "data-member-delete" in script
-    assert "Delete this file from the Inventor workspace?" in script
+    assert "Move only this file to recoverable quarantine?" in script
+    assert "new AbortController()" in script
+    assert "operationPending" in script
+    assert "new AbortController()" in script
+    assert "operationPending" in script
     assert 'FILTER_KEY = "pihti-dedup-filter"' in script
     assert "localStorage.setItem(FILTER_KEY" in script
     assert "captureViewportAnchor" in script
     assert "restoreViewportAnchor" in script
     assert "preserveView: true" in script
     assert "showToast" in script
+    assert "updateCardAfterMemberRemoval" in script
+    assert "if (hideWholeCard) removeCard(card);" in script
 
 
 def test_styles_keep_desktop_rail_at_its_initial_top_offset(tmp_path: Path) -> None:
@@ -212,6 +249,8 @@ def test_styles_keep_desktop_rail_at_its_initial_top_offset(tmp_path: Path) -> N
     assert "grid-template-columns: minmax(0, 1fr) 17rem 17rem" in style
     assert "overflow-y: auto" not in style
     assert ".operation-toast" in style
+    assert "#dup-results.is-refreshing { pointer-events: none; }" in style
+    assert "opacity: 0.56" not in style
     assert ".operation-notice" not in style
     assert ".note-rendered" in style and "max-width: 82ch" in style
     assert ".markdown-body h1 { font-size: 1.24rem" in style
@@ -262,7 +301,180 @@ def test_web_cleanup_previews_then_quarantines_with_local_guard(tmp_path: Path) 
     assert payload["execution"]["moved"] == ["Submission/part.ipt"]
     assert not candidate.exists()
     assert canonical.exists()
-    assert (tmp_path / payload["execution"]["manifest"]).exists()
+    assert Path(payload["execution"]["manifest"]).exists()
+
+
+def test_reviewed_collision_consolidates_to_one_logged_restorable_survivor(
+    tmp_path: Path,
+) -> None:
+    root = make_workspace(tmp_path)
+    app = create_app(root)
+    client = app.test_client()
+    group = next(
+        item for item in scan_workspace(root).filename_groups if item.title == "bearing.ipt"
+    )
+    keep = "BoronProbe_2026/parts/bearing.ipt"
+
+    page = client.get("/duplicates/results").get_data(as_text=True)
+    assert page.count("Keep only this") == 3
+    assert page.count(">Quarantine this</button>") == 3
+    assert "data-consolidate-keep" in page
+
+    applied = client.post(
+        f"/duplicates/member/{group.id}/consolidate",
+        json={"keep_path": keep, "reviewed": True},
+        headers={"X-PIHTI-Token": app.config["FORM_TOKEN"]},
+    )
+
+    assert applied.status_code == 200
+    assert (root / keep).exists()
+    assert not (root / "BoronProbe" / "parts" / "bearing.ipt").exists()
+    assert not (root / "Plasma Vessel" / "parts" / "bearing.ipt").exists()
+    history = client.get("/removed").get_data(as_text=True)
+    assert "Manual Consolidation" in history
+    assert "BoronProbe_2026\\parts\\bearing.ipt" in history
+    assert "Restore this event" in history
+    assert "data-removed-filter" in history
+    assert "data-removed-expand" in history
+    old_page = client.get("/part/BoronProbe/parts/bearing.ipt")
+    assert old_page.status_code == 410
+    assert "This file was deliberately consolidated" in old_page.get_data(as_text=True)
+
+    repeated = client.post(
+        f"/duplicates/member/{group.id}/consolidate",
+        json={"keep_path": keep, "reviewed": True},
+        headers={"X-PIHTI-Token": app.config["FORM_TOKEN"]},
+    )
+    assert repeated.status_code == 200
+    assert repeated.get_json()["already_applied"] is True
+
+    manifest = applied.get_json()["execution"]["manifest"]
+    restored = client.post(
+        "/removed/restore",
+        data={"token": app.config["FORM_TOKEN"], "manifest": manifest},
+    )
+    assert restored.status_code == 302
+    assert (root / "BoronProbe" / "parts" / "bearing.ipt").exists()
+    assert (root / "Plasma Vessel" / "parts" / "bearing.ipt").exists()
+
+
+def test_collision_consolidation_requires_local_review_confirmation(tmp_path: Path) -> None:
+    root = make_workspace(tmp_path)
+    app = create_app(root)
+    client = app.test_client()
+    group = next(
+        item for item in scan_workspace(root).filename_groups if item.title == "bearing.ipt"
+    )
+    url = f"/duplicates/member/{group.id}/consolidate"
+    headers = {"X-PIHTI-Token": app.config["FORM_TOKEN"]}
+
+    unreviewed = client.post(url, json={"keep_path": group.records[0].path}, headers=headers)
+    remote = client.post(
+        url,
+        json={"keep_path": group.records[0].path, "reviewed": True},
+        headers=headers,
+        environ_base={"REMOTE_ADDR": "192.0.2.1"},
+    )
+
+    assert unreviewed.status_code == 400
+    assert remote.status_code == 403
+    assert all((root / item.path).exists() for item in group.records)
+
+
+def test_removed_events_group_into_time_bounded_sessions() -> None:
+    events = (
+        {"source": "manual-consolidation", "created_at": "2026-08-06T13:24:00+00:00", "files": [{}]},
+        {"source": "manual-consolidation", "created_at": "2026-08-06T13:18:00+00:00", "files": [{}, {}]},
+        {"source": "manual-consolidation", "created_at": "2026-08-06T12:50:00+00:00", "files": [{}]},
+        {"source": "manual-consolidation", "created_at": "2026-08-06T12:49:00+00:00", "restored_at": "2026-08-06T13:00:00+00:00", "files": [{}]},
+    )
+
+    batches = web._removed_batches(events)
+
+    assert [len(batch["events"]) for batch in batches] == [2, 1, 1]
+    assert batches[0]["files"] == 3
+    assert [batch["status"] for batch in batches] == ["recoverable", "recoverable", "restored"]
+
+
+def test_reviewed_collision_can_quarantine_only_one_revision(tmp_path: Path) -> None:
+    root = make_workspace(tmp_path)
+    app = create_app(root)
+    client = app.test_client()
+    group = next(
+        item for item in scan_workspace(root).filename_groups if item.title == "bearing.ipt"
+    )
+    removed_path = "Plasma Vessel/parts/bearing.ipt"
+    plan = plan_member_cleanup(
+        scan_workspace(root),
+        group_id=group.id,
+        path=removed_path,
+        allow_collision=True,
+    )
+    url = f"/duplicates/member/{group.id}/delete"
+    payload = {
+        "path": removed_path,
+        "signature": plan.signature,
+        "references_checked": True,
+    }
+    headers = {"X-PIHTI-Token": app.config["FORM_TOKEN"]}
+
+    unreviewed = client.post(url, json=payload, headers=headers)
+    assert unreviewed.status_code == 400
+
+    applied = client.post(url, json={**payload, "reviewed": True}, headers=headers)
+
+    assert applied.status_code == 200
+    assert not (root / removed_path).exists()
+    assert (root / "BoronProbe/parts/bearing.ipt").exists()
+    assert (root / "BoronProbe_2026/parts/bearing.ipt").exists()
+    history = client.get("/removed").get_data(as_text=True)
+    assert "Plasma Vessel\\parts\\bearing.ipt" in history
+    assert "BoronProbe\\parts\\bearing.ipt" in history
+    assert "BoronProbe_2026\\parts\\bearing.ipt" in history
+
+    repeated = client.post(url, json={**payload, "reviewed": True}, headers=headers)
+    assert repeated.status_code == 200
+    assert repeated.get_json()["already_applied"] is True
+
+
+def test_member_cleanup_reuses_inventory_hashes_and_defers_rescan(
+    monkeypatch, tmp_path: Path
+) -> None:
+    root = make_workspace(tmp_path)
+    app = create_app(root)
+    client = app.test_client()
+    client.get("/duplicates/results")  # Prime the disk-aware inventory cache.
+    inventory = scan_workspace(root)
+    group = next(item for item in inventory.filename_groups if item.title == "bearing.ipt")
+    removed_path = "Plasma Vessel/parts/bearing.ipt"
+    plan = plan_member_cleanup(
+        inventory,
+        group_id=group.id,
+        path=removed_path,
+        allow_collision=True,
+    )
+    hashed: list[Path] = []
+    original_sha256 = web.sha256_file
+
+    def tracked_sha256(path: Path) -> str:
+        hashed.append(path)
+        return original_sha256(path)
+
+    monkeypatch.setattr(web, "sha256_file", tracked_sha256)
+    response = client.post(
+        f"/duplicates/member/{group.id}/delete",
+        json={
+            "path": removed_path,
+            "signature": plan.signature,
+            "references_checked": True,
+            "reviewed": True,
+        },
+        headers={"X-PIHTI-Token": app.config["FORM_TOKEN"]},
+    )
+
+    assert response.status_code == 200
+    assert response.get_json()["rescan_pending"] is True
+    assert hashed == []
 
 
 def test_newver_pair_is_characterized_and_offers_confirmed_member_delete(
@@ -311,7 +523,7 @@ def test_newver_pair_is_characterized_and_offers_confirmed_member_delete(
     assert base.exists()
     payload = applied.get_json()
     assert payload["execution"]["moved"] == ["Parts/Part5.newVer.ipt"]
-    assert (tmp_path / payload["execution"]["manifest"]).exists()
+    assert Path(payload["execution"]["manifest"]).exists()
 
 
 def make_document(**fields) -> DocumentMeta:
@@ -825,6 +1037,34 @@ def test_the_catalog_section_header_shows_the_folder_note_excerpt(tmp_path: Path
     assert "PAEK bearing stack for the rotating head." in html
 
 
+def test_live_folder_note_preview_renders_without_writing_a_readme(tmp_path: Path) -> None:
+    root = make_workspace(tmp_path)
+    client = create_app(root).test_client()
+
+    preview = client.post("/markdown/preview", data={"text": "# Draft\n\nA **live** note."})
+
+    assert preview.status_code == 200
+    assert "<strong>live</strong>" in preview.get_json()["html"]
+    assert not (root / "BoronProbe" / "parts" / "README.md").exists()
+
+
+def test_catalog_note_dialog_has_live_preview_and_sticky_actions(tmp_path: Path) -> None:
+    app = create_app(make_workspace(tmp_path))
+    client = app.test_client()
+
+    html = client.get("/catalog/BoronProbe/parts").get_data(as_text=True)
+    style = client.get("/static/dedup.css").get_data(as_text=True)
+    script = client.get("/static/dedup.js").get_data(as_text=True)
+
+    assert "data-live-note-form" in html
+    assert "data-live-note-input" in html
+    assert "data-note-preview-body" in html
+    assert "data-live-note-status" in html
+    assert "resize: both" in style
+    assert ".note-dialog-actions { position: sticky" in style
+    assert 'fetch("/markdown/preview"' in script
+
+
 def test_folder_note_editor_explains_that_the_summary_feeds_catalog_cards(tmp_path: Path) -> None:
     client = create_app(make_workspace(tmp_path)).test_client()
 
@@ -1197,7 +1437,7 @@ def test_renames_page_separates_the_two_flavours_and_marks_an_entry_settled(
 
     page = client.get("/renames").get_data(as_text=True)
 
-    assert "Inventor will ask." in page
+    assert "Inventor will ask now." in page
     assert "Inventor will NOT ask." not in page
     assert "rear_spacer.ipt" in page
     assert f'data-copy-text="{root / "BoronProbe" / "parts" / "rear_spacer.ipt"}"' in page
@@ -1242,6 +1482,226 @@ def test_duplicate_rows_link_to_the_guarded_rename_action(tmp_path: Path) -> Non
 
     assert result_html.count('href="/part/BoronProbe/parts/bearing.ipt#rename"') == 1
     assert result_html.count(">Rename<") == 3
+
+
+def test_doctor_keeps_a_name_session_open_until_the_last_original_is_renamed(
+    tmp_path: Path,
+) -> None:
+    root = tmp_path
+    first = root / "A" / "Wide Din Clip.ipt"
+    second = root / "B" / "Wide Din Clip.ipt"
+    first.parent.mkdir()
+    second.parent.mkdir()
+    first.write_bytes(b"first")
+    second.write_bytes(b"second")
+    app = create_app(root)
+    client = app.test_client()
+    token = app.config["FORM_TOKEN"]
+    url = "/doctor/name/Wide%20Din%20Clip.ipt"
+
+    page = client.get(url).get_data(as_text=True)
+    assert page.count('name="relative_path"') == 2
+    assert page.count('class="doctor-file-preview"') == 2
+    assert "Will not ask" in page
+
+    warned = client.post(
+        url,
+        data={
+            "token": token,
+            "relative_path": "A/Wide Din Clip.ipt",
+            "new_name": "Wide Din Clip v1",
+        },
+    )
+    assert warned.status_code == 409
+    assert "Rename this member and stay in session" in warned.get_data(as_text=True)
+
+    renamed_first = client.post(
+        url,
+        data={
+            "token": token,
+            "relative_path": "A/Wide Din Clip.ipt",
+            "new_name": "Wide Din Clip v1",
+            "confirm_collision": "1",
+        },
+    )
+    assert renamed_first.status_code == 302
+    page = client.get(url + "?renamed=1").get_data(as_text=True)
+    assert "This session remains open so the last original cannot disappear" in page
+    assert "B\\Wide Din Clip.ipt" in page
+    assert "A\\Wide Din Clip v1.ipt" in page
+    assert 'class="doctor-history-preview"' in page
+
+    renamed_second = client.post(
+        url,
+        data={
+            "token": token,
+            "relative_path": "B/Wide Din Clip.ipt",
+            "new_name": "Wide Din Clip v2",
+        },
+    )
+    assert renamed_second.status_code == 302
+    page = client.get(url).get_data(as_text=True)
+    assert "No original remains." in page
+    assert "Will ask" in page
+
+
+def test_rename_ledger_reports_current_resolution_not_only_rename_time(
+    tmp_path: Path,
+) -> None:
+    root = tmp_path
+    first = root / "A" / "Body.ipt"
+    second = root / "B" / "Body.ipt"
+    first.parent.mkdir()
+    second.parent.mkdir()
+    first.write_bytes(b"first")
+    second.write_bytes(b"second")
+    app = create_app(root)
+    client = app.test_client()
+    token = app.config["FORM_TOKEN"]
+
+    client.post(
+        "/part/A/Body.ipt/rename",
+        data={"token": token, "new_name": "Connector Body", "confirm_collision": "1"},
+    )
+    before = client.get("/renames").get_data(as_text=True)
+    assert "Inventor will NOT ask now." in before
+
+    client.post(
+        "/part/B/Body.ipt/rename",
+        data={"token": token, "new_name": "Relay Body"},
+    )
+    after = client.get("/renames").get_data(as_text=True)
+    assert after.count("Inventor will ask now.") == 2
+    assert "At rename time another copy still existed" in after
+
+
+def test_doctor_lists_collision_and_generic_name_queues(tmp_path: Path) -> None:
+    root = tmp_path
+    for relative, content in (
+        ("A/Body.ipt", b"first"),
+        ("B/Body.ipt", b"second"),
+        ("C/Part001.ipt", b"single generic"),
+    ):
+        target = root / relative
+        target.parent.mkdir()
+        target.write_bytes(content)
+    html = create_app(root).test_client().get("/doctor").get_data(as_text=True)
+
+    assert "Collision doctor" in html
+    assert "Name doctor" in html
+    assert 'href="/doctor/name/Body.ipt"' in html
+    assert 'href="/doctor/name/Part001.ipt"' in html
+    assert html.count('class="doctor-preview-stack"') == 3
+    assert "including singletons that never appear under Duplicates" in html
+
+
+def test_doctor_previews_referring_assemblies(tmp_path: Path) -> None:
+    part = tmp_path / "A" / "Body.ipt"
+    assembly = tmp_path / "Assembly" / "Fixture.iam"
+    part.parent.mkdir()
+    assembly.parent.mkdir()
+    part.write_bytes(b"geometry")
+    assembly.write_bytes(b"\xde\xad" * 4 + b"\x00\x00" + "Body.ipt".encode("utf-16-le") + b"\x00\x00")
+
+    html = create_app(tmp_path).test_client().get("/doctor/name/Body.ipt").get_data(as_text=True)
+
+    assert 'class="doctor-referrer-preview"' in html
+    assert '/preview/Assembly/Fixture.iam' in html
+
+
+def test_doctor_starts_from_assembly_and_lists_direct_name_problems(
+    monkeypatch, tmp_path: Path
+) -> None:
+    assembly = tmp_path / "Assembly" / "Fixture.iam"
+    assembly.parent.mkdir()
+    payload = bytearray(b"\xde\xad" * 4)
+    for name in ("Body.ipt", "Missing.ipt", "Unique.ipt"):
+        payload += b"\x00\x00" + name.encode("utf-16-le") + b"\x00\x00"
+    assembly.write_bytes(payload)
+    for relative, content in (
+        ("A/Body.ipt", b"first body"),
+        ("B/Body.ipt", b"second body"),
+        ("Assembly/Unique.ipt", b"unique"),
+    ):
+        target = tmp_path / relative
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_bytes(content)
+    monkeypatch.setattr(
+        web,
+        "query_filename_history",
+        lambda root, name: FilenameHistory(name, ()),
+    )
+    client = create_app(tmp_path).test_client()
+
+    queue = client.get("/doctor").get_data(as_text=True)
+    assert "Assembly workbenches" in queue
+    assert 'href="/doctor/assembly/Assembly/Fixture.iam"' in queue
+    detail = client.get("/doctor/assembly/Assembly/Fixture.iam")
+    html = detail.get_data(as_text=True)
+
+    assert detail.status_code == 200
+    assert "One assembly at a time" in html
+    assert "Body.ipt" in html
+    assert "2 possible silent targets" in html
+    assert "Missing.ipt" in html
+    assert "Never tracked in reachable Git history" in html
+    assert "Unique.ipt" not in html
+    assert html.count("Preview of A\\Body.ipt") == 1
+    assert html.count("Preview of B\\Body.ipt") == 1
+    assert "/doctor/name/Body.ipt?assembly=Assembly/Fixture.iam" in html
+
+
+def test_assembly_doctor_surfaces_git_rename_and_historical_preview(
+    monkeypatch, tmp_path: Path
+) -> None:
+    assembly = tmp_path / "Assembly" / "Fixture.iam"
+    assembly.parent.mkdir()
+    assembly.write_bytes(
+        b"\xde\xad" * 4
+        + b"\x00\x00"
+        + "Old flange.ipt".encode("utf-16-le")
+        + b"\x00\x00"
+    )
+    destination = tmp_path / "Library" / "New flange.ipt"
+    destination.parent.mkdir()
+    destination.write_bytes(b"current")
+    occurrence = FilenameOccurrence(
+        commit="a" * 40,
+        committed_at="2026-08-01T10:00:00+09:00",
+        subject="Rename flange",
+        status="R100",
+        path="Legacy/Old flange.ipt",
+        rename_destination="Library/New flange.ipt",
+    )
+    monkeypatch.setattr(
+        web,
+        "query_filename_history",
+        lambda root, name: FilenameHistory(name, (occurrence,)),
+    )
+    monkeypatch.setattr(web, "materialize_historical_blob", lambda *args: b"old bytes")
+    client = create_app(tmp_path).test_client()
+
+    html = client.get("/doctor/assembly/Assembly/Fixture.iam").get_data(as_text=True)
+    preview = client.get(
+        "/doctor/history-preview/" + "a" * 40 + "/Library/New%20flange.ipt"
+    )
+
+    assert "Git filename history" in html
+    assert "Renamed to" in html
+    assert "Library\\New flange.ipt" in html
+    assert "current file" in html
+    assert "/doctor/history-preview/" + "a" * 40 in html
+    assert preview.status_code == 200
+    assert preview.mimetype == "image/svg+xml"
+
+
+def test_assembly_doctor_rejects_non_assemblies_and_traversal(tmp_path: Path) -> None:
+    part = tmp_path / "part.ipt"
+    part.write_bytes(b"part")
+    client = create_app(tmp_path).test_client()
+
+    assert client.get("/doctor/assembly/part.ipt").status_code == 404
+    assert client.get("/doctor/assembly/..%2Foutside.iam").status_code == 404
 
 
 def test_packaged_script_drives_the_folder_tree_and_the_rename_ledger(tmp_path: Path) -> None:

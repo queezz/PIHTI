@@ -14,6 +14,7 @@ from dataclasses import asdict, replace
 from datetime import datetime
 from pathlib import Path
 from typing import Callable
+from urllib.parse import unquote
 
 from flask import Flask, Response, jsonify, redirect, render_template, request, url_for
 from markupsafe import escape
@@ -21,9 +22,13 @@ from markupsafe import escape
 from pihti_dedup import __version__, geometry_preview
 from pihti_dedup.cleanup import (
     execute_cleanup,
+    execute_consolidation,
     execute_member_cleanup,
+    plan_consolidation,
     plan_member_cleanup,
     plan_merge_exact_cleanup,
+    read_quarantine_manifests,
+    restore_quarantine_manifest,
 )
 from pihti_dedup.foldernote import (
     FolderNoteError,
@@ -31,6 +36,11 @@ from pihti_dedup.foldernote import (
     read_folder_note,
     strip_autogen_marker,
     write_folder_note,
+)
+from pihti_dedup.git_filename_history import (
+    GitHistoryError,
+    materialize_historical_blob,
+    query_filename_history,
 )
 from pihti_dedup.git_history import PullRequestMerge, recent_pull_request_merges
 from pihti_dedup.inventor_meta import INVENTOR_EXTENSIONS, DocumentMeta, Preview, read_preview
@@ -79,6 +89,83 @@ MASS_ROWS = (
     ("density", "Density", "g/cm³"),
     ("surface_area", "Surface area", "cm²"),
 )
+
+# Durable repository knowledge: these complete top-level trees arrived as
+# submissions. A merge may also touch an established tree such as
+# ContentCenter; that does not turn the established tree into a PR folder.
+KNOWN_PR_FOLDERS: dict[str, tuple[int, ...]] = {
+    "BoronProbe_2026": (1, 3),
+    "Plasma Vessel_2026": (1, 3),
+    "bellows": (2,),
+}
+
+
+def _completed_cleanup(
+    root: Path, group_id: str, *, path: str = "", keep_path: str = ""
+) -> dict | None:
+    """Return a prior matching quarantine event for an idempotent stale retry."""
+
+    for event in read_quarantine_manifests(root):
+        if event.get("restored_at"):
+            continue
+        if str(event.get("group_id", "")) != group_id:
+            continue
+        if keep_path and str(event.get("keep_path", "")).casefold() != keep_path.casefold():
+            continue
+        files = event.get("files", [])
+        moved = [str(item.get("path", "")) for item in files if item.get("path")]
+        if path and path.casefold() not in {item.casefold() for item in moved}:
+            continue
+        manifest = str(event["manifest"])
+        return {
+            "already_applied": True,
+            "execution": {
+                "group_id": group_id,
+                "quarantine": str(Path(manifest).parent),
+                "manifest": manifest,
+                "moved": moved,
+            },
+        }
+    return None
+
+
+def _removed_batches(manifests: tuple[dict, ...], *, gap_seconds: int = 600) -> list[dict]:
+    """Group adjacent cleanup events into compact, time-bounded sessions."""
+
+    batches: list[dict] = []
+    for event in manifests:
+        source = str(event.get("source", "cleanup"))
+        status = "restored" if event.get("restored_at") else "recoverable"
+        try:
+            created = datetime.fromisoformat(str(event.get("created_at", "")))
+        except ValueError:
+            created = None
+        previous = batches[-1] if batches else None
+        previous_created = previous["oldest_created"] if previous else None
+        joins_previous = bool(
+            previous
+            and previous["source"] == source
+            and previous["status"] == status
+            and created is not None
+            and previous_created is not None
+            and abs((previous_created - created).total_seconds()) <= gap_seconds
+        )
+        if not joins_previous:
+            previous = {
+                "source": source,
+                "status": status,
+                "events": [],
+                "newest": str(event.get("created_at", "")),
+                "oldest": str(event.get("created_at", "")),
+                "oldest_created": created,
+                "files": 0,
+            }
+            batches.append(previous)
+        previous["events"].append(event)
+        previous["oldest"] = str(event.get("created_at", ""))
+        previous["oldest_created"] = created
+        previous["files"] += len(event.get("files", []))
+    return batches
 
 
 class InventoryCache:
@@ -403,6 +490,30 @@ def _is_newver_name(value: str) -> bool:
     return Path(value).stem.casefold().endswith(".newver")
 
 
+GENERIC_CAD_STEM = re.compile(
+    r"^(?:body|part|component|solid|surface|assembly|group|base|imported|model)[ _-]*\d*$",
+    re.IGNORECASE,
+)
+
+
+def _is_generic_cad_name(value: str) -> bool:
+    """Flag low-information names commonly emitted by imported geometry."""
+
+    return bool(GENERIC_CAD_STEM.fullmatch(Path(value).stem.strip()))
+
+
+def _display_reference_name(value: str) -> str:
+    """Decode Inventor's duplicate URL-encoded filename strings for display."""
+
+    try:
+        decoded = unquote(value, errors="strict")
+    except UnicodeDecodeError:
+        return value
+    if not decoded or "/" in decoded or "\\" in decoded:
+        return value
+    return decoded
+
+
 def _anchor(name: str) -> str:
     """A stable fragment id for a folder path, safe in a URL and unique.
 
@@ -492,7 +603,18 @@ def create_app(
     app.jinja_env.filters["winpath"] = _windows_path
     app.jinja_env.filters["filetime"] = _filetime
     app.jinja_env.tests["newver_name"] = _is_newver_name
+    app.jinja_env.tests["generic_cad_name"] = _is_generic_cad_name
     app.jinja_env.globals["RENAMEABLE_EXTENSIONS"] = RENAMEABLE_EXTENSIONS
+
+    @app.context_processor
+    def global_recovery_status():
+        recoverable = [
+            event for event in read_quarantine_manifests(root) if not event.get("restored_at")
+        ]
+        return {
+            "recoverable_events": len(recoverable),
+            "recoverable_files": sum(len(event.get("files", ())) for event in recoverable),
+        }
 
     @app.after_request
     def no_store(response):
@@ -502,7 +624,7 @@ def create_app(
         # Last-Modified, so a conditional request is exact rather than
         # optimistic. A rendered STEP costs seconds; making the browser refetch
         # 280 of them on every catalog visit would defeat the disk cache.
-        if request.endpoint == "preview_image":
+        if request.endpoint in {"preview_image", "git_history_preview"}:
             return response
         response.headers["Cache-Control"] = "no-store"
         return response
@@ -511,9 +633,373 @@ def create_app(
     def duplicates():
         return render_template("duplicates.html", workspace=root.name, version=__version__)
 
+    @app.get("/doctor")
+    def doctor():
+        inventory = cache.get(include_vendor=False)
+        index = build_index(root, cache=references)
+        locations = filename_locations(root)
+        generic: dict[str, list[FileRecord]] = {}
+        for record in inventory.records:
+            if (
+                record.suffix.casefold() in RENAMEABLE_EXTENSIONS
+                and _is_generic_cad_name(record.name)
+            ):
+                generic.setdefault(record.name_key, []).append(record)
+        generic_views = [
+            {
+                "name": records[0].name,
+                "records": tuple(sorted(records, key=lambda item: item.path.casefold())),
+                "referrers": index.referring(records[0].name),
+            }
+            for records in generic.values()
+        ]
+        generic_views.sort(
+            key=lambda item: (-len(item["records"]), item["name"].casefold())
+        )
+        assembly_views = []
+        for path, names in index.document_names.items():
+            if Path(path).suffix.casefold() != ".iam":
+                continue
+            distinct_names = {
+                _display_reference_name(name).casefold(): _display_reference_name(name)
+                for name in names
+            }
+            problems = [
+                name
+                for name in distinct_names.values()
+                if _is_generic_cad_name(name)
+                or len(locations.get(name.casefold(), ())) != 1
+            ]
+            if not problems:
+                continue
+            assembly_views.append(
+                {
+                    "path": path,
+                    "name": Path(path).name,
+                    "problem_count": len(problems),
+                    "generic_count": sum(_is_generic_cad_name(name) for name in problems),
+                    "missing_count": sum(
+                        not locations.get(name.casefold(), ()) for name in problems
+                    ),
+                    "ambiguous_count": sum(
+                        len(locations.get(name.casefold(), ())) > 1 for name in problems
+                    ),
+                }
+            )
+        assembly_views.sort(
+            key=lambda item: (
+                -item["missing_count"],
+                -item["problem_count"],
+                item["path"].casefold(),
+            )
+        )
+        return render_template(
+            "doctor.html",
+            version=__version__,
+            workspace=root.name,
+            collisions=tuple(
+                group
+                for group in inventory.filename_groups
+                if group.records
+                and all(
+                    record.suffix.casefold() in RENAMEABLE_EXTENSIONS
+                    for record in group.records
+                )
+            ),
+            generic_names=generic_views,
+            assemblies=[item for item in assembly_views if item["generic_count"]],
+            missing_assemblies=[
+                item for item in assembly_views if not item["generic_count"]
+            ],
+        )
+
+    def _validated_doctor_assembly(value: str) -> str:
+        target = workspace_file(root, value)
+        if target is None or target.suffix.casefold() != ".iam":
+            return ""
+        return target.relative_to(root).as_posix()
+
+    @app.get("/doctor/assembly/<path:relative_path>")
+    def doctor_assembly(relative_path: str):
+        assembly_path = _validated_doctor_assembly(relative_path)
+        if not assembly_path:
+            return render_template(
+                "_not_found.html", version=__version__, path=relative_path
+            ), 404
+        target = root / assembly_path
+        index = build_index(root, cache=references)
+        locations = filename_locations(root)
+        ledger = read_ledger(root)
+        problems = []
+        reference_groups: dict[str, list[str]] = {}
+        for raw_name in index.names_in(assembly_path):
+            display_name = _display_reference_name(raw_name)
+            reference_groups.setdefault(display_name.casefold(), []).append(raw_name)
+        for aliases in reference_groups.values():
+            name = _display_reference_name(aliases[0])
+            paths = locations.get(name.casefold(), ())
+            generic = _is_generic_cad_name(name)
+            if not generic and len(paths) == 1:
+                continue
+            candidates = [
+                {
+                    "path": path,
+                    "absolute": str(root / path),
+                    "folder_absolute": str((root / path).parent),
+                    "same_folder": Path(path).parent == Path(assembly_path).parent,
+                }
+                for path in paths
+            ]
+            candidates.sort(
+                key=lambda item: (not item["same_folder"], item["path"].casefold())
+            )
+            history = None
+            history_error = ""
+            if not paths:
+                try:
+                    result = query_filename_history(root, name)
+                    history = {
+                        "found": result.found,
+                        "occurrences": [
+                            {
+                                "commit": occurrence.commit,
+                                "committed_at": occurrence.committed_at,
+                                "subject": occurrence.subject,
+                                "status": occurrence.status,
+                                "path": occurrence.path,
+                                "rename_destination": occurrence.rename_destination,
+                                "preview_path": occurrence.rename_destination
+                                if occurrence.status[:1] in {"R", "C"}
+                                and occurrence.rename_destination
+                                else occurrence.path,
+                                "current_destination": (
+                                    occurrence.rename_destination
+                                    if occurrence.rename_destination
+                                    and workspace_file(root, occurrence.rename_destination)
+                                    else ""
+                                ),
+                                "current_destination_absolute": (
+                                    str(root / occurrence.rename_destination)
+                                    if occurrence.rename_destination
+                                    and workspace_file(root, occurrence.rename_destination)
+                                    else ""
+                                ),
+                            }
+                            for occurrence in result.occurrences
+                        ],
+                    }
+                except (GitHistoryError, OSError, ValueError) as exc:
+                    history_error = str(exc)
+            problems.append(
+                {
+                    "name": name,
+                    "aliases": tuple(
+                        alias for alias in aliases if alias.casefold() != name.casefold()
+                    ),
+                    "generic": generic,
+                    "candidates": candidates,
+                    "renamed": tuple(
+                        reversed(
+                            [
+                                entry
+                                for entry in ledger
+                                if entry.old_name.casefold() == name.casefold()
+                            ]
+                        )
+                    ),
+                    "status": "missing" if not paths else "ambiguous" if len(paths) > 1 else "generic",
+                    "history": history,
+                    "history_error": history_error,
+                }
+            )
+        status_order = {"missing": 0, "ambiguous": 1, "generic": 2}
+        problems.sort(
+            key=lambda item: (status_order[item["status"]], item["name"].casefold())
+        )
+        return render_template(
+            "doctor_assembly.html",
+            version=__version__,
+            workspace=root.name,
+            assembly={
+                "path": assembly_path,
+                "name": target.name,
+                "absolute": str(target),
+                "folder_absolute": str(target.parent),
+            },
+            problems=problems,
+            renamed=_flag(request.args.get("renamed")),
+        )
+
+    @app.get("/doctor/history-preview/<commit>/<path:relative_path>")
+    def git_history_preview(commit: str, relative_path: str):
+        try:
+            data = materialize_historical_blob(root, commit, relative_path)
+        except (GitHistoryError, OSError, ValueError):
+            return Response("historical file unavailable", status=404, mimetype="text/plain")
+        digest = hashlib.sha256(
+            f"{commit}:{relative_path}".encode("utf-8", "surrogatepass")
+        ).hexdigest()
+        store = root / ".pihti-dedup" / "git-previews"
+        cached = store / f"{digest}{Path(relative_path).suffix.lower()}"
+        try:
+            store.mkdir(parents=True, exist_ok=True)
+            if not cached.is_file() or cached.stat().st_size != len(data):
+                temporary = cached.with_suffix(cached.suffix + ".tmp")
+                temporary.write_bytes(data)
+                temporary.replace(cached)
+            preview = read_preview(cached)
+        except OSError:
+            preview = None
+        if preview is None:
+            response = Response(
+                placeholder_svg(Path(relative_path).suffix), mimetype="image/svg+xml"
+            )
+        else:
+            response = Response(preview.data, mimetype=preview.media_type)
+        response.set_etag(digest)
+        response.cache_control.private = True
+        response.cache_control.no_cache = True
+        return response.make_conditional(request)
+
+    def _doctor_name_context(
+        filename: str,
+        *,
+        error: str | None = None,
+        draft_path: str = "",
+        draft_name: str = "",
+        pending=None,
+    ) -> dict:
+        locations = filename_locations(root)
+        current_paths = locations.get(filename.casefold(), ())
+        current_members = [
+            {
+                "path": path,
+                "stem": Path(path).stem,
+                "suffix": Path(path).suffix,
+                "absolute": str(root / path),
+                "folder_absolute": str((root / path).parent),
+            }
+            for path in current_paths
+        ]
+        entries = tuple(
+            reversed(
+                [
+                    entry
+                    for entry in read_ledger(root)
+                    if entry.old_name.casefold() == filename.casefold()
+                ]
+            )
+        )
+        index = build_index(root, cache=references)
+        assembly_path = _validated_doctor_assembly(request.values.get("assembly", ""))
+        return {
+            "version": __version__,
+            "workspace": root.name,
+            "filename": filename,
+            "current_paths": current_paths,
+            "current_members": current_members,
+            "entries": entries,
+            "referrers": [
+                {
+                    "path": path,
+                    "absolute": str(root / path),
+                    "folder_absolute": str((root / path).parent),
+                }
+                for path in index.referring(filename)
+            ],
+            "current_will_prompt": not current_paths,
+            "generic_name": _is_generic_cad_name(filename),
+            "form_token": app.config["FORM_TOKEN"],
+            "rename_error": error,
+            "draft_path": draft_path,
+            "draft_name": draft_name,
+            "rename_pending": pending,
+            "renamed": _flag(request.args.get("renamed")),
+            "root": root,
+            "assembly_path": assembly_path,
+            "doctor_name_action": url_for(
+                "doctor_name", filename=filename, assembly=assembly_path or None
+            ),
+        }
+
+    @app.route("/doctor/name/<filename>", methods=["GET", "POST"])
+    def doctor_name(filename: str):
+        if request.method == "GET":
+            return render_template("doctor_name.html", **_doctor_name_context(filename))
+        guard = _guard(request)
+        if guard is not None:
+            return guard
+        relative_path = request.form.get("relative_path", "")
+        new_name = request.form.get("new_name", "")
+        target = workspace_file(root, relative_path)
+        if target is None or target.name.casefold() != filename.casefold():
+            return render_template(
+                "doctor_name.html",
+                **_doctor_name_context(
+                    filename,
+                    error="that member is no longer part of this name repair session",
+                    draft_path=relative_path,
+                    draft_name=new_name,
+                ),
+            ), 409
+        confirmed = _flag(request.form.get("confirm_collision"))
+        index = build_index(root, cache=references)
+        try:
+            plan = plan_rename(
+                root,
+                relative_path,
+                new_name,
+                index=index,
+                locations=filename_locations(root),
+            )
+        except RenameError as exc:
+            return render_template(
+                "doctor_name.html",
+                **_doctor_name_context(
+                    filename,
+                    error=str(exc),
+                    draft_path=relative_path,
+                    draft_name=new_name,
+                ),
+            ), 400
+        if plan.needs_confirmation and not confirmed:
+            return render_template(
+                "doctor_name.html",
+                **_doctor_name_context(
+                    filename,
+                    draft_path=relative_path,
+                    draft_name=plan.new_name,
+                    pending=plan,
+                ),
+            ), 409
+        try:
+            execute_rename(root, plan, confirmed=confirmed)
+        except (RenameError, OSError) as exc:
+            return render_template(
+                "doctor_name.html",
+                **_doctor_name_context(
+                    filename,
+                    error=str(exc),
+                    draft_path=relative_path,
+                    draft_name=new_name,
+                ),
+            ), 409
+        cache.clear()
+        assembly_path = _validated_doctor_assembly(request.values.get("assembly", ""))
+        if assembly_path:
+            return redirect(
+                url_for("doctor_assembly", relative_path=assembly_path, renamed="1")
+            )
+        return redirect(url_for("doctor_name", filename=filename, renamed="1"))
+
     @app.get("/")
     def index():
         return redirect(url_for("catalog"))
+
+    @app.post("/markdown/preview")
+    def markdown_preview():
+        """Render unsaved local-note Markdown without writing workspace data."""
+        return jsonify(html=render_markdown(request.form.get("text", "")))
 
     @app.get("/duplicates/results")
     def duplicates_results():
@@ -535,8 +1021,12 @@ def create_app(
             )
 
         merge_views = []
+        pr_folders: dict[str, list[int]] = {
+            folder.casefold(): list(numbers) for folder, numbers in KNOWN_PR_FOLDERS.items()
+        }
+        merges = tuple(merge_reader(root))
         group_merges: dict[str, list[str]] = {group.id: [] for group in inventory.groups}
-        for merge in merge_reader(root):
+        for merge in merges:
             matching = [
                 group
                 for group in inventory.groups
@@ -558,14 +1048,34 @@ def create_app(
                     "cleanup_candidates": len(cleanup_plan.candidates),
                 }
             )
+        record_prs = {}
+        for record in inventory.records:
+            folder_prs = pr_folders.get(record.path.split("/", 1)[0].casefold(), [])
+            added_prs = [merge.number for merge in merges if record.path in merge.added_paths]
+            edited_prs = [
+                merge.number
+                for merge in merges
+                if record.path in merge.paths and record.path not in merge.added_paths
+            ]
+            record_prs[record.path] = {
+                "folder": folder_prs,
+                "added": added_prs,
+                "edited": edited_prs,
+                "target": bool(folder_prs or added_prs),
+            }
         extensions = sorted({suffix for group in inventory.groups for suffix in group.extensions})
         member_plans = {}
         for group in inventory.groups:
-            if group.kind not in {"exact", "renamed"}:
+            if group.kind not in {"exact", "renamed", "collision"}:
                 continue
             for record in group.records:
                 try:
-                    plan = plan_member_cleanup(inventory, group_id=group.id, path=record.path)
+                    plan = plan_member_cleanup(
+                        inventory,
+                        group_id=group.id,
+                        path=record.path,
+                        allow_collision=group.kind == "collision",
+                    )
                 except ValueError:
                     continue
                 member_plans[(group.id, record.path)] = plan.to_dict()
@@ -577,6 +1087,7 @@ def create_app(
             group_merges=group_merges,
             extensions=extensions,
             member_plans=member_plans,
+            record_prs=record_prs,
             form_token=app.config["FORM_TOKEN"],
         )
 
@@ -610,7 +1121,7 @@ def create_app(
         if merge is None:
             return jsonify({"error": f"merged PR #{pr_number} was not found"}), 404
         include_vendor = bool(payload.get("include_vendor"))
-        inventory = cache.get(include_vendor=include_vendor, force=True)
+        inventory = cache.get(include_vendor=include_vendor)
         plan = plan_merge_exact_cleanup(inventory, merge)
         if not secrets.compare_digest(str(payload.get("signature", "")), plan.signature):
             return jsonify({"error": "cleanup plan changed; run the dry preview again"}), 409
@@ -618,9 +1129,7 @@ def create_app(
             execution = execute_cleanup(root, plan, references_checked=True)
         except ValueError as exc:
             return jsonify({"error": str(exc)}), 409
-        cache.clear()
-        refreshed = cache.get(include_vendor=include_vendor, force=True)
-        return jsonify({"execution": execution.to_dict(), "post_scan": refreshed.summary})
+        return jsonify({"execution": execution.to_dict(), "rescan_pending": True})
 
     @app.post("/duplicates/member/<group_id>/delete")
     def member_cleanup_apply(group_id: str):
@@ -635,20 +1144,106 @@ def create_app(
             return jsonify({"error": "Inventor references must be checked first"}), 400
         path = str(payload.get("path", ""))
         include_vendor = bool(payload.get("include_vendor"))
-        inventory = cache.get(include_vendor=include_vendor, force=True)
+        inventory = cache.get(include_vendor=include_vendor)
         try:
-            plan = plan_member_cleanup(inventory, group_id=group_id, path=path)
+            plan = plan_member_cleanup(
+                inventory, group_id=group_id, path=path, allow_collision=True
+            )
         except ValueError as exc:
+            completed = _completed_cleanup(root, group_id, path=path)
+            if completed is not None:
+                completed["post_scan"] = inventory.summary
+                return jsonify(completed)
             return jsonify({"error": str(exc)}), 409
+        if plan.group_kind == "collision" and payload.get("reviewed") is not True:
+            return jsonify({"error": "the selected revision must be reviewed first"}), 400
         if not secrets.compare_digest(str(payload.get("signature", "")), plan.signature):
             return jsonify({"error": "cleanup member changed; rescan and try again"}), 409
         try:
-            execution = execute_member_cleanup(root, plan, references_checked=True)
+            index = build_index(root, cache=references)
+            execution = execute_member_cleanup(
+                root,
+                plan,
+                references_checked=True,
+                where_used=index.referring(plan.candidate.name),
+            )
         except ValueError as exc:
             return jsonify({"error": str(exc)}), 409
+        return jsonify({"execution": execution.to_dict(), "rescan_pending": True})
+
+    @app.post("/duplicates/member/<group_id>/consolidate")
+    def consolidation_apply(group_id: str):
+        if not _is_loopback(request.remote_addr):
+            return jsonify({"error": "cleanup is restricted to localhost"}), 403
+        if not secrets.compare_digest(
+            request.headers.get("X-PIHTI-Token", ""), app.config["FORM_TOKEN"]
+        ):
+            return jsonify({"error": "invalid form token"}), 403
+        payload = request.get_json(silent=True) or {}
+        if payload.get("reviewed") is not True:
+            return jsonify({"error": "the revisions must be opened and compared first"}), 400
+        include_vendor = bool(payload.get("include_vendor"))
+        inventory = cache.get(include_vendor=include_vendor)
+        keep_path = str(payload.get("keep_path", ""))
+        try:
+            plan = plan_consolidation(
+                inventory, group_id=group_id, keep_path=keep_path
+            )
+            index = build_index(root, cache=references)
+            execution = execute_consolidation(
+                root,
+                plan,
+                references_checked=True,
+                where_used=index.referring(plan.candidates[0].name),
+            )
+        except (OSError, ValueError) as exc:
+            completed = _completed_cleanup(root, group_id, keep_path=keep_path)
+            if completed is not None:
+                completed["post_scan"] = inventory.summary
+                return jsonify(completed)
+            return jsonify({"error": str(exc)}), 409
+        return jsonify({"execution": execution.to_dict(), "rescan_pending": True})
+
+    @app.get("/removed")
+    def removed():
+        query = request.args.get("q", "").strip()
+        manifests = read_quarantine_manifests(root)
+        if query:
+            needle = query.casefold()
+            manifests = tuple(
+                event
+                for event in manifests
+                if needle in json.dumps(event, ensure_ascii=False).casefold()
+            )
+        summary = {
+            "events": len(manifests),
+            "recoverable": sum(not event.get("restored_at") for event in manifests),
+            "restored": sum(bool(event.get("restored_at")) for event in manifests),
+            "files": sum(len(event.get("files", [])) for event in manifests),
+        }
+        return render_template(
+            "removed.html",
+            version=__version__,
+            workspace=root.name,
+            manifests=manifests,
+            batches=_removed_batches(manifests),
+            summary=summary,
+            query=query,
+            form_token=app.config["FORM_TOKEN"],
+            restored=_flag(request.args.get("restored")),
+        )
+
+    @app.post("/removed/restore")
+    def removed_restore():
+        guard = _guard(request)
+        if guard is not None:
+            return guard
+        try:
+            restore_quarantine_manifest(root, request.form.get("manifest", ""))
+        except (KeyError, OSError, ValueError, json.JSONDecodeError) as exc:
+            return Response(str(exc), status=409, mimetype="text/plain")
         cache.clear()
-        refreshed = cache.get(include_vendor=include_vendor, force=True)
-        return jsonify({"execution": execution.to_dict(), "post_scan": refreshed.summary})
+        return redirect(url_for("removed", restored="1"))
 
     @app.get("/preview/<path:relative_path>")
     def preview_image(relative_path: str):
@@ -774,7 +1369,8 @@ def create_app(
     @app.get("/renames")
     def renames():
         entries = list(reversed(read_ledger(root)))
-        views = [_rename_view(entry) for entry in entries]
+        locations = filename_locations(root)
+        views = [_rename_view(entry, locations) for entry in entries]
         return render_template(
             "renames.html",
             version=__version__,
@@ -1049,18 +1645,34 @@ def create_app(
             "draft": None,
         }
 
-    def _rename_view(entry) -> dict:
+    def _rename_view(entry, locations: dict[str, tuple[str, ...]]) -> dict:
+        current_matches = locations.get(entry.old_name.casefold(), ())
+        current_will_prompt = not current_matches
         return {
             "entry": entry,
             "full_path": str(root / entry.new_path),
             "folder_path": str((root / entry.new_path).parent),
             "search": f"{entry.old_name} {entry.new_name} {entry.new_path}".casefold(),
+            "current_matches": current_matches,
+            "current_will_prompt": current_will_prompt,
+            "status_changed": current_will_prompt != entry.will_prompt,
         }
 
     @app.get("/part/<path:relative_path>")
     def part_page(relative_path: str):
         target = workspace_file(root, relative_path)
         if target is None:
+            wanted = relative_path.replace("\\", "/").casefold()
+            for event in read_quarantine_manifests(root):
+                for item in event.get("files", []):
+                    if str(item.get("path", "")).casefold() == wanted:
+                        return render_template(
+                            "removed_path.html",
+                            version=__version__,
+                            path=relative_path,
+                            event=event,
+                            item=item,
+                        ), 410
             return render_template("_not_found.html", version=__version__, path=relative_path), 404
         return render_template("part.html", **_part_context(target))
 

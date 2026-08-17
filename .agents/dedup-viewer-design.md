@@ -131,7 +131,8 @@ Primary filters:
 - include vendor/package data
 
 Each group shows its filename, classification, copy count, distinct-hash count,
-sizes, modified times, and project-relative member paths. The two right rails
+sizes, modified times, and separate absolute file/folder paths for Inventor's
+File name field and address bar. The two right rails
 hold actionable kind, folder, and merged-PR selectors plus compact scan
 statistics. Zero-result folders and PRs remain visible because absence of
 duplicate evidence is itself useful after a merge. An “open containing folder”

@@ -3,6 +3,7 @@ from pathlib import Path
 
 from pihti_dedup.whereused import (
     ReferenceCache,
+    WhereUsed,
     build_index,
     extract_filenames,
     filename_locations,
@@ -70,6 +71,37 @@ def test_index_maps_filenames_to_referring_documents(tmp_path: Path) -> None:
     assert index.referring("absent.ipt") == ()
 
 
+def test_index_maps_each_document_to_its_referenced_filenames(tmp_path: Path) -> None:
+    write_document(
+        tmp_path / "BoronProbe" / "probe.iam",
+        "parts\\shaft.ipt",
+        "parts\\Bearing.IPT",
+        "drawings\\probe.idw",
+    )
+
+    index = build_index(tmp_path)
+
+    assert index.document_names == {
+        "BoronProbe/probe.iam": ("Bearing.IPT", "probe.idw", "shaft.ipt")
+    }
+    assert index.names_in("BoronProbe/probe.iam") == (
+        "Bearing.IPT",
+        "probe.idw",
+        "shaft.ipt",
+    )
+    assert index.names_in(r"boronprobe\PROBE.IAM") == index.names_in(
+        "BoronProbe/probe.iam"
+    )
+    assert index.names_in("absent.iam") == ()
+
+
+def test_existing_whereused_constructors_default_to_no_forward_names(tmp_path: Path) -> None:
+    index = WhereUsed(root=tmp_path, referrers={}, documents=0)
+
+    assert index.document_names == {}
+    assert index.names_in("probe.iam") == ()
+
+
 def test_a_document_naming_itself_is_not_its_own_referrer(tmp_path: Path) -> None:
     write_document(tmp_path / "probe.iam", "C:\\old\\workspace\\probe.iam", "parts\\bearing.ipt")
 
@@ -77,6 +109,7 @@ def test_a_document_naming_itself_is_not_its_own_referrer(tmp_path: Path) -> Non
 
     assert index.referring("probe.iam") == ()
     assert index.referring("bearing.ipt") == ("probe.iam",)
+    assert index.names_in("probe.iam") == ("bearing.ipt",)
 
 
 def test_only_referring_extensions_are_read_and_save_history_is_skipped(tmp_path: Path) -> None:
@@ -109,6 +142,9 @@ def test_reference_cache_re_reads_only_when_the_document_changes(tmp_path: Path)
     assert stale.referring("bearing.ipt") == ("probe.iam",)  # unchanged mtime, cached answer
     assert fresh.referring("shaft.ipt") == ("probe.iam",)
     assert fresh.referring("bearing.ipt") == ()
+    assert first.names_in("probe.iam") == ("bearing.ipt",)
+    assert stale.names_in("probe.iam") == ("bearing.ipt",)
+    assert fresh.names_in("probe.iam") == ("shaft.ipt",)
 
 
 def test_filename_locations_reaches_save_history_because_inventor_does(tmp_path: Path) -> None:

@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+{% block title %}Doctor · PIHTI{% endblock %}
+{% block body %}
+<main class="page">
+  <section class="doctor-head">
+    <p class="micro-heading">Workspace repair</p>
+    <h1>CAD name doctor</h1>
+    <p>Work from an ambiguous filename to its parts and referring assemblies. Renames remain guarded, logged, and folder-local.</p>
+  </section>
+
+  <section class="doctor-panel assembly-queue">
+    <header><div><p class="micro-heading">Work in Inventor context</p><h2>Assembly workbenches</h2></div><strong>{{ assemblies|length }}</strong></header>
+    <p class="doctor-intro">Start with the assembly that came from the import. Inspect it in Inventor, then repair its embedded missing, ambiguous, and generic names in sequence.</p>
+    <div class="doctor-list assembly-doctor-list">
+      {% for assembly in assemblies %}
+      <a class="doctor-row assembly-doctor-row" href="{{ url_for('doctor_assembly', relative_path=assembly.path) }}">
+        <span class="doctor-preview-stack" aria-hidden="true"><img src="{{ url_for('preview_image', relative_path=assembly.path) }}" alt="" loading="lazy" decoding="async" width="64" height="48"></span>
+        <span><strong>{{ assembly.name }}</strong><small>{{ assembly.path|winpath }}</small></span>
+        <span class="assembly-problem-counts">{% if assembly.missing_count %}<b>{{ assembly.missing_count }} missing</b>{% endif %}{% if assembly.ambiguous_count %}<b>{{ assembly.ambiguous_count }} ambiguous</b>{% endif %}{% if assembly.generic_count %}<b>{{ assembly.generic_count }} generic</b>{% endif %}</span>
+      </a>
+      {% else %}<p class="doctor-empty">No assembly currently embeds a missing, ambiguous, or generic CAD name.</p>{% endfor %}
+    </div>
+    {% if missing_assemblies %}<details class="assembly-more"><summary>{{ missing_assemblies|length }} additional assemblies with missing or ambiguous specific names</summary><div class="doctor-list assembly-doctor-list">{% for assembly in missing_assemblies %}<a class="doctor-row assembly-doctor-row" href="{{ url_for('doctor_assembly', relative_path=assembly.path) }}"><span class="doctor-preview-stack" aria-hidden="true"><img src="{{ url_for('preview_image', relative_path=assembly.path) }}" alt="" loading="lazy" decoding="async" width="64" height="48"></span><span><strong>{{ assembly.name }}</strong><small>{{ assembly.path|winpath }}</small></span><span class="assembly-problem-counts">{% if assembly.missing_count %}<b>{{ assembly.missing_count }} missing</b>{% endif %}{% if assembly.ambiguous_count %}<b>{{ assembly.ambiguous_count }} ambiguous</b>{% endif %}</span></a>{% endfor %}</div></details>{% endif %}
+  </section>
+
+  <div class="doctor-columns doctor-secondary-columns">
+    <section class="doctor-panel">
+      <header><div><p class="micro-heading">Unique filename repair</p><h2>Collision doctor</h2></div><strong>{{ collisions|length }}</strong></header>
+      <p class="doctor-intro">Every repeated Inventor filename is a resolution hazard, whether its bytes match or not.</p>
+      <div class="doctor-list">
+        {% for group in collisions %}
+        <a class="doctor-row" href="{{ url_for('doctor_name', filename=group.title) }}">
+          <span class="doctor-preview-stack" aria-hidden="true">
+            {% for record in group.records[:3] %}<img src="{{ url_for('preview_image', relative_path=record.path) }}" alt="" loading="lazy" decoding="async" width="64" height="48">{% endfor %}
+          </span>
+          <span><strong>{{ group.title }}</strong><small>{{ group.records|length }} files · {{ group.hashes|length }} distinct {{ 'hash' if group.hashes|length == 1 else 'hashes' }}</small></span>
+          <b>{{ 'Different bytes' if group.kind == 'collision' else 'Same bytes' }}</b>
+        </a>
+        {% else %}<p class="doctor-empty">No repeated Inventor filenames remain.</p>{% endfor %}
+      </div>
+    </section>
+
+    <section class="doctor-panel">
+      <header><div><p class="micro-heading">Imported geometry</p><h2>Name doctor</h2></div><strong>{{ generic_names|length }}</strong></header>
+      <p class="doctor-intro">Low-information names such as <code>Body001.ipt</code> and <code>Part.ipt</code>, including singletons that never appear under Duplicates.</p>
+      <div class="doctor-list">
+        {% for item in generic_names %}
+        <a class="doctor-row" href="{{ url_for('doctor_name', filename=item.name) }}">
+          <span class="doctor-preview-stack" aria-hidden="true">
+            {% for record in item.records[:3] %}<img src="{{ url_for('preview_image', relative_path=record.path) }}" alt="" loading="lazy" decoding="async" width="64" height="48">{% endfor %}
+          </span>
+          <span><strong>{{ item.name }}</strong><small>{{ item.records|length }} file{% if item.records|length != 1 %}s{% endif %} · {{ item.referrers|length }} referring document{% if item.referrers|length != 1 %}s{% endif %}</small></span>
+          <b>Diagnose</b>
+        </a>
+        {% else %}<p class="doctor-empty">No generic Inventor names match the current rules.</p>{% endfor %}
+      </div>
+    </section>
+  </div>
+</main>
+{% endblock %}

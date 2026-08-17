@@ -17,10 +17,12 @@
     <nav class="topnav" aria-label="Views">
       <a href="{{ url_for('catalog') }}" {% if request.endpoint in ('catalog', 'part_page', 'folder_page') %}class="is-current" aria-current="page"{% endif %}>Catalog</a>
       <a href="{{ url_for('duplicates') }}" {% if request.endpoint == 'duplicates' %}class="is-current" aria-current="page"{% endif %}>Duplicates</a>
+      <a href="{{ url_for('doctor') }}" {% if request.endpoint in ('doctor', 'doctor_name') %}class="is-current" aria-current="page"{% endif %}>Doctor</a>
       <a href="{{ url_for('renames') }}" {% if request.endpoint == 'renames' %}class="is-current" aria-current="page"{% endif %}>Renames</a>
+      <a href="{{ url_for('removed') }}" {% if request.endpoint == 'removed' %}class="is-current" aria-current="page"{% endif %}>Removed</a>
     </nav>
     <div class="topbar-meta">
-      <span class="local-tool"><span aria-hidden="true">●</span> local quarantine</span>
+      <a class="local-tool" href="{{ url_for('removed') }}"><span aria-hidden="true">●</span>{% if recoverable_files %}{{ recoverable_files }} recoverable file{% if recoverable_files != 1 %}s{% endif %}{% else %}quarantine empty{% endif %}</a>
       <span class="version">v{{ version }}</span>
     </div>
   </header>

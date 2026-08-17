@@ -49,19 +49,24 @@
               <span class="kind-label">{% if group.kind == 'collision' %}different bytes{% elif group.kind == 'exact' %}identical bytes{% elif group.characterization == 'newver' %}newVer pair{% elif group.kind == 'renamed' %}renamed copy{% else %}unverified{% endif %}</span>
             </div>
             <p>
-              {{ group.records|length }} files
+              <span data-group-file-count>{{ group.records|length }} files</span>
               <span aria-hidden="true">·</span>
-              {{ group.hashes|length }} distinct {{ 'hash' if group.hashes|length == 1 else 'hashes' }}
+              <span data-group-hash-count>{{ group.hashes|length }} distinct {{ 'hash' if group.hashes|length == 1 else 'hashes' }}</span>
               {% if group.cross_folder %}<span aria-hidden="true">·</span> crosses folders{% endif %}
               {% if group.characterization == 'newver' %}<span aria-hidden="true">·</span> same bytes{% if group.records|map(attribute='mtime_ns')|unique|list|length == 1 %} and modified time{% endif %}; origin unproven{% endif %}
             </p>
           </div>
+          {% if group.kind == 'collision' and group.extensions|length == 1 and group.extensions[0] in RENAMEABLE_EXTENSIONS %}<a class="button group-doctor" href="{{ url_for('doctor_name', filename=group.title) }}">Open group in Doctor</a>{% endif %}
         </header>
 
         <div class="members">
           {% for record in group.records %}
           {% set member_plan = member_plans.get((group.id, record.path)) %}
-          <div class="member">
+          {% set provenance = record_prs.get(record.path, {}) %}
+          <div
+            class="member{% if provenance.get('target') %} is-pr-member{% endif %}"
+            data-record-path="{{ record.path }}"
+            data-record-hash="{{ record.sha256 or '' }}">
             <a class="member-thumb" href="{{ url_for('part_page', relative_path=record.path) }}" title="Open {{ record.name }}" tabindex="-1" aria-hidden="true">
               <img src="{{ url_for('preview_image', relative_path=record.path) }}" alt="" loading="lazy" decoding="async" width="64" height="48">
             </a>
@@ -70,13 +75,19 @@
               <span title="{{ record.path|winpath }}">{{ record.path|winpath }}</span>
             </div>
             <div class="member-meta">
+              {% if provenance.get('folder') %}<span class="pr-badge" title="This top-level tree arrived as a merged submission and is a review target">PR folder #{{ provenance.folder|join(', #') }}</span>{% elif provenance.get('added') %}<span class="pr-badge" title="This file was added by a merged submission and is a review target">Added PR #{{ provenance.added|join(', #') }}</span>{% endif %}
+              {% if provenance.get('edited') %}<span class="pr-touch-badge" title="This pre-existing file was modified by a merged submission; it is not marked as a deletion target">Edited PR #{{ provenance.edited|join(', #') }}</span>{% endif %}
               <span class="filetype">{{ record.suffix[1:]|upper or 'FILE' }}</span>
               <span>{{ record.size|filesize }}</span>
               <time datetime="{{ record.mtime_ns }}" title="Modified time">{{ record.mtime_ns|filetime }}</time>
               {% if record.sha256 %}<code title="{{ record.sha256 }}">{{ record.sha256[:10] }}</code>{% endif %}
             </div>
             <div class="member-actions">
-              <button class="copy-path" type="button" data-copy="{{ record.path|winpath }}" title="Copy this member path">Copy</button>
+              <button class="copy-path" type="button" data-copy="{{ inventory.root }}\{{ record.path|winpath }}" data-copy-kind="file" title="Paste into Inventor's File name field">Copy file path</button>
+              <button class="copy-path" type="button" data-copy="{{ inventory.root }}\{{ record.path.rsplit('/', 1)[0]|winpath }}" data-copy-kind="folder" title="Paste into Inventor's address bar">Copy folder</button>
+              {% if group.kind == 'collision' %}
+              <button class="delete-member" type="button" data-consolidate-keep data-consolidate-src="{{ url_for('consolidation_apply', group_id=group.id) }}" data-keep-path="{{ record.path }}" data-display-path="{{ record.path|winpath }}" title="Keep this reviewed revision and quarantine every other member">Keep only this</button>
+              {% endif %}
               {% if record.suffix in RENAMEABLE_EXTENSIONS %}
               <a class="copy-path" href="{{ url_for('part_page', relative_path=record.path) }}#rename" title="Rename this file on its part page, with the where-used check">Rename</a>
               {% endif %}
@@ -90,7 +101,9 @@
                 data-display-path="{{ record.path|winpath }}"
                 data-signature="{{ member_plan.signature }}"
                 data-keep="{{ member_plan.candidate.keep_paths|map('winpath')|join(' · ') }}"
-                title="Move this file to recoverable quarantine after confirmation">Delete</button>
+                data-group-kind="{{ group.kind }}"
+                data-idle-label="{% if group.kind == 'collision' %}Quarantine this{% else %}Delete{% endif %}"
+                title="Move only this file to recoverable quarantine after confirmation">{% if group.kind == 'collision' %}Quarantine this{% else %}Delete{% endif %}</button>
               {% endif %}
             </div>
           </div>
@@ -136,7 +149,7 @@
     <section class="rail-card">
       <h2>Merged PRs</h2>
       <nav class="rail-nav merge-nav" aria-label="Filter by merged pull request">
-        <button type="button" class="rail-navrow is-active" data-merge-filter="" aria-pressed="true"><span>All merges</span></button>
+        <button type="button" class="rail-navrow is-active" data-merge-filter="" aria-pressed="true"><span>No PR filter</span></button>
         {% for merge in merge_views %}
         <button type="button" class="rail-navrow merge-row" data-merge-filter="{{ merge.key }}" data-plan-src="{{ url_for('merge_cleanup_plan', pr_number=merge.number) }}" data-apply-src="{{ url_for('merge_cleanup_apply', pr_number=merge.number) }}" data-cleanup-candidates="{{ merge.cleanup_candidates }}" aria-pressed="false">
           <span><b>PR #{{ merge.number }}</b>{{ merge.branch }}<small>{{ merge.cad_files }} CAD · {{ merge.folders|length }} folders · {{ merge.cleanup_candidates }} removable</small></span>

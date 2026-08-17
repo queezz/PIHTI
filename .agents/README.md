@@ -26,6 +26,10 @@ This is kept separate from `docs/`:
   raise its resolve dialog, and whether the rename has been settled. Machine
   record per the artifact-type rule below; `/renames` is its reader. Paths are
   workspace-relative so nothing machine-specific is committed.
+- `consolidation-ledger.jsonl` - one appended event per manually reviewed
+  different-byte consolidation: removed paths, chosen survivor, hashes,
+  possible referrers by filename, and the recoverable quarantine manifest.
+  `/removed` is the searchable reader and restore surface.
 - `handoff-template.md` - copy-paste session-log skeleton.
 
 The dated Markdown files directly under `.agents/` are legacy June 2026

@@ -22,7 +22,7 @@ import os
 import re
 import threading
 from collections import OrderedDict, defaultdict
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Iterable, Iterator
 
@@ -136,17 +136,31 @@ class ReferenceCache:
 
 @dataclass(frozen=True)
 class WhereUsed:
-    """Filename → referring documents, both workspace-relative."""
+    """Bidirectional document-name references, all workspace-relative."""
 
     root: Path
     referrers: dict[str, tuple[str, ...]]
     documents: int
     errors: tuple[str, ...] = ()
+    document_names: dict[str, tuple[str, ...]] = field(default_factory=dict)
 
     def referring(self, filename: str) -> tuple[str, ...]:
         """Documents that name `filename`, excluding the file itself."""
 
         return self.referrers.get(filename.casefold(), ())
+
+    def names_in(self, relative_path: str | Path) -> tuple[str, ...]:
+        """CAD filenames named by one referring document, excluding itself."""
+
+        wanted = str(relative_path).replace("\\", "/").strip("/").casefold()
+        return next(
+            (
+                names
+                for path, names in self.document_names.items()
+                if path.casefold() == wanted
+            ),
+            (),
+        )
 
     def to_dict(self) -> dict:
         return {
@@ -162,6 +176,7 @@ def build_index(root: Path, *, cache: ReferenceCache | None = None) -> WhereUsed
     root = Path(root).resolve()
     cache = cache if cache is not None else ReferenceCache()
     referrers: dict[str, set[str]] = defaultdict(set)
+    document_names: dict[str, tuple[str, ...]] = {}
     errors: list[str] = []
     documents = 0
     for path in walk_workspace(root, REFERRING_EXTENSIONS, skip_dirs=REFERRER_SKIP_DIRS):
@@ -172,10 +187,15 @@ def build_index(root: Path, *, cache: ReferenceCache | None = None) -> WhereUsed
             continue
         documents += 1
         relative = path.relative_to(root).as_posix()
-        for name in names:
+        referenced = tuple(
+            sorted(
+                (name for name in names if name.casefold() != path.name.casefold()),
+                key=str.casefold,
+            )
+        )
+        document_names[relative] = referenced
+        for name in referenced:
             key = name.casefold()
-            if key == path.name.casefold():
-                continue  # a document naming itself is not a referrer
             referrers[key].add(relative)
     return WhereUsed(
         root=root,
@@ -184,6 +204,7 @@ def build_index(root: Path, *, cache: ReferenceCache | None = None) -> WhereUsed
         },
         documents=documents,
         errors=tuple(errors),
+        document_names=dict(sorted(document_names.items(), key=lambda item: item[0].casefold())),
     )
 
 

@@ -35,6 +35,10 @@ PIHTI is a single Autodesk Inventor project. The repository root—not the paren
 These trees are review surfaces, not automatically canonical replacements for
 the established folders.
 
+The local viewer marks every duplicate row under these three submission trees
+with its PR number(s), even when Git history is unavailable to the server
+process. The marker means “review/deletion candidate,” not “safe to delete.”
+
 ## Fabrication and derived artifacts
 
 - `Drawings-PDFs/` — drawings and PDF exports.

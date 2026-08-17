@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+{% block title %}Path was consolidated · PIHTI{% endblock %}
+{% block body %}
+<main class="page"><div class="error-card removed-answer">
+  <p class="micro-heading">Path history answer</p><h2>This file was deliberately consolidated</h2>
+  <p><code>{{ path|winpath }}</code> was moved to recoverable quarantine.</p>
+  {% if event.keep_path %}<p>Use the reviewed survivor:</p><p><strong><code>{{ event.keep_path|winpath }}</code></strong></p>{% endif %}
+  {% if event.where_used %}<p>Possible referrers by filename:</p><ul>{% for referrer in event.where_used %}<li><code>{{ referrer|winpath }}</code></li>{% endfor %}</ul>{% endif %}
+  <p class="muted">Recovery manifest: <code>{{ event.manifest|winpath }}</code></p>
+  <a class="button" href="{{ url_for('removed', q=item.name) }}">Open removal history</a>
+</div></main>
+{% endblock %}

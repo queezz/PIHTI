@@ -8,6 +8,8 @@
   var FILTER_KINDS = { all: true, collision: true, exact: true, renamed: true };
   var filterState = readFilterState();
   var toastTimer = null;
+  var resultsRequest = 0;
+  var resultsController = null;
 
   function readFilterState() {
     var fallback = {
@@ -98,6 +100,9 @@
     }
     filterState.includeVendor = Boolean(includeVendor);
     saveFilterState();
+    var requestId = ++resultsRequest;
+    if (resultsController) resultsController.abort();
+    resultsController = new AbortController();
     host.dataset.includeVendor = includeVendor ? "true" : "false";
     if (options.preserveView) {
       host.classList.add("is-refreshing");
@@ -110,8 +115,12 @@
     if (includeVendor) url.searchParams.set("include_vendor", "1");
     if (options.refresh) url.searchParams.set("refresh", "1");
     try {
-      var response = await fetch(url.toString(), { headers: { "X-Requested-With": "fetch" } });
+      var response = await fetch(url.toString(), {
+        headers: { "X-Requested-With": "fetch" },
+        signal: resultsController.signal,
+      });
       var body = await response.text();
+      if (requestId !== resultsRequest) return;
       host.innerHTML = body;
       host.classList.remove("is-refreshing");
       host.removeAttribute("aria-busy");
@@ -119,6 +128,7 @@
       bindResults(options.anchor || null);
       if (options.notice) showToast(options.notice);
     } catch (error) {
+      if (error.name === "AbortError" || requestId !== resultsRequest) return;
       host.classList.remove("is-refreshing");
       host.removeAttribute("aria-busy");
       if (!host.querySelector(".error-card")) {
@@ -178,12 +188,90 @@
         var extensions = card.dataset.extensions.split("|");
         var extensionMatch = !selectedExtension || extensions.indexOf(selectedExtension) !== -1;
         var crossMatch = !cross.checked || card.dataset.cross === "true";
-        var shown = kindsMatch && textMatch && systemMatch && mergeMatch && extensionMatch && crossMatch;
+        var shown = card.dataset.operationPending !== "true" && kindsMatch && textMatch &&
+          systemMatch && mergeMatch && extensionMatch && crossMatch;
         card.hidden = !shown;
         if (shown) visible += 1;
       });
       count.textContent = String(visible);
       empty.hidden = visible !== 0;
+    }
+
+    function liveCards() {
+      return cards.filter(function (card) {
+        return card.isConnected && card.dataset.operationPending !== "true";
+      });
+    }
+
+    function syncRailCounts() {
+      var available = liveCards();
+      host.querySelectorAll("[data-kind-filter]").forEach(function (button) {
+        var kind = button.dataset.kindFilter;
+        var value = kind === "all" ? available.length : available.filter(function (card) {
+          return card.dataset.kind === kind;
+        }).length;
+        var output = button.querySelector("strong");
+        if (output) output.textContent = String(value);
+      });
+      host.querySelectorAll("[data-system-filter]").forEach(function (button) {
+        var system = button.dataset.systemFilter;
+        var value = system ? available.filter(function (card) {
+          return card.dataset.systems.split("|").indexOf(system) !== -1;
+        }).length : available.length;
+        var output = button.querySelector("strong");
+        if (output) output.textContent = String(value);
+      });
+      host.querySelectorAll("[data-merge-filter]").forEach(function (button) {
+        var merge = button.dataset.mergeFilter;
+        var value = merge ? available.filter(function (card) {
+          return card.dataset.merges.split("|").indexOf(merge) !== -1;
+        }).length : available.length;
+        var output = button.querySelector("strong");
+        if (output) output.textContent = String(value);
+      });
+    }
+
+    function removeCard(card) {
+      var index = cards.indexOf(card);
+      if (index !== -1) cards.splice(index, 1);
+      card.remove();
+      syncRailCounts();
+      applyFilters();
+    }
+
+    function updateCardAfterMemberRemoval(card, row) {
+      row.remove();
+      var members = Array.from(card.querySelectorAll(".member"));
+      if (members.length < 2) {
+        removeCard(card);
+        return;
+      }
+      var hashes = new Set(members.map(function (member) {
+        return member.dataset.recordHash;
+      }).filter(Boolean));
+      var fileCount = card.querySelector("[data-group-file-count]");
+      var hashCount = card.querySelector("[data-group-hash-count]");
+      if (fileCount) fileCount.textContent = members.length + " files";
+      if (hashCount) {
+        hashCount.textContent = hashes.size + " distinct " +
+          (hashes.size === 1 ? "hash" : "hashes");
+      }
+      if ((card.dataset.kind === "collision" || card.dataset.kind === "exact") && hashes.size) {
+        var kind = hashes.size === 1 ? "exact" : "collision";
+        card.classList.toggle("kind-collision", kind === "collision");
+        card.classList.toggle("kind-exact", kind === "exact");
+        card.dataset.kind = kind;
+        var icon = card.querySelector(".kind-icon");
+        var label = card.querySelector(".kind-label");
+        if (icon) icon.textContent = kind === "collision" ? "≠" : "=";
+        if (label) label.textContent = kind === "collision" ? "different bytes" : "identical bytes";
+      }
+      card.querySelectorAll("[data-member-delete], [data-consolidate-keep]").forEach(function (action) {
+        action.disabled = true;
+        action.title = "Rescan before another cleanup action in this changed group";
+      });
+      syncRailCounts();
+      applyFilters();
     }
 
     search.value = filterState.query;
@@ -432,12 +520,24 @@
       button.addEventListener("click", async function () {
         var displayPath = button.dataset.displayPath;
         var keepPath = button.dataset.keep;
-        var viewAnchor = captureViewportAnchor(button.closest("[data-group]"));
+        var isCollision = button.dataset.groupKind === "collision";
+        var card = button.closest("[data-group]");
+        var row = button.closest(".member");
+        var hideWholeCard = card.querySelectorAll(".member").length <= 2;
         if (!window.confirm(
-          "Delete this file from the Inventor workspace?\n\n" + displayPath +
-          "\n\nIt will move to recoverable quarantine. Byte-identical survivor:\n" +
-          keepPath + "\n\nContinue only after checking Inventor references."
+          "Move only this file to recoverable quarantine?\n\n" + displayPath +
+          "\n\nRemaining same-name file(s):\n" + keepPath +
+          (isCollision
+            ? "\n\nThese files have different bytes. Continue only because you reviewed this revision."
+            : "\n\nContinue only after checking Inventor references.")
         )) return;
+        if (hideWholeCard) {
+          card.dataset.operationPending = "true";
+          applyFilters();
+        } else {
+          row.hidden = true;
+        }
+        showToast("Moving to quarantine: " + displayPath);
         button.disabled = true;
         button.textContent = "Deleting…";
         try {
@@ -451,22 +551,69 @@
               path: button.dataset.path,
               signature: button.dataset.signature,
               references_checked: true,
+              reviewed: isCollision,
               include_vendor: vendor.checked,
             }),
           });
           var result = await response.json();
           if (!response.ok) throw new Error(result.error || "Delete failed");
-          loadResults({
-            includeVendor: vendor.checked,
-            notice: "Deleted to recoverable quarantine: " + displayPath +
-              ". Restoration manifest: " + windowsPath(result.execution.manifest),
-            preserveView: true,
-            anchor: viewAnchor,
-          });
+          if (hideWholeCard) removeCard(card);
+          else updateCardAfterMemberRemoval(card, row);
+          showToast((result.already_applied ? "Already quarantined: " : "Quarantined: ") +
+            displayPath + ". Restoration manifest: " +
+            windowsPath(result.execution.manifest) +
+            (hideWholeCard ? "" : ". Rescan before another action in this changed group."));
         } catch (error) {
           window.alert(error.message);
+          delete card.dataset.operationPending;
+          row.hidden = false;
+          applyFilters();
           button.disabled = false;
-          button.textContent = "Delete";
+          button.textContent = button.dataset.idleLabel;
+        }
+      });
+    });
+    host.querySelectorAll("[data-consolidate-keep]").forEach(function (button) {
+      button.addEventListener("click", async function () {
+        var card = button.closest("[data-group]");
+        var count = card.querySelectorAll(".member").length - 1;
+        var keepPath = button.dataset.displayPath;
+        if (!window.confirm(
+          "Keep this reviewed revision and move the other " + count +
+          " same-name file(s) to recoverable quarantine?\n\nKEEP:\n" + keepPath +
+          "\n\nThis records where the removed paths went. Continue only because you opened " +
+          "and compared these different-byte revisions."
+        )) return;
+        card.dataset.operationPending = "true";
+        applyFilters();
+        showToast("Moving reviewed revisions to quarantine…");
+        button.disabled = true;
+        button.textContent = "Quarantining…";
+        try {
+          var response = await fetch(button.dataset.consolidateSrc, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "X-PIHTI-Token": cleanupCard.dataset.formToken,
+            },
+            body: JSON.stringify({
+              keep_path: button.dataset.keepPath,
+              reviewed: true,
+              include_vendor: vendor.checked,
+            }),
+          });
+          var result = await response.json();
+          if (!response.ok) throw new Error(result.error || "Consolidation failed");
+          removeCard(card);
+          showToast((result.already_applied ? "Already completed. " : "") +
+            "Quarantined " + result.execution.moved.length +
+            " reviewed revisions. Answer recorded under Removed.");
+        } catch (error) {
+          window.alert(error.message);
+          delete card.dataset.operationPending;
+          applyFilters();
+          button.disabled = false;
+          button.textContent = "Keep only this";
         }
       });
     });
@@ -506,6 +653,84 @@
       if (event.target === dialog) dialog.close();
     });
     if (dialog.hasAttribute("data-auto-open")) dialog.showModal();
+  });
+})();
+
+(function () {
+  "use strict";
+
+  var form = document.querySelector("[data-live-note-form]");
+  if (!form) return;
+  var input = form.querySelector("[data-live-note-input]");
+  var preview = document.querySelector("[data-note-preview-body]");
+  var status = form.querySelector("[data-live-note-status]");
+  var timer = null;
+  var sequence = 0;
+
+  function renderLive() {
+    var current = ++sequence;
+    if (status) status.textContent = "Updating preview…";
+    var body = new FormData();
+    body.append("text", input.value);
+    fetch("/markdown/preview", { method: "POST", body: body })
+      .then(function (response) {
+        if (!response.ok) throw new Error("Preview unavailable");
+        return response.json();
+      })
+      .then(function (result) {
+        if (current !== sequence) return;
+        preview.innerHTML = result.html;
+        if (status) status.textContent = "Preview is current.";
+      })
+      .catch(function () {
+        if (current === sequence && status) {
+          status.textContent = "Preview could not update; your text is still safe.";
+        }
+      });
+  }
+
+  input.addEventListener("input", function () {
+    window.clearTimeout(timer);
+    timer = window.setTimeout(renderLive, 250);
+  });
+})();
+
+(function () {
+  "use strict";
+
+  var form = document.querySelector("[data-live-note-form]");
+  if (!form) return;
+  var input = form.querySelector("[data-live-note-input]");
+  var preview = document.querySelector("[data-note-preview-body]");
+  var status = form.querySelector("[data-live-note-status]");
+  var timer = null;
+  var sequence = 0;
+
+  function renderLive() {
+    var current = ++sequence;
+    if (status) status.textContent = "Updating preview…";
+    var body = new FormData();
+    body.append("text", input.value);
+    fetch("/markdown/preview", { method: "POST", body: body })
+      .then(function (response) {
+        if (!response.ok) throw new Error("Preview unavailable");
+        return response.json();
+      })
+      .then(function (result) {
+        if (current !== sequence) return;
+        preview.innerHTML = result.html;
+        if (status) status.textContent = "Preview is current.";
+      })
+      .catch(function () {
+        if (current === sequence && status) {
+          status.textContent = "Preview could not update; your text is still safe.";
+        }
+      });
+  }
+
+  input.addEventListener("input", function () {
+    window.clearTimeout(timer);
+    timer = window.setTimeout(renderLive, 250);
   });
 })();
 
@@ -553,6 +778,49 @@
       window.setTimeout(function () { button.textContent = original; }, 1200);
     });
   });
+})();
+
+(function () {
+  "use strict";
+
+  var ledger = document.querySelector("[data-removed-ledger]");
+  if (!ledger) return;
+
+  var batches = Array.from(ledger.querySelectorAll("[data-removed-batch]"));
+  var buttons = Array.from(ledger.querySelectorAll("[data-removed-filter]"));
+  var empty = ledger.querySelector("[data-removed-filter-empty]");
+  var active = "all";
+
+  function applyRemovedFilter() {
+    var shown = 0;
+    batches.forEach(function (batch) {
+      var visible = active === "all" || batch.dataset.status === active;
+      batch.hidden = !visible;
+      if (visible) shown += 1;
+    });
+    buttons.forEach(function (button) {
+      var selected = button.dataset.removedFilter === active;
+      button.classList.toggle("is-active", selected);
+      button.setAttribute("aria-pressed", selected ? "true" : "false");
+    });
+    if (empty) empty.hidden = shown !== 0;
+  }
+
+  buttons.forEach(function (button) {
+    button.addEventListener("click", function () {
+      active = button.dataset.removedFilter;
+      applyRemovedFilter();
+    });
+  });
+  var expand = ledger.querySelector("[data-removed-expand]");
+  var collapse = ledger.querySelector("[data-removed-collapse]");
+  if (expand) expand.addEventListener("click", function () {
+    batches.forEach(function (batch) { if (!batch.hidden) batch.open = true; });
+  });
+  if (collapse) collapse.addEventListener("click", function () {
+    batches.forEach(function (batch) { batch.open = false; });
+  });
+  applyRemovedFilter();
 })();
 
 (function () {

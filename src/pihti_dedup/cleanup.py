@@ -145,14 +145,85 @@ class MemberCleanupPlan:
         }
 
 
-def plan_member_cleanup(inventory: Inventory, *, group_id: str, path: str) -> MemberCleanupPlan:
-    """Plan one exact-byte member quarantine while preserving another copy."""
+@dataclass(frozen=True)
+class ConsolidationPlan:
+    """Owner-reviewed consolidation of different-byte same-name revisions."""
+
+    group_id: str
+    keeper: CleanupCandidate
+    candidates: tuple[CleanupCandidate, ...]
+
+    @property
+    def keep_path(self) -> str:
+        return self.keeper.path
+
+    @property
+    def signature(self) -> str:
+        evidence = [
+            self.group_id,
+            f"{self.keeper.path}\0{self.keeper.sha256}\0"
+            f"{self.keeper.size}\0{self.keeper.mtime_ns}",
+        ]
+        evidence.extend(
+            f"{item.path}\0{item.sha256}\0{item.size}\0{item.mtime_ns}"
+            for item in self.candidates
+        )
+        return hashlib.sha256("\n".join(evidence).encode("utf-8")).hexdigest()
+
+
+def plan_consolidation(
+    inventory: Inventory, *, group_id: str, keep_path: str
+) -> ConsolidationPlan:
+    """Keep one manually chosen collision member and quarantine every other one."""
 
     group = next((item for item in inventory.groups if item.id == group_id), None)
     if group is None:
         raise ValueError("duplicate group was not found")
-    if group.kind not in {"exact", "renamed"}:
-        raise ValueError("only byte-identical groups support member cleanup")
+    if group.kind != "collision":
+        raise ValueError("manual consolidation is only for different-byte collisions")
+    keeper = next(
+        (item for item in group.records if item.path.casefold() == keep_path.casefold()), None
+    )
+    if keeper is None:
+        raise ValueError("chosen survivor was not found in the duplicate group")
+    candidates = tuple(
+        CleanupCandidate(
+            path=item.path,
+            name=item.name,
+            size=item.size,
+            mtime_ns=item.mtime_ns,
+            sha256=item.sha256 or "",
+            keep_paths=(keeper.path,),
+        )
+        for item in group.records
+        if item.path.casefold() != keeper.path.casefold()
+    )
+    if not candidates or any(not item.sha256 for item in candidates):
+        raise ValueError("collision members must be hashed before consolidation")
+    keep_evidence = CleanupCandidate(
+        path=keeper.path,
+        name=keeper.name,
+        size=keeper.size,
+        mtime_ns=keeper.mtime_ns,
+        sha256=keeper.sha256 or "",
+        keep_paths=(),
+    )
+    if not keep_evidence.sha256:
+        raise ValueError("chosen survivor must be hashed before consolidation")
+    return ConsolidationPlan(group.id, keep_evidence, candidates)
+
+
+def plan_member_cleanup(
+    inventory: Inventory, *, group_id: str, path: str, allow_collision: bool = False
+) -> MemberCleanupPlan:
+    """Plan one member quarantine while preserving every other group member."""
+
+    group = next((item for item in inventory.groups if item.id == group_id), None)
+    if group is None:
+        raise ValueError("duplicate group was not found")
+    supported = {"exact", "renamed", "collision"} if allow_collision else {"exact", "renamed"}
+    if group.kind not in supported:
+        raise ValueError("different-byte collisions require explicit revision review")
     target = next(
         (record for record in group.records if record.path.casefold() == path.casefold()),
         None,
@@ -162,7 +233,8 @@ def plan_member_cleanup(inventory: Inventory, *, group_id: str, path: str) -> Me
     survivors = [
         record
         for record in group.records
-        if record.path.casefold() != target.path.casefold() and record.sha256 == target.sha256
+        if record.path.casefold() != target.path.casefold()
+        and (group.kind == "collision" or record.sha256 == target.sha256)
     ]
     if not survivors:
         raise ValueError("cleanup would remove the last byte-identical copy")
@@ -222,6 +294,7 @@ def execute_member_cleanup(
     plan: MemberCleanupPlan,
     *,
     references_checked: bool,
+    where_used: tuple[str, ...] = (),
     now: datetime | None = None,
 ) -> MemberCleanupExecution:
     """Quarantine one explicitly selected exact-byte member."""
@@ -238,10 +311,157 @@ def execute_member_cleanup(
             "source": "manual-member",
             "group_id": plan.group_id,
             "group_kind": plan.group_kind,
+            "where_used": list(where_used),
         },
         now=now,
     )
     return MemberCleanupExecution(plan.group_id, quarantine, manifest, moved)
+
+
+def execute_consolidation(
+    workspace: Path,
+    plan: ConsolidationPlan,
+    *,
+    references_checked: bool,
+    where_used: tuple[str, ...] = (),
+    now: datetime | None = None,
+) -> MemberCleanupExecution:
+    """Quarantine every non-survivor from an explicitly reviewed collision."""
+
+    if not references_checked:
+        raise ValueError("Inventor references and revisions must be checked first")
+    _validate_candidate(workspace.resolve(), plan.keeper, label="chosen survivor")
+    quarantine, manifest, moved = _quarantine_candidates(
+        workspace,
+        plan.candidates,
+        suffix=f"consolidation-{plan.group_id[:8]}",
+        plan_signature=plan.signature,
+        metadata={
+            "action": "quarantine",
+            "source": "manual-consolidation",
+            "group_id": plan.group_id,
+            "keep_path": plan.keep_path,
+            "where_used": list(where_used),
+        },
+        now=now,
+    )
+    event = {
+        "created_at": (now or datetime.now(timezone.utc)).isoformat(),
+        "action": "manual-consolidation",
+        "group_id": plan.group_id,
+        "keep_path": plan.keep_path,
+        "keep_sha256": plan.keeper.sha256,
+        "removed_paths": list(moved),
+        "where_used": list(where_used),
+        "manifest": manifest,
+    }
+    ledger = workspace.resolve() / ".agents" / "consolidation-ledger.jsonl"
+    try:
+        ledger.parent.mkdir(parents=True, exist_ok=True)
+        with ledger.open("a", encoding="utf-8", newline="\n") as stream:
+            stream.write(json.dumps(event, ensure_ascii=False, separators=(",", ":")) + "\n")
+    except OSError:
+        restore_quarantine_manifest(workspace, manifest)
+        raise
+    return MemberCleanupExecution(plan.group_id, quarantine, manifest, moved)
+
+
+def _validate_candidate(root: Path, candidate: CleanupCandidate, *, label: str) -> None:
+    path = root / candidate.path
+    if path.is_symlink():
+        raise ValueError(f"{label} is a symbolic link: {candidate.path}")
+    resolved = path.resolve()
+    resolved.relative_to(root)
+    if not resolved.is_file():
+        raise ValueError(f"{label} is missing: {candidate.path}")
+    stat = resolved.stat()
+    if (
+        stat.st_size != candidate.size
+        or stat.st_mtime_ns != candidate.mtime_ns
+        or sha256_file(resolved) != candidate.sha256
+    ):
+        raise ValueError(f"{label} changed after review: {candidate.path}")
+
+
+def read_quarantine_manifests(workspace: Path) -> tuple[dict, ...]:
+    """Read recoverable cleanup history newest-first; ignore damaged records."""
+
+    root = workspace.resolve()
+    bases = (
+        root.parent / f"{root.name}-quarantine" / "runs",
+        root / ".pihti-dedup" / "quarantine",
+    )
+    records: list[dict] = []
+    for base in bases:
+        if not base.is_dir():
+            continue
+        for path in base.glob("*/manifest.json"):
+            try:
+                payload = json.loads(path.read_text(encoding="utf-8"))
+                payload["manifest"] = str(path)
+                records.append(payload)
+            except (OSError, ValueError, json.JSONDecodeError):
+                continue
+    return tuple(sorted(records, key=lambda item: str(item.get("created_at", "")), reverse=True))
+
+
+def restore_quarantine_manifest(workspace: Path, manifest_relative: str) -> tuple[str, ...]:
+    """Restore every file in one manifest after exact containment/hash checks."""
+
+    root = workspace.resolve()
+    bases = (
+        (root.parent / f"{root.name}-quarantine" / "runs").resolve(),
+        (root / ".pihti-dedup" / "quarantine").resolve(),
+    )
+    supplied = Path(manifest_relative)
+    manifest = (supplied if supplied.is_absolute() else root / supplied).resolve()
+    if not any(manifest.is_relative_to(base) for base in bases):
+        raise ValueError("restoration manifest is outside the quarantine stores")
+    if manifest.name != "manifest.json" or not manifest.is_file():
+        raise ValueError("restoration manifest was not found")
+    payload = json.loads(manifest.read_text(encoding="utf-8"))
+    if payload.get("restored_at"):
+        raise ValueError("this quarantine manifest has already been restored")
+    transfers: list[tuple[Path, Path, dict]] = []
+    for item in payload.get("files", []):
+        quarantine_path = str(item["quarantine_path"])
+        if quarantine_path.startswith(".pihti-dedup/"):
+            source = (root / quarantine_path).resolve()
+        else:
+            source = (manifest.parent / quarantine_path).resolve()
+            source.relative_to(manifest.parent)
+        destination = (root / str(item["path"])).resolve()
+        destination.relative_to(root)
+        if destination.exists():
+            raise ValueError(f"restore destination already exists: {item['path']}")
+        if not source.is_file() or sha256_file(source) != item["sha256"]:
+            raise ValueError(f"quarantined file is missing or changed: {item['path']}")
+        transfers.append((source, destination, item))
+    moved: list[tuple[Path, Path]] = []
+    try:
+        for source, destination, _item in transfers:
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            shutil.move(str(source), str(destination))
+            moved.append((source, destination))
+            for companion_name in _item.get("companions", []):
+                companion_source = (manifest.parent / companion_name).resolve()
+                companion_source.relative_to(manifest.parent)
+                companion_destination = destination.with_name(destination.name + ".md")
+                if companion_destination.exists():
+                    raise ValueError(
+                        f"restore companion already exists: {companion_destination.name}"
+                    )
+                shutil.move(str(companion_source), str(companion_destination))
+                moved.append((companion_source, companion_destination))
+        payload["restored_at"] = datetime.now(timezone.utc).isoformat()
+        manifest.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    except Exception:
+        for source, destination in reversed(moved):
+            if destination.exists() and not source.exists():
+                source.parent.mkdir(parents=True, exist_ok=True)
+                shutil.move(str(destination), str(source))
+        raise
+    return tuple(str(item["path"]) for _, _, item in transfers)
 
 
 def _quarantine_candidates(
@@ -256,8 +476,9 @@ def _quarantine_candidates(
     root = workspace.resolve()
     event_time = now or datetime.now(timezone.utc)
     stamp = event_time.strftime("%Y%m%dT%H%M%SZ")
-    quarantine_root = (root / ".pihti-dedup" / "quarantine" / f"{stamp}-{suffix}").resolve()
-    quarantine_root.relative_to(root)
+    store = (root.parent / f"{root.name}-quarantine" / "runs").resolve()
+    quarantine_root = (store / f"{stamp}-{suffix}").resolve()
+    quarantine_root.relative_to(store)
 
     transfers: list[tuple[Path, Path, CleanupCandidate]] = []
     for candidate in candidates:
@@ -284,12 +505,18 @@ def _quarantine_candidates(
         transfers.append((source, destination, candidate))
 
     moved: list[tuple[Path, Path, CleanupCandidate]] = []
+    moved_companions: list[tuple[Path, Path]] = []
     manifest_path = quarantine_root / "manifest.json"
     try:
         for source, destination, candidate in transfers:
             destination.parent.mkdir(parents=True, exist_ok=True)
             shutil.move(str(source), str(destination))
             moved.append((source, destination, candidate))
+            companion = source.with_name(source.name + ".md")
+            if companion.is_file():
+                companion_destination = destination.with_name(destination.name + ".md")
+                shutil.move(str(companion), str(companion_destination))
+                moved_companions.append((companion, companion_destination))
         manifest = {
             **metadata,
             "created_at": event_time.isoformat(),
@@ -302,7 +529,16 @@ def _quarantine_candidates(
             "files": [
                 {
                     **asdict(candidate),
-                    "quarantine_path": destination.relative_to(root).as_posix(),
+                    "quarantine_path": destination.relative_to(quarantine_root).as_posix(),
+                    "companions": (
+                        [
+                            destination.with_name(destination.name + ".md")
+                            .relative_to(quarantine_root)
+                            .as_posix()
+                        ]
+                        if destination.with_name(destination.name + ".md").is_file()
+                        else []
+                    ),
                 }
                 for _, destination, candidate in moved
             ],
@@ -311,6 +547,10 @@ def _quarantine_candidates(
             json.dumps(manifest, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
         )
     except Exception:
+        for source, destination in reversed(moved_companions):
+            if destination.exists() and not source.exists():
+                source.parent.mkdir(parents=True, exist_ok=True)
+                shutil.move(str(destination), str(source))
         for source, destination, _candidate in reversed(moved):
             if destination.exists() and not source.exists():
                 source.parent.mkdir(parents=True, exist_ok=True)
@@ -318,7 +558,7 @@ def _quarantine_candidates(
         raise
 
     return (
-        quarantine_root.relative_to(root).as_posix(),
-        manifest_path.relative_to(root).as_posix(),
+        str(quarantine_root),
+        str(manifest_path),
         tuple(candidate.path for _, _, candidate in moved),
     )

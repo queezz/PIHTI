@@ -93,29 +93,30 @@
           {% if note_error %}<p class="metadata-error note-dialog-notice" role="alert">{{ note_error }}</p>{% endif %}
 
           <div class="note-dialog-grid">
-            <section class="note-dialog-pane note-dialog-preview" aria-labelledby="note-preview-title">
+            <section class="note-dialog-pane note-dialog-preview" aria-labelledby="note-preview-title" data-note-preview>
               <h3 id="note-preview-title">Preview</h3>
               {% if note and note.generated %}<p class="generated-note-label">Generated inventory — saving your edit claims it as authored documentation.</p>{% endif %}
               {% if note_html %}
-              <div class="markdown-body">{{ note_html }}</div>
+              <div class="markdown-body" data-note-preview-body>{{ note_html }}</div>
               {% else %}
-              <p class="part-note muted">No folder note yet. Start with the Markdown editor.</p>
+              <div class="markdown-body" data-note-preview-body><p class="part-note muted">No folder note yet. Start with the Markdown editor.</p></div>
               {% endif %}
             </section>
 
             <section class="note-dialog-pane note-dialog-editor" aria-labelledby="note-editor-title">
               <h3 id="note-editor-title">Markdown</h3>
               <p class="editor-hint">Markdown needs explicit structure. <strong>Start with a one-sentence summary directly below the title.</strong> It appears on this folder's Catalog card. Then use headings and <code>- **Label:** value</code> for details.</p>
-              <form method="post" action="{{ url_for('folder_note', relative_folder=path) }}" class="metadata-form">
+              <form method="post" action="{{ url_for('folder_note', relative_folder=path) }}" class="metadata-form" data-live-note-form>
                 <input type="hidden" name="token" value="{{ form_token }}">
                 <input type="hidden" name="origin" value="catalog">
                 {% if include_vendor %}<input type="hidden" name="include_vendor" value="1">{% endif %}
                 <label class="sr-only" for="catalog-folder-note-text">Raw folder note text</label>
-                <textarea id="catalog-folder-note-text" name="text" rows="18" spellcheck="false" placeholder="# {{ name }}&#10;&#10;One sentence: what this folder contains and why it exists.&#10;&#10;## Details&#10;&#10;- **Owner:**&#10;- **Status:**">{{ note_draft if note_draft is not none else note_text }}</textarea>
+                <textarea id="catalog-folder-note-text" name="text" rows="18" spellcheck="false" data-live-note-input placeholder="# {{ name }}&#10;&#10;One sentence: what this folder contains and why it exists.&#10;&#10;## Details&#10;&#10;- **Owner:**&#10;- **Status:**">{{ note_draft if note_draft is not none else note_text }}</textarea>
                 <div class="note-dialog-actions">
                   <button class="button primary" type="submit">Save note</button>
                   <button class="button" type="button" data-dialog-close>Close</button>
                   <a href="{{ url_for('folder_page', relative_folder=path) }}">Open full page</a>
+                  <small data-live-note-status aria-live="polite">Preview updates as you type.</small>
                 </div>
               </form>
             </section>

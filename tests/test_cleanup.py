@@ -7,9 +7,13 @@ import pytest
 
 from pihti_dedup.cleanup import (
     execute_cleanup,
+    execute_consolidation,
     execute_member_cleanup,
+    plan_consolidation,
     plan_member_cleanup,
     plan_merge_exact_cleanup,
+    read_quarantine_manifests,
+    restore_quarantine_manifest,
 )
 from pihti_dedup.git_history import PullRequestMerge
 from pihti_dedup.inventory import scan_workspace
@@ -76,8 +80,15 @@ def test_apply_requires_reference_check_and_writes_recovery_manifest(tmp_path: P
 
     assert not candidate.exists()
     assert (tmp_path / "Canonical" / "part.ipt").exists()
-    assert execution.manifest == ".pihti-dedup/quarantine/20260805T120000Z-pr-3/manifest.json"
-    manifest = json.loads((tmp_path / execution.manifest).read_text(encoding="utf-8"))
+    expected_manifest = (
+        tmp_path.parent
+        / f"{tmp_path.name}-quarantine"
+        / "runs"
+        / "20260805T120000Z-pr-3"
+        / "manifest.json"
+    )
+    assert execution.manifest == str(expected_manifest)
+    manifest = json.loads(expected_manifest.read_text(encoding="utf-8"))
     assert manifest["files"][0]["path"] == "Submission/part.ipt"
     assert manifest["files"][0]["keep_paths"] == ["Canonical/part.ipt"]
 
@@ -143,5 +154,93 @@ def test_member_cleanup_rejects_different_byte_collision(tmp_path: Path) -> None
     inventory = scan_workspace(tmp_path)
     group = inventory.filename_groups[0]
 
-    with pytest.raises(ValueError, match="byte-identical"):
+    with pytest.raises(ValueError, match="explicit revision review"):
         plan_member_cleanup(inventory, group_id=group.id, path="B/part.ipt")
+
+
+def test_reviewed_collision_member_cleanup_preserves_all_other_revisions(
+    tmp_path: Path,
+) -> None:
+    _write(tmp_path / "A" / "part.ipt", b"a")
+    _write(tmp_path / "B" / "part.ipt", b"b")
+    _write(tmp_path / "C" / "part.ipt", b"c")
+    inventory = scan_workspace(tmp_path)
+    group = inventory.filename_groups[0]
+
+    plan = plan_member_cleanup(
+        inventory, group_id=group.id, path="B/part.ipt", allow_collision=True
+    )
+    execution = execute_member_cleanup(
+        tmp_path,
+        plan,
+        references_checked=True,
+        where_used=("Assembly/main.iam",),
+        now=datetime(2026, 8, 6, 9, 0, tzinfo=timezone.utc),
+    )
+
+    assert (tmp_path / "A" / "part.ipt").exists()
+    assert not (tmp_path / "B" / "part.ipt").exists()
+    assert (tmp_path / "C" / "part.ipt").exists()
+    manifest = json.loads(Path(execution.manifest).read_text(encoding="utf-8"))
+    assert manifest["group_kind"] == "collision"
+    assert manifest["where_used"] == ["Assembly/main.iam"]
+    assert manifest["files"][0]["keep_paths"] == ["A/part.ipt", "C/part.ipt"]
+
+
+def test_manual_consolidation_revalidates_survivor_logs_and_restores(tmp_path: Path) -> None:
+    keeper = tmp_path / "Canonical" / "part.ipt"
+    removed_a = tmp_path / "SubmissionA" / "part.ipt"
+    removed_b = tmp_path / "SubmissionB" / "part.ipt"
+    _write(keeper, b"chosen")
+    _write(removed_a, b"revision-a")
+    _write(removed_b, b"revision-b")
+    sidecar = removed_a.with_name("part.ipt.md")
+    sidecar.write_text("why this revision existed", encoding="utf-8")
+    inventory = scan_workspace(tmp_path)
+    group = inventory.filename_groups[0]
+
+    plan = plan_consolidation(inventory, group_id=group.id, keep_path="Canonical/part.ipt")
+    execution = execute_consolidation(
+        tmp_path,
+        plan,
+        references_checked=True,
+        where_used=("Assembly/main.iam",),
+        now=datetime(2026, 8, 6, 8, 0, tzinfo=timezone.utc),
+    )
+
+    assert keeper.exists()
+    assert not removed_a.exists() and not removed_b.exists() and not sidecar.exists()
+    manifest = Path(execution.manifest)
+    payload = json.loads(manifest.read_text(encoding="utf-8"))
+    assert payload["keep_path"] == "Canonical/part.ipt"
+    assert payload["where_used"] == ["Assembly/main.iam"]
+    assert payload["files"][0]["keep_paths"] == ["Canonical/part.ipt"]
+    assert read_quarantine_manifests(tmp_path)[0]["manifest"] == str(manifest)
+    ledger = (tmp_path / ".agents" / "consolidation-ledger.jsonl").read_text(
+        encoding="utf-8"
+    )
+    assert '"keep_path":"Canonical/part.ipt"' in ledger
+    assert '"removed_paths":["SubmissionA/part.ipt","SubmissionB/part.ipt"]' in ledger
+
+    restored = restore_quarantine_manifest(tmp_path, str(manifest))
+
+    assert restored == ("SubmissionA/part.ipt", "SubmissionB/part.ipt")
+    assert removed_a.read_bytes() == b"revision-a"
+    assert removed_b.read_bytes() == b"revision-b"
+    assert sidecar.read_text(encoding="utf-8") == "why this revision existed"
+
+
+def test_manual_consolidation_refuses_survivor_drift(tmp_path: Path) -> None:
+    keeper = tmp_path / "A" / "part.ipt"
+    _write(keeper, b"a")
+    _write(tmp_path / "B" / "part.ipt", b"b")
+    inventory = scan_workspace(tmp_path)
+    plan = plan_consolidation(
+        inventory, group_id=inventory.filename_groups[0].id, keep_path="A/part.ipt"
+    )
+    keeper.write_bytes(b"changed")
+
+    with pytest.raises(ValueError, match="chosen survivor changed"):
+        execute_consolidation(tmp_path, plan, references_checked=True)
+
+    assert (tmp_path / "B" / "part.ipt").exists()

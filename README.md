@@ -151,8 +151,9 @@ changes; **Refresh** on Duplicates remains the explicit full verification.
 
 In Duplicates, use the two right rails to review one duplicate kind, project
 folder, or recent merged PR at a time. PR filters come from local first-parent
-Git history and do not require GitHub access. Each member row copies only that
-file's project-relative Windows path for manual lookup in Inventor. Rows include size,
+Git history and do not require GitHub access. Each member row can copy either the
+absolute file path for Inventor's **File name** field or its containing folder for
+the dialog's address bar. Rows include size,
 modified time, and the short byte hash.
 
 Byte-identical rows also have a **Delete** action. Its confirmation revalidates
@@ -167,6 +168,37 @@ After a mutation, the refreshed list keeps the next visible group at the same
 viewport position and reports success in a fixed toast instead of inserting a
 banner that shifts the results.
 
+Different-byte collision rows support owner-reviewed cleanup after the revisions
+have been opened and compared in Inventor. **Quarantine this** moves only the
+selected revision; **Keep only this** selects a canonical survivor and moves
+every other member. Either action also moves an adjacent metadata sidecar to the
+sibling `PIHTI-quarantine/runs/` store. The searchable
+**Removed** page records each old path, the chosen survivor, possible referrers
+by filename, and a guarded Restore action. Opening an old part URL returns the
+same answer instead of a generic 404. Files beneath a top-level folder introduced
+by a merged PR carry an orange PR-folder badge. A file added elsewhere by a PR
+is also orange; a pre-existing file merely edited by a PR instead carries a
+neutral **Edited PR** history badge and is not marked as a deletion target.
+The Removed view groups same-kind actions made within ten minutes into compact,
+collapsible sessions. Its rail filters recoverable/restored history and expands
+or collapses visible sessions; restoration remains scoped to one exact event.
+
+Use **Doctor** when the right operation is renaming rather than consolidation.
+Assembly Workbenches are the primary route for STEP/import repair: choose the
+referring `.iam`, inspect its preview and direct embedded names, then keep that
+assembly as the context while repairing one component at a time. Missing names
+remain visible until Inventor repoints and saves the assembly. For each missing
+name, Doctor searches every reachable Git ref and shows whether the file was
+never tracked, was deleted, or was renamed; historical Inventor previews and
+copy-ready current rename destinations sit beside that evidence.
+Collision Doctor opens every repeated Inventor filename as one durable repair
+session, so renaming two members cannot make the final unversioned member vanish
+from Duplicates. Name Doctor also finds low-information imported names such as
+`Body.ipt`, `Body001.ipt`, and `Part.ipt`, including singletons. A name session
+keeps current originals, already-renamed destinations, and every filename-based
+referring assembly together, with copy-ready file and folder paths for Inventor.
+The Renames page recalculates **Inventor will ask now** from the live workspace;
+the ledger still notes when the outcome differed at rename time.
 ### Previews
 
 Inventor documents and DWG drawings show the preview image they already embed.

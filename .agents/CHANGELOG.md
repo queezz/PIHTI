@@ -6,6 +6,63 @@ remains authoritative for exact file changes.
 
 ## 2026-08-06
 
+- Shipped `pihti-dedup` 0.13.0: Doctor now starts from an assembly workbench
+  instead of forcing imported geometry through a global filename queue. Each
+  `.iam` workbench shows its direct embedded missing, ambiguous, and generic
+  names; previews every current candidate; keeps the assembly path and safe
+  Inventor sequence visible; and returns guarded renames to the same assembly
+  context. Missing references query every reachable Git ref by exact filename.
+  The inline history distinguishes never-tracked import/vendor dependencies
+  from repository files, previews historical Inventor geometry, and identifies
+  rename destinations that still exist with a copy-ready current path.
+
+- Shipped `pihti-dedup` 0.12.0: the new **Doctor** view turns filename repair
+  into a persistent session. Collision groups and generic imported names such
+  as `Body001.ipt` open by filename, keep every remaining original visible
+  through sequential guarded renames, retain the renamed destinations, and put
+  the shared referring assemblies beside copy-ready file and folder paths. The
+  rename ledger now reports what Inventor will do from the live workspace rather
+  than freezing its headline at rename time, while preserving a note when that
+  outcome changed. The static **Local quarantine** label is replaced by a live
+  recoverable-file count linking to Removed.
+
+- Shipped `pihti-dedup` 0.11.0: manually reviewed different-byte collisions can
+  now remove one selected revision or be consolidated around one explicitly
+  chosen survivor. **Quarantine this** removes only its row; **Keep only this**
+  revalidates the survivor and every candidate, then moves the non-survivors
+  and their metadata sidecars to the sibling `PIHTI-quarantine/runs` store, and
+  records old path → survivor, hashes, possible filename-based referrers, and
+  recovery manifest in a durable consolidation ledger. The searchable
+  **Removed** view answers later missing-path questions, old part URLs explain
+  where the file went, and a guarded Restore action returns the complete event
+  to its original paths. Rows in merged-PR top-level folders now carry an orange
+  PR badge and edge marker so submission material is identifiable at a glance.
+  Pre-existing files merely edited by a PR receive a neutral history badge,
+  distinct from the orange deletion-candidate treatment.
+  Cleanup actions optimistically remove the affected row/card, stale inventory
+  requests cannot repaint older HTML over the result, and a repeated action
+  from another stale tab resolves to the existing recovery event instead of an
+  alarming missing-group error. Removed-path and survivor contrast is balanced.
+  Removed events are compacted into ten-minute cleanup sessions with collapsible
+  bodies and a status/action rail. The merged-PR reset is labelled **No PR
+  filter**, matching its actual behavior rather than implying a union filter.
+
+- Shipped `pihti-dedup` 0.10.2: duplicate rows distinguish the two Windows Open
+  dialog targets. **Copy folder** supplies the directory accepted by the address
+  bar; **Copy file path** supplies the complete path for the bottom **File name**
+  field. Inventor's address bar can navigate to the containing directory but
+  rejects a file path even when that file is visibly present there.
+
+- Shipped `pihti-dedup` 0.10.1: duplicate-row Copy now places the complete
+  absolute Windows path on the clipboard. Inventor's Open dialog interprets a
+  relative path from its current folder, not from the active project workspace.
+
+- Shipped `pihti-dedup` 0.10.0: folder notes now open in a larger, browser-resizable
+  workspace. Preview and editor scroll independently, so Save and Close remain
+  available for a long note, and the preview safely re-renders Markdown as the
+  owner types without saving. Restored the Inventor project's workspace display
+  name to `Workspace`; its actual workspace remains the repository root (`.`).
+
 - Shipped `pihti-dedup` 0.9.0: metadata now tells the story directly in the
   Catalog. Sidecar prose and useful Inventor Description values produce wide
   image-and-story file cards; status, tags, material, and nonredundant Part

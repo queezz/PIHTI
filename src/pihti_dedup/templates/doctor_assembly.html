@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% block title %}{{ assembly.name }} doctor · PIHTI{% endblock %}
+{% block body %}
+<main class="page">
+  <section class="doctor-head assembly-session-head">
+    <a class="assembly-session-preview" href="{{ url_for('part_page', relative_path=assembly.path) }}"><img src="{{ url_for('preview_image', relative_path=assembly.path) }}" alt="Preview of {{ assembly.path|winpath }}" width="176" height="132"></a>
+    <div class="assembly-session-title"><p class="micro-heading">Assembly repair workbench · direct embedded names</p><h1>{{ assembly.name }}</h1><p><code>{{ assembly.path|winpath }}</code></p><span class="doctor-head-actions"><button class="copy-path" type="button" data-copy-text="{{ assembly.absolute|winpath }}">Copy assembly file path</button><button class="copy-path" type="button" data-copy-text="{{ assembly.folder_absolute|winpath }}">Copy folder</button><a class="button" href="{{ url_for('part_page', relative_path=assembly.path) }}">Assembly details</a></span></div>
+    <a class="button" href="{{ url_for('doctor') }}">All doctor queues</a>
+  </section>
+
+  {% if renamed %}<p class="metadata-notice doctor-notice" role="status">File renamed and logged. The old embedded name remains below until this assembly is repointed and saved in Inventor.</p>{% endif %}
+
+  <div class="work-grid one-rail doctor-session">
+    <div class="work-main">
+      {% for problem in problems %}
+      <section class="part-card assembly-problem is-{{ problem.status }}">
+        <header class="assembly-problem-head"><div><p class="micro-heading">{{ problem.status }}{% if problem.generic %} · generic imported name{% endif %}</p><h2>{{ problem.name }}</h2>{% if problem.aliases %}<small class="encoded-alias">Also embedded in URL-encoded form; shown as one reference.</small>{% endif %}</div>{% if problem.status != 'missing' %}<a class="button" href="{{ url_for('doctor_name', filename=problem.name, assembly=assembly.path) }}">Repair this name</a>{% endif %}</header>
+        {% if problem.status == 'missing' %}<p class="assembly-problem-note">This assembly still asks for the name, but no current workspace file carries it.</p>{% elif problem.status == 'ambiguous' %}<p class="assembly-problem-note">Inventor has {{ problem.candidates|length }} possible silent targets. The embedded bytes do not identify which path was intended.</p>{% else %}<p class="assembly-problem-note">The name carries too little geometry meaning. Rename it while this assembly supplies the context.</p>{% endif %}
+        {% if problem.candidates %}<div class="assembly-candidates">{% for candidate in problem.candidates %}<article><a href="{{ url_for('part_page', relative_path=candidate.path) }}"><img src="{{ url_for('preview_image', relative_path=candidate.path) }}" alt="Preview of {{ candidate.path|winpath }}" loading="lazy" decoding="async" width="112" height="84"></a><div><strong>{{ candidate.path|winpath }}</strong>{% if candidate.same_folder %}<small>Same folder as assembly</small>{% endif %}<span><button class="copy-path" type="button" data-copy-text="{{ candidate.absolute|winpath }}">Copy file path</button><button class="copy-path" type="button" data-copy-text="{{ candidate.folder_absolute|winpath }}">Copy folder</button></span></div></article>{% endfor %}</div>{% endif %}
+        {% if problem.status == 'missing' %}<div class="git-evidence"><p class="micro-heading">Git filename history</p>{% if problem.history_error %}<p class="assembly-problem-note">Git history could not be read: {{ problem.history_error }}</p>{% elif problem.history and problem.history.found %}<div class="git-occurrences">{% for occurrence in problem.history.occurrences[:4] %}<article><img src="{{ url_for('git_history_preview', commit=occurrence.commit, relative_path=occurrence.preview_path) }}" alt="Historical preview of {{ occurrence.preview_path|winpath }}" loading="lazy" decoding="async" width="96" height="72"><div><strong>{{ occurrence.status }} · {{ occurrence.path|winpath }}</strong>{% if occurrence.rename_destination %}<p>Renamed to <code>{{ occurrence.rename_destination|winpath }}</code>{% if occurrence.current_destination %} · <a href="{{ url_for('part_page', relative_path=occurrence.current_destination) }}">current file</a> <button class="copy-path" type="button" data-copy-text="{{ occurrence.current_destination_absolute|winpath }}">Copy current file path</button>{% endif %}</p>{% endif %}<small>{{ occurrence.committed_at }} · {{ occurrence.commit[:8] }} · {{ occurrence.subject }}</small></div></article>{% endfor %}</div>{% else %}<p class="git-never-tracked"><strong>Never tracked in reachable Git history.</strong> This reference probably came from the STEP/import source or an external Content Center rather than from a deleted repository file.</p>{% endif %}</div>{% endif %}
+        {% if problem.renamed %}<details class="assembly-renamed"><summary>Renamed destinations ({{ problem.renamed|length }})</summary>{% for entry in problem.renamed %}<div><code>{{ entry.old_path|winpath }}</code><span>→</span><a href="{{ url_for('part_page', relative_path=entry.new_path) }}"><code>{{ entry.new_path|winpath }}</code></a></div>{% endfor %}</details>{% endif %}
+      </section>
+      {% else %}<section class="part-card"><p class="doctor-complete"><strong>This assembly has no direct missing, ambiguous, or generic names.</strong></p></section>{% endfor %}
+    </div>
+
+    <aside class="rail-side assembly-workflow" aria-label="Assembly repair sequence">
+      <section class="rail-card"><p class="micro-heading">Safe sequence</p><h2>One assembly at a time</h2><ol><li>Open <code>PIHTI.ipj</code>.</li><li>Copy this assembly path, paste it into Inventor’s bottom <strong>File name</strong> field, and inspect which geometry each generic name means.</li><li>For missing names, use the Git/import evidence here to locate or choose a replacement.</li><li>Close the assembly before a web-side rename. Repair one existing name.</li><li>Reopen the assembly, explicitly replace/repoint it, save, then refresh this page.</li></ol></section>
+      <section class="rail-card warning-card"><h2>Do not trust silence</h2><p class="rail-note">If another workspace file still carries the old name, Inventor may bind it without asking. Use Replace Component and the previews here to verify the geometry.</p></section>
+      <section class="rail-card"><h2>Current work</h2><dl class="scope-list"><div><dt>Problems</dt><dd>{{ problems|length }}</dd></div><div><dt>Missing</dt><dd>{{ problems|selectattr('status', 'equalto', 'missing')|list|length }}</dd></div><div><dt>Ambiguous</dt><dd>{{ problems|selectattr('status', 'equalto', 'ambiguous')|list|length }}</dd></div></dl></section>
+    </aside>
+  </div>
+</main>
+{% endblock %}

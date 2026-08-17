@@ -15,7 +15,7 @@
 
       {% for view in entries %}
       {% set entry = view.entry %}
-      <article class="rename-card{% if entry.settled %} is-settled{% endif %}{% if not entry.will_prompt %} is-silent{% endif %}"
+      <article class="rename-card{% if entry.settled %} is-settled{% endif %}{% if not view.current_will_prompt %} is-silent{% endif %}"
                id="rename-{{ entry.id }}" data-rename-entry data-search="{{ view.search }}">
         <header class="rename-head">
           <div class="rename-names">
@@ -26,20 +26,24 @@
           <time datetime="{{ entry.timestamp }}">{{ entry.timestamp }}</time>
         </header>
 
-        {% if entry.will_prompt %}
+        {% if view.current_will_prompt %}
         <p class="rename-flavor prompt">
-          <strong>Inventor will ask.</strong>
+          <strong>Inventor will ask now.</strong>
           No other file in the workspace carries <code>{{ entry.old_name }}</code>, so opening a
           document that wants it raises the resolve-link dialog. Paste the full path below.
+          {% if view.status_changed %}<small>At rename time another copy still existed; the repair session has since removed that ambiguity.</small>{% endif %}
         </p>
         {% else %}
         <p class="rename-flavor silent">
-          <strong>Inventor will NOT ask.</strong>
+          <strong>Inventor will NOT ask now.</strong>
           Another file named <code>{{ entry.old_name }}</code> is still in the workspace, so Inventor
           binds to <em>that</em> file silently. Open each document below and repoint it by hand;
           no dialog will warn you.
+          {% if view.status_changed %}<small>At rename time no copy remained; the old name has reappeared since then.</small>{% endif %}
         </p>
         {% endif %}
+
+        <p class="rename-doctor-link"><a href="{{ url_for('doctor_name', filename=entry.old_name) }}">Open this name repair session →</a></p>
 
         <dl class="rename-paths">
           <div>

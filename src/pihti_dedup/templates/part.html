@@ -172,6 +172,7 @@
         {% if folder_editable %}
         <a class="button full" href="{{ url_for('folder_page', relative_folder=folder) }}">Folder note</a>
         {% endif %}
+        {% if suffix|lower == '.iam' %}<a class="button full" href="{{ url_for('doctor_assembly', relative_path=path) }}">Open in Assembly Doctor</a>{% endif %}
         <a class="button full" href="{{ url_for('catalog', relative_folder=folder if folder != '.' else none) }}">Back to folder</a>
       </section>
 
