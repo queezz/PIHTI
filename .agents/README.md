@@ -21,6 +21,8 @@ This is kept separate from `docs/`:
 - `commit-culture.md` - repository commit contract.
 - `duplicate-inventory-direction.md` - safe duplicate review workflow.
 - `dedup-viewer-design.md` - local duplicate-review viewer architecture.
+- `visual-pass.md` - how a narrated browsing session becomes folder notes,
+  sidecars, and hero flags, and the gate that checks them.
 - `rename-ledger.jsonl` - one appended line per CAD rename made through the
   viewer: paths, the referring documents at the time, whether Inventor will
   raise its resolve dialog, and whether the rename has been settled. Machine

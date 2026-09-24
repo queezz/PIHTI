@@ -16,6 +16,7 @@ from pihti_dedup.cleanup import execute_cleanup, plan_merge_exact_cleanup
 from pihti_dedup.git_history import recent_pull_request_merges
 from pihti_dedup.inventor_meta import INVENTOR_EXTENSIONS, read_document
 from pihti_dedup.inventory import CAD_EXTENSIONS, scan_workspace
+from pihti_dedup.notes_check import CATEGORY_ORDER, CATEGORY_TITLES, CheckResult, check_notes
 from pihti_dedup.sidecar import SidecarError, seed_text, sidecar_path, write_sidecar
 
 SEED_SAMPLE = 10
@@ -97,6 +98,13 @@ def build_parser() -> argparse.ArgumentParser:
     seed_mode.add_argument("--dry", action="store_true", help="Count and sample only")
     seed_mode.add_argument("--apply", action="store_true", help="Write the missing sidecars")
     seed.add_argument("--json", metavar="PATH", help="Write the plan or result as JSON")
+
+    notes = subparsers.add_parser("notes", help="Lint folder notes and sidecars")
+    notes_commands = notes.add_subparsers(dest="notes_command", required=True)
+    notes_check = notes_commands.add_parser(
+        "check", help="Read-only check for marker drift, missing summaries, and bad sidecars"
+    )
+    notes_check.add_argument("workspace", nargs="?", default=".")
     return parser
 
 
@@ -299,6 +307,19 @@ def _warm_previews(workspace: Path, *, include_vendor: bool, quiet: bool) -> dic
     return result.to_dict()
 
 
+def _print_notes_check(result: CheckResult) -> None:
+    """Plain-text report, workspace-relative POSIX paths, no colours."""
+
+    for category in CATEGORY_ORDER:
+        items = result.in_category(category)
+        if not items:
+            continue
+        print(f"{CATEGORY_TITLES[category]}:")
+        for finding in items:
+            print(f"  {finding.path}: {finding.detail}")
+    print("notes check: clean" if result.clean else f"notes check: {len(result.findings)} findings")
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     workspace = Path(args.workspace).resolve()
@@ -346,6 +367,11 @@ def main(argv: Sequence[str] | None = None) -> int:
                 json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
             )
         return code
+
+    if args.command == "notes":
+        result = check_notes(workspace)
+        _print_notes_check(result)
+        return 0 if result.clean else 1
 
     if args.command == "merge-cleanup":
         merge = next(

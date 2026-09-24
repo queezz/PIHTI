@@ -6,6 +6,12 @@ remains authoritative for exact file changes.
 
 ## 2026-09-24
 
+- Shipped `pihti-dedup` 0.18.0: `pihti-dedup notes check .` is the gate for
+  a visual pass (`.agents/visual-pass.md`): it reports an authored folder note
+  that still carries the generator marker, an authored note whose first line
+  under the title is not a summary sentence, and a metadata sidecar whose
+  frontmatter does not parse. Read-only; exit code 1 when anything is found.
+
 - Shipped `pihti-dedup` 0.17.0: main assemblies. Any file can be marked a
   hero with one click, either with **Set hero** in the catalog inspector or on
   its part page. The mark is `hero: true` in the file's metadata sidecar. A

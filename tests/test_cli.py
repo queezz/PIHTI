@@ -7,9 +7,22 @@ import pytest
 import pihti_dedup.cli as cli
 import pihti_dedup.web as web
 from pihti_dedup import geometry_preview
+from pihti_dedup.foldernote import AUTOGEN_MARKER
 from pihti_dedup.git_history import PullRequestMerge
 from pihti_dedup.legacy import main as legacy_main
 from pihti_dedup.sidecar import read_sidecar
+
+GENERATED_NOTICE = (
+    f"{AUTOGEN_MARKER}\n"
+    "<!-- Editing this file claims it as your folder note. -->\n"
+    "\n"
+    "# BoronProbe\n"
+    "\n"
+    "> Generated CAD inventory — 2026-09-24. Edit this file to document it.\n"
+    "\n"
+    "## Main Assembly\n"
+    "- **`probe.iam`** — selected from the assemblies below\n"
+)
 
 TETRAHEDRON = [
     [(0, 0, 0), (10, 0, 0), (0, 10, 0)],
@@ -212,3 +225,76 @@ def test_meta_seed_previews_then_writes_missing_sidecars(tmp_path: Path, capsys)
     assert not (parts / "export.stl.md").exists()
     untouched = (parts / "probe.iam.md").read_text(encoding="utf-8")
     assert untouched == "---\nstatus: draft\n---\n\nKeep.\n"
+
+
+def test_notes_check_is_clean_on_a_tidy_workspace(tmp_path: Path, capsys) -> None:
+    folder = tmp_path / "BoronProbe"
+    folder.mkdir()
+    (folder / "probe.iam").write_bytes(b"assembly")
+    (folder / "README.md").write_text(
+        "# BoronProbe\n\nThe rotating boron probe head and its bearing stack.\n",
+        encoding="utf-8",
+    )
+    (folder / "probe.iam.md").write_text("---\nstatus: draft\n---\n\nKeep.\n", encoding="utf-8")
+
+    assert cli.main(["notes", "check", str(tmp_path)]) == 0
+    assert "notes check: clean" in capsys.readouterr().out
+
+
+def test_notes_check_reports_prose_hand_written_above_a_marker(tmp_path: Path, capsys) -> None:
+    folder = tmp_path / "BoronProbe"
+    folder.mkdir()
+    (folder / "probe.iam").write_bytes(b"assembly")
+    drifted = GENERATED_NOTICE.replace(
+        "## Main Assembly",
+        "The probe head assembly, still concept stage.\n\n## Main Assembly",
+    )
+    (folder / "README.md").write_text(drifted, encoding="utf-8")
+
+    assert cli.main(["notes", "check", str(tmp_path)]) == 1
+    out = capsys.readouterr().out
+    assert "Marker on an authored note:" in out
+    assert "BoronProbe/README.md" in out
+
+
+def test_notes_check_reports_a_heading_directly_under_the_title(tmp_path: Path, capsys) -> None:
+    folder = tmp_path / "BoronProbe"
+    folder.mkdir()
+    (folder / "probe.iam").write_bytes(b"assembly")
+    (folder / "README.md").write_text(
+        "# BoronProbe\n\n## Role\n- a bullet, no summary sentence\n", encoding="utf-8"
+    )
+
+    assert cli.main(["notes", "check", str(tmp_path)]) == 1
+    out = capsys.readouterr().out
+    assert "Authored note without a summary sentence:" in out
+    assert "BoronProbe/README.md" in out
+
+
+def test_notes_check_does_not_flag_an_authored_note_with_a_summary_sentence(
+    tmp_path: Path, capsys
+) -> None:
+    folder = tmp_path / "BoronProbe"
+    folder.mkdir()
+    (folder / "probe.iam").write_bytes(b"assembly")
+    (folder / "README.md").write_text(
+        "# BoronProbe\n\nThe rotating boron probe head and its bearing stack.\n\n## Role\n- x\n",
+        encoding="utf-8",
+    )
+
+    assert cli.main(["notes", "check", str(tmp_path)]) == 0
+    out = capsys.readouterr().out
+    assert "Authored note without a summary sentence:" not in out
+    assert "notes check: clean" in out
+
+
+def test_notes_check_reports_a_sidecar_with_broken_frontmatter(tmp_path: Path, capsys) -> None:
+    folder = tmp_path / "BoronProbe"
+    folder.mkdir()
+    (folder / "bearing.ipt").write_bytes(b"part")
+    (folder / "bearing.ipt.md").write_text("not frontmatter at all\n", encoding="utf-8")
+
+    assert cli.main(["notes", "check", str(tmp_path)]) == 1
+    out = capsys.readouterr().out
+    assert "Sidecar that does not parse:" in out
+    assert "BoronProbe/bearing.ipt.md" in out
