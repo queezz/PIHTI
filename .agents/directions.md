@@ -5,6 +5,34 @@ session evidence in `log/`.
 
 ## Dedup viewer — next review slice
 
+- Which of the two temperature-controller folders is the live one,
+  `ElectronicsBox/TempController` or `ElectronicsBox/TempController-v2`? They
+  share 22 byte-identical files and differ in 63 — awaiting the owner.
+  Stakes: until this is known the 22 identical copies cannot be quarantined
+  and the Body.ipt collisions in both trees stay on the Doctor page.
+  Recommendation: `TempController-v2` is the newer tree (fan, LRS-150 supply,
+  thermocouple socket) and looks like the one that was built; keep it.
+  Safe default: nothing is removed; both trees stay as they are.
+- **Split name clashes out of Duplicates.** Same-name/different-bytes groups
+  such as `Body.ipt` are shown as duplicates with **Keep only this** on every
+  row, but the thumbnails show unrelated vendor parts. Route them to Doctor
+  only, and add a perceptual hash of the embedded Inventor previews as a third
+  signal beside filename and byte hash: same name, same picture → likely a
+  resave worth comparing; same name, different picture → a name clash, not a
+  duplicate. (Owner, 2026-09-24: "the duplicates, they are not, and the
+  pictures show it.")
+- **Collapse vendor import bundles.** The 49 generic names live in 11 STEP
+  import folders. Doctor should show each bundle as one item with the
+  re-import instruction (import the vendor STEP as a single named part) and a
+  "vendor import, leave alone" disposition, instead of 49 single renames.
+  Prepare short role-based name suggestions per bundle for the owner to
+  confirm (owner, 2026-09-24: "shorter meaningful names are better").
+- **Show 48 more** reloads at the top of the list instead of keeping the
+  viewport where the button was.
+- Laptop and phone layouts are deferred by owner decision 2026-09-24: the
+  viewer targets a desktop window beside Inventor (about 1400–2560px wide),
+  with one safety fold below 1200px.
+
 - **DXF has no preview.** 0.6.0 covers STL, STEP, 3MF, and DWG; the six
   scanner-visible `.dxf` files still show the neutral placeholder. A DXF is a
   text vector format with no embedded raster, so unlike DWG there is nothing to
