@@ -15,7 +15,7 @@
 
       {% for view in entries %}
       {% set entry = view.entry %}
-      <article class="rename-card{% if entry.settled %} is-settled{% endif %}{% if view.is_move %}{% if view.move_others %} is-silent{% endif %}{% elif not view.current_will_prompt %} is-silent{% endif %}"
+      <article class="rename-card{% if entry.settled %} is-settled{% endif %}{% if entry.fully_repaired %} is-repaired{% elif view.is_move %}{% if view.move_others %} is-silent{% endif %}{% elif not view.current_will_prompt %} is-silent{% endif %}"
                id="rename-{{ entry.id }}" data-rename-entry data-search="{{ view.search }}">
         <header class="rename-head">
           <div class="rename-names">
@@ -32,7 +32,13 @@
           <time datetime="{{ entry.timestamp }}">{{ entry.timestamp }}</time>
         </header>
 
-        {% if view.is_move and view.move_present and not view.move_others %}
+        {% if entry.fully_repaired %}
+        <p class="rename-flavor repaired">
+          <strong>Repaired through Inventor.</strong>
+          Every referring document below was repointed to <code>{{ entry.new_name }}</code>, saved,
+          and verified on reopen, so no dialog is left to answer.
+        </p>
+        {% elif view.is_move and view.move_present and not view.move_others %}
         <p class="rename-flavor moved">
           <strong>Moved; Inventor finds it by filename.</strong>
           Only <code>{{ entry.new_path|winpath }}</code> carries this name, so every referring document
@@ -61,6 +67,10 @@
         </p>
         {% endif %}
 
+        {% if entry.repair_note and not entry.fully_repaired %}
+        <p class="rename-flavor partial">{{ entry.repair_note|winpath }}.</p>
+        {% endif %}
+
         <p class="rename-doctor-link"><a href="{{ url_for('doctor_name', filename=entry.old_name) }}">Open this name repair session →</a></p>
 
         <dl class="rename-paths">
@@ -85,6 +95,7 @@
               <label>
                 <input type="checkbox" data-referrer-check="{{ entry.id }}::{{ referrer }}">
                 <code>{{ referrer|winpath }}</code>
+                {% if referrer.casefold() in view.repaired %}<small class="referrer-repaired">repaired</small>{% endif %}
               </label>
             </li>
             {% endfor %}
@@ -118,6 +129,7 @@
           <div><dt>Recorded</dt><dd>{{ entries|length }}</dd></div>
           <div><dt>Unsettled</dt><dd>{{ open_count }}</dd></div>
           <div><dt>Will prompt</dt><dd>{{ prompt_count }}</dd></div>
+          <div><dt>Repaired</dt><dd>{{ repaired_count }}</dd></div>
         </dl>
         <p class="rail-note muted"><code>{{ ledger|winpath }}</code> — Git-tracked, workspace-relative. The absolute paths above are built for this machine at render time and are never stored.</p>
       </section>

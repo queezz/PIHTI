@@ -1,0 +1,45 @@
+{# Confirmation before a rename that saves assemblies through Inventor.
+   Needs: repair_pending, repair_action, form_token; optional repair_relative_path. #}
+{% set pending = repair_pending %}
+<div class="rename-warning repair-confirm" role="alert">
+  <strong>Rename to {{ pending.plan.new_name }} and repair through Inventor {{ pending.version }}</strong>
+  {% if pending.target_open %}
+  <p><code>{{ pending.plan.old_name }}</code> is open in Inventor: close it first, then review the rename again.</p>
+  {% else %}
+  {% if pending.collision %}
+  <p>Other files still carry <code>{{ pending.plan.old_name }}</code>: {% for survivor in pending.plan.old_name_survivors %}<code>{{ survivor|winpath }}</code>{% if not loop.last %}, {% endif %}{% endfor %}. A document whose reference resolves to one of them keeps it; a document left unrepaired binds to one of them silently.</p>
+  {% endif %}
+  {% if pending.save %}
+  <p>Inventor opens, repoints, and saves {{ pending.save|length }} document{% if pending.save|length != 1 %}s{% endif %}:</p>
+  <ul>{% for path in pending.save %}<li><code>{{ path|winpath }}</code></li>{% endfor %}</ul>
+  {% endif %}
+  {% if pending.skip %}
+  <p>Open in Inventor: close it first. Left for manual repointing:</p>
+  <ul>{% for path in pending.skip %}<li><code>{{ path|winpath }}</code></li>{% endfor %}</ul>
+  {% endif %}
+  {% if pending.unchanged %}
+  <p>Left unchanged:</p>
+  <ul>{% for item in pending.unchanged %}<li><code>{{ item.path|winpath }}</code>: {{ item.state }}</li>{% endfor %}</ul>
+  {% endif %}
+  <div class="repair-actions">
+    {% if pending.save %}
+    <form method="post" action="{{ repair_action }}">
+      <input type="hidden" name="token" value="{{ form_token }}">
+      {% if repair_relative_path %}<input type="hidden" name="relative_path" value="{{ repair_relative_path }}">{% endif %}
+      <input type="hidden" name="new_name" value="{{ pending.plan.new_name }}">
+      <input type="hidden" name="repair" value="1">
+      <input type="hidden" name="confirm_repair" value="1">
+      {% if pending.collision %}<input type="hidden" name="confirm_collision" value="1">{% endif %}
+      <button class="button apply-button" type="submit">Rename and save {{ pending.save|length }} document{% if pending.save|length != 1 %}s{% endif %}</button>
+    </form>
+    {% endif %}
+    <form method="post" action="{{ repair_action }}">
+      <input type="hidden" name="token" value="{{ form_token }}">
+      {% if repair_relative_path %}<input type="hidden" name="relative_path" value="{{ repair_relative_path }}">{% endif %}
+      <input type="hidden" name="new_name" value="{{ pending.plan.new_name }}">
+      {% if pending.collision %}<input type="hidden" name="confirm_collision" value="1">{% endif %}
+      <button class="button" type="submit">Rename only; repoint by hand</button>
+    </form>
+  </div>
+  {% endif %}
+</div>

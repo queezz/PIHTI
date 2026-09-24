@@ -6,6 +6,19 @@ remains authoritative for exact file changes.
 
 ## 2026-09-24
 
+- Shipped `pihti-dedup` 0.21.0: a rename can repair its referring assemblies
+  through the running Inventor session, without Design Assistant. Inventor
+  opens each referrer invisibly before the file moves, repoints the matching
+  references to the new file, saves with `Save2(False)`, and reopens to
+  verify; a document already open in Inventor is skipped and named. A
+  fully repaired rename is recorded settled, and the where-used index drops the
+  old name the saved assemblies still carry as a fossil string. Every Inventor
+  call runs on a worker with a progress timeout, so an open dialog produces a
+  "did not answer" message instead of a hung page. Doctor name sessions and the
+  part page offer the repair when Inventor is running; the CLI twin is
+  `pihti-dedup rename <path> <new name> --repair [--dry]`. Needs the new
+  `inventor` extra.
+
 - Shipped `pihti-dedup` 0.20.2: the stylesheet and script URLs carry the
   file's modification time, so a viewer update is a new URL in every browser
   (a Firefox-based browser kept the old stylesheet through a hard refresh);

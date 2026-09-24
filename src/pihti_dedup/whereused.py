@@ -195,10 +195,26 @@ class WhereUsed:
         }
 
 
-def build_index(root: Path, *, cache: ReferenceCache | None = None) -> WhereUsed:
-    """Scan every referring document under `root` and invert the references."""
+def build_index(
+    root: Path,
+    *,
+    cache: ReferenceCache | None = None,
+    settled: Iterable[tuple[str, str]] = frozenset(),
+) -> WhereUsed:
+    """Scan every referring document under `root` and invert the references.
+
+    `settled` holds `(referrer_relative_path, old_filename)` pairs that Inventor
+    has already repointed (the rename ledger's `repaired` lists). After a
+    repoint the old filename stays in the saved bytes as a fossil string, so the
+    byte scan still finds it; for those pairs the name is dropped from that
+    referrer, and the document stops showing as naming a file it no longer uses.
+    """
 
     root = Path(root).resolve()
+    suppressed = {
+        (str(path).replace("\\", "/").strip("/").casefold(), str(name).casefold())
+        for path, name in settled
+    }
     cache = cache if cache is not None else ReferenceCache()
     referrers: dict[str, set[str]] = defaultdict(set)
     document_names: dict[str, tuple[str, ...]] = {}
@@ -214,7 +230,12 @@ def build_index(root: Path, *, cache: ReferenceCache | None = None) -> WhereUsed
         relative = path.relative_to(root).as_posix()
         referenced = tuple(
             sorted(
-                (name for name in names if name.casefold() != path.name.casefold()),
+                (
+                    name
+                    for name in names
+                    if name.casefold() != path.name.casefold()
+                    and (relative.casefold(), name.casefold()) not in suppressed
+                ),
                 key=str.casefold,
             )
         )

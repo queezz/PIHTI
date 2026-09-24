@@ -126,13 +126,15 @@ a canonical part or rewrites assembly references.
 From the repository root, install it into the external environment and scan:
 
 ```powershell
-& "$HOME\.venvs\pihti-dedup\Scripts\python.exe" -m pip install -e ".[dev,preview,step]"
+& "$HOME\.venvs\pihti-dedup\Scripts\python.exe" -m pip install -e ".[dev,preview,step,inventor]"
 & "$HOME\.venvs\pihti-dedup\Scripts\python.exe" -m pihti_dedup scan .
 ```
 
 The `preview` and `step` extras are optional. They add previews for CAD files
 that carry no embedded thumbnail; without them those files simply show the
-neutral placeholder.
+neutral placeholder. The `inventor` extra (`comtypes`, Windows only) lets a
+rename repair its referring assemblies through the running Inventor; without
+it a rename is recorded for manual repointing.
 
 Start the viewer through the fleet launcher:
 
@@ -209,6 +211,17 @@ keeps current originals, already-renamed destinations, and every filename-based
 referring assembly together, with copy-ready file and folder paths for Inventor.
 The Renames page recalculates **Inventor will ask now** from the live workspace;
 the ledger still notes when the outcome differed at rename time.
+
+With Inventor running (and `PIHTI.ipj` active), the rename forms offer
+**Repair references through Inventor**, checked by default. The confirmation
+names every assembly that will be saved. Inventor opens each one invisibly
+before the file moves, repoints it to the new file, saves it, and reopens it to
+verify; an assembly you have open in Inventor is skipped and marked "open in
+Inventor: close it first". A fully repaired rename is recorded as settled. If
+Inventor stops answering (usually an open dialog), the page says so instead of
+waiting. The CLI twin is
+`pihti-dedup rename <path> <new name> . --repair --dry` to see the plan, and
+the same line without `--dry` to run it.
 
 Doctor's **Standard parts** card lists fasteners that sit outside
 `ContentCenter\Fastners`. A part is listed when its `standard` iProperty is set,

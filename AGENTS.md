@@ -19,12 +19,14 @@ belongs to the separate pihtivacuum application. Install or refresh this project
 from the repository root with:
 
 ```powershell
-& "$HOME\.venvs\pihti-dedup\Scripts\python.exe" -m pip install -e ".[dev,preview,step]"
+& "$HOME\.venvs\pihti-dedup\Scripts\python.exe" -m pip install -e ".[dev,preview,step,inventor]"
 ```
 
 `preview` and `step` are the optional geometry-preview extras. Without them the
 tool still runs and STL/STEP/3MF files fall back to the placeholder image, and
-the tests that need them skip rather than fail.
+the tests that need them skip rather than fail. `inventor` (`comtypes`,
+Windows only) lets a rename repair its referring assemblies through the running
+Inventor session; tests never reach a real session.
 
 Launch the viewer with `lab pihti`. The shared service declaration lives in the
 sibling `20-Code/lab-cli` registry; this machine maps its logical `drawings`
@@ -73,7 +75,11 @@ words go into folder notes and file sidecars, nothing is inferred, and
   mean a real revision, an Inventor resave, or unrelated geometry with a reused
   filename.
 - Duplicate tooling proposes and records evidence; it does not silently choose
-  the canonical file or rewrite Inventor references.
+  the canonical file or rewrite Inventor references. The one reference rewrite
+  it performs, repairing referring assemblies after a rename, runs only through
+  a running Inventor session, only on explicit confirmation, only on assemblies
+  whose reference resolved to the renamed file, and is recorded in the rename
+  ledger.
 - Version numbers in `pyproject.toml` and `src/pihti_dedup/__init__.py` describe
   the dedup tool only; they are not versions of the PIHTI CAD archive.
 - `OldVersions/`, `_site/`, caches, lock files, local staging, Pack-and-Go logs,

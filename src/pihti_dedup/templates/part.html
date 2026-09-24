@@ -39,7 +39,7 @@
           {% if referrers %}
           <ul class="referrer-list">
             {% for referrer in referrers %}
-            <li><a href="{{ url_for('part_page', relative_path=referrer) }}"><code>{{ referrer|winpath }}</code></a></li>
+            <li><a href="{{ url_for('part_page', relative_path=referrer) }}"><code>{{ referrer|winpath }}</code></a>{% if inventor and referrer in inventor.open %} <small class="inventor-open">open in Inventor: close it first</small>{% endif %}</li>
             {% endfor %}
           </ul>
           {% else %}
@@ -100,14 +100,17 @@
       </div>
 
       {% if renameable %}
-      <details class="part-card rename-editor" id="rename" data-rename-disclosure{% if renamed or rename_error or rename_pending %} open{% endif %}>
+      <details class="part-card rename-editor" id="rename" data-rename-disclosure{% if renamed or rename_error or rename_pending or repair_pending %} open{% endif %}>
         <summary>Rename in place</summary>
-        <p class="part-note muted">A plain filesystem rename inside this folder: the extension is fixed, the sidecar follows, and the move is recorded in the <a href="{{ url_for('renames') }}">rename ledger</a>. This page never edits geometry, rewrites an Inventor reference, or commits anything.</p>
+        {% if inventor and inventor.available %}<p class="part-note muted">A rename inside this folder: the extension is fixed, the sidecar follows, and the move is recorded in the <a href="{{ url_for('renames') }}">rename ledger</a>. Referring documents are repointed and saved by Inventor itself, only after you confirm the list; nothing is committed.</p>
+        {% else %}<p class="part-note muted">A plain filesystem rename inside this folder: the extension is fixed, the sidecar follows, and the move is recorded in the <a href="{{ url_for('renames') }}">rename ledger</a>. This page never edits geometry, rewrites an Inventor reference, or commits anything.</p>{% endif %}
 
-        {% if renamed %}<p class="metadata-notice" role="status">Renamed. The ledger has the path to paste into Inventor's resolve dialog.</p>{% endif %}
+        {% if renamed %}<p class="metadata-notice" role="status">{% if rename_notice %}{{ rename_notice.text }}{% else %}Renamed. The ledger has the path to paste into Inventor's resolve dialog.{% endif %}</p>{% endif %}
         {% if rename_error %}<p class="metadata-error" role="alert">{{ rename_error }}</p>{% endif %}
 
-        {% if rename_pending %}
+        {% if repair_pending %}
+        {% with repair_action=url_for('part_rename', relative_path=path), repair_relative_path='' %}{% include "_repair_confirm.html" %}{% endwith %}
+        {% elif rename_pending %}
         <div class="rename-warning" role="alert">
           <strong>Inventor will not warn you about this one.</strong>
           <p>
@@ -142,6 +145,7 @@
             <span class="rename-suffix">{{ suffix }}</span>
           </div>
           <button class="button" type="submit">Rename</button>
+          {% if inventor %}{% if inventor.available %}<label class="reference-check repair-check"><input type="checkbox" name="repair" value="1" checked> Repair references through Inventor {{ inventor.version }}</label>{% else %}<p class="repair-absent">{{ inventor.note }}</p>{% endif %}{% endif %}
         </form>
       </details>
       {% endif %}

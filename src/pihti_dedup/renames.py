@@ -15,20 +15,28 @@ filename, and the outcome splits in two:
 
 A rename that would *create* a new same-name collision is refused outright.
 
-The rename is a plain filesystem rename: no Git, no Inventor. The moved file and
-its ledger line show up as ordinary changes in the owner's own commit.
+The rename is a plain filesystem rename and never touches Git. With a running
+Inventor session it can also repoint the referring documents (see
+`inventor_session`); the entry then records which ones were repaired. The moved
+file, the saved assemblies, and the ledger line show up as ordinary changes in
+the owner's own commit.
 """
 
 from __future__ import annotations
 
 import hashlib
 import json
+import re
 from dataclasses import dataclass, field, replace
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from pihti_dedup.sidecar import sidecar_path
 from pihti_dedup.whereused import REFERENCED_EXTENSIONS, WhereUsed, filename_locations
+
+if TYPE_CHECKING:
+    from pihti_dedup.inventor_session import RepairResult, Session
 
 #: Only the four Inventor extensions can be renamed here, because they are
 #: exactly the set the where-used index and the collision map cover. Renaming a
@@ -112,6 +120,19 @@ class RenameEntry:
     settled: bool = False
     sidecar_moved: bool = False
     notes: str = ""
+    #: Referrers (workspace-relative) whose references Inventor repointed to the
+    #: new file, saved, and verified on reopen.
+    repaired: tuple[str, ...] = ()
+    repair_note: str = ""
+
+    @property
+    def fully_repaired(self) -> bool:
+        """Every referrer at rename time was repaired through Inventor."""
+
+        if not self.repaired:
+            return False
+        done = {path.casefold() for path in self.repaired}
+        return all(path.casefold() in done for path in self.where_used)
 
     @property
     def new_folder(self) -> str:
@@ -140,6 +161,8 @@ class RenameEntry:
             "settled": self.settled,
             "sidecar_moved": self.sidecar_moved,
             "notes": self.notes,
+            "repaired": list(self.repaired),
+            "repair_note": self.repair_note,
         }
 
     @classmethod
@@ -156,6 +179,8 @@ class RenameEntry:
             settled=bool(payload.get("settled", False)),
             sidecar_moved=bool(payload.get("sidecar_moved", False)),
             notes=str(payload.get("notes", "")),
+            repaired=tuple(str(item) for item in payload.get("repaired") or ()),
+            repair_note=str(payload.get("repair_note", "")),
         )
 
 
@@ -165,6 +190,7 @@ class RenameResult:
     entry: RenameEntry
     sidecar_moved: bool = False
     warnings: tuple[str, ...] = field(default_factory=tuple)
+    repair: RepairResult | None = None
 
 
 def check_filename(candidate: str) -> None:
@@ -270,8 +296,21 @@ def plan_rename(
     )
 
 
-def execute_rename(root: Path, plan: RenamePlan, *, confirmed: bool = False) -> RenameResult:
-    """Perform a planned rename and append the ledger entry. Never commits."""
+def execute_rename(
+    root: Path,
+    plan: RenamePlan,
+    *,
+    confirmed: bool = False,
+    session: Session | None = None,
+    timeout: float | None = None,
+) -> RenameResult:
+    """Perform a planned rename and append the ledger entry. Never commits.
+
+    With an Inventor `session` and at least one referrer, the referrers are
+    opened before the rename and repointed, saved, and verified after it
+    (`inventor_session.repair_references`). The entry is settled, and Inventor
+    no longer needs to ask, only when every referrer was repaired.
+    """
 
     if plan.needs_confirmation and not confirmed:
         raise RenameError(
@@ -286,7 +325,11 @@ def execute_rename(root: Path, plan: RenamePlan, *, confirmed: bool = False) -> 
     if target.exists():
         raise RenameError(f"{plan.new_name} appeared before the rename ran; rescan and try again")
 
-    source.rename(target)
+    repair = None
+    if session is not None and plan.referrers:
+        repair = _rename_with_repair(root, plan, source, target, session, timeout)
+    else:
+        source.rename(target)
 
     sidecar_moved = False
     warnings: list[str] = []
@@ -300,6 +343,16 @@ def execute_rename(root: Path, plan: RenamePlan, *, confirmed: bool = False) -> 
             except OSError as exc:
                 warnings.append(f"the CAD file moved but its sidecar did not: {exc}")
 
+    repaired: tuple[str, ...] = ()
+    repair_note = ""
+    will_prompt = plan.will_prompt
+    settled = False
+    if repair is not None:
+        repaired, repair_note = _repair_summary(root, plan, repair)
+        if repair.complete:
+            will_prompt = False
+            settled = True
+
     entry = append_entry(
         root,
         RenameEntry(
@@ -310,12 +363,98 @@ def execute_rename(root: Path, plan: RenamePlan, *, confirmed: bool = False) -> 
             old_name=plan.old_name,
             new_name=plan.new_name,
             where_used=plan.referrers,
-            will_prompt=plan.will_prompt,
-            settled=False,
+            will_prompt=will_prompt,
+            settled=settled,
             sidecar_moved=sidecar_moved,
+            repaired=repaired,
+            repair_note=repair_note,
         ),
     )
-    return RenameResult(plan=plan, entry=entry, sidecar_moved=sidecar_moved, warnings=tuple(warnings))
+    return RenameResult(
+        plan=plan,
+        entry=entry,
+        sidecar_moved=sidecar_moved,
+        warnings=tuple(warnings),
+        repair=repair,
+    )
+
+
+def _rename_with_repair(
+    root: Path,
+    plan: RenamePlan,
+    source: Path,
+    target: Path,
+    session: Session,
+    timeout: float | None,
+) -> RepairResult:
+    from pihti_dedup.inventor_session import (
+        DEFAULT_TIMEOUT,
+        NO_ANSWER,
+        RepairRefused,
+        repair_references,
+    )
+
+    try:
+        repair = repair_references(
+            session,
+            [root / referrer for referrer in plan.referrers],
+            plan.old_name,
+            target,
+            rename=lambda: source.rename(target),
+            survivors=[root / survivor for survivor in plan.old_name_survivors],
+            timeout=DEFAULT_TIMEOUT if timeout is None else timeout,
+        )
+    except RepairRefused as exc:
+        raise RenameError(f"{exc}; nothing was renamed") from None
+    except OSError:
+        raise
+    except Exception as exc:  # noqa: BLE001 - a COM failure before the rename
+        raise RenameError(f"Inventor refused the repair ({exc}); nothing was renamed") from None
+    if not repair.renamed:
+        raise RenameError(f"{NO_ANSWER}; nothing was renamed")
+    return repair
+
+
+def _outcome_words(root: Path, outcome: str) -> str:
+    """A referrer's outcome as the ledger note says it to a person."""
+
+    words = {
+        "skipped-open-in-inventor": "open in Inventor: close it first",
+        "no-descriptor": "no reference to this file",
+    }
+    return words.get(outcome) or _portable(root, outcome)
+
+
+def _portable(root: Path, text: str) -> str:
+    """Strip this machine's workspace root from an Inventor message for the ledger."""
+
+    for form in {str(root), root.as_posix()}:
+        text = re.sub(re.escape(form) + r"[\\/]?", "", text, flags=re.IGNORECASE)
+    return text
+
+
+def _repair_summary(
+    root: Path, plan: RenamePlan, repair: RepairResult
+) -> tuple[tuple[str, ...], str]:
+    """Workspace-relative repaired referrers, and one plain sentence for the ledger."""
+
+    by_absolute = {str(root / referrer): referrer for referrer in plan.referrers}
+    repaired: list[str] = []
+    missed: list[str] = []
+    for path, outcome in repair.outcomes:
+        relative = by_absolute.get(str(path), str(path))
+        if outcome == "repaired":
+            repaired.append(relative)
+        else:
+            missed.append(f"{relative} ({_outcome_words(root, outcome)})")
+    where = f"Inventor {repair.version}".strip()
+    if not missed:
+        return tuple(repaired), f"repaired through {where}"
+    if repaired:
+        note = f"repaired through {where}: {', '.join(repaired)}; not repaired: {'; '.join(missed)}"
+    else:
+        note = f"not repaired through {where}: {'; '.join(missed)}"
+    return tuple(repaired), note
 
 
 def ledger_path(root: Path) -> Path:

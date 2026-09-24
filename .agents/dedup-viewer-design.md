@@ -290,6 +290,58 @@ served inline. An image URL carries `?v=` from the file's mtime and size and
 is immutable while that matches, as previews are. Deleting an option or an
 attachment is not built.
 
+Version 0.21.0 renames a CAD file and repairs the referring documents through
+the running Inventor session, so Design Assistant is no longer needed for a
+rename. `inventor_session.py` attaches with `comtypes` (the `inventor` extra):
+`GetActiveObject("Inventor.Application")`, wrapped as a dynamic `IDispatch`.
+Apprentice Server is not usable on this machine and is not used. The order is
+fixed and was proven against Inventor 2027.1 before it was encoded: open every
+referrer invisibly (`Documents.Open(path, False)`) while the old name still
+resolves; rename on disk; on each open document call `ReplaceReference(new
+path)` on every `File.ReferencedFileDescriptors` item whose basename is the old
+filename (basename, never full path), except a descriptor that resolved, while
+the old name still existed, to another file that keeps the name (a collision
+survivor: that assembly uses the other copy and is left alone);
+`Save2(False)`, because plain `Save()`
+raised a modal dialog and blocked; `Close(True)`; reopen and require a
+descriptor naming the new file with `ReferenceMissing` false and none naming
+the old one. A document already open in the owner's session (compared
+casefolded against `Documents`) is never opened, saved, or closed: that
+referrer is reported "open in Inventor: close it first", and the file itself
+being open refuses the whole rename. Inventor answers no COM call while a
+modal dialog is up, so each call sequence runs on its own worker thread, in its
+own COM apartment, and the caller waits only while the worker keeps making
+progress (60 s without progress by default, 5 s for a probe). Past that the
+answer is "Inventor did not answer (a dialog may be open)"; the worker is told
+to stop, renames nothing and saves nothing further once told, and closes what
+it opened when Inventor answers again. A timeout before the rename renames
+nothing and writes no ledger line. Each referrer ends `repaired`,
+`skipped-open-in-inventor`, `no-descriptor`, or `failed: <reason>`. The ledger
+entry gains `repaired` (workspace-relative referrers) and `repair_note`; when
+every referrer is repaired the entry is written settled with `will_prompt`
+false, otherwise it stays open and the note names each unrepaired referrer and
+why. Older ledger lines load unchanged. The limitation: after a repoint the
+old filename stays in the saved `.iam` bytes as a fossil string, so the byte
+scan in `whereused.py` still finds it, while the descriptor list is the truth.
+The ledger answers it: `build_index(..., settled=...)` takes the
+`(referrer, old name)` pairs from every entry's `repaired` list and drops that
+name from that referrer, so Doctor, the part page, and the cleanup guards stop
+showing a repaired assembly as naming the old file. The rename forms (Doctor
+name sessions, which the assembly workbench opens, and the part page) offer
+"Repair references through Inventor <version>", checked by default, only when
+a session answers; referrers open in Inventor are marked beside the Where-used
+and referrer lists; a first submit reads every referrer through Inventor
+(opened invisibly, closed unsaved) and shows a confirmation naming every
+document that will be saved, every one skipped because it is open, and every
+one left unchanged (no reference, or it uses another copy), with "Rename only;
+repoint by hand" beside it. Without a session the forms behave as before and
+say "Inventor is not running; the rename will be recorded for manual
+repointing". `/renames` shows "Repaired through Inventor" with the Settled box
+checked and marks each repaired referrer. The session probe is cached for
+5 s; `create_app(session_factory=...)` injects it, and the test suite pins it
+to "not running". The CLI twin is `pihti-dedup rename <path> <new name>
+[workspace] [--repair] [--dry] [--confirm-collision]`.
+
 ## Purpose
 
 Provide a local, human-in-the-loop view of filename collisions and byte-level

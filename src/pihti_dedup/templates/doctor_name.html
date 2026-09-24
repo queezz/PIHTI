@@ -11,13 +11,14 @@
     <span class="doctor-head-actions">{% if assembly_path %}<a class="button" href="{{ url_for('doctor_assembly', relative_path=assembly_path) }}">Back to assembly</a>{% endif %}<a class="button" href="{{ url_for('doctor') }}">All doctor queues</a></span>
   </section>
 
-  {% if renamed %}<p class="metadata-notice doctor-notice" role="status">Renamed and recorded. This session remains open so the last original cannot disappear from view.</p>{% endif %}
+  {% if renamed %}<p class="metadata-notice doctor-notice" role="status">{% if rename_notice %}{{ rename_notice.text }}{% else %}Renamed and recorded.{% endif %} This session remains open so the last original cannot disappear from view.</p>{% endif %}
   {% if rename_error %}<p class="metadata-error" role="alert">{{ rename_error }}</p>{% endif %}
 
   <div class="work-grid one-rail doctor-session">
     <div class="work-main">
       <section class="part-card">
         <h2>Current files carrying this name</h2>
+        {% if inventor and not inventor.available %}<p class="part-note muted repair-absent">{{ inventor.note }}</p>{% endif %}
         {% if current_members %}
         <div class="doctor-members">
           {% for member in current_members %}
@@ -30,7 +31,9 @@
               <strong>{{ member.path|winpath }}</strong>
               <span><button class="copy-path" type="button" data-copy-text="{{ member.absolute|winpath }}">Copy file path</button><button class="copy-path" type="button" data-copy-text="{{ member.folder_absolute|winpath }}">Copy folder</button></span>
             </div>
-            {% if rename_pending and draft_path == member.path %}
+            {% if repair_pending and draft_path == member.path %}
+            {% with repair_action=doctor_name_action, repair_relative_path=member.path %}{% include "_repair_confirm.html" %}{% endwith %}
+            {% elif rename_pending and draft_path == member.path %}
             <div class="rename-warning" role="alert">
               <strong>Other files still carry {{ filename }}.</strong>
               <p>Until this repair session reaches zero originals, Inventor can silently bind a broken reference to the wrong member. The shared referrer list is below.</p>
@@ -49,6 +52,7 @@
               <label>Specific filename</label>
               <div class="rename-input"><input name="new_name" type="text" value="{{ draft_name if draft_path == member.path and draft_name else member.stem }}" autocomplete="off" spellcheck="false" required><span class="rename-suffix">{{ member.suffix }}</span></div>
               <button class="button" type="submit">Review rename</button>
+              {% if inventor and inventor.available %}<label class="reference-check repair-check"><input type="checkbox" name="repair" value="1" checked> Repair references through Inventor {{ inventor.version }}</label>{% endif %}
             </form>
             {% endif %}
             </div>
@@ -66,7 +70,7 @@
         {% if referrers %}
         <div class="doctor-referrers">
           {% for referrer in referrers %}
-          <div><a class="doctor-referrer-preview" href="{{ url_for('part_page', relative_path=referrer.path) }}"><img src="{{ preview_url(referrer.path) }}" alt="Preview of {{ referrer.path|winpath }}" loading="lazy" decoding="async" width="80" height="60"></a><a href="{{ url_for('part_page', relative_path=referrer.path) }}"><code>{{ referrer.path|winpath }}</code></a><span><button class="copy-path" type="button" data-copy-text="{{ referrer.absolute|winpath }}">Copy file path</button><button class="copy-path" type="button" data-copy-text="{{ referrer.folder_absolute|winpath }}">Copy folder</button></span></div>
+          <div><a class="doctor-referrer-preview" href="{{ url_for('part_page', relative_path=referrer.path) }}"><img src="{{ preview_url(referrer.path) }}" alt="Preview of {{ referrer.path|winpath }}" loading="lazy" decoding="async" width="80" height="60"></a><a href="{{ url_for('part_page', relative_path=referrer.path) }}"><code>{{ referrer.path|winpath }}</code>{% if referrer.open_in_inventor %}<small class="inventor-open">open in Inventor: close it first</small>{% endif %}</a><span><button class="copy-path" type="button" data-copy-text="{{ referrer.absolute|winpath }}">Copy file path</button><button class="copy-path" type="button" data-copy-text="{{ referrer.folder_absolute|winpath }}">Copy folder</button></span></div>
           {% endfor %}
         </div>
         {% else %}<p class="part-note">No assembly, drawing, or presentation currently embeds this filename.</p>{% endif %}

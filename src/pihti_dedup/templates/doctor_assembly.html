@@ -8,7 +8,7 @@
     <a class="button" href="{{ url_for('doctor') }}">All doctor queues</a>
   </section>
 
-  {% if renamed %}<p class="metadata-notice doctor-notice" role="status">File renamed and logged. The old embedded name remains below until this assembly is repointed and saved in Inventor.</p>{% endif %}
+  {% if renamed %}<p class="metadata-notice doctor-notice" role="status">{% if rename_notice %}{{ rename_notice.text }}{% else %}File renamed and logged. The old embedded name remains below until this assembly is repointed and saved in Inventor.{% endif %}</p>{% endif %}
 
   <div class="work-grid one-rail doctor-session">
     <div class="work-main">

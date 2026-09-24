@@ -21,7 +21,7 @@ from urllib.parse import unquote
 from flask import Flask, Response, jsonify, redirect, render_template, request, send_file, url_for
 from markupsafe import escape
 
-from pihti_dedup import __version__, geometry_preview
+from pihti_dedup import __version__, geometry_preview, inventor_session
 from pihti_dedup.cleanup import (
     execute_cleanup,
     execute_consolidation,
@@ -54,6 +54,7 @@ from pihti_dedup.inventor_meta import (
     read_preview,
 )
 from pihti_dedup.inventor_meta import read_document as read_inventor_document
+from pihti_dedup.inventor_session import CLOSE_FIRST, NO_ANSWER, Session, SessionTimeout, path_key
 from pihti_dedup.inventory import (
     ExcludedPath,
     FileRecord,
@@ -1026,6 +1027,12 @@ def folder_tree(folders: list[dict], current: str = ".") -> list[dict]:
     return _tree_list(roots)
 
 
+#: How long one answer to "is Inventor running?" is reused by the rename forms.
+SESSION_PROBE_SECONDS = 5.0
+INVENTOR_ABSENT = "Inventor is not running; the rename will be recorded for manual repointing."
+INVENTOR_SILENT = f"{NO_ANSWER}; the rename will be recorded for manual repointing."
+
+
 def _is_loopback(address: str | None) -> bool:
     try:
         return ipaddress.ip_address(address or "").is_loopback
@@ -1039,6 +1046,7 @@ def create_app(
     scanner: Scanner = scan_workspace,
     merge_reader: MergeReader = recent_pull_request_merges,
     refresh_seconds: float = 0.0,
+    session_factory: Callable[[], Session | None] | None = None,
 ) -> Flask:
     """Build the viewer.
 
@@ -1046,6 +1054,11 @@ def create_app(
     this). `refresh_seconds > 0` serves every read-only page from in-memory
     snapshots that a background ticker refreshes; mutations still check the
     live disk and then invalidate the snapshots.
+
+    `session_factory` returns a running Inventor session or None; the rename
+    forms offer a repair through Inventor only when it returns one. The default
+    looks up `inventor_session.connect` at call time, which the test suite
+    replaces with `lambda: None` so no test ever reaches a real session.
     """
 
     root = Path(workspace or Path.cwd()).resolve()
@@ -1080,12 +1093,124 @@ def create_app(
     app.extensions["pihti_preview_cache"] = previews
     app.extensions["pihti_reference_cache"] = references
 
+    session_probe: dict[str, object] = {"at": None, "value": None, "open_at": None, "open": None}
+    session_lock = threading.Lock()
+
+    def _session() -> Session | None:
+        """The running Inventor, probed at most every few seconds."""
+
+        with session_lock:
+            now = time.monotonic()
+            at = session_probe["at"]
+            if at is None or now - at >= SESSION_PROBE_SECONDS:
+                try:
+                    factory = session_factory or inventor_session.connect
+                    session_probe["value"] = factory()
+                except Exception:  # noqa: BLE001 - a failed probe is "not running"
+                    session_probe["value"] = None
+                session_probe["at"] = time.monotonic()
+                session_probe["open_at"] = None
+            return session_probe["value"]
+
+    def _open_documents(session: Session, *, fresh: bool) -> set[str]:
+        # A page view reuses the list for the probe window; a rename post asks again.
+        with session_lock:
+            at = session_probe["open_at"]
+            if not fresh and at is not None and time.monotonic() - at < SESSION_PROBE_SECONDS:
+                return session_probe["open"]
+        open_paths = session.open_documents()
+        with session_lock:
+            session_probe["open"] = open_paths
+            session_probe["open_at"] = time.monotonic()
+        return open_paths
+
+    def _settled_pairs() -> frozenset[tuple[str, str]]:
+        # Referrers Inventor has repointed: their old name survives only as a
+        # fossil string in the saved bytes, so the index is told to drop it.
+        try:
+            ledger = read_ledger(root)
+        except OSError:
+            return frozenset()
+        return frozenset(
+            (referrer, entry.old_name) for entry in ledger for referrer in entry.repaired
+        )
+
+    def _fresh_index():
+        return build_index(root, cache=references, settled=_settled_pairs())
+
+    def _inventor_state(referrers, target: str = "", *, fresh: bool = False) -> dict:
+        """What the rename forms say about Inventor, and which referrers it holds open."""
+
+        session = _session()
+        if session is None:
+            return {"available": False, "note": INVENTOR_ABSENT, "open": frozenset()}
+        try:
+            open_paths = _open_documents(session, fresh=fresh)
+        except SessionTimeout:
+            return {"available": False, "note": INVENTOR_SILENT, "open": frozenset()}
+        except Exception:  # noqa: BLE001 - Inventor went away between probes
+            return {"available": False, "note": INVENTOR_ABSENT, "open": frozenset()}
+        return {
+            "available": True,
+            "version": session.version,
+            "note": "",
+            "open": frozenset(
+                path for path in referrers if path_key(root / path) in open_paths
+            ),
+            "target_open": bool(target) and path_key(root / target) in open_paths,
+        }
+
+    def _repair_pending(session: Session, plan) -> dict:
+        """What Inventor would do, read by opening each referrer and closing it."""
+
+        preview = inventor_session.plan_repair(
+            session,
+            [root / referrer for referrer in plan.referrers],
+            plan.old_name,
+            target=root / plan.old_path,
+            survivors=[root / survivor for survivor in plan.old_name_survivors],
+        )
+        repairable = {path_key(path) for path in preview.repairable}
+        save, skip, unchanged = [], [], []
+        for item in preview.referrers:
+            relative = Path(item.path).relative_to(root).as_posix()
+            if path_key(item.path) in repairable:
+                save.append(relative)
+            elif item.open_in_inventor:
+                skip.append(relative)
+            else:
+                unchanged.append({"path": relative, "state": item.state})
+        return {
+            "plan": plan,
+            "version": session.version,
+            "save": save,
+            "skip": skip,
+            "unchanged": unchanged,
+            "target_open": preview.target_open,
+            "collision": plan.needs_confirmation,
+        }
+
+    def _rename_notice(entry_id: str) -> dict | None:
+        """The ledger entry a rename redirect names, for its result notice."""
+
+        if not entry_id:
+            return None
+        entry = next((item for item in read_ledger(root) if item.id == entry_id), None)
+        if entry is None or not entry.repair_note:
+            return None
+        if entry.fully_repaired:
+            saved = ", ".join(_windows_path(path) for path in entry.repaired)
+            text = f"Renamed and {entry.repair_note}: {saved} saved and verified."
+        else:
+            text = f"Renamed; {_windows_path(entry.repair_note)}."
+        return {"text": text, "complete": entry.fully_repaired, "repaired": entry.repaired}
+
     whereused_snapshot: Snapshot | None = None
     locations_snapshot: Snapshot | None = None
     merges_snapshot: Snapshot | None = None
     if refresh_seconds > 0:
         whereused_snapshot = Snapshot(
-            lambda: build_index(root, cache=references),
+            lambda: _fresh_index(),
             interval=refresh_seconds,
             name="whereused_index",
         )
@@ -1122,7 +1247,7 @@ def create_app(
     def _current_index():
         if whereused_snapshot is not None:
             return whereused_snapshot.get()
-        return build_index(root, cache=references)
+        return _fresh_index()
 
     def _current_locations() -> dict[str, tuple[str, ...]]:
         if locations_snapshot is not None:
@@ -1427,6 +1552,7 @@ def create_app(
             },
             problems=problems,
             renamed=_flag(request.args.get("renamed")),
+            rename_notice=_rename_notice(request.args.get("entry", "")),
         )
 
     @app.get("/doctor/history-preview/<commit>/<path:relative_path>")
@@ -1467,6 +1593,7 @@ def create_app(
         draft_path: str = "",
         draft_name: str = "",
         pending=None,
+        repair_pending=None,
     ) -> dict:
         locations = _current_locations()
         current_paths = locations.get(filename.casefold(), ())
@@ -1491,10 +1618,15 @@ def create_app(
         )
         index = _current_index()
         assembly_path = _validated_doctor_assembly(request.values.get("assembly", ""))
+        referrers = index.referring(filename)
+        inventor = _inventor_state(referrers) if current_members and referrers else None
         return {
             "version": __version__,
             "workspace": root.name,
             "filename": filename,
+            "inventor": inventor,
+            "repair_pending": repair_pending,
+            "rename_notice": _rename_notice(request.args.get("entry", "")),
             "current_paths": current_paths,
             "current_members": current_members,
             "entries": entries,
@@ -1503,8 +1635,9 @@ def create_app(
                     "path": path,
                     "absolute": str(root / path),
                     "folder_absolute": str((root / path).parent),
+                    "open_in_inventor": bool(inventor and path in inventor["open"]),
                 }
-                for path in index.referring(filename)
+                for path in referrers
             ],
             "current_will_prompt": not current_paths,
             "generic_name": _is_generic_cad_name(filename),
@@ -1542,7 +1675,7 @@ def create_app(
                 ),
             ), 409
         confirmed = _flag(request.form.get("confirm_collision"))
-        index = build_index(root, cache=references)
+        index = _fresh_index()
         try:
             plan = plan_rename(
                 root,
@@ -1561,6 +1694,24 @@ def create_app(
                     draft_name=new_name,
                 ),
             ), 400
+        session, pending_repair, refusal = _rename_repair_step(plan, confirmed)
+        if refusal:
+            return render_template(
+                "doctor_name.html",
+                **_doctor_name_context(
+                    filename, error=refusal, draft_path=relative_path, draft_name=plan.new_name
+                ),
+            ), 409
+        if pending_repair is not None:
+            return render_template(
+                "doctor_name.html",
+                **_doctor_name_context(
+                    filename,
+                    draft_path=relative_path,
+                    draft_name=plan.new_name,
+                    repair_pending=pending_repair,
+                ),
+            ), 409
         if plan.needs_confirmation and not confirmed:
             return render_template(
                 "doctor_name.html",
@@ -1572,7 +1723,7 @@ def create_app(
                 ),
             ), 409
         try:
-            execute_rename(root, plan, confirmed=confirmed)
+            result = execute_rename(root, plan, confirmed=confirmed, session=session)
         except (RenameError, OSError) as exc:
             return render_template(
                 "doctor_name.html",
@@ -1584,12 +1735,49 @@ def create_app(
                 ),
             ), 409
         cache.clear()
+        entry_id = result.entry.id if result.repair is not None else None
         assembly_path = _validated_doctor_assembly(request.values.get("assembly", ""))
         if assembly_path:
             return redirect(
-                url_for("doctor_assembly", relative_path=assembly_path, renamed="1")
+                url_for(
+                    "doctor_assembly", relative_path=assembly_path, renamed="1", entry=entry_id
+                )
             )
-        return redirect(url_for("doctor_name", filename=filename, renamed="1"))
+        return redirect(url_for("doctor_name", filename=filename, renamed="1", entry=entry_id))
+
+    def _rename_repair_step(plan, collision_confirmed: bool):
+        """Decide the Inventor half of a rename form post.
+
+        Returns `(session, pending, refusal)`: a session to repair through, a
+        confirmation to show first, or a message that stops the rename.
+        """
+
+        if not _flag(request.form.get("repair")) or not plan.referrers:
+            return None, None, ""
+        session = _session()
+        if session is None:
+            return None, None, (
+                "Inventor is not running; nothing was renamed. "
+                "Clear the repair box to rename and repoint by hand."
+            )
+        state = _inventor_state(plan.referrers, plan.old_path, fresh=True)
+        if not state["available"]:
+            return None, None, f"{state['note']} Nothing was renamed."
+        if not _flag(request.form.get("confirm_repair")) or (
+            plan.needs_confirmation and not collision_confirmed
+        ):
+            try:
+                return None, _repair_pending(session, plan), ""
+            except SessionTimeout:
+                return None, None, f"{NO_ANSWER}; nothing was renamed."
+            except Exception as exc:  # noqa: BLE001 - Inventor refused to open one
+                return None, None, (
+                    f"Inventor could not read the referring documents ({exc}); "
+                    "nothing was renamed."
+                )
+        if state["target_open"]:
+            return None, None, f"{plan.old_name} is {CLOSE_FIRST}; nothing was renamed."
+        return session, None, ""
 
     def _standard_candidates(inventory: Inventory, index, locations) -> tuple:
         # Snapshots are swapped whole, so identity is an exact memo key: the
@@ -1750,7 +1938,7 @@ def create_app(
         return plan_standard_move(
             root,
             relative,
-            index=build_index(root, cache=references),
+            index=_fresh_index(),
             locations=filename_locations(root),
             evidence=evidence.labels,
         )
@@ -1990,7 +2178,7 @@ def create_app(
         if not secrets.compare_digest(str(payload.get("signature", "")), plan.signature):
             return jsonify({"error": "cleanup member changed; rescan and try again"}), 409
         try:
-            index = build_index(root, cache=references)
+            index = _fresh_index()
             execution = execute_member_cleanup(
                 root,
                 plan,
@@ -2020,7 +2208,7 @@ def create_app(
             plan = plan_consolidation(
                 inventory, group_id=group_id, keep_path=keep_path
             )
-            index = build_index(root, cache=references)
+            index = _fresh_index()
             execution = execute_consolidation(
                 root,
                 plan,
@@ -2184,7 +2372,7 @@ def create_app(
             return render_template("_not_found.html", version=__version__, path=relative_path), 404
         new_name = request.form.get("new_name", "")
         confirmed = _flag(request.form.get("confirm_collision"))
-        index = build_index(root, cache=references)
+        index = _fresh_index()
         try:
             plan = plan_rename(
                 root,
@@ -2197,18 +2385,34 @@ def create_app(
             context = _part_context(target)
             context.update(rename_error=str(exc), rename_draft=new_name)
             return render_template("part.html", **context), 400
+        session, pending_repair, refusal = _rename_repair_step(plan, confirmed)
+        if refusal:
+            context = _part_context(target)
+            context.update(rename_error=refusal, rename_draft=plan.new_name)
+            return render_template("part.html", **context), 409
+        if pending_repair is not None:
+            context = _part_context(target)
+            context.update(repair_pending=pending_repair, rename_draft=plan.new_name)
+            return render_template("part.html", **context), 409
         if plan.needs_confirmation and not confirmed:
             context = _part_context(target)
             context.update(rename_pending=plan, rename_draft=plan.new_name)
             return render_template("part.html", **context), 409
         try:
-            result = execute_rename(root, plan, confirmed=confirmed)
+            result = execute_rename(root, plan, confirmed=confirmed, session=session)
         except (RenameError, OSError) as exc:
             context = _part_context(target)
             context.update(rename_error=str(exc), rename_draft=new_name)
             return render_template("part.html", **context), 409
         cache.clear()
-        return redirect(url_for("part_page", relative_path=result.entry.new_path, renamed="1"))
+        return redirect(
+            url_for(
+                "part_page",
+                relative_path=result.entry.new_path,
+                renamed="1",
+                entry=result.entry.id if result.repair is not None else None,
+            )
+        )
 
     @app.get("/renames")
     def renames():
@@ -2222,6 +2426,7 @@ def create_app(
             entries=views,
             open_count=sum(not entry.settled for entry in entries),
             prompt_count=sum(entry.will_prompt and not entry.settled for entry in entries),
+            repaired_count=sum(entry.fully_repaired for entry in entries),
             ledger=LEDGER_RELATIVE,
             form_token=app.config["FORM_TOKEN"],
         )
@@ -2743,6 +2948,7 @@ def create_app(
             "current_matches": current_matches,
             "current_will_prompt": current_will_prompt,
             "status_changed": current_will_prompt != entry.will_prompt,
+            "repaired": frozenset(path.casefold() for path in entry.repaired),
         }
 
     @app.get("/part/<path:relative_path>")
@@ -2921,6 +3127,9 @@ def create_app(
         if sourced_titles:
             signals = (*signals, sourced_signal(sourced_titles))
         signals = ordered_signals(signals)
+        referrers = _current_index().referring(target.name)
+        renameable = target.suffix.casefold() in RENAMEABLE_EXTENSIONS
+        inventor = _inventor_state(referrers) if renameable and referrers else None
         return {
             "sourcing_url": (
                 url_for("sourcing_folder", relative_folder=folder) if sourced_titles else ""
@@ -2955,10 +3164,13 @@ def create_app(
             "sidecar_name": companion.name,
             "sidecar_exists": companion.is_file(),
             "sidecar_text": companion.read_text(encoding="utf-8") if companion.is_file() else "",
-            "referrers": _current_index().referring(target.name),
-            "renameable": target.suffix.casefold() in RENAMEABLE_EXTENSIONS,
+            "referrers": referrers,
+            "inventor": inventor,
+            "renameable": renameable,
             "rename_error": None,
             "rename_pending": None,
+            "repair_pending": None,
+            "rename_notice": _rename_notice(request.args.get("entry", "")),
             "rename_draft": None,
             "renamed": _flag(request.args.get("renamed")),
             "form_token": app.config["FORM_TOKEN"],

@@ -11,7 +11,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Sequence
 
-from pihti_dedup import __version__
+from pihti_dedup import __version__, inventor_session
 from pihti_dedup.cleanup import execute_cleanup, plan_merge_exact_cleanup
 from pihti_dedup.git_history import recent_pull_request_merges
 from pihti_dedup.inventor_meta import INVENTOR_EXTENSIONS, read_document
@@ -98,6 +98,33 @@ def build_parser() -> argparse.ArgumentParser:
     seed_mode.add_argument("--dry", action="store_true", help="Count and sample only")
     seed_mode.add_argument("--apply", action="store_true", help="Write the missing sidecars")
     seed.add_argument("--json", metavar="PATH", help="Write the plan or result as JSON")
+
+    rename = subparsers.add_parser(
+        "rename",
+        help="Rename one Inventor document in place and record it in the rename ledger",
+        description=(
+            "Rename one Inventor document in place and record it in the rename ledger. "
+            "With --repair, the running Inventor opens every referring document first, "
+            "repoints it to the new file, saves it, and verifies it on reopen. Exit status "
+            "1 means the rename happened but not every referrer was repaired."
+        ),
+    )
+    rename.add_argument("relative_path", help="Workspace-relative path of the file to rename")
+    rename.add_argument("new_name", help="New filename; the extension is kept")
+    rename.add_argument("workspace", nargs="?", default=".")
+    rename.add_argument(
+        "--repair",
+        action="store_true",
+        help="Repoint and save the referring documents through the running Inventor",
+    )
+    rename.add_argument(
+        "--dry", action="store_true", help="Print the plan only; nothing is renamed or saved"
+    )
+    rename.add_argument(
+        "--confirm-collision",
+        action="store_true",
+        help="Proceed although another file still carries the old name",
+    )
 
     notes = subparsers.add_parser("notes", help="Lint folder notes, sidecars, and sourcing notes")
     notes_commands = notes.add_subparsers(dest="notes_command", required=True)
@@ -308,6 +335,103 @@ def _warm_previews(workspace: Path, *, include_vendor: bool, quiet: bool) -> dic
     return result.to_dict()
 
 
+def _relative(workspace: Path, path: Path | str) -> str:
+    try:
+        return _windows_path(Path(path).relative_to(workspace).as_posix())
+    except ValueError:
+        return str(path)
+
+
+def _rename(
+    workspace: Path,
+    relative_path: str,
+    new_name: str,
+    *,
+    repair: bool,
+    dry: bool,
+    confirm_collision: bool,
+) -> int:
+    from pihti_dedup.renames import RenameError, execute_rename, plan_rename, read_ledger
+    from pihti_dedup.whereused import build_index
+
+    settled = frozenset(
+        (referrer, entry.old_name) for entry in read_ledger(workspace) for referrer in entry.repaired
+    )
+    index = build_index(workspace, settled=settled)
+    try:
+        plan = plan_rename(workspace, relative_path, new_name, index=index)
+    except RenameError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 2
+    print(f"rename: {_windows_path(plan.old_path)} -> {plan.new_name}")
+    print(f"referring documents: {len(plan.referrers)}")
+    for referrer in plan.referrers:
+        print(f"  {_windows_path(referrer)}")
+    if plan.old_name_survivors:
+        print(f"warning: {plan.old_name} still exists elsewhere; Inventor may rebind silently:")
+        for survivor in plan.old_name_survivors:
+            print(f"  {_windows_path(survivor)}")
+
+    session = None
+    if repair and plan.referrers:
+        session = inventor_session.connect()
+        if session is None:
+            print(
+                "error: Inventor is not running or not answering; nothing was renamed",
+                file=sys.stderr,
+            )
+            return 2
+        print(f"inventor: {session.version}")
+    elif repair:
+        print("inventor: no referring documents, nothing to repair")
+
+    if dry:
+        if session is not None:
+            try:
+                repair_plan = inventor_session.plan_repair(
+                    session,
+                    [workspace / referrer for referrer in plan.referrers],
+                    plan.old_name,
+                    target=workspace / plan.old_path,
+                    survivors=[workspace / survivor for survivor in plan.old_name_survivors],
+                )
+            except inventor_session.SessionTimeout as exc:
+                print(f"error: {exc}", file=sys.stderr)
+                return 1
+            if repair_plan.target_open:
+                print(f"blocked: {plan.old_name} is {inventor_session.CLOSE_FIRST}")
+            for item in repair_plan.referrers:
+                print(f"  {_relative(workspace, item.path)}: {item.state}")
+        print("DRY RUN: nothing renamed or saved")
+        return 0
+
+    if plan.needs_confirmation and not confirm_collision:
+        print(
+            "error: the old name survives elsewhere; pass --confirm-collision to proceed. "
+            "Nothing was renamed.",
+            file=sys.stderr,
+        )
+        return 2
+    try:
+        result = execute_rename(workspace, plan, confirmed=confirm_collision, session=session)
+    except (RenameError, OSError) as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
+    print(f"RENAMED {_windows_path(plan.old_path)} -> {_windows_path(plan.new_path)}")
+    if result.sidecar_moved:
+        print(f"sidecar: {_windows_path(plan.sidecar_to or '')}")
+    for warning in result.warnings:
+        print(f"warning: {warning}", file=sys.stderr)
+    if result.repair is not None:
+        for path, outcome in result.repair.outcomes:
+            print(f"  {_relative(workspace, path)}: {outcome}")
+    entry = result.entry
+    print(f"ledger: {entry.id} settled={'yes' if entry.settled else 'no'}")
+    if entry.repair_note:
+        print(f"note: {entry.repair_note}")
+    return 0 if result.repair is None or result.repair.complete else 1
+
+
 def _print_notes_check(result: CheckResult) -> None:
     """Plain-text report, workspace-relative POSIX paths, no colours."""
 
@@ -368,6 +492,16 @@ def main(argv: Sequence[str] | None = None) -> int:
                 json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
             )
         return code
+
+    if args.command == "rename":
+        return _rename(
+            workspace,
+            args.relative_path,
+            args.new_name,
+            repair=args.repair,
+            dry=args.dry,
+            confirm_collision=args.confirm_collision,
+        )
 
     if args.command == "notes":
         result = check_notes(workspace)
