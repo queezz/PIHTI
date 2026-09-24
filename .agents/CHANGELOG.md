@@ -6,6 +6,17 @@ remains authoritative for exact file changes.
 
 ## 2026-09-24
 
+- Shipped `pihti-dedup` 0.19.1: one fixed legend and the placement toggles in
+  the inspector. The left rail's last card is now **Legend** on every catalog
+  and part page, always listing every mark in the same order, so it no longer
+  changes size or moves between pages. The folder card keeps one height, so
+  the inspector's top and the legend's top stay at the same place on every
+  page at a given window height. The inspector carries **Make main assembly**
+  and **Feature on folder card** at its foot for the file it shows; setting
+  acts at once, clearing asks with the file's name, and the page returns to
+  the same folder with the tile focused. The part page lists the file's own
+  marks in its File card and keeps its toggles.
+
 - Shipped `pihti-dedup` 0.19.0: featured files and smaller main assemblies.
   A second sidecar flag, `featured: true`, puts a file at the front of the
   preview strip of every folder card above it, without a place among the main

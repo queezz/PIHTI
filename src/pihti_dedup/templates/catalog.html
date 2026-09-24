@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% from "_file_tile.html" import file_tile, hero_tile %}
+{% from "_file_tile.html" import file_tile, hero_tile, legend_card %}
 {% from "_folder_tree.html" import tree_rail, catalog_bar %}
 {% block title %}{% if query %}Search{% elif path != '.' %}{{ name }}{% else %}Catalog{% endif %} · PIHTI{% endblock %}
 
@@ -118,7 +118,7 @@
     </div>
 
     <aside class="rail-side rail-context" aria-label="{% if query %}Search scope{% else %}Current folder{% endif %}">
-      <section class="rail-card context-card">
+      <section class="rail-card context-card catalog-context">
         {% if query %}
         <h2>Search</h2>
         <p class="context-title">“{{ query }}”</p>
@@ -178,17 +178,25 @@
           <div class="inspector-preview"><img data-inspector-image alt=""></div>
           <strong class="inspector-title" data-inspector-title></strong>
           <div class="inspector-facts" data-inspector-facts></div>
+          {# Quiet toggles at the foot of the card for the file named above.
+             The script points each form at that file when it is shown and
+             sets the value it wants, so a repeated submit cannot flip it
+             back. Setting acts at once; clearing asks, naming the file. #}
+          <div class="inspector-flags" data-inspector-flags>
+            {% for key in ('hero', 'featured') %}
+            <form method="post" data-inspector-flag="{{ key }}">
+              <input type="hidden" name="token" value="{{ form_token }}">
+              <input type="hidden" name="origin" value="{{ path }}"{% if query %} data-origin-from-file{% endif %}>
+              {% if include_vendor %}<input type="hidden" name="include_vendor" value="1">{% endif %}
+              <input type="hidden" name="{{ key }}" value="1">
+              <button class="copy-path inspector-flag" type="submit" aria-pressed="false"></button>
+            </form>
+            {% endfor %}
+          </div>
         </div>
       </section>
       {% endif %}
-      {% if signal_legend %}
-      <section class="rail-card signal-legend">
-        <h2>Signals</h2>
-        <ul>
-          {% for kind, text in signal_legend %}<li><i class="signal-mark signal-{{ kind }}"></i>{{ text }}</li>{% endfor %}
-        </ul>
-      </section>
-      {% endif %}
+      {{ legend_card(signal_legend) }}
     </aside>
 
     {{ tree_rail(tree, include_vendor) }}

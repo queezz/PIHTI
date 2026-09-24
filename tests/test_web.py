@@ -1271,10 +1271,12 @@ def test_tiles_signal_copies_and_names_by_colour_with_a_legend(tmp_path: Path) -
     face = old_tile.split('<dl class="thumb-details"', 1)[0]
     assert "Same filename, different bytes" in face.split(">", 1)[0]  # the title attribute
     assert "Same filename, different bytes" not in face.split(">", 1)[1]
-    legend = old_html.split('<section class="rail-card signal-legend">', 1)[1].split("</section>", 1)[0]
+    legend = old_html.split('<section class="rail-card signal-legend" aria-label="Legend">', 1)[1].split("</section>", 1)[0]
     assert "Same name, different bytes" in legend
     assert "Generic name" in legend and "Newer file with this name exists" in legend
-    assert "Identical copy elsewhere" not in legend  # only signals present on this page
+    # One fixed legend: every mark, whether or not this page shows it.
+    assert "Identical copy elsewhere" in legend
+    assert legend == new_html.split('<section class="rail-card signal-legend" aria-label="Legend">', 1)[1].split("</section>", 1)[0]
 
 
 def test_signal_lookup_is_built_once_per_inventory(monkeypatch, tmp_path: Path) -> None:
@@ -2251,10 +2253,11 @@ def test_styles_indent_the_folder_tree_and_scroll_only_the_tree_inside_its_pinne
     assert (
         f".tree-card {{ display: flex; flex-direction: column; max-height: {ceiling}; }}"
     ) in style
-    assert f".rail-context {{ max-height: {ceiling}; }}" in style
+    assert f".rail-context {{ height: {ceiling}; }}" in style
     assert "padding: var(--content-pad) 0 var(--page-foot);" in style
     assert re.search(r"max-height:\s*\d", style) is None
-    assert style.count("max-height: calc(") == 2
+    assert style.count("max-height: calc(") == 1  # the tree card; the left rail is exactly its height
+    assert style.count(ceiling) == 2
 
 
 def counting_scanner(calls: list[bool]):
@@ -2533,8 +2536,8 @@ def test_a_folder_leads_with_its_heroes_and_never_repeats_them(tmp_path: Path) -
     assert '<i class="signal-mark signal-hero"></i>' in first and "<dd>Main assembly</dd>" in first
     assert '<span class="tile-signals" aria-hidden="true"><i class="signal-dot signal-hero"></i></span>' in tile
     assert 'data-hero="1"' in heroes
-    legend = html.split('<section class="rail-card signal-legend">', 1)[1].split("</section>", 1)[0]
-    assert '<li><i class="signal-mark signal-hero"></i>Hero: a main assembly or file you designated</li>' in legend
+    legend = html.split('<section class="rail-card signal-legend" aria-label="Legend">', 1)[1].split("</section>", 1)[0]
+    assert '<li><i class="signal-mark signal-hero"></i>Main assembly</li>' in legend
 
 
 def test_a_folder_holding_only_heroes_still_has_its_inspector(tmp_path: Path) -> None:
@@ -2726,9 +2729,10 @@ def test_hero_styles_pin_the_file_tile_width_and_every_mark_is_a_dot(tmp_path: P
     assert "#d79b4b" not in (hues["hero"], hues["featured"])  # the "newer file" dot
     assert ".signal-hero { background: var(--hero); }" in style
     assert ".signal-featured { background: var(--featured); }" in style
-    # The inspector has no hero button; the part page's clear asks first.
+    # The part page's clear asks first; so does the inspector's, naming the file.
     assert "heroForm" not in script and "data-inspector-hero" not in script
     assert "window.confirm(form.dataset.flagConfirm)" in script
+    assert "window.confirm(form.dataset.confirm)" in script
     assert 'window.location.hash.indexOf("#file-") === 0' in script
     # The hero card's folder links prefetch like every other folder link.
     assert "a.hero-folder, a.hero-open-folder" in script
@@ -2819,20 +2823,174 @@ def test_the_folder_note_modal_opens_as_a_reader_with_the_editor_behind_edit(
     assert '<div class="note-dialog-grid" data-note-editor>' in refused
 
 
-def test_the_inspector_states_main_assembly_and_carries_no_hero_form(tmp_path: Path) -> None:
+def test_the_inspector_carries_both_toggles_at_its_foot_for_the_file_it_names(
+    tmp_path: Path,
+) -> None:
     root = make_hero_workspace(tmp_path)
     app = create_app(root)
     client = app.test_client()
     post_hero(app, client, "Vessel/vessel-main.iam", True, "part")
 
-    for address in ("/catalog", "/catalog/Vessel"):
+    for address, origin in (("/catalog", "."), ("/catalog/Vessel", "Vessel")):
         html = client.get(address).get_data(as_text=True)
         inspector = html.split('<section class="rail-card inspector"', 1)[1].split("</section>", 1)[0]
         assert "<h2>Inspector</h2>" in inspector
-        assert "<form" not in inspector and "<button" not in inspector
-        assert "hero" not in inspector.casefold()
-        # The fact the inspector copies is in the tile's hidden details.
+        # Two quiet buttons below the preview and the facts, never in the head.
+        head = inspector.split('<div class="inspector-head">', 1)[1].split("</div>", 1)[0]
+        assert "<button" not in head and "<form" not in head
+        assert inspector.index("data-inspector-image") < inspector.index("data-inspector-facts")
+        assert inspector.index("data-inspector-facts") < inspector.index("data-inspector-flags")
+        assert inspector.index("data-inspector-flags") < inspector.index("<form")
+        forms = re.findall(
+            r'<form method="post" data-inspector-flag="([a-z]+)">(.*?)</form>', inspector, re.S
+        )
+        assert [key for key, _body in forms] == ["hero", "featured"]
+        for key, body in forms:
+            # No action until the script points the form at the shown file.
+            assert f'<input type="hidden" name="token" value="{app.config["FORM_TOKEN"]}">' in body
+            assert f'<input type="hidden" name="origin" value="{origin}">' in body
+            assert f'<input type="hidden" name="{key}" value="1">' in body
+            assert (
+                '<button class="copy-path inspector-flag" type="submit" aria-pressed="false"></button>'
+            ) in body
+        # The facts the inspector copies, and the flag state its toggles
+        # read, are on the tile.
         assert "<dd>Main assembly</dd>" in html
+        tile = html.split('href="/part/Vessel/vessel-main.iam"', 1)[1].split(">", 1)[0]
+        assert 'data-hero="1" data-featured="0"' in tile
+
+    # A search result returns to the file's own folder, where its tile is.
+    search = client.get("/catalog?q=flange").get_data(as_text=True)
+    assert '<input type="hidden" name="origin" value="." data-origin-from-file>' in search
+
+    script = client.get("/static/dedup.js").get_data(as_text=True)
+    assert 'on: "Main assembly · clear"' in script and 'off: "Make main assembly"' in script
+    assert 'on: "Featured · clear"' in script and 'off: "Feature on folder card"' in script
+    assert (
+        '"Clear main assembly on " + name + "? It stays in its folder; only the placement goes."'
+    ) in script
+    assert '"Stop featuring " + name + " on its folder cards?"' in script
+    # Clearing asks with the file's name; setting acts at once; a form still
+    # pointed at another file than the one shown is refused.
+    assert 'form.dataset.confirm = on ? text.confirm(name) : "";' in script
+    assert "pointFlags(tile, title.textContent);" in script
+    assert 'form.dataset.file !== shown.getAttribute("href")' in script
+
+
+def test_an_inspector_toggle_returns_to_the_folder_with_the_tile_and_the_toast(
+    tmp_path: Path,
+) -> None:
+    root = make_hero_workspace(tmp_path)
+    app = create_app(root)
+    client = app.test_client()
+    token = app.config["FORM_TOKEN"]
+    companion = root / "Vessel" / "parts" / "spacer.ipt.md"
+
+    # What the inspector posts for spacer.ipt on its folder page, twice.
+    data = {"token": token, "origin": "Vessel/parts", "featured": "1"}
+    response = client.post("/part/Vessel/parts/spacer.ipt/featured", data=data)
+    again = client.post("/part/Vessel/parts/spacer.ipt/featured", data=data)
+
+    anchor = web.tile_anchor("Vessel/parts/spacer.ipt")
+    assert response.headers["Location"] == (
+        f"/catalog/Vessel/parts?featured=set&file=Vessel/parts/spacer.ipt#{anchor}"
+    )
+    assert again.headers["Location"] == response.headers["Location"]  # a double submit stays set
+    assert read_sidecar(companion).featured is True
+    page = client.get(response.headers["Location"].split("#", 1)[0]).get_data(as_text=True)
+    assert "Featured set: spacer.ipt" in page
+    tile = page.split('href="/part/Vessel/parts/spacer.ipt"', 1)[1].split(">", 1)[0]
+    assert 'data-featured="1"' in tile
+    assert f'id="{anchor}" href="/part/Vessel/parts/spacer.ipt"' in page
+
+    cleared = client.post(
+        "/part/Vessel/parts/spacer.ipt/featured",
+        data={"token": token, "origin": "Vessel/parts", "featured": "0"},
+    )
+    assert cleared.headers["Location"].startswith("/catalog/Vessel/parts?featured=cleared&")
+    assert "featured" not in read_sidecar(companion).frontmatter
+
+
+def test_the_inspector_toggles_are_quiet_and_never_above_the_preview(tmp_path: Path) -> None:
+    client = create_app(make_workspace(tmp_path)).test_client()
+    style = client.get("/static/dedup.css").get_data(as_text=True)
+    rules = re.findall(r"([^{}]+)\{([^{}]*)\}", style)
+
+    loud = (
+        "var(--accent)", "var(--collision)", "var(--hero)", "var(--featured)",
+        "var(--exact)", "var(--renamed)", "#d79b4b",
+    )
+    flag_rules = [(selector, body) for selector, body in rules if "inspector-flag" in selector]
+    assert flag_rules
+    for selector, body in flag_rules:
+        for colour in loud:
+            assert colour not in body, (selector, colour)
+        # Nothing lifts a toggle out of the card's foot.
+        assert "order:" not in body and "position:" not in body, selector
+    # They wear Copy path's muted colours, at the foot of the card.
+    copy_rule = style.split(".copy-path, .button {", 1)[1].split("}", 1)[0]
+    assert "color: var(--muted);" in copy_rule
+    flags = style.split(".inspector-flags {", 1)[1].split("}", 1)[0]
+    assert "margin-top: auto;" in flags
+    html = client.get("/catalog/BoronProbe/parts").get_data(as_text=True)
+    inspector = html.split('<section class="rail-card inspector"', 1)[1].split("</section>", 1)[0]
+    button = inspector.split("<button", 1)[1].split(">", 1)[0]
+    assert "primary" not in button and "apply-button" not in button
+    assert inspector.index("inspector-preview") < inspector.index("<button")
+
+
+def test_one_legend_of_every_mark_closes_the_left_rail_on_every_page(tmp_path: Path) -> None:
+    client = create_app(make_workspace(tmp_path)).test_client()
+    style = client.get("/static/dedup.css").get_data(as_text=True)
+    rows = "".join(
+        f'<li><i class="signal-mark signal-{kind}"></i>{text}</li>' for kind, text in web.SIGNAL_LEGEND
+    )
+
+    legends = []
+    for address in (
+        "/catalog",
+        "/catalog/BoronProbe",
+        "/catalog/BoronProbe/parts",
+        "/catalog?q=bearing",
+        "/part/BoronProbe/parts/bearing.ipt",
+    ):
+        html = client.get(address).get_data(as_text=True)
+        rail = html.split('<aside class="rail-side rail-context"', 1)[1].split("</aside>", 1)[0]
+        assert "Signals" not in html, address
+        assert rail.count("signal-legend") == 1, address
+        legend = rail.split('<section class="rail-card signal-legend" aria-label="Legend">', 1)[1]
+        assert legend.split("</section>", 1)[1].strip() == "", address  # the last card
+        assert "<h2>Legend</h2>" in legend and rows in legend, address
+        legends.append(legend)
+    assert len(set(legends)) == 1
+    # Nothing in the script shows or hides legend rows.
+    assert "signal-legend" not in client.get("/static/dedup.js").get_data(as_text=True)
+
+    # Three stations: the folder card at one height, the legend on the rail's
+    # bottom edge, the inspector filling the space between.
+    ceiling = "calc(100vh - var(--bar-height) - var(--content-pad) - var(--page-foot) - 1px)"
+    assert f".rail-context {{ height: {ceiling}; }}" in style
+    assert (
+        ".rail-context > .catalog-context { height: calc(10.5rem + clamp(5rem, calc(100vh - 42rem), 11rem));"
+    ) in style
+    assert ".rail-context > .inspector { flex: 1 1 0; min-height: 0;" in style
+    assert ".rail-context > .signal-legend { margin-top: auto;" in style
+    for address in ("/catalog", "/catalog/BoronProbe/parts", "/catalog?q=bearing"):
+        html = client.get(address).get_data(as_text=True)
+        assert '<section class="rail-card context-card catalog-context">' in html, address
+
+
+def test_the_part_page_states_its_own_marks_in_the_file_card(tmp_path: Path) -> None:
+    root = make_workspace(tmp_path)
+    older = root / "BoronProbe" / "parts" / "bearing.ipt"
+    os.utime(older, ns=(1_700_000_000_000_000_000, 1_700_000_000_000_000_000))
+    client = create_app(root).test_client()
+    client.get("/duplicates/results")
+
+    part = client.get("/part/BoronProbe/parts/bearing.ipt").get_data(as_text=True)
+    card = part.split('<section class="rail-card context-card">', 1)[1].split("</section>", 1)[0]
+    marks = card.split('<ul class="file-marks"', 1)[1].split("</ul>", 1)[0]
+    assert '<li><i class="signal-mark signal-collision"></i>Same filename, different bytes' in marks
 
 
 def test_featured_leads_folder_cards_without_a_main_assemblies_place(tmp_path: Path) -> None:
@@ -2867,8 +3025,8 @@ def test_featured_leads_folder_cards_without_a_main_assemblies_place(tmp_path: P
     tile = folder.split('href="/part/Vessel/parts/spacer.ipt"', 1)[1].split("</a>", 1)[0]
     assert '<i class="signal-dot signal-featured"></i>' in tile
     assert '<i class="signal-mark signal-featured"></i></dt><dd>Featured</dd>' in tile
-    legend = folder.split('<section class="rail-card signal-legend">', 1)[1].split("</section>", 1)[0]
-    assert "<li><i class=\"signal-mark signal-featured\"></i>Featured: leads its folder&#39;s card</li>" in legend
+    legend = folder.split('<section class="rail-card signal-legend" aria-label="Legend">', 1)[1].split("</section>", 1)[0]
+    assert '<li><i class="signal-mark signal-featured"></i>Featured on folder card</li>' in legend
 
     cleared = client.post(
         "/part/Vessel/parts/spacer.ipt/featured",
@@ -2896,11 +3054,12 @@ def test_signal_dots_and_legend_share_one_order_with_hero_then_featured_last(tmp
     tile = html.split('href="/part/Vessel/flange.ipt"', 1)[1].split("</a>", 1)[0]
     dots = re.findall(r'<i class="signal-dot signal-([a-z]+)"></i>', tile)
     facts = re.findall(r'<i class="signal-mark signal-([a-z]+)"></i>', tile)
-    legend = html.split('<section class="rail-card signal-legend">', 1)[1].split("</section>", 1)[0]
+    legend = html.split('<section class="rail-card signal-legend" aria-label="Legend">', 1)[1].split("</section>", 1)[0]
     kinds = re.findall(r'<i class="signal-mark signal-([a-z]+)"></i>', legend)
 
     assert dots == facts == ["collision", "hero", "featured"]
-    assert kinds == ["collision", "hero", "featured"]
+    # The legend is the full set in the same order, not only the marks shown.
+    assert kinds == [kind for kind, _text in web.SIGNAL_LEGEND]
     assert [kind for kind, _text in web.SIGNAL_LEGEND] == [
         "collision", "exact", "renamed", "unverified", "generic", "newer", "hero", "featured"
     ]

@@ -304,7 +304,8 @@ folder without a note shows **Write one**, which opens the editor directly.
 The optional full-page editor has breadcrumb navigation and prominent rail
 cards back to the current folder, its parent, and the Catalog root.
 
-Mark a folder's main assembly with **Main assembly** on the part page. One
+Mark a folder's main assembly with **Make main assembly** in the inspector or
+**Main assembly** on the part page. One
 click writes `hero: true` into the file's metadata sidecar and creates the
 sidecar from iProperties if needed; clearing it asks first and removes that one
 line again. A folder can have several heroes, and any CAD file can be one.
@@ -312,8 +313,8 @@ Heroes lead their folder as a **Main assemblies** row of ordinary tiles and are
 not repeated among the files below. The catalog root lists every hero in the
 archive with its folder as the click target, and folder cards show their
 heroes first in the preview strip. A gold dot in the tile corner marks a hero;
-the inspector states it as a fact and carries no button.
-**Feature on folder card**, beside it on the part page, writes `featured: true`
+the inspector states it as a fact, and its toggles name the file they act on.
+**Feature on folder card**, beside it in both places, writes `featured: true`
 instead: the file then leads the preview strip of every folder card above it
 without joining the Main assemblies row. When nothing is marked, a folder card
 samples one representative per subfolder, preferring an assembly that nothing

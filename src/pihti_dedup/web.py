@@ -787,7 +787,9 @@ def file_signals(inventory: Inventory) -> dict[str, tuple[dict, ...]]:
 HERO_SIGNAL = {"kind": "hero", "text": "Main assembly"}
 FEATURED_SIGNAL = {"kind": "featured", "text": "Featured"}
 # Every signal is one dot in the tile's top-right corner, in this order, and
-# the legend lists them in the same order. No tile carries a coloured edge.
+# the legend lists all of them in the same order on every page, whether or not
+# a page shows each one, so the legend never changes size. No tile carries a
+# coloured edge.
 SIGNAL_LEGEND = (
     ("collision", "Same name, different bytes"),
     ("exact", "Identical copy elsewhere"),
@@ -795,8 +797,8 @@ SIGNAL_LEGEND = (
     ("unverified", "Same name, bytes not compared"),
     ("generic", "Generic name"),
     ("newer", "Newer file with this name exists"),
-    ("hero", "Hero: a main assembly or file you designated"),
-    ("featured", "Featured: leads its folder's card"),
+    ("hero", "Main assembly"),
+    ("featured", "Featured on folder card"),
 )
 SIGNAL_ORDER = {kind: position for position, (kind, _text) in enumerate(SIGNAL_LEGEND)}
 
@@ -2422,6 +2424,7 @@ def create_app(
         return {
             "anchor": tile_anchor(record.path),
             "hero": is_hero,
+            "featured": record.path in featured,
             "folder": record.path.rsplit("/", 1)[0] if "/" in record.path else ".",
             "description": description,
             "details": details,
@@ -2521,8 +2524,6 @@ def create_app(
             _catalog_file(record, where_used, signals, hero_paths, featured_paths)
             for record in records
         ]
-        present = {mark["kind"] for item in hero_files + files for mark in item["signals"]}
-        legend = [row for row in SIGNAL_LEGEND if row[0] in present]
 
         note = _read_catalog_note(current)
         note_text = _note_display_text(note)
@@ -2546,7 +2547,7 @@ def create_app(
             "subtree_count": current_stats["count"],
             "direct_count": current_stats["direct_count"],
             "project_files": project_files,
-            "signal_legend": legend,
+            "signal_legend": SIGNAL_LEGEND,
             "tree": folder_tree(index, current=current),
             "note": note,
             "workspace_summary": _workspace_summary() if current == "." else "",
@@ -2821,6 +2822,7 @@ def create_app(
             "breadcrumbs": crumbs,
             "tree": folder_tree(index, current=folder),
             "signals": signals,
+            "signal_legend": SIGNAL_LEGEND,
             "preview_size": _preview_size(target, stat.st_mtime_ns, stat.st_size),
             "stem": target.stem,
             "folder": folder,

@@ -8,7 +8,18 @@
 {% endif %}
 {% endmacro %}
 
-{% macro tile_attributes(item) %}{% set record = item.record %} id="{{ item.anchor }}" href="{{ url_for('part_page', relative_path=record.path) }}" data-hero="{{ '1' if item.hero else '0' }}" title="{{ record.path|winpath }}{% for mark in item.signals %}&#10;{{ mark.text }}{% endfor %}"{% endmacro %}
+{% macro tile_attributes(item) %}{% set record = item.record %} id="{{ item.anchor }}" href="{{ url_for('part_page', relative_path=record.path) }}" data-hero="{{ '1' if item.hero else '0' }}" data-featured="{{ '1' if item.featured else '0' }}" title="{{ record.path|winpath }}{% for mark in item.signals %}&#10;{{ mark.text }}{% endfor %}"{% endmacro %}
+
+{# The one legend, the last card of the left rail on every catalog and part
+   page: every mark, always in the same order, so it never changes size. #}
+{% macro legend_card(rows) %}
+<section class="rail-card signal-legend" aria-label="Legend">
+  <h2>Legend</h2>
+  <ul>
+    {% for kind, text in rows %}<li><i class="signal-mark signal-{{ kind }}"></i>{{ text }}</li>{% endfor %}
+  </ul>
+</section>
+{% endmacro %}
 
 {# Every signal is a dot in the top-right corner, in legend order; the words
    are in the tile's title and the inspector. #}

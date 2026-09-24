@@ -203,6 +203,32 @@ pick came from sits out the rounds it covered, and anything unranked only tops
 up a short strip. Strips are memoised per folder while the inventory, the
 where-used snapshot, and the flag lookup are unchanged.
 
+Version 0.19.1 fixes the left rail's geometry on the owner's review ("I hate
+jumping nav/legends/rails"). The rail is exactly as tall as the room between
+the sticky offset and the page foot and holds three stations. The folder card
+has one height on the root, a folder, and a search page: a fixed head plus the
+note budget, with the note (or the root's summary) absorbing any difference.
+The legend closes the rail on every catalog and part page, named Legend rather
+than Signals, and always lists every mark in the fixed order (collision,
+exact, renamed, unverified, generic, newer, main assembly, featured) in two
+columns, so it never changes height and never shows or hides rows. The
+inspector fills the space between. Measured at 1920 wide, the inspector's top
+and the legend's top are 440px and 804px at 1000px tall and 344px and 504px at
+700px tall on the root, two folders, a search, and ContentCenter, whatever the
+inspector shows and at every scroll depth; the part page, which has no
+inspector, has its legend at the same place. The part page states the file's
+own marks in its File card instead. The inspector now carries the two
+placement toggles at its foot, below the facts, as quiet buttons the size of
+Copy path: "Make main assembly" and "Feature on folder card" when unset,
+"Main assembly · clear" and "Featured · clear" when set. The script points
+both forms at the file the inspector names, sets the value each wants, and
+refuses a submit for any other file. Setting acts at once; clearing asks with
+a native confirmation naming the file. They post to the part page's routes
+with the current folder as origin (a search uses the file's own folder), so
+the page returns with the tile focused and the toast. At short windows the
+preview yields first; the toggles stay visible. The part page's toggles are
+unchanged.
+
 ## Purpose
 
 Provide a local, human-in-the-loop view of filename collisions and byte-level

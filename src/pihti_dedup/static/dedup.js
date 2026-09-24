@@ -666,11 +666,15 @@
     });
   });
 
-  // The rail shows as much of the note as its fixed budget holds; a longer
-  // note is cut with a fade rather than growing the card.
-  document.querySelectorAll("[data-note-rail-body]").forEach(function (body) {
-    body.classList.toggle("is-cut", body.scrollHeight > body.clientHeight + 1);
-  });
+  // The rail shows as much of the note (or the root's summary) as its fixed
+  // budget holds; a longer text is cut with a fade rather than growing the card.
+  function markCuts() {
+    document.querySelectorAll("[data-note-rail-body], .rail-context .catalog-description").forEach(function (body) {
+      body.classList.toggle("is-cut", body.scrollHeight > body.clientHeight + 1);
+    });
+  }
+  markCuts();
+  window.addEventListener("resize", markCuts);
 
   document.querySelectorAll("[data-dialog-close]").forEach(function (closer) {
     closer.addEventListener("click", function () {
@@ -794,6 +798,8 @@
   var image = inspector && inspector.querySelector("[data-inspector-image]");
   var title = inspector && inspector.querySelector("[data-inspector-title]");
   var facts = inspector && inspector.querySelector("[data-inspector-facts]");
+  var flagBox = inspector && inspector.querySelector("[data-inspector-flags]");
+  var flagForms = inspector ? Array.from(inspector.querySelectorAll("form[data-inspector-flag]")) : [];
   var shown = null;
   var hoverTimer = null;
 
@@ -826,30 +832,82 @@
     }
     image.src = source.currentSrc || source.src;
     sizeImage(source.complete ? source.naturalWidth : 0);
+    pointFlags(tile, title.textContent);
     empty.hidden = true;
     body.hidden = false;
     fitImage();
     shown = tile;
   }
 
-  // The rail is capped at the viewport and the folder note above keeps a
-  // fixed budget, so the preview takes only the room the rail has left above
-  // the title and a couple of fact lines; a short window never pushes the
-  // shown file out of the rail.
-  var FACT_ROOM = 72;
+  // The two placement toggles act on the file the inspector names, and on
+  // nothing else: each form is pointed at that file together with the title,
+  // carries the value it wants (so a repeated submit cannot flip it back),
+  // and remembers the file so a submit for any other file is refused.
+  var FLAG_TEXT = {
+    hero: {
+      on: "Main assembly · clear",
+      off: "Make main assembly",
+      setTitle: function (name) { return "Show " + name + " among the Main assemblies and first on its folder cards"; },
+      clearTitle: function (name) { return "Stop showing " + name + " among the Main assemblies (asks first)"; },
+      confirm: function (name) { return "Clear main assembly on " + name + "? It stays in its folder; only the placement goes."; }
+    },
+    featured: {
+      on: "Featured · clear",
+      off: "Feature on folder card",
+      setTitle: function (name) { return "Lead the folder cards above " + name + " with its preview"; },
+      clearTitle: function (name) { return "Stop leading the folder cards with " + name + " (asks first)"; },
+      confirm: function (name) { return "Stop featuring " + name + " on its folder cards?"; }
+    }
+  };
+  function pointFlags(tile, name) {
+    var part = tile.getAttribute("href") || "";
+    flagForms.forEach(function (form) {
+      var key = form.dataset.inspectorFlag;
+      var text = FLAG_TEXT[key];
+      var on = tile.dataset[key] === "1";
+      form.action = part + "/" + key;
+      form.dataset.file = part;
+      form.dataset.confirm = on ? text.confirm(name) : "";
+      form.querySelector('input[name="' + key + '"]').value = on ? "0" : "1";
+      var origin = form.querySelector("input[data-origin-from-file]");
+      if (origin) {
+        // Search results return to the file's own folder, where its tile is.
+        var relative = decodeURIComponent(part.replace(/^\/part\//, ""));
+        origin.value = relative.indexOf("/") > 0 ? relative.slice(0, relative.lastIndexOf("/")) : ".";
+      }
+      var button = form.querySelector("button");
+      button.textContent = on ? text.on : text.off;
+      button.title = on ? text.clearTitle(name) : text.setTitle(name);
+      button.setAttribute("aria-pressed", on ? "true" : "false");
+    });
+  }
+  flagForms.forEach(function (form) {
+    form.addEventListener("submit", function (event) {
+      if (!shown || !form.dataset.file || form.dataset.file !== shown.getAttribute("href")) {
+        event.preventDefault();
+        return;
+      }
+      if (form.dataset.confirm && !window.confirm(form.dataset.confirm)) event.preventDefault();
+    });
+  });
+
+  // The inspector fills the fixed space between the folder card and the
+  // legend, so the preview takes only the room the card has left above the
+  // title, a couple of fact lines, and the toggles at its foot; a short
+  // window never pushes the shown file out of the rail.
+  var FACT_ROOM = 72;  // the title and a couple of fact lines
+  var PREVIEW_MIN = 32;  // below this a short window shows no preview at all
   var PREVIEW_MAX = 384;
   function fitImage() {
-    var rail = inspector.closest(".rail-context");
-    if (!rail || body.hidden || !inspector.offsetParent) return;
-    var gap = parseFloat(window.getComputedStyle(rail).rowGap) || 0;
-    var below = 0;  // the cards under the inspector, such as the legend
-    for (var card = inspector.nextElementSibling; card; card = card.nextElementSibling) {
-      below += card.offsetHeight + gap;
-    }
-    var cap = parseFloat(window.getComputedStyle(rail).maxHeight) || rail.clientHeight;
-    var limit = rail.getBoundingClientRect().top + cap - below;
-    var room = limit - image.getBoundingClientRect().top - FACT_ROOM;
-    image.style.maxHeight = Math.max(64, Math.min(PREVIEW_MAX, Math.floor(room))) + "px";
+    if (body.hidden || !inspector.offsetParent) return;
+    var padding = parseFloat(window.getComputedStyle(inspector).paddingBottom) || 0;
+    var limit = inspector.getBoundingClientRect().bottom - padding;
+    var flags = flagBox ? flagBox.offsetHeight : 0;
+    var preview = image.parentElement;
+    preview.hidden = false;
+    var room = limit - preview.getBoundingClientRect().top - FACT_ROOM - flags;
+    preview.hidden = room < PREVIEW_MIN;
+    image.style.maxHeight = Math.max(PREVIEW_MIN, Math.min(PREVIEW_MAX, Math.floor(room))) + "px";
   }
   window.addEventListener("resize", fitImage);
 
@@ -860,6 +918,7 @@
     empty.hidden = false;
     image.removeAttribute("src");
     facts.replaceChildren();
+    flagForms.forEach(function (form) { form.removeAttribute("action"); delete form.dataset.file; });
     shown = null;
   }
 
@@ -954,7 +1013,8 @@
   "use strict";
 
   // Clearing a Main assembly or Featured flag on the part page asks first;
-  // setting one does not.
+  // setting one does not. The inspector's toggles do the same in their own
+  // handler, for whichever file they are pointed at.
   document.querySelectorAll("form[data-flag-confirm]").forEach(function (form) {
     form.addEventListener("submit", function (event) {
       if (!window.confirm(form.dataset.flagConfirm)) event.preventDefault();
