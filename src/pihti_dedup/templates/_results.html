@@ -68,7 +68,7 @@
             data-record-path="{{ record.path }}"
             data-record-hash="{{ record.sha256 or '' }}">
             <a class="member-thumb" href="{{ url_for('part_page', relative_path=record.path) }}" title="Open {{ record.name }}" tabindex="-1" aria-hidden="true">
-              <img src="{{ url_for('preview_image', relative_path=record.path) }}" alt="" loading="lazy" decoding="async" width="64" height="48">
+              <img src="{{ preview_url(record) }}" alt="" loading="lazy" decoding="async" width="64" height="48">
             </a>
             <div class="member-path">
               <strong><a href="{{ url_for('part_page', relative_path=record.path) }}">{{ record.name }}</a></strong>

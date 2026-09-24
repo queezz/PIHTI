@@ -49,6 +49,60 @@ supersedes the 0.6.1 per-request metadata walk described above; passing
 `--refresh-seconds 0` restores that validate-on-every-request behaviour and is
 still the default for `create_app()` in tests.
 
+Version 0.15.0 makes the catalog thumbnail-first and changes its contract.
+Catalog and part pages use one grid, `25.5rem minmax(0, 1fr) 17rem`, inside a
+page that may now grow to 2400px. On a 1920px screen that gives a 408px left
+rail, a 1141px centre column, and a 272px tree rail. The tree rail sits at the
+same x-position and width as the outer Duplicates rail, and both rails and the
+header line share the sticky offset `calc(var(--bar-height) +
+var(--content-pad))`. `scrollbar-gutter: stable` keeps short pages from
+shifting the rails by the scrollbar width. The left rail holds the folder or
+file facts with a copy-path action, the **Note** button that opens the existing
+note modal with a two-line excerpt beneath it, the root workspace summary and
+`PIHTI.ipj` project-file line, an inspector for the hovered or arrow-focused
+tile, and a legend for the tile marks present on the page. The right rail holds
+only the folder tree. Above the thumbnails is one line: the breadcrumb and a
+filter field. The field filters the cards already on the page in one animation
+frame. Enter, or **Search whole archive**, submits the unchanged `?q=` search.
+Folder cards have their own grid, with a 22.5rem minimum card width and a 3 x 2
+strip of 110px-minimum thumbnails. Each strip is built server-side in one pass
+over the inventory (`folder_strips`), with Inventor documents first. The
+folder's files follow in a separate grid under a compact `Files · N` line. File
+tiles carry a hidden fact list, rendered from cached iProperties and the
+where-used snapshot only when there is something beyond name, size, and chips;
+the inspector copies it. Nothing floats over the grid. Tile marks
+(`file_signals`) come from the inventory's filename and renamed groups and the
+generic-name rule, memoized per inventory object like the folder index.
+Copies colour the top edge in the Duplicates palette; a generic name or a newer
+same-named file adds a dot. The newer-file mark is filesystem evidence only and
+names the folder of the newer file. An "unused part" mark was not added:
+top-level assemblies and standalone parts are legitimately unreferenced, so it
+would mark much of the archive.
+
+Every rendered preview URL carries `v=<mtime_ns>-<size>-r<renderer>`
+(`preview_url`, a Jinja global). A request whose key matches the file's fresh
+stat, and which yields a real preview, answers `private, max-age=31536000,
+immutable`. A missing or stale key, or the placeholder, keeps the `no-cache`
+plus ETag path, because installing a preview extra turns a placeholder into an
+image without touching the file. Plain catalog pages (no `q`, no `saved`) answer
+`private, max-age=5` instead of `no-store`, so the page `dedup.js` prefetches
+after a 100ms hover on a tree link, breadcrumb, or folder card serves the click
+that follows. Five seconds cannot show anything staler than the snapshot the
+page is rendered from, which the ticker refreshes on about that period.
+
+Owner rulings of 2026-09-24 shape this layout. A pinned rail outranks the
+earlier rejection of an inner scrollbar. So the tree card and the left rail are
+capped at `calc(100vh - var(--bar-height) - var(--content-pad) -
+var(--page-foot) - 1px)`, the room between the sticky offset and the page foot,
+and only the tree or the inspector's fact list scrolls inside them. Capping at
+the full viewport was not enough: a taller card is pushed up by its own grid
+area at the end of the scroll, measured at 50px on a 700px window. The viewer
+is a desktop tool used beside Inventor at 1400-2560px. It has one fold below
+1200px, where both rails move into one static right column and the inspector is
+dropped. Laptop and phone layouts, and the cookbook's narrow-screen checks
+beyond that fold, are deliberately deferred for this project rather than
+skipped.
+
 ## Purpose
 
 Provide a local, human-in-the-loop view of filename collisions and byte-level
@@ -408,8 +462,13 @@ scan card at the top and introduced the collapsible tree. Version 0.7.0 turns
 that tree into route navigation: the current ancestry opens automatically,
 unrelated branches collapse again on navigation, every folder count includes
 its subtree, and the active leaf is marked. Depth is a CSS custom-property
-indent, not a nested scrolling container, and a test asserts no rule in the
-stylesheet imposes a height ceiling.
+indent, not a nested scrolling container. Until 0.15.0 a test asserted that no
+rule imposed a height ceiling. On 2026-09-24 the owner reported that the rail
+scrolled with the page when a large branch was open ("not nailed, hate it") and
+ruled a pinned rail the priority. The rail now keeps its offset at every scroll
+depth, and only the tree scrolls inside its capped card, which also scrolls the
+current folder into view. The test now pins that ceiling and allows only that
+inner scroll (see Status, 0.15.0).
 
 ### Decisions
 

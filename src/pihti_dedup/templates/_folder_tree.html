@@ -1,0 +1,57 @@
+{% macro tree_node(node, depth, include_vendor=false, current_kind='page') %}
+<div class="tree-node" data-tree-node style="--tree-depth: {{ depth }}">
+  <div class="tree-row{% if node.current %} is-current{% endif %}">
+    {% if node.children %}
+    <button class="tree-toggle{% if node.open %} is-open{% endif %}" type="button" data-tree-toggle="{{ node.path }}" aria-expanded="{{ 'true' if node.open else 'false' }}" aria-controls="tree-{{ node.key }}">
+      <span aria-hidden="true">▸</span>
+      <span class="sr-only">Expand {{ node.path }}</span>
+    </button>
+    {% else %}
+    <span class="tree-toggle is-leaf" aria-hidden="true"></span>
+    {% endif %}
+    <a class="tree-name" href="{{ url_for('catalog', relative_folder=node.path, include_vendor='1' if include_vendor else none) }}" title="{{ node.path|winpath }}"{% if node.current %} aria-current="{{ current_kind }}"{% endif %}>{{ node.name }}</a>
+    <strong>{{ node.count }}</strong>
+  </div>
+  {% if node.children %}
+  <div class="tree-children" id="tree-{{ node.key }}" data-tree-children="{{ node.path }}"{% if not node.open %} hidden{% endif %}>
+    {% for child in node.children %}{{ tree_node(child, depth + 1, include_vendor, current_kind) }}{% endfor %}
+  </div>
+  {% endif %}
+</div>
+{% endmacro %}
+
+{% macro tree_rail(tree, include_vendor=false, current_kind='page') %}
+<aside class="rail-side rail-tree" aria-label="Folder tree">
+  <section class="rail-card tree-card">
+    <h2 title="Counts include every CAD file below a folder">Folders</h2>
+    <nav class="folder-tree" data-folder-tree aria-label="Browse folders">
+      {% for node in tree %}{{ tree_node(node, 0, include_vendor, current_kind) }}{% endfor %}
+    </nav>
+  </section>
+</aside>
+{% endmacro %}
+
+{% macro catalog_bar(breadcrumbs, query="", include_vendor=false, filter=true) %}
+<header class="catalog-bar">
+  <nav class="breadcrumbs" aria-label="Breadcrumb">
+    {% if query %}
+    <a href="{{ url_for('catalog', include_vendor='1' if include_vendor else none) }}">Catalog</a><span aria-hidden="true">/</span><strong>Search</strong>
+    {% else %}
+    {% for crumb in breadcrumbs %}
+      {% if not loop.last %}
+      <a href="{{ url_for('catalog', relative_folder=crumb.path if crumb.path != '.' else none, include_vendor='1' if include_vendor else none) }}">{{ crumb.name }}</a><span aria-hidden="true">/</span>
+      {% else %}<strong aria-current="page">{{ crumb.name }}</strong>{% endif %}
+    {% endfor %}
+    {% endif %}
+  </nav>
+  <form class="catalog-search" action="{{ url_for('catalog') }}" method="get" role="search">
+    <label class="searchbox">
+      <span class="sr-only">{% if filter %}Filter what is on this page; Enter searches the whole archive{% else %}Search every CAD filename and path{% endif %}</span>
+      <span aria-hidden="true">⌕</span>
+      <input type="search" name="q" value="{{ query }}" placeholder="{% if not filter %}Search whole archive{% elif query %}Filter results{% else %}Filter this folder{% endif %}" autocomplete="off"{% if filter %} data-filter-search{% endif %}>
+    </label>
+    {% if include_vendor %}<input type="hidden" name="include_vendor" value="1">{% endif %}
+    <button class="button" type="submit"{% if filter %} data-search-archive{% endif %}>{% if filter %}Search whole archive{% else %}Search{% endif %}</button>
+  </form>
+</header>
+{% endmacro %}

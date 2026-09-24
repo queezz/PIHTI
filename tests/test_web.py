@@ -31,6 +31,15 @@ def make_workspace(root: Path) -> Path:
     return root
 
 
+def scrolling_selectors(style: str) -> list[str]:
+    """Selectors of every top-level rule that gives an element a vertical scrollbar."""
+
+    return [
+        match.group(1).strip()
+        for match in re.finditer(r"(?m)^([^@{}\n][^{}\n]*)\{[^{}]*overflow-y:\s*(?:auto|scroll)", style)
+    ]
+
+
 def test_shell_is_immediate_and_results_are_loaded_separately(tmp_path: Path) -> None:
     client = create_app(make_workspace(tmp_path)).test_client()
 
@@ -247,7 +256,8 @@ def test_styles_keep_desktop_rail_at_its_initial_top_offset(tmp_path: Path) -> N
     assert "top: calc(var(--bar-height) + var(--content-pad));" in style
     assert ".summary-strip" not in style
     assert "grid-template-columns: minmax(0, 1fr) 17rem 17rem" in style
-    assert "overflow-y: auto" not in style
+    # Only the catalog folder tree may scroll inside its pinned rail card.
+    assert scrolling_selectors(style) == [".inspector-facts", ".tree-card .folder-tree"]
     assert ".operation-toast" in style
     assert "#dup-results.is-refreshing { pointer-events: none; }" in style
     assert "opacity: 0.56" not in style
@@ -536,7 +546,7 @@ def test_duplicate_rows_show_a_preview_and_link_to_the_part_page(tmp_path: Path)
     result_html = client.get("/duplicates/results").get_data(as_text=True)
 
     assert result_html.count('class="member-thumb"') == 3
-    assert 'src="/preview/BoronProbe_2026/parts/bearing.ipt"' in result_html
+    assert 'src="/preview/BoronProbe_2026/parts/bearing.ipt?v=' in result_html
     assert 'href="/part/BoronProbe_2026/parts/bearing.ipt"' in result_html
     assert 'loading="lazy"' in result_html
 
@@ -632,9 +642,9 @@ def test_the_part_page_and_catalog_show_the_rendered_export(tmp_path: Path) -> N
     part = client.get("/part/BoronProbe/exports/head.stl").get_data(as_text=True)
     catalog = client.get("/catalog/BoronProbe/exports").get_data(as_text=True)
 
-    assert 'src="/preview/BoronProbe/exports/head.stl"' in part
+    assert 'src="/preview/BoronProbe/exports/head.stl?v=' in part
     assert "rendered from the geometry" in part
-    assert 'src="/preview/BoronProbe/exports/head.stl"' in catalog
+    assert 'src="/preview/BoronProbe/exports/head.stl?v=' in catalog
     assert "head.stl" in catalog
 
 
@@ -656,7 +666,7 @@ def test_previews_are_exempt_from_no_store_and_revalidate_by_etag(tmp_path: Path
     root = make_export_workspace(tmp_path)
     client = create_app(root).test_client()
 
-    page = client.get("/catalog")
+    page = client.get("/duplicates")
     first = client.get("/preview/BoronProbe/exports/head.stl")
     again = client.get(
         "/preview/BoronProbe/exports/head.stl", headers={"If-None-Match": first.headers["ETag"]}
@@ -682,6 +692,96 @@ def test_a_resaved_file_gets_a_new_validator_so_the_browser_refetches(tmp_path: 
     assert client.get("/preview/BoronProbe/exports/head.stl").headers["ETag"] != before
 
 
+def test_a_versioned_preview_url_is_immutable_only_while_it_names_the_current_file(
+    tmp_path: Path, monkeypatch
+) -> None:
+    png = b"\x89PNG\r\n\x1a\n" + b"body bytes"
+    monkeypatch.setattr(web, "read_preview", lambda _path: Preview(data=png, image_format="png"))
+    root = make_workspace(tmp_path)
+    target = root / "BoronProbe" / "parts" / "bearing.ipt"
+    client = create_app(root).test_client()
+    stat = target.stat()
+    current = web.preview_version(stat.st_mtime_ns, stat.st_size)
+    url = "/preview/BoronProbe/parts/bearing.ipt"
+
+    right = client.get(f"{url}?v={current}")
+    wrong = client.get(f"{url}?v=0-0-r0")
+    bare = client.get(url)
+
+    assert right.status_code == 200 and right.get_data() == png
+    assert right.headers["Cache-Control"] == "private, max-age=31536000, immutable"
+    assert right.headers["ETag"] and right.headers["Last-Modified"]
+    for response in (wrong, bare):
+        assert "immutable" not in response.headers["Cache-Control"]
+        assert "no-cache" in response.headers["Cache-Control"]
+
+    # A resave changes the key: the old URL degrades to revalidation, and the
+    # page renders the new key.
+    stamp = stat.st_mtime_ns + 2_000_000_000
+    os.utime(target, ns=(stamp, stamp))
+    stale = client.get(f"{url}?v={current}")
+    assert "no-cache" in stale.headers["Cache-Control"]
+    html = client.get("/catalog/BoronProbe/parts").get_data(as_text=True)
+    assert f'src="{url}?v={web.preview_version(stamp, stat.st_size)}"' in html
+
+
+def test_a_placeholder_is_never_promised_immutable(tmp_path: Path) -> None:
+    root = make_workspace(tmp_path)
+    stat = (root / "BoronProbe" / "parts" / "bearing.ipt").stat()
+    key = web.preview_version(stat.st_mtime_ns, stat.st_size)
+    client = create_app(root).test_client()
+
+    response = client.get(f"/preview/BoronProbe/parts/bearing.ipt?v={key}")
+
+    assert response.mimetype == "image/svg+xml"
+    assert "immutable" not in response.headers["Cache-Control"]
+    assert "no-cache" in response.headers["Cache-Control"]
+
+
+def test_every_rendered_preview_src_carries_a_version_key(tmp_path: Path) -> None:
+    root = make_workspace(tmp_path)
+    assembly = root / "Assembly" / "Fixture.iam"
+    assembly.parent.mkdir()
+    assembly.write_bytes(assembly_bytes("bearing.ipt"))
+    client = create_app(root).test_client()
+
+    pages = [
+        client.get(url).get_data(as_text=True)
+        for url in (
+            "/catalog",
+            "/catalog/BoronProbe",
+            "/catalog/BoronProbe/parts",
+            "/catalog?q=bearing",
+            "/part/BoronProbe/parts/bearing.ipt",
+            "/duplicates/results",
+            "/doctor",
+            "/doctor/name/bearing.ipt",
+            "/doctor/assembly/Assembly/Fixture.iam",
+        )
+    ]
+
+    sources = [src for html in pages for src in re.findall(r'src="(/preview/[^"]*)"', html)]
+    assert sources
+    assert all(re.search(r"\?v=[0-9a-f]+-[0-9a-f]+-r\d+$", src) for src in sources), sources
+
+
+def test_plain_catalog_pages_are_briefly_cacheable_for_hover_prefetch(tmp_path: Path) -> None:
+    client = create_app(make_workspace(tmp_path)).test_client()
+
+    assert client.get("/catalog").headers["Cache-Control"] == "private, max-age=5"
+    assert client.get("/catalog/BoronProbe/parts").headers["Cache-Control"] == "private, max-age=5"
+    assert client.get("/catalog?q=bearing").headers["Cache-Control"] == "no-store"
+    assert client.get("/catalog/BoronProbe/parts?saved=1").headers["Cache-Control"] == "no-store"
+    assert client.get("/catalog/not-there").headers["Cache-Control"] == "no-store"
+    assert client.get("/part/BoronProbe/parts/bearing.ipt").headers["Cache-Control"] == "no-store"
+    assert client.get("/doctor").headers["Cache-Control"] == "no-store"
+
+    script = client.get("/static/dedup.js").get_data(as_text=True)
+    assert 'credentials: "same-origin"' in script
+    assert ".folder-tree a.tree-name, .breadcrumbs a, a.folder-card" in script
+    assert "var DELAY = 100;" in script
+
+
 def test_duplicate_rows_offer_rename_only_for_the_four_inventor_extensions(tmp_path: Path) -> None:
     root = tmp_path
     binary_stl(root / "A" / "head.stl", [[(0, 0, 0), (1, 0, 0), (0, 1, 0)]])
@@ -694,7 +794,7 @@ def test_duplicate_rows_offer_rename_only_for_the_four_inventor_extensions(tmp_p
 
     # Every member row carries a preview, including the two STL exports...
     assert html.count('class="member-thumb"') == 4
-    assert 'src="/preview/A/head.stl"' in html
+    assert 'src="/preview/A/head.stl?v=' in html
     # ...but only the Inventor documents can be renamed through the ledger flow.
     assert html.count(">Rename<") == 2
     assert "/part/A/head.stl#rename" not in html
@@ -709,14 +809,17 @@ def test_catalog_browses_one_folder_level_at_a_time(tmp_path: Path) -> None:
 
     assert 'href="/catalog/BoronProbe"' in landing
     assert 'href="/catalog/Plasma%20Vessel"' in landing
-    assert 'src="/preview/BoronProbe/parts/bearing.ipt"' not in landing
+    # Deeper files appear only as a folder card's thumbnail strip, never as tiles.
+    assert 'href="/part/BoronProbe/parts/bearing.ipt"' not in landing
+    assert landing.count('class="thumb-tile"') == 0
     assert 'href="/catalog/BoronProbe/parts"' in system
-    assert 'src="/preview/BoronProbe/parts/bearing.ipt"' not in system
+    assert 'href="/part/BoronProbe/parts/bearing.ipt"' not in system
+    assert system.count('class="thumb-tile"') == 0
     assert 'href="/part/BoronProbe/parts/bearing.ipt"' in folder
-    assert 'src="/preview/BoronProbe/parts/bearing.ipt"' in folder
+    assert 'src="/preview/BoronProbe/parts/bearing.ipt?v=' in folder
     assert folder.count('class="thumb-tile"') == 1
     assert "Design Data" not in landing
-    assert 'class="work-grid one-rail"' in landing
+    assert 'class="work-grid catalog-grid"' in landing
     assert client.get("/catalog/not-there").status_code == 404
     assert client.get("/catalog/..%2Foutside").status_code == 404
 
@@ -1003,7 +1106,7 @@ def make_rename_workspace(root: Path) -> Path:
     return root
 
 
-def test_catalog_rail_pins_the_scan_card_above_a_collapsible_folder_tree(tmp_path: Path) -> None:
+def test_catalog_right_rail_holds_only_the_collapsible_folder_tree(tmp_path: Path) -> None:
     root = make_workspace(tmp_path)
     (root / "BoronProbe" / "drawings").mkdir()
     (root / "BoronProbe" / "drawings" / "bearing.idw").write_bytes(b"drawing")
@@ -1011,9 +1114,15 @@ def test_catalog_rail_pins_the_scan_card_above_a_collapsible_folder_tree(tmp_pat
 
     landing = client.get("/catalog").get_data(as_text=True)
     current = client.get("/catalog/BoronProbe/parts").get_data(as_text=True)
-    rail = landing.split('<aside class="rail-side"', 1)[1]
+    context = landing.split('<aside class="rail-side rail-context"', 1)[1].split("</aside>", 1)[0]
+    tree_rail = landing.split('<aside class="rail-side rail-tree"', 1)[1].split("</aside>", 1)[0]
 
-    assert rail.index("<h2>Catalog</h2>") < rail.index("<h2>Folders</h2>")
+    # The workspace counts moved out of the tree rail into the context rail.
+    assert tree_rail.count('class="rail-card') == 1
+    assert ">Folders</h2>" in tree_rail and "data-folder-tree" in tree_rail
+    assert "<h2>Catalog</h2>" not in landing
+    assert "<dt>CAD files</dt><dd>4</dd>" in context
+    assert "<dt>Folders</dt>" in context
     assert "data-folder-tree" in landing
     # The two BoronProbe subfolders collapse under one top-level node carrying both.
     assert 'data-tree-toggle="BoronProbe" aria-expanded="false"' in landing
@@ -1023,6 +1132,381 @@ def test_catalog_rail_pins_the_scan_card_above_a_collapsible_folder_tree(tmp_pat
     assert 'data-tree-children="BoronProbe">' in current
     assert 'href="/catalog/BoronProbe/parts" title="BoronProbe\\parts" aria-current="page"' in current
     assert "rail-navrow" not in landing
+
+
+def test_folder_cards_carry_a_thumbnail_strip_from_the_subtree_inventor_first(
+    tmp_path: Path,
+) -> None:
+    root = tmp_path
+    exports = root / "Box" / "a-exports"
+    exports.mkdir(parents=True)
+    for index in range(3):
+        (exports / f"early-{index}.stl").write_bytes(b"mesh %d" % index)
+    deep = root / "Box" / "z-deep" / "inner"
+    deep.mkdir(parents=True)
+    for index in range(8):
+        (deep / f"part-{index}.ipt").write_bytes(b"part %d" % index)
+    (root / "Box" / "direct.ipt").write_bytes(b"direct")
+    client = create_app(root).test_client()
+
+    html = client.get("/catalog").get_data(as_text=True)
+    card = html.split('class="folder-card" href="/catalog/Box"', 1)[1].split("</a>", 1)[0]
+    strip = re.findall(r'src="/preview/([^"?]+)\?v=', card)
+
+    # Six images from the whole subtree, Inventor documents first in inventory
+    # (path) order; the three earlier meshes would only top up a short strip.
+    assert strip == ["Box/direct.ipt"] + [
+        f"Box/z-deep/inner/part-{index}.ipt" for index in range(5)
+    ]
+    assert ">Box</strong>" in card
+    assert "<b>12</b> files" in card
+    assert 'class="folder-strip-empty"' not in card
+
+    inner = client.get("/catalog/Box").get_data(as_text=True)
+    exports_card = inner.split('href="/catalog/Box/a-exports"', 1)[1].split("</a>", 1)[0]
+    assert re.findall(r'src="/preview/([^"?]+)\?v=', exports_card) == [
+        f"Box/a-exports/early-{index}.stl" for index in range(3)
+    ]
+    assert exports_card.count('class="folder-strip-empty"') == 3
+    # Folder cards lead in a grid of their own; files follow in a separate grid
+    # under their own compact count line, so one never reflows the other.
+    folders = inner.split('<div class="folder-grid">', 1)[1].split('<div class="file-block">', 1)[0]
+    file_block = inner.split('<div class="file-block">', 1)[1]
+    assert folders.count('<a class="folder-card') == 2 and "thumb-tile" not in folders
+    assert '<a class="folder-card' not in file_block.split("</section>", 1)[0]
+    assert '<p class="grid-label"><strong>Files</strong> · <span data-filter-count data-total="1">1</span></p>' in file_block
+    assert file_block.count('class="thumb-tile"') == 1
+    assert "folder-glyph" not in inner
+    # A leaf folder has no folder grid, a folder with only subfolders no file grid.
+    leaf = client.get("/catalog/Box/a-exports").get_data(as_text=True)
+    assert 'class="folder-grid"' not in leaf and 'class="file-block"' in leaf
+    only_folders = client.get("/catalog/Box/z-deep").get_data(as_text=True)
+    assert 'class="folder-grid"' in only_folders and 'class="file-block"' not in only_folders
+
+
+def test_tiles_carry_hidden_details_only_when_there_is_something_to_add(
+    tmp_path: Path, monkeypatch
+) -> None:
+    def metadata(path: Path) -> DocumentMeta:
+        if path.name == "spacer.ipt":
+            return make_document(
+                description="Keeps the probe head off the flange.",
+                material="Generic",
+                mass=12.5,
+                valid_massprops=17,
+            )
+        return make_document()
+
+    monkeypatch.setattr(web, "read_inventor_document", metadata)
+    root = make_rename_workspace(tmp_path)
+    (root / "BoronProbe" / "parts" / "washer.ipt").write_bytes(b"plain")
+    client = create_app(root).test_client()
+
+    html = client.get("/catalog/BoronProbe/parts").get_data(as_text=True)
+    spacer = html.split('href="/part/BoronProbe/parts/spacer.ipt"', 1)[1].split("</a>", 1)[0]
+    washer = html.split('href="/part/BoronProbe/parts/washer.ipt"', 1)[1].split("</a>", 1)[0]
+    details = spacer.split('<dl class="thumb-details" hidden>', 1)[1].split("</dl>", 1)[0]
+
+    assert "<dt>Description</dt><dd>Keeps the probe head off the flange.</dd>" in details
+    assert "<dt>Mass</dt><dd>12.5 g</dd>" in details
+    assert "<dt>Modified</dt>" in details
+    assert "<dt>Material</dt>" not in details  # "Generic" says nothing
+    assert "<dt>Used in</dt>" in details
+    assert '<li title="BoronProbe\\probe.iam">probe.iam</li>' in details
+    assert "thumb-details" not in washer
+
+    script = client.get("/static/dedup.js").get_data(as_text=True)
+    assert 'querySelector(".thumb-details")' in script
+    assert 'image.style.maxWidth = natural ? natural / ratio + "px"' in script  # never upscaled
+
+
+def test_tiles_signal_copies_and_names_by_colour_with_a_legend(tmp_path: Path) -> None:
+    root = make_workspace(tmp_path)
+    older = root / "BoronProbe" / "parts" / "bearing.ipt"
+    newer = root / "BoronProbe_2026" / "parts" / "bearing.ipt"
+    os.utime(older, ns=(1_700_000_000_000_000_000, 1_700_000_000_000_000_000))
+    os.utime(newer, ns=(1_800_000_000_000_000_000, 1_800_000_000_000_000_000))
+    (root / "BoronProbe" / "parts" / "Part1.ipt").write_bytes(b"generic geometry")
+    (root / "BoronProbe" / "parts" / "clean.ipt").write_bytes(b"clean geometry")
+    client = create_app(root).test_client()
+    client.get("/duplicates/results")  # hash once, as the live viewer's snapshot has
+
+    old_html = client.get("/catalog/BoronProbe/parts").get_data(as_text=True)
+    new_html = client.get("/catalog/BoronProbe_2026/parts").get_data(as_text=True)
+
+    def tile(html: str, path: str) -> str:
+        start = html.rindex('<a class="thumb-tile', 0, html.index(f'href="/part/{path}"'))
+        return html[start : html.index("</a>", start)]
+
+    old_tile = tile(old_html, "BoronProbe/parts/bearing.ipt")
+    new_tile = tile(new_html, "BoronProbe_2026/parts/bearing.ipt")
+    generic = tile(old_html, "BoronProbe/parts/Part1.ipt")
+    clean = tile(old_html, "BoronProbe/parts/clean.ipt")
+
+    # Collision: both members get the collision edge; only the older one the
+    # "newer file exists" dot, which names the folder and never says superseded.
+    assert 'data-edge="collision"' in old_tile and 'data-edge="collision"' in new_tile
+    assert '<i class="signal-dot signal-newer"></i>' in old_tile
+    assert "signal-newer" not in new_tile
+    assert "A newer file with this name exists at BoronProbe_2026\\parts" in old_tile
+    assert "superseded" not in old_html.casefold()
+    assert '<i class="signal-dot signal-generic"></i>' in generic
+    assert "Generic name" in generic
+    assert "signal-" not in clean and "data-edge" not in clean and "thumb-details" not in clean
+    # No words on the tile face: meanings live in the title and the details card.
+    face = old_tile.split('<dl class="thumb-details"', 1)[0]
+    assert "Same filename, different bytes" in face.split(">", 1)[0]  # the title attribute
+    assert "Same filename, different bytes" not in face.split(">", 1)[1]
+    legend = old_html.split('<section class="rail-card signal-legend">', 1)[1].split("</section>", 1)[0]
+    assert "Same name, different bytes" in legend
+    assert "Generic name" in legend and "Newer file with this name exists" in legend
+    assert "Identical copy elsewhere" not in legend  # only signals present on this page
+
+
+def test_signal_lookup_is_built_once_per_inventory(monkeypatch, tmp_path: Path) -> None:
+    root = make_workspace(tmp_path)
+    app = create_app(root, refresh_seconds=5)
+    client = app.test_client()
+    built: list[int] = []
+    original = web.file_signals
+
+    def counting(inventory):
+        built.append(id(inventory))
+        return original(inventory)
+
+    monkeypatch.setattr(web, "file_signals", counting)
+    try:
+        client.get("/catalog/BoronProbe/parts")
+        client.get("/catalog/Plasma%20Vessel/parts")
+        assert len(built) == 1
+    finally:
+        app.extensions["pihti_ticker"].stop()
+
+
+def test_the_header_field_filters_the_page_and_enter_still_searches_the_archive(
+    tmp_path: Path,
+) -> None:
+    client = create_app(make_workspace(tmp_path)).test_client()
+
+    folder = client.get("/catalog/BoronProbe/parts").get_data(as_text=True)
+    results = client.get("/catalog?q=bearing").get_data(as_text=True)
+    part = client.get("/part/BoronProbe/parts/bearing.ipt").get_data(as_text=True)
+    script = client.get("/static/dedup.js").get_data(as_text=True)
+
+    bar = folder.split('<header class="catalog-bar">', 1)[1].split("</header>", 1)[0]
+    assert 'action="/catalog"' in bar and 'method="get"' in bar
+    assert 'name="q" value="" placeholder="Filter this folder" autocomplete="off" data-filter-search>' in bar
+    assert 'data-search-archive>Search whole archive</button>' in bar
+    assert '<span data-filter-count data-total="1">1</span>' in folder
+    assert 'placeholder="Filter results"' in results and "data-filter-search" in results
+    assert results.count('class="thumb-tile"') == 3  # the server search itself is unchanged
+    assert "data-filter-search" not in part and 'placeholder="Search whole archive"' in part
+    assert 'document.querySelector("input[data-filter-search]")' in script
+    assert "window.requestAnimationFrame(applyFilter)" in script
+    assert "localStorage" not in script.split('input[data-filter-search]', 1)[1]  # persists nothing
+
+
+def test_the_left_rail_inspector_is_present_only_where_there_are_files(tmp_path: Path) -> None:
+    client = create_app(make_workspace(tmp_path)).test_client()
+
+    folder = client.get("/catalog/BoronProbe/parts").get_data(as_text=True)
+    only_folders = client.get("/catalog/BoronProbe").get_data(as_text=True)
+    search = client.get("/catalog?q=bearing").get_data(as_text=True)
+
+    context = folder.split('<aside class="rail-side rail-context"', 1)[1].split("</aside>", 1)[0]
+    assert '<section class="rail-card inspector" data-inspector' in context
+    assert "<p class=\"inspector-empty\" data-inspector-empty>Hover or arrow onto a file</p>" in context
+    assert context.index("note-toggle") < context.index("data-inspector")
+    assert "data-inspector" in search
+    assert "data-inspector" not in only_folders
+
+
+def test_folder_cards_keep_their_approved_size(tmp_path: Path) -> None:
+    style = create_app(tmp_path).test_client().get("/static/dedup.css").get_data(as_text=True)
+
+    # Three to four cards per row on a 1920 screen, never six: a minimum card
+    # width sized to a 3 x 2 strip of ~110-120px thumbnails, not a column count.
+    assert (
+        ".folder-grid { display: grid; grid-template-columns: "
+        "repeat(auto-fill, minmax(min(100%, 22.5rem), 1fr));"
+    ) in style
+    assert ".folder-strip { display: grid; grid-template-columns: repeat(3, minmax(110px, 1fr)); gap: 3px; }" in style
+    name_rule = style.split(".folder-card-head strong {", 1)[1].split("}", 1)[0]
+    assert "ellipsis" not in name_rule and "nowrap" not in name_rule  # names wrap
+    assert ".thumb-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(148px, 1fr));" in style
+    assert "folder-glyph" not in style
+
+
+def test_part_page_shares_the_catalog_shell_and_packs_its_facts(
+    tmp_path: Path, monkeypatch
+) -> None:
+    png = b"\x89PNG\r\n\x1a\n" + b"\x00\x00\x00\rIHDR" + (256).to_bytes(4, "big") + (192).to_bytes(4, "big")
+    monkeypatch.setattr(web, "read_preview", lambda _path: Preview(data=png, image_format="png"))
+    monkeypatch.setattr(
+        web,
+        "read_inventor_document",
+        lambda _path: make_document(
+            description="Carrier", material="PAEK", mass=3.5, density=1.3, valid_massprops=1
+        ),
+    )
+    client = create_app(make_workspace(tmp_path)).test_client()
+
+    part = client.get("/part/BoronProbe/parts/bearing.ipt").get_data(as_text=True)
+    folder = client.get("/catalog/BoronProbe/parts").get_data(as_text=True)
+
+    for html in (part, folder):
+        assert '<div class="work-grid catalog-grid">' in html
+        assert '<aside class="rail-side rail-context"' in html
+        assert '<aside class="rail-side rail-tree" aria-label="Folder tree">' in html
+        assert '<header class="catalog-bar">' in html
+    assert 'href="/catalog/BoronProbe/parts" title="BoronProbe\\parts" aria-current="location"' in part
+    assert '<strong aria-current="page">bearing.ipt</strong>' in part
+    context = part.split('<aside class="rail-side rail-context"', 1)[1].split("</aside>", 1)[0]
+    assert ">Back to folder</a>" in context and ">Folder note</a>" in context
+    assert f'data-copy-text="{tmp_path / "BoronProbe" / "parts" / "bearing.ipt"}"' in context
+    # Collision signal from the shared lookup, explained in the rail.
+    assert "signal-legend" in context
+    # Dense sheet: preview at its own pixel size, iProperties and mass in one grid.
+    assert 'width="256" height="192"' in part
+    sheet = part.split('<section class="part-sheet">', 1)[1].split("</section>", 1)[0]
+    assert "<dt>Material</dt><dd>PAEK</dd>" in sheet
+    assert "<dt>Mass</dt><dd>3.5000 g</dd>" in sheet
+    # Two compact cards side by side; empty states are one line.
+    pair = part.split('<div class="part-pair">', 1)[1]
+    assert pair.index("Where used") < pair.index("Metadata sidecar")
+    assert "No document names this file." in pair
+    assert "No sidecar yet" in pair and ">Create metadata</button>" in pair
+    # Rename is a disclosure carrying the old boundary sentence; no Boundary card.
+    assert '<details class="part-card rename-editor" id="rename" data-rename-disclosure>' in part
+    assert "never edits geometry, rewrites an Inventor reference, or commits anything" in part
+    assert ">Boundary</h2>" not in part
+
+
+def test_root_project_file_stands_in_the_rail_not_the_file_grid(tmp_path: Path) -> None:
+    root = make_workspace(tmp_path)
+    (root / "PIHTI.ipj").write_bytes(b"<project/>")
+    (root / "loose.stl").write_bytes(b"solid loose")
+    client = create_app(root).test_client()
+
+    html = client.get("/catalog").get_data(as_text=True)
+    context = html.split('<aside class="rail-side rail-context"', 1)[1].split("</aside>", 1)[0]
+    browse = html.split('<section class="catalog-browse"', 1)[1].split("</section>", 1)[0]
+
+    assert 'href="/part/PIHTI.ipj"' not in html
+    assert "PIHTI.ipj" not in browse
+    assert '<p class="micro-heading">Project file</p>' in context
+    assert '>PIHTI.ipj</strong>' in context
+    assert f'data-copy-text="{root / "PIHTI.ipj"}"' in context
+    assert "10 B" in context
+    # Any other loose root file is still a tile, counted on its own line.
+    assert browse.count('class="thumb-tile"') == 1
+    assert 'href="/part/loose.stl"' in browse
+    assert '<p class="grid-label"><strong>Files</strong> · <span data-filter-count data-total="1">1</span></p>' in browse
+    # Search still finds the project file as an ordinary match.
+    search = client.get("/catalog?q=PIHTI").get_data(as_text=True)
+    assert 'href="/part/PIHTI.ipj"' in search
+
+
+def test_folder_strips_are_one_pass_and_bounded() -> None:
+    record = web.FileRecord
+    records = [
+        record(path, path.rsplit("/", 1)[-1], path.casefold(), "." + path.rsplit(".", 1)[-1], 1, 1, None, "A")
+        for path in (
+            "A/x.stl",
+            "A/B/one.ipt",
+            "A/B/C/two.iam",
+            "A/B/mesh.step",
+            "A/D/three.ipt",
+            "AB/elsewhere.ipt",
+            "A/direct.ipt",
+        )
+    ]
+
+    strips = web.folder_strips(records, "A", limit=2)
+
+    assert {key: [item.path for item in value] for key, value in strips.items()} == {
+        "A/B": ["A/B/one.ipt", "A/B/C/two.iam"],
+        "A/D": ["A/D/three.ipt"],
+    }
+    top = web.folder_strips(records, ".")
+    assert [item.path for item in top["A"]][:3] == ["A/B/one.ipt", "A/B/C/two.iam", "A/D/three.ipt"]
+    assert [item.path for item in top["AB"]] == ["AB/elsewhere.ipt"]
+
+
+def test_catalog_header_is_one_compact_line_and_the_note_sits_behind_a_toggle(
+    tmp_path: Path,
+) -> None:
+    root = make_workspace(tmp_path)
+    (root / "BoronProbe" / "parts" / "README.md").write_text(
+        "# parts\n\nPAEK bearing stack for the rotating head.\n", encoding="utf-8"
+    )
+    client = create_app(root).test_client()
+
+    html = client.get("/catalog/BoronProbe/parts").get_data(as_text=True)
+    main = html.split('<div class="work-main catalog-main">', 1)[1].split("<aside", 1)[0]
+    bar = main.split('<header class="catalog-bar">', 1)[1].split("</header>", 1)[0]
+    context = html.split('<aside class="rail-side rail-context"', 1)[1].split("</aside>", 1)[0]
+
+    # One line above the thumbnails: breadcrumb and the global search, nothing else.
+    assert main.index('<header class="catalog-bar">') < main.index("data-thumb-grid")
+    assert 'aria-label="Breadcrumb"' in bar and 'name="q"' in bar
+    assert 'href="/catalog/BoronProbe"' in bar
+    assert '<strong aria-current="page">parts</strong>' in bar
+    assert "catalog-heading" not in html
+    assert "catalog-note-launch" not in html
+    assert "Folder note</strong>" not in html
+    assert ">Folder</p>" not in html
+    assert "catalog-section" not in html
+    # Folder facts, the copyable path, and the Note toggle live in the left rail.
+    assert "<dt>Files here</dt><dd>1</dd>" in context
+    assert "<dt>Below here</dt><dd>1</dd>" in context
+    assert f'data-copy-text="{root / "BoronProbe" / "parts"}"' in context
+    assert (
+        '<button class="note-toggle" type="button" data-dialog-open="folder-note-dialog"'
+        in context
+    )
+    assert '<p class="catalog-description">PAEK bearing stack for the rotating head.</p>' in context
+    # The note body is only inside the modal the toggle opens.
+    assert main.count("PAEK bearing stack for the rotating head.") == 2  # preview + raw editor
+    assert main.index('id="folder-note-dialog"') > main.index("data-thumb-grid")
+
+    landing = client.get("/catalog").get_data(as_text=True)
+    assert 'data-dialog-open="folder-note-dialog"' not in landing  # the root README is not a folder note
+    search = client.get("/catalog?q=bearing").get_data(as_text=True)
+    assert "Clear search" in search and "<dt>Matches</dt><dd>3</dd>" in search
+
+
+def test_catalog_styles_place_context_left_and_tree_right_on_one_sticky_offset(
+    tmp_path: Path,
+) -> None:
+    client = create_app(tmp_path).test_client()
+    style = client.get("/static/dedup.css").get_data(as_text=True)
+    script = client.get("/static/dedup.js").get_data(as_text=True)
+
+    # A wide left rail for the inspector, the standard tree rail right (the
+    # same 17rem as the outer Duplicates rail, so it does not move across tabs).
+    assert (
+        ".work-grid.catalog-grid { grid-template-columns: 25.5rem minmax(0, 1fr) 17rem; "
+        "align-items: stretch; }"
+    ) in style
+    assert "grid-template-columns: minmax(0, 1fr) 17rem 17rem" in style
+    assert ".catalog-grid > .rail-context { grid-column: 1; grid-row: 1; }" in style
+    assert ".catalog-grid > .rail-tree { grid-column: 3; grid-row: 1; }" in style
+    # Both rails and the header line share the one sticky offset of every tab.
+    rail_rule = style.split(".rail-side {", 1)[1].split("}", 1)[0]
+    bar_rule = style.split(".catalog-bar {", 1)[1].split("}", 1)[0]
+    for rule in (rail_rule, bar_rule):
+        assert "top: calc(var(--bar-height) + var(--content-pad));" in rule
+    # One fold: below 1200px both rails move into one right column, no inspector.
+    fold = style.split("@media (max-width: 1200px)", 1)[1]
+    assert ".work-grid.catalog-grid { grid-template-columns: minmax(0, 1fr) 17rem;" in fold
+    assert ".inspector { display: none !important; }" in fold
+    assert ".catalog-grid" not in style.split("@media (max-width: 1100px)", 1)[1].split("@media", 1)[0]
+    assert "thumb-peek" not in style and "thumb-peek" not in script  # nothing floats
+    # The inspector and keyboard walking are progressive enhancement.
+    assert "var HOVER_DELAY = 150;" in script
+    assert 'key === "ArrowDown"' in script and 'event.key === "Escape"' in script
+    assert "data-thumb-grid" in script and "[data-inspector]" in script
 
 
 def test_the_catalog_section_header_shows_the_folder_note_excerpt(tmp_path: Path) -> None:
@@ -1721,7 +2205,9 @@ def test_packaged_script_drives_the_folder_tree_and_the_rename_ledger(tmp_path: 
     assert "data-rename-search" in script
 
 
-def test_styles_indent_the_folder_tree_without_an_inner_scrollbar(tmp_path: Path) -> None:
+def test_styles_indent_the_folder_tree_and_scroll_only_the_tree_inside_its_pinned_card(
+    tmp_path: Path,
+) -> None:
     style = create_app(tmp_path).test_client().get("/static/dedup.css").get_data(as_text=True)
 
     assert ".folder-tree" in style
@@ -1734,10 +2220,21 @@ def test_styles_indent_the_folder_tree_without_an_inner_scrollbar(tmp_path: Path
     assert ".folder-card.has-summary" in style
     assert "-webkit-line-clamp: 2" in style
     assert "grid-template-columns: minmax(0, 1.08fr) minmax(0, 0.92fr)" in style
-    assert "overflow-y: auto" not in style
-    assert "overflow-y: scroll" not in style
-    # The owner rejected inner scrolling: nothing may be given a height ceiling.
+    # The owner once rejected inner scrolling; on 2026-09-24 he ruled a pinned
+    # rail the priority ("not nailed, hate it"). So each catalog rail stops
+    # between the sticky offset and the page foot (so the end of the scroll
+    # cannot push it up either), and only the tree, or the inspector's fact
+    # list, scrolls inside it. Nothing gets a fixed pixel ceiling.
+    assert scrolling_selectors(style) == [".inspector-facts", ".tree-card .folder-tree"]
+    # The 1px absorbs sub-pixel document heights that scrollHeight rounds away.
+    ceiling = "calc(100vh - var(--bar-height) - var(--content-pad) - var(--page-foot) - 1px)"
+    assert (
+        f".tree-card {{ display: flex; flex-direction: column; max-height: {ceiling}; }}"
+    ) in style
+    assert f".rail-context {{ max-height: {ceiling}; }}" in style
+    assert "padding: var(--content-pad) 0 var(--page-foot);" in style
     assert re.search(r"max-height:\s*\d", style) is None
+    assert style.count("max-height: calc(") == 2
 
 
 def counting_scanner(calls: list[bool]):

@@ -45,7 +45,13 @@ from pihti_dedup.git_filename_history import (
     query_filename_history,
 )
 from pihti_dedup.git_history import PullRequestMerge, recent_pull_request_merges
-from pihti_dedup.inventor_meta import INVENTOR_EXTENSIONS, DocumentMeta, Preview, read_preview
+from pihti_dedup.inventor_meta import (
+    INVENTOR_EXTENSIONS,
+    DocumentMeta,
+    Preview,
+    mass_properties,
+    read_preview,
+)
 from pihti_dedup.inventor_meta import read_document as read_inventor_document
 from pihti_dedup.inventory import (
     ExcludedPath,
@@ -556,6 +562,115 @@ def _preview_etag(path: Path, stat: os.stat_result, preview: Preview | None) -> 
     return hashlib.sha256(raw.encode("utf-8")).hexdigest()[:32]
 
 
+def preview_version(mtime_ns: int, size: int) -> str:
+    """The `v` key a preview URL carries: the file's stat plus the renderer.
+
+    A browser may keep a response to a URL bearing this key for a year,
+    because any change to the file or to the renderer yields a different key
+    and therefore a different URL. The server re-checks the key against a
+    fresh stat before promising that; see `preview_image`.
+    """
+
+    return f"{mtime_ns:x}-{size:x}-r{geometry_preview.RENDERER_VERSION}"
+
+
+PREVIEW_STRIP_SIZE = 6
+PROJECT_EXTENSIONS = frozenset({".ipj"})
+
+
+def folder_strips(records, current: str, limit: int = PREVIEW_STRIP_SIZE) -> dict[str, list]:
+    """First preview candidates below each immediate child of `current`.
+
+    One pass over the inventory in its own order. Inventor documents always
+    carry an embedded preview, so they fill the strip first; other CAD files
+    (STL, STEP, DWG) only top it up. Returns child-folder path -> records.
+    """
+
+    prefix = "" if current == "." else f"{current}/"
+    offset = len(prefix)
+    inventor: dict[str, list] = {}
+    other: dict[str, list] = {}
+    for record in records:
+        path = record.path
+        if not path.startswith(prefix):
+            continue
+        slash = path.find("/", offset)
+        if slash == -1:
+            continue  # a direct file of `current`, not below a child folder
+        child = path[:slash]
+        bucket = inventor if record.suffix.casefold() in INVENTOR_EXTENSIONS else other
+        items = bucket.setdefault(child, [])
+        if len(items) < limit:
+            items.append(record)
+    strips: dict[str, list] = {}
+    for child in inventor.keys() | other.keys():
+        strips[child] = (inventor.get(child, []) + other.get(child, []))[:limit]
+    return strips
+
+
+def _parent_label(path: str) -> str:
+    return _windows_path(path.rsplit("/", 1)[0]) if "/" in path else "the workspace root"
+
+
+def file_signals(inventory: Inventory) -> dict[str, tuple[dict, ...]]:
+    """Per-path catalog signals derived from one inventory, without a new scan.
+
+    Kinds reuse the Duplicates and Doctor palette: `collision`, `exact`,
+    `unverified`, and `renamed` describe copies (drawn as the tile's top edge);
+    `generic` and `newer` describe the name (drawn as dots). `newer` is
+    filesystem evidence only: another same-named file has a later mtime.
+    """
+
+    found: dict[str, list[dict]] = {}
+
+    def add(path: str, kind: str, text: str) -> None:
+        found.setdefault(path, []).append({"kind": kind, "text": text})
+
+    for group in inventory.filename_groups:
+        others = len(group.records) - 1
+        plural = "s" if others != 1 else ""
+        for record in group.records:
+            if group.kind == "collision":
+                add(record.path, "collision", f"Same filename, different bytes: {others} other file{plural}")
+            elif group.kind == "exact":
+                add(record.path, "exact", f"Identical copy: {others} other file{plural} with this name and bytes")
+            else:
+                add(record.path, "unverified", f"Same filename as {others} other file{plural}; bytes not compared yet")
+            if group.kind == "collision":
+                newer = [other for other in group.records if other.mtime_ns > record.mtime_ns]
+                if newer:
+                    newest = max(newer, key=lambda other: other.mtime_ns)
+                    add(
+                        record.path,
+                        "newer",
+                        f"A newer file with this name exists at {_parent_label(newest.path)}",
+                    )
+    for group in inventory.renamed_groups:
+        others = len(group.records) - 1
+        plural = "s" if others != 1 else ""
+        for record in group.records:
+            if group.characterization == "newver":
+                text = "newVer pair: same bytes under a .newVer name; origin unproven"
+            else:
+                text = f"Same bytes as {others} file{plural} with a different name"
+            add(record.path, "renamed", text)
+    for record in inventory.records:
+        if _is_generic_cad_name(record.name):
+            add(record.path, "generic", "Generic name that says nothing about the part")
+    return {path: tuple(items) for path, items in found.items()}
+
+
+EDGE_PRIORITY = ("collision", "renamed", "exact", "unverified")
+SIGNAL_LEGEND = (
+    ("collision", "edge", "Same name, different bytes"),
+    ("exact", "edge", "Identical copy elsewhere"),
+    ("renamed", "edge", "Same bytes, other name"),
+    ("unverified", "edge", "Same name, bytes not compared"),
+    ("generic", "dot", "Generic name"),
+    ("newer", "dot", "Newer file with this name exists"),
+)
+
+
 def _contained(root: Path, relative_path: str) -> Path | None:
     candidate = (relative_path or "").replace("\\", "/").strip()
     if not candidate or candidate.startswith("/"):
@@ -751,6 +866,7 @@ def create_app(
     catalog_metadata_lock = threading.RLock()
     catalog_indexes: dict[bool, tuple[Inventory, list[dict]]] = {}
     catalog_indexes_lock = threading.Lock()
+    catalog_signals: dict[bool, tuple[Inventory, dict[str, tuple[dict, ...]]]] = {}
     app.extensions["pihti_inventory_cache"] = cache
     app.extensions["pihti_preview_cache"] = previews
     app.extensions["pihti_reference_cache"] = references
@@ -815,6 +931,37 @@ def create_app(
     app.jinja_env.tests["generic_cad_name"] = _is_generic_cad_name
     app.jinja_env.globals["RENAMEABLE_EXTENSIONS"] = RENAMEABLE_EXTENSIONS
 
+    def preview_url(item) -> str:
+        """`/preview/<path>?v=<key>` for a FileRecord, a dict/obj with `path`, or a path.
+
+        A record already carries its stat from the inventory snapshot; anything
+        else is stat'ed here. A file that cannot be stat'ed gets the unversioned
+        URL, which the route serves with `no-cache` as before.
+        """
+
+        mtime_ns = getattr(item, "mtime_ns", None)
+        size = getattr(item, "size", None)
+        if isinstance(item, str):
+            path = item
+        elif isinstance(item, dict):
+            path = item.get("path", "")
+        else:
+            path = getattr(item, "path", "")
+        if mtime_ns is None or size is None:
+            target = workspace_file(root, path)
+            try:
+                stat = target.stat() if target is not None else None
+            except OSError:
+                stat = None
+            if stat is None:
+                return url_for("preview_image", relative_path=path)
+            mtime_ns, size = stat.st_mtime_ns, stat.st_size
+        return url_for(
+            "preview_image", relative_path=path, v=preview_version(mtime_ns, size)
+        )
+
+    app.jinja_env.globals["preview_url"] = preview_url
+
     @app.context_processor
     def global_recovery_status():
         recoverable = [
@@ -834,6 +981,19 @@ def create_app(
         # optimistic. A rendered STEP costs seconds; making the browser refetch
         # 280 of them on every catalog visit would defeat the disk cache.
         if request.endpoint in {"preview_image", "git_history_preview"}:
+            return response
+        # A plain catalog page may be reused for five seconds so a page the
+        # browser prefetched on hover serves the click that follows. The page
+        # is rendered from an inventory snapshot the ticker refreshes on about
+        # that period anyway; search results and the post-save view stay live.
+        if (
+            request.endpoint == "catalog"
+            and request.method == "GET"
+            and response.status_code == 200
+            and "q" not in request.args
+            and "saved" not in request.args
+        ):
+            response.headers["Cache-Control"] = "private, max-age=5"
             return response
         response.headers["Cache-Control"] = "no-store"
         return response
@@ -1473,8 +1633,20 @@ def create_app(
             response = Response(preview.data, mimetype=preview.media_type)
         response.last_modified = stat.st_mtime
         response.set_etag(_preview_etag(target, stat, preview))
-        response.cache_control.private = True
-        response.cache_control.no_cache = True  # revalidate, never serve stale
+        supplied = request.args.get("v", "")
+        if (
+            preview is not None
+            and supplied
+            and supplied == preview_version(stat.st_mtime_ns, stat.st_size)
+        ):
+            # The URL names this exact file state, so it can never go stale:
+            # a resave changes the stat and therefore the URL. A placeholder
+            # is never promised, because installing a preview extra turns it
+            # into a real image without touching the file.
+            response.headers["Cache-Control"] = "private, max-age=31536000, immutable"
+        else:
+            response.cache_control.private = True
+            response.cache_control.no_cache = True  # revalidate, never serve stale
         return response.make_conditional(request)
 
     @app.get("/catalog", defaults={"relative_folder": None})
@@ -1631,6 +1803,17 @@ def create_app(
             catalog_indexes[inventory.include_vendor] = (inventory, index)
         return index
 
+    def _catalog_signals(inventory: Inventory) -> dict[str, tuple[dict, ...]]:
+        # Same identity memo as the folder index: rebuilt once per inventory.
+        with catalog_indexes_lock:
+            cached = catalog_signals.get(inventory.include_vendor)
+            if cached is not None and cached[0] is inventory:
+                return cached[1]
+        signals = file_signals(inventory)
+        with catalog_indexes_lock:
+            catalog_signals[inventory.include_vendor] = (inventory, signals)
+        return signals
+
     def _build_catalog_index(inventory: Inventory) -> list[dict]:
         stats: dict[str, dict] = {
             ".": {"name": ".", "count": 0, "direct_count": 0, "children": set()}
@@ -1680,12 +1863,13 @@ def create_app(
             return ""
         return note.excerpt if note else ""
 
-    def _folder_card(item: dict) -> dict:
+    def _folder_card(item: dict, strip: list | None = None) -> dict:
         note = _read_catalog_note(item["name"])
         return {
             **item,
             "label": item["name"].rsplit("/", 1)[-1],
             "excerpt": note.excerpt if note and not note.generated else "",
+            "strip": strip or [],
         }
 
     def _catalog_document_meta(record: FileRecord) -> DocumentMeta | None:
@@ -1704,7 +1888,7 @@ def create_app(
             catalog_metadata[record.path] = (record.mtime_ns, record.size, meta)
         return meta
 
-    def _catalog_file(record: FileRecord) -> dict:
+    def _catalog_file(record: FileRecord, index=None, signals=None) -> dict:
         target = root / record.path
         companion = sidecar_path(target)
         metadata_error = ""
@@ -1739,7 +1923,32 @@ def create_app(
             summary or status or tags or material or part_number or metadata_error
         )
         has_story = bool(summary or metadata_error)
+        # Hover/keyboard details: rendered only when something exists beyond
+        # the name, size, and chips the tile already shows.
+        mass = mass_properties(fields).get("mass") if fields else None
+        used_in = index.referring(record.name) if index is not None else ()
+        marks = signals.get(record.path, ()) if signals else ()
+        edge = next(
+            (kind for kind in EDGE_PRIORITY if any(mark["kind"] == kind for mark in marks)), ""
+        )
+        dots = [mark for mark in marks if mark["kind"] in {"generic", "newer"}]
+        details: list[tuple[str, str]] = []
+        if description or mass is not None or used_in or marks:
+            if description:
+                details.append(("Description", description))
+            if part_number:
+                details.append(("Part number", part_number))
+            if material:
+                details.append(("Material", material))
+            if mass is not None:
+                details.append(("Mass", f"{mass:.4g} g"))
+            details.append(("Modified", _filetime(record.mtime_ns)[:16]))
         return {
+            "details": details,
+            "used_in": used_in if details else (),
+            "signals": marks,
+            "edge": edge,
+            "dots": dots,
             "record": record,
             "summary": summary or metadata_error,
             "status": status,
@@ -1775,6 +1984,7 @@ def create_app(
             requested = 48
         show = max(48, min(requested, len(inventory.records) or 48))
 
+        project_files: list[dict] = []
         if query:
             folded = query.casefold()
             matching = [record for record in inventory.records if folded in record.path.casefold()]
@@ -1782,15 +1992,35 @@ def create_app(
             records = matching[:show]
             total = len(matching)
         else:
-            child_folders = [_folder_card(by_name[name]) for name in current_stats["children"]]
-            records = [
+            strips = folder_strips(inventory.records, current)
+            child_folders = [
+                _folder_card(by_name[name], strips.get(name))
+                for name in current_stats["children"]
+            ]
+            direct = [
                 record
                 for record in inventory.records
                 if (record.path.rsplit("/", 1)[0] if "/" in record.path else ".") == current
-            ][:show]
-            total = current_stats["direct_count"]
+            ]
+            if current == ".":
+                # The Inventor project file is what the owner opens, not a part
+                # to browse: it stands in the context rail, not the file grid.
+                project_files = [
+                    {"record": record, "absolute": str(root / record.path)}
+                    for record in direct
+                    if record.suffix.casefold() in PROJECT_EXTENSIONS
+                ]
+                direct = [
+                    record for record in direct if record.suffix.casefold() not in PROJECT_EXTENSIONS
+                ]
+            records = direct[:show]
+            total = len(direct)
 
-        files = [_catalog_file(record) for record in records]
+        where_used = _current_index() if records else None
+        signals = _catalog_signals(inventory)
+        files = [_catalog_file(record, where_used, signals) for record in records]
+        present = {mark["kind"] for item in files for mark in item["signals"]}
+        legend = [row for row in SIGNAL_LEGEND if row[0] in present]
 
         note = _read_catalog_note(current)
         note_text = _note_display_text(note)
@@ -1801,6 +2031,7 @@ def create_app(
             "folder_count": max(0, len(index) - 1),
             "path": current,
             "name": "Catalog" if current == "." else current.rsplit("/", 1)[-1],
+            "absolute_path": str(root if current == "." else root / current),
             "breadcrumbs": _breadcrumbs(current),
             "child_folders": child_folders,
             "files": files,
@@ -1811,6 +2042,8 @@ def create_app(
             "has_more": len(files) < total,
             "subtree_count": current_stats["count"],
             "direct_count": current_stats["direct_count"],
+            "project_files": project_files,
+            "signal_legend": legend,
             "tree": folder_tree(index, current=current),
             "note": note,
             "workspace_summary": _workspace_summary() if current == "." else "",
@@ -1932,6 +2165,26 @@ def create_app(
             grouped.setdefault(parent, []).append(record)
         return sorted(grouped.items(), key=lambda item: item[0].casefold())
 
+    def _preview_size(target: Path, stat: os.stat_result) -> tuple[int, int] | None:
+        """Pixel size of an embedded Inventor preview, so it renders at 1x.
+
+        Only Inventor documents are asked: their preview is read from the file
+        and cached for the `/preview` request that follows. Rendered meshes are
+        not rendered here just to learn their size.
+        """
+
+        if target.suffix.casefold() not in INVENTOR_EXTENSIONS:
+            return None
+        preview = previews.get(target, stat.st_mtime_ns, stat.st_size)
+        data = preview.data if preview else b""
+        if data[:8] == b"\x89PNG\r\n\x1a\n" and len(data) >= 24:
+            return int.from_bytes(data[16:20], "big"), int.from_bytes(data[20:24], "big")
+        if data[:2] == b"BM" and len(data) >= 26:
+            width = int.from_bytes(data[18:22], "little", signed=True)
+            height = int.from_bytes(data[22:26], "little", signed=True)
+            return abs(width), abs(height)
+        return None
+
     def _part_context(target: Path) -> dict:
         relative = target.resolve().relative_to(root).as_posix()
         stat = target.stat()
@@ -1956,10 +2209,22 @@ def create_app(
             sidecar = None
             error = f"the existing sidecar could not be parsed: {exc}"
         folder = relative.rsplit("/", 1)[0] if "/" in relative else "."
+        # The part page shares the catalog shell: same grid, same tree rail
+        # with the file's folder open, same header line.
+        inventory = cache.get(include_vendor=False, hash_files=False)
+        index = _catalog_index(inventory)
+        crumbs = _breadcrumbs(folder)
+        crumbs.append({"name": target.name, "path": relative})
+        signals = _catalog_signals(inventory).get(relative, ())
         return {
             "version": __version__,
             "path": relative,
             "name": target.name,
+            "absolute_path": str(target),
+            "breadcrumbs": crumbs,
+            "tree": folder_tree(index, current=folder),
+            "signals": signals,
+            "preview_size": _preview_size(target, stat),
             "stem": target.stem,
             "folder": folder,
             "folder_editable": folder != ".",

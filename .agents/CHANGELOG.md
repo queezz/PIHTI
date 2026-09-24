@@ -6,6 +6,25 @@ remains authoritative for exact file changes.
 
 ## 2026-09-24
 
+- Shipped `pihti-dedup` 0.15.0: the catalog is thumbnail-first. Catalog and
+  part pages share one three-column layout: a wide left rail with folder or
+  file facts, the folder note behind a **Note** button, a hover and keyboard
+  inspector, and a legend for the tile marks; the thumbnails in the middle;
+  and the folder tree on the right. Both rails stay pinned at every scroll
+  depth, and a long tree scrolls inside its own card. One line above the
+  thumbnails holds the breadcrumb and an instant filter, and Enter still runs
+  the global search. Folder cards carry a strip of six previews from their
+  subtree and sit in their own grid, with the folder's files in a separate
+  grid below. File tiles are marked for same-name collisions, identical
+  copies, same-bytes copies under another name, generic names, and newer
+  same-named files, all derived from the existing inventory. At the root,
+  the `PIHTI.ipj` project file stands in the rail instead of a tile. Preview
+  URLs carry a version key from the file's stat, so the browser keeps an
+  unchanged preview for a year and fetches a changed one at once. Catalog
+  pages may be reused for five seconds, and hovering a folder link
+  prefetches its page. The part page packs the preview, iProperties, and mass
+  into one sheet, with Where used and the sidecar side by side and rename
+  behind a disclosure.
 - Shipped `pihti-dedup` 0.14.0: the viewer now serves every page from an
   in-memory snapshot of the workspace instead of walking the filesystem on
   each request. A background refresher revalidates the snapshot every few

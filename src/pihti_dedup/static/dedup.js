@@ -698,45 +698,6 @@
 (function () {
   "use strict";
 
-  var form = document.querySelector("[data-live-note-form]");
-  if (!form) return;
-  var input = form.querySelector("[data-live-note-input]");
-  var preview = document.querySelector("[data-note-preview-body]");
-  var status = form.querySelector("[data-live-note-status]");
-  var timer = null;
-  var sequence = 0;
-
-  function renderLive() {
-    var current = ++sequence;
-    if (status) status.textContent = "Updating preview…";
-    var body = new FormData();
-    body.append("text", input.value);
-    fetch("/markdown/preview", { method: "POST", body: body })
-      .then(function (response) {
-        if (!response.ok) throw new Error("Preview unavailable");
-        return response.json();
-      })
-      .then(function (result) {
-        if (current !== sequence) return;
-        preview.innerHTML = result.html;
-        if (status) status.textContent = "Preview is current.";
-      })
-      .catch(function () {
-        if (current === sequence && status) {
-          status.textContent = "Preview could not update; your text is still safe.";
-        }
-      });
-  }
-
-  input.addEventListener("input", function () {
-    window.clearTimeout(timer);
-    timer = window.setTimeout(renderLive, 250);
-  });
-})();
-
-(function () {
-  "use strict";
-
   // The server opens the current folder's ancestry. Other branches reveal only
   // when asked and reset on navigation, so the rail never grows into another
   // rendering of the entire catalog.
@@ -758,6 +719,212 @@
     var path = toggle.dataset.treeToggle;
     var open = toggle.getAttribute("aria-expanded") !== "true";
     setOpen(path, open);
+  });
+
+  // When an opened branch makes the tree taller than its pinned card, the tree
+  // scrolls inside the card; bring the current folder into that view. Only the
+  // tree's own scrollTop moves, never the page.
+  var current = tree.querySelector("[aria-current]");
+  if (current && tree.scrollHeight > tree.clientHeight + 1) {
+    var row = current.closest(".tree-row") || current;
+    var top = row.offsetTop;
+    if (top < tree.scrollTop || top + row.offsetHeight > tree.scrollTop + tree.clientHeight) {
+      tree.scrollTop = Math.max(0, top - tree.clientHeight / 3);
+    }
+  }
+})();
+
+(function () {
+  "use strict";
+
+  // Duplicates and Doctor link to `/part/...#rename`; open that disclosure.
+  var rename = document.querySelector("[data-rename-disclosure]");
+  if (rename && window.location.hash === "#rename") rename.open = true;
+})();
+
+(function () {
+  "use strict";
+
+  // Inspector: a stationary card in the left rail shows the hovered or
+  // keyboard-focused tile: its preview at native size (never upscaled) and the
+  // facts the server rendered into the tile's hidden <dl>. Nothing floats over
+  // the grid. The last tile stays shown when the pointer leaves, so it can be
+  // read; Escape clears it. Tiles stay plain links, so Enter opens the part.
+  var grid = document.querySelector("[data-thumb-grid]");
+  if (!grid) return;
+
+  var TILE = "a.thumb-tile, a.folder-card";
+  var HOVER_DELAY = 150;
+  var inspector = document.querySelector("[data-inspector]");
+  var empty = inspector && inspector.querySelector("[data-inspector-empty]");
+  var body = inspector && inspector.querySelector("[data-inspector-body]");
+  var image = inspector && inspector.querySelector("[data-inspector-image]");
+  var title = inspector && inspector.querySelector("[data-inspector-title]");
+  var facts = inspector && inspector.querySelector("[data-inspector-facts]");
+  var shown = null;
+  var hoverTimer = null;
+
+  // Native size, never upscaled: a small embedded preview stays small.
+  function sizeImage(natural) {
+    var ratio = window.devicePixelRatio || 1;
+    image.style.maxWidth = natural ? natural / ratio + "px" : "";
+  }
+  if (image) {
+    image.addEventListener("load", function () { sizeImage(image.naturalWidth); });
+  }
+
+  function show(tile) {
+    if (!inspector || !tile.matches("a.thumb-tile")) return;
+    var source = tile.querySelector("img");
+    if (!source) return;
+    var details = tile.querySelector(".thumb-details");
+    var name = tile.querySelector(".thumb-name");
+    var size = tile.querySelector(".thumb-meta");
+    title.textContent = name ? name.textContent : "";
+    if (details) {
+      var copy = details.cloneNode(true);
+      copy.hidden = false;
+      facts.replaceChildren(copy);
+    } else {
+      var line = document.createElement("p");
+      line.className = "inspector-plain";
+      line.textContent = size ? size.textContent : "";
+      facts.replaceChildren(line);
+    }
+    image.src = source.currentSrc || source.src;
+    sizeImage(source.complete ? source.naturalWidth : 0);
+    empty.hidden = true;
+    body.hidden = false;
+    shown = tile;
+  }
+
+  function clear() {
+    window.clearTimeout(hoverTimer);
+    if (!inspector) return;
+    body.hidden = true;
+    empty.hidden = false;
+    image.removeAttribute("src");
+    facts.replaceChildren();
+    shown = null;
+  }
+
+  function tiles() {
+    return Array.from(grid.querySelectorAll(TILE)).filter(function (tile) { return !tile.hidden; });
+  }
+
+  function verticalNeighbour(tile, direction) {
+    var from = tile.getBoundingClientRect();
+    var centre = from.left + from.width / 2;
+    var best = null;
+    var bestRow = null;
+    var bestDistance = Infinity;
+    tiles().forEach(function (candidate) {
+      if (candidate === tile) return;
+      var box = candidate.getBoundingClientRect();
+      var beyond = direction > 0 ? box.top >= from.bottom - 1 : box.bottom <= from.top + 1;
+      if (!beyond) return;
+      var distance = Math.abs(box.left + box.width / 2 - centre);
+      var closerRow = bestRow === null ||
+        (direction > 0 ? box.top < bestRow - 1 : box.top > bestRow + 1);
+      if (closerRow) {
+        bestRow = box.top;
+        best = candidate;
+        bestDistance = distance;
+      } else if (Math.abs(box.top - bestRow) <= 1 && distance < bestDistance) {
+        best = candidate;
+        bestDistance = distance;
+      }
+    });
+    return best;
+  }
+
+  function neighbour(tile, key) {
+    var list = tiles();
+    var index = list.indexOf(tile);
+    if (key === "ArrowRight") return list[index + 1] || null;
+    if (key === "ArrowLeft") return index > 0 ? list[index - 1] : null;
+    if (key === "ArrowDown") return verticalNeighbour(tile, 1);
+    if (key === "ArrowUp") return verticalNeighbour(tile, -1);
+    if (key === "Home") return list[0] || null;
+    if (key === "End") return list[list.length - 1] || null;
+    return null;
+  }
+
+  grid.addEventListener("keydown", function (event) {
+    if (event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return;
+    var tile = event.target.closest(TILE);
+    if (!tile) return;
+    if (event.key === "Escape") {
+      if (shown) {
+        event.preventDefault();
+        clear();
+      }
+      return;
+    }
+    var next = neighbour(tile, event.key);
+    if (!next) return;
+    event.preventDefault();
+    next.focus({ preventScroll: true });
+    next.scrollIntoView({ block: "nearest" });
+    show(next);
+  });
+
+  grid.addEventListener("mouseover", function (event) {
+    var tile = event.target.closest(TILE);
+    if (!tile || tile === shown) return;
+    window.clearTimeout(hoverTimer);
+    hoverTimer = window.setTimeout(function () { show(tile); }, HOVER_DELAY);
+  });
+
+  grid.addEventListener("mouseout", function (event) {
+    var tile = event.target.closest(TILE);
+    if (!tile || (event.relatedTarget && tile.contains(event.relatedTarget))) return;
+    window.clearTimeout(hoverTimer);  // the last shown tile stays readable
+  });
+
+  document.addEventListener("keydown", function (event) {
+    if (event.key === "Escape" && shown) clear();
+  });
+})();
+
+(function () {
+  "use strict";
+
+  // Prefetch a catalog page once the pointer rests on its link. Catalog pages
+  // are cacheable for five seconds (see `no_store` in web.py), so the click
+  // that follows is served from the browser cache.
+  var LINKS = ".folder-tree a.tree-name, .breadcrumbs a, a.folder-card";
+  var DELAY = 100;
+  if (!document.querySelector(LINKS) || !window.fetch) return;
+  if (navigator.connection && navigator.connection.saveData) return;
+
+  var requested = new Set();
+  var timer = null;
+
+  function prefetch(link) {
+    var url = new URL(link.href, window.location.href);
+    if (url.origin !== window.location.origin) return;
+    if (url.pathname !== "/catalog" && url.pathname.indexOf("/catalog/") !== 0) return;
+    if (url.searchParams.has("q") || url.searchParams.has("saved")) return;
+    var key = url.pathname + url.search;
+    if (requested.has(key) || key === window.location.pathname + window.location.search) return;
+    requested.add(key);
+    fetch(url.toString(), { credentials: "same-origin" })
+      .then(function (response) { return response.text(); })
+      .catch(function () { requested.delete(key); });
+  }
+
+  document.addEventListener("mouseover", function (event) {
+    var link = event.target.closest && event.target.closest(LINKS);
+    if (!link) return;
+    window.clearTimeout(timer);
+    timer = window.setTimeout(function () { prefetch(link); }, DELAY);
+  });
+
+  document.addEventListener("mouseout", function (event) {
+    var link = event.target.closest && event.target.closest(LINKS);
+    if (!link || (event.relatedTarget && link.contains(event.relatedTarget))) return;
+    window.clearTimeout(timer);
   });
 })();
 
@@ -902,4 +1069,61 @@
 
   if (search) search.addEventListener("input", filterRenames);
   filterRenames();
+})();
+
+(function () {
+  "use strict";
+
+  // Instant filter over what the catalog page already shows, the same
+  // mechanics as the Duplicates `data-filter-search` box: no request, one
+  // animation frame, Escape clears, nothing persisted. Enter still submits the
+  // form, which is the server-side search of the whole archive.
+  var input = document.querySelector("input[data-filter-search]");
+  var grid = document.querySelector("[data-thumb-grid]");
+  if (!input) return;
+  var archive = document.querySelector("[data-search-archive]");
+  var items = grid ? Array.from(grid.querySelectorAll("a.folder-card, a.thumb-tile")) : [];
+  var haystacks = items.map(function (item) {
+    return ((item.getAttribute("title") || "") + " " + item.textContent).toLowerCase();
+  });
+  var count = document.querySelector("[data-filter-count]");
+  var empty = document.querySelector("[data-filter-empty]");
+  var frame = 0;
+
+  function applyFilter() {
+    frame = 0;
+    var needle = input.value.trim().toLowerCase();
+    var files = 0;
+    var shown = 0;
+    items.forEach(function (item, index) {
+      var match = !needle || haystacks[index].indexOf(needle) !== -1;
+      item.hidden = !match;
+      if (match) shown += 1;
+      if (match && item.matches("a.thumb-tile")) files += 1;
+    });
+    if (count) {
+      count.textContent = needle ? files + " of " + count.dataset.total : count.dataset.total;
+    }
+    if (empty) empty.hidden = !needle || shown !== 0 || !items.length;
+    if (archive) archive.hidden = !input.value.trim();
+  }
+
+  input.addEventListener("input", function () {
+    // A hidden page gets no animation frames; filter at once rather than
+    // leave a frame pending that would swallow every later keystroke.
+    if (document.visibilityState !== "visible") {
+      applyFilter();
+      return;
+    }
+    if (frame) window.cancelAnimationFrame(frame);
+    frame = window.requestAnimationFrame(applyFilter);
+  });
+  input.addEventListener("keydown", function (event) {
+    if (event.key === "Escape" && input.value) {
+      event.preventDefault();
+      input.value = "";
+      applyFilter();
+    }
+  });
+  applyFilter();
 })();

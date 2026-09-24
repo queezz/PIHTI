@@ -14,13 +14,13 @@
     <div class="doctor-list assembly-doctor-list">
       {% for assembly in assemblies %}
       <a class="doctor-row assembly-doctor-row" href="{{ url_for('doctor_assembly', relative_path=assembly.path) }}">
-        <span class="doctor-preview-stack" aria-hidden="true"><img src="{{ url_for('preview_image', relative_path=assembly.path) }}" alt="" loading="lazy" decoding="async" width="64" height="48"></span>
+        <span class="doctor-preview-stack" aria-hidden="true"><img src="{{ preview_url(assembly.path) }}" alt="" loading="lazy" decoding="async" width="64" height="48"></span>
         <span><strong>{{ assembly.name }}</strong><small>{{ assembly.path|winpath }}</small></span>
         <span class="assembly-problem-counts">{% if assembly.missing_count %}<b>{{ assembly.missing_count }} missing</b>{% endif %}{% if assembly.ambiguous_count %}<b>{{ assembly.ambiguous_count }} ambiguous</b>{% endif %}{% if assembly.generic_count %}<b>{{ assembly.generic_count }} generic</b>{% endif %}</span>
       </a>
       {% else %}<p class="doctor-empty">No assembly currently embeds a missing, ambiguous, or generic CAD name.</p>{% endfor %}
     </div>
-    {% if missing_assemblies %}<details class="assembly-more"><summary>{{ missing_assemblies|length }} additional assemblies with missing or ambiguous specific names</summary><div class="doctor-list assembly-doctor-list">{% for assembly in missing_assemblies %}<a class="doctor-row assembly-doctor-row" href="{{ url_for('doctor_assembly', relative_path=assembly.path) }}"><span class="doctor-preview-stack" aria-hidden="true"><img src="{{ url_for('preview_image', relative_path=assembly.path) }}" alt="" loading="lazy" decoding="async" width="64" height="48"></span><span><strong>{{ assembly.name }}</strong><small>{{ assembly.path|winpath }}</small></span><span class="assembly-problem-counts">{% if assembly.missing_count %}<b>{{ assembly.missing_count }} missing</b>{% endif %}{% if assembly.ambiguous_count %}<b>{{ assembly.ambiguous_count }} ambiguous</b>{% endif %}</span></a>{% endfor %}</div></details>{% endif %}
+    {% if missing_assemblies %}<details class="assembly-more"><summary>{{ missing_assemblies|length }} additional assemblies with missing or ambiguous specific names</summary><div class="doctor-list assembly-doctor-list">{% for assembly in missing_assemblies %}<a class="doctor-row assembly-doctor-row" href="{{ url_for('doctor_assembly', relative_path=assembly.path) }}"><span class="doctor-preview-stack" aria-hidden="true"><img src="{{ preview_url(assembly.path) }}" alt="" loading="lazy" decoding="async" width="64" height="48"></span><span><strong>{{ assembly.name }}</strong><small>{{ assembly.path|winpath }}</small></span><span class="assembly-problem-counts">{% if assembly.missing_count %}<b>{{ assembly.missing_count }} missing</b>{% endif %}{% if assembly.ambiguous_count %}<b>{{ assembly.ambiguous_count }} ambiguous</b>{% endif %}</span></a>{% endfor %}</div></details>{% endif %}
   </section>
 
   <div class="doctor-columns doctor-secondary-columns">
@@ -31,7 +31,7 @@
         {% for group in collisions %}
         <a class="doctor-row" href="{{ url_for('doctor_name', filename=group.title) }}">
           <span class="doctor-preview-stack" aria-hidden="true">
-            {% for record in group.records[:3] %}<img src="{{ url_for('preview_image', relative_path=record.path) }}" alt="" loading="lazy" decoding="async" width="64" height="48">{% endfor %}
+            {% for record in group.records[:3] %}<img src="{{ preview_url(record) }}" alt="" loading="lazy" decoding="async" width="64" height="48">{% endfor %}
           </span>
           <span><strong>{{ group.title }}</strong><small>{{ group.records|length }} files · {{ group.hashes|length }} distinct {{ 'hash' if group.hashes|length == 1 else 'hashes' }}</small></span>
           <b>{{ 'Different bytes' if group.kind == 'collision' else 'Same bytes' }}</b>
@@ -47,7 +47,7 @@
         {% for item in generic_names %}
         <a class="doctor-row" href="{{ url_for('doctor_name', filename=item.name) }}">
           <span class="doctor-preview-stack" aria-hidden="true">
-            {% for record in item.records[:3] %}<img src="{{ url_for('preview_image', relative_path=record.path) }}" alt="" loading="lazy" decoding="async" width="64" height="48">{% endfor %}
+            {% for record in item.records[:3] %}<img src="{{ preview_url(record) }}" alt="" loading="lazy" decoding="async" width="64" height="48">{% endfor %}
           </span>
           <span><strong>{{ item.name }}</strong><small>{{ item.records|length }} file{% if item.records|length != 1 %}s{% endif %} · {{ item.referrers|length }} referring document{% if item.referrers|length != 1 %}s{% endif %}</small></span>
           <b>Diagnose</b>

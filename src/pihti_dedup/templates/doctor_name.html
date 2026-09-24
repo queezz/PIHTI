@@ -23,7 +23,7 @@
           {% for member in current_members %}
           <article class="doctor-member{% if draft_path == member.path %} has-draft{% endif %}">
             <a class="doctor-file-preview" href="{{ url_for('part_page', relative_path=member.path) }}" aria-label="Open {{ member.path|winpath }}">
-              <img src="{{ url_for('preview_image', relative_path=member.path) }}" alt="Preview of {{ member.path|winpath }}" loading="lazy" decoding="async" width="128" height="96">
+              <img src="{{ preview_url(member.path) }}" alt="Preview of {{ member.path|winpath }}" loading="lazy" decoding="async" width="128" height="96">
             </a>
             <div class="doctor-member-body">
             <div class="doctor-member-path">
@@ -66,7 +66,7 @@
         {% if referrers %}
         <div class="doctor-referrers">
           {% for referrer in referrers %}
-          <div><a class="doctor-referrer-preview" href="{{ url_for('part_page', relative_path=referrer.path) }}"><img src="{{ url_for('preview_image', relative_path=referrer.path) }}" alt="Preview of {{ referrer.path|winpath }}" loading="lazy" decoding="async" width="80" height="60"></a><a href="{{ url_for('part_page', relative_path=referrer.path) }}"><code>{{ referrer.path|winpath }}</code></a><span><button class="copy-path" type="button" data-copy-text="{{ referrer.absolute|winpath }}">Copy file path</button><button class="copy-path" type="button" data-copy-text="{{ referrer.folder_absolute|winpath }}">Copy folder</button></span></div>
+          <div><a class="doctor-referrer-preview" href="{{ url_for('part_page', relative_path=referrer.path) }}"><img src="{{ preview_url(referrer.path) }}" alt="Preview of {{ referrer.path|winpath }}" loading="lazy" decoding="async" width="80" height="60"></a><a href="{{ url_for('part_page', relative_path=referrer.path) }}"><code>{{ referrer.path|winpath }}</code></a><span><button class="copy-path" type="button" data-copy-text="{{ referrer.absolute|winpath }}">Copy file path</button><button class="copy-path" type="button" data-copy-text="{{ referrer.folder_absolute|winpath }}">Copy folder</button></span></div>
           {% endfor %}
         </div>
         {% else %}<p class="part-note">No assembly, drawing, or presentation currently embeds this filename.</p>{% endif %}
@@ -77,7 +77,7 @@
         <h2>Renamed during this name's history</h2>
         <div class="doctor-history">
           {% for entry in entries %}
-          <div><a class="doctor-history-preview" href="{{ url_for('part_page', relative_path=entry.new_path) }}"><img src="{{ url_for('preview_image', relative_path=entry.new_path) }}" alt="Preview of {{ entry.new_path|winpath }}" loading="lazy" decoding="async" width="80" height="60"></a><code>{{ entry.old_path|winpath }}</code><span aria-hidden="true">→</span><a href="{{ url_for('part_page', relative_path=entry.new_path) }}"><code>{{ entry.new_path|winpath }}</code></a></div>
+          <div><a class="doctor-history-preview" href="{{ url_for('part_page', relative_path=entry.new_path) }}"><img src="{{ preview_url(entry.new_path) }}" alt="Preview of {{ entry.new_path|winpath }}" loading="lazy" decoding="async" width="80" height="60"></a><code>{{ entry.old_path|winpath }}</code><span aria-hidden="true">→</span><a href="{{ url_for('part_page', relative_path=entry.new_path) }}"><code>{{ entry.new_path|winpath }}</code></a></div>
           {% endfor %}
         </div>
       </section>

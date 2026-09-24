@@ -255,18 +255,36 @@ the earlier JSON/CSV/Markdown inventory workflow.
 
 The same local server serves a hierarchical catalog at `/catalog`, folder routes
 below it such as `/catalog/Plasma%20Vessel`, and `/part/<path>` for one file.
-The landing view shows top-level systems, not every part in the archive. Opening
-a folder reveals only its immediate child folders and direct files; large file
-sets appear 48 at a time behind an explicit **Show 48 more** control. Search is
-global and server-side, with the same bounded result size, so the browser never
-constructs the former thousand-tile page merely to hide most of it. Breadcrumbs
-and the current branch in the right-hand tree keep the location visible.
+Catalog and part pages share one three-column layout: a wide left rail with the
+current folder or file, the thumbnails in the middle, and the folder tree on the
+right, with the current branch open. Both rails stay in place while the page
+scrolls; a long tree scrolls inside its own card. A single line above the
+thumbnails holds the breadcrumb and a filter field. Typing filters the folder
+cards and file tiles already on the page; Enter, or **Search whole archive**,
+runs the global server-side search instead. Large file sets and search results
+appear 48 at a time behind an explicit **Show 48 more** control.
 
-Each non-root folder route opens its folder note in one click. A modal puts the
-rendered Markdown beside the raw editor; save returns to the same folder and
-reopens the modal with feedback. Close it with ×, **Close**, Escape, or the
-backdrop. The optional full-page editor has breadcrumb navigation and prominent
-rail cards back to the current folder, its parent, and the Catalog root.
+The thumbnails come first. Child folders are cards with a strip of up to six
+previews from the files below them (Inventor documents first); the folder's own
+files follow in a separate grid. At the workspace root the `PIHTI.ipj` project
+file stands in the left rail with a copy-path button rather than as a tile.
+Hovering a file tile, or moving to it with the arrow keys, shows it in the left
+rail's inspector: the preview at its own pixel size, plus description, part
+number, material, valid mass, modification date, and the documents that use it,
+when those exist. Enter opens the part page; Escape clears the inspector.
+
+Coloured marks on file tiles flag what the inventory already knows: a top edge
+for a same-name collision, an identical copy, or a same-bytes copy under
+another name, and a dot for a generic name or a newer same-named file elsewhere.
+A tile's tooltip and the inspector state each mark in words; the left rail lists
+the marks present on the page.
+
+The folder note sits behind the **Note** button in the left rail, with its
+one-line summary beneath. The button opens a modal that puts the rendered
+Markdown beside the raw editor; save returns to the same folder and reopens the
+modal with feedback. Close it with ×, **Close**, Escape, or the backdrop. The
+optional full-page editor has breadcrumb navigation and prominent rail cards
+back to the current folder, its parent, and the Catalog root.
 
 For useful browse cards, put a one-sentence folder summary directly below the
 note's `# Title`. The Catalog extracts that first prose line and shows it on the
@@ -278,9 +296,12 @@ prose, or an Inventor document carries a useful Description, the tile becomes a
 wider image-and-story card. Status, tags, material, and a nonredundant Part
 Number appear as readable chips; material-only records stay compact. Sidecar
 prose takes precedence over iProperties, and iProperties reads are cached until
-the CAD file's size or modification time changes. The Catalog root also shows
-the repository README's opening summary, so the archive has context before any
-folder is opened.
+the CAD file's size or modification time changes. The Catalog root's left rail
+also shows the repository README's opening summary.
+
+The layout targets a desktop window from about 1400 to 2560 pixels wide, beside
+Inventor. Below 1200 pixels both rails move into one right-hand column and the
+inspector is omitted; phone and laptop layouts are not designed.
 
 Thumbnails use the preview image Inventor already embedded or the cached
 geometry render described below; files without either show a neutral
