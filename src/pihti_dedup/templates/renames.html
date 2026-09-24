@@ -15,23 +15,41 @@
 
       {% for view in entries %}
       {% set entry = view.entry %}
-      <article class="rename-card{% if entry.settled %} is-settled{% endif %}{% if not view.current_will_prompt %} is-silent{% endif %}"
+      <article class="rename-card{% if entry.settled %} is-settled{% endif %}{% if view.is_move %}{% if view.move_others %} is-silent{% endif %}{% elif not view.current_will_prompt %} is-silent{% endif %}"
                id="rename-{{ entry.id }}" data-rename-entry data-search="{{ view.search }}">
         <header class="rename-head">
           <div class="rename-names">
+            {% if view.is_move %}
+            <code class="old-name">{{ entry.old_path|winpath }}</code>
+            <span class="rename-arrow" aria-hidden="true">→</span>
+            <code class="new-name">{{ entry.new_folder|winpath }}</code>
+            {% else %}
             <code class="old-name">{{ entry.old_name }}</code>
             <span class="rename-arrow" aria-hidden="true">→</span>
             <code class="new-name">{{ entry.new_name }}</code>
+            {% endif %}
           </div>
           <time datetime="{{ entry.timestamp }}">{{ entry.timestamp }}</time>
         </header>
 
-        {% if view.current_will_prompt %}
+        {% if view.is_move and view.move_present and not view.move_others %}
+        <p class="rename-flavor moved">
+          <strong>Moved; Inventor finds it by filename.</strong>
+          Only <code>{{ entry.new_path|winpath }}</code> carries this name, so every referring document
+          below binds to it without a dialog. Open each once to confirm.
+        </p>
+        {% elif view.is_move and view.move_others %}
+        <p class="rename-flavor silent">
+          <strong>Moved, but the name is no longer unique.</strong>
+          <code>{{ view.move_others|map('winpath')|join(', ') }}</code> also carries <code>{{ entry.old_name }}</code>,
+          so Inventor may bind to either file. Settle it in the name repair session.
+        </p>
+        {% elif view.current_will_prompt %}
         <p class="rename-flavor prompt">
           <strong>Inventor will ask now.</strong>
           No other file in the workspace carries <code>{{ entry.old_name }}</code>, so opening a
           document that wants it raises the resolve-link dialog. Paste the full path below.
-          {% if view.status_changed %}<small>At rename time another copy still existed; the repair session has since removed that ambiguity.</small>{% endif %}
+          {% if view.status_changed and not view.is_move %}<small>At rename time another copy still existed; the repair session has since removed that ambiguity.</small>{% endif %}
         </p>
         {% else %}
         <p class="rename-flavor silent">

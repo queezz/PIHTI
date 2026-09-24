@@ -61,6 +61,23 @@ def build_parser() -> argparse.ArgumentParser:
     )
     cleanup.add_argument("--json", metavar="PATH", help="Write the plan or result as JSON")
 
+    standard = subparsers.add_parser(
+        "standard-parts",
+        help="Preview or move standard fasteners into ContentCenter/Fastners",
+    )
+    standard.add_argument("workspace", nargs="?", default=".")
+    standard_mode = standard.add_mutually_exclusive_group(required=True)
+    standard_mode.add_argument("--dry", action="store_true", help="Print the candidate table only")
+    standard_mode.add_argument(
+        "--apply", action="store_true", help="Move every candidate whose outcome is 'move'"
+    )
+    standard.add_argument(
+        "--references-checked",
+        action="store_true",
+        help="Confirm the referring assemblies were reviewed",
+    )
+    standard.add_argument("--json", metavar="PATH", help="Write the plan or result as JSON")
+
     warm = subparsers.add_parser(
         "warm-previews", help="Render and disk-cache STL, STEP, 3MF, and DWG previews"
     )
@@ -172,6 +189,75 @@ def _seed_sidecars(workspace: Path, *, include_vendor: bool, apply: bool) -> dic
     }
 
 
+def _standard_parts(workspace: Path, *, apply: bool, references_checked: bool) -> tuple[int, dict]:
+    """Print the standard-part table; with `apply`, carry out the plain moves.
+
+    Only `move` outcomes run here. A copy already standing in the library is
+    quarantined one confirmed row at a time from the viewer, never in bulk.
+    """
+
+    from pihti_dedup.standard_parts import (
+        MOVE,
+        StandardMoveError,
+        execute_standard_move,
+        find_standard_candidates,
+    )
+    from pihti_dedup.whereused import build_index, filename_locations
+
+    try:
+        sys.stdout.reconfigure(errors="replace")
+    except (AttributeError, ValueError):
+        pass
+    inventory = scan_workspace(workspace, include_vendor=False, hash_files=False)
+    candidates = find_standard_candidates(
+        workspace,
+        inventory.records,
+        fields_for=lambda record: read_document(workspace / record.path).fields,
+        index=build_index(workspace),
+        locations=filename_locations(workspace),
+    )
+    print(f"workspace: {workspace}")
+    print(f"standard-part candidates: {len(candidates)}")
+    for candidate in candidates:
+        plan = candidate.plan
+        print(f"{plan.outcome.upper():<24} {_windows_path(candidate.path)}")
+        print(f"  evidence: {'; '.join(candidate.evidence.labels)}")
+        print(f"  destination: {_windows_path(plan.destination_path)}")
+        print(f"  referring documents: {len(plan.referrers)}")
+        if plan.reason and plan.outcome != MOVE:
+            print(f"  {plan.reason}")
+    payload: dict = {
+        "dry_run": not apply,
+        "candidates": [candidate.plan.to_dict() for candidate in candidates],
+    }
+    if not apply:
+        print("DRY RUN — no files changed")
+        return 0, payload
+    if not references_checked:
+        print("error: --apply requires --references-checked; nothing changed", file=sys.stderr)
+        return 2, payload
+    moved: list[dict] = []
+    failures: list[str] = []
+    for candidate in candidates:
+        if candidate.plan.outcome != MOVE:
+            continue
+        try:
+            result = execute_standard_move(workspace, candidate.plan, confirmed=True)
+        except (StandardMoveError, OSError) as exc:
+            failures.append(f"{candidate.path}: {exc}")
+            continue
+        moved.append({"path": candidate.path, "ledger_id": result.entry.id})
+        print(
+            f"MOVED {_windows_path(candidate.path)} -> "
+            f"{_windows_path(candidate.plan.destination_path)} (ledger {result.entry.id})"
+        )
+    print(f"MOVED {len(moved)} files; open the referring assemblies once to confirm")
+    for failure in failures:
+        print(f"warning: {failure}", file=sys.stderr)
+    payload.update(moved=moved, failures=failures)
+    return (1 if failures else 0), payload
+
+
 def _warm_previews(workspace: Path, *, include_vendor: bool, quiet: bool) -> dict:
     """Build every missing geometry preview so the next catalog visit is instant.
 
@@ -250,6 +336,16 @@ def main(argv: Sequence[str] | None = None) -> int:
                 json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
             )
         return 1 if payload["failures"] else 0
+
+    if args.command == "standard-parts":
+        code, payload = _standard_parts(
+            workspace, apply=args.apply, references_checked=args.references_checked
+        )
+        if args.json:
+            Path(args.json).write_text(
+                json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
+            )
+        return code
 
     if args.command == "merge-cleanup":
         merge = next(

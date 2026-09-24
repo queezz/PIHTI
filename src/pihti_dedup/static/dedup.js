@@ -1127,3 +1127,128 @@
   });
   applyFilter();
 })();
+
+(function () {
+  "use strict";
+
+  // Standard parts: one confirmed action per row, and a per-tab Skip that
+  // moves a row into the Skipped group instead of removing it from the page.
+  var page = document.querySelector("[data-standard-parts]");
+  if (!page) return;
+
+  var SKIP_KEY = "pihti-standard-skipped";
+  var skippedSection = page.querySelector("[data-standard-skipped]");
+  var skippedList = page.querySelector("[data-standard-skipped-list]");
+  var skippedNav = document.querySelector("[data-standard-skipped-nav]");
+
+  function readSkipped() {
+    try {
+      var value = JSON.parse(window.sessionStorage.getItem(SKIP_KEY) || "[]");
+      return Array.isArray(value) ? value : [];
+    } catch (_) {
+      return [];
+    }
+  }
+
+  function writeSkipped(paths) {
+    try {
+      window.sessionStorage.setItem(SKIP_KEY, JSON.stringify(paths));
+    } catch (_) {
+      // Private windows may refuse storage; skipping still works for this view.
+    }
+  }
+
+  function setCount(key, value) {
+    document.querySelectorAll('[data-standard-nav-count="' + key + '"]').forEach(function (node) {
+      node.textContent = value;
+    });
+  }
+
+  function refreshCounts() {
+    page.querySelectorAll("[data-standard-group]").forEach(function (group) {
+      var count = group.querySelectorAll("[data-standard-row]").length;
+      group.querySelector("[data-standard-group-count]").textContent = count;
+      setCount(group.dataset.standardGroup, count);
+    });
+    var skipped = skippedList.querySelectorAll("[data-standard-row]").length;
+    page.querySelector("[data-standard-skipped-count]").textContent = skipped;
+    setCount("skipped", skipped);
+    skippedSection.hidden = skipped === 0;
+    if (skippedNav) skippedNav.hidden = skipped === 0;
+  }
+
+  function insertInOrder(list, row) {
+    var order = Number(row.dataset.order);
+    var next = Array.from(list.querySelectorAll("[data-standard-row]")).find(function (item) {
+      return Number(item.dataset.order) > order;
+    });
+    list.insertBefore(row, next || null);
+  }
+
+  function skip(row) {
+    insertInOrder(skippedList, row);
+    row.classList.add("is-skipped");
+    var button = row.querySelector("[data-standard-skip]");
+    button.textContent = "Restore";
+    button.setAttribute("aria-pressed", "true");
+  }
+
+  function restore(row) {
+    var home = page.querySelector(
+      '[data-standard-group="' + row.dataset.home + '"] [data-standard-list]'
+    );
+    if (!home) return;
+    insertInOrder(home, row);
+    row.classList.remove("is-skipped");
+    var button = row.querySelector("[data-standard-skip]");
+    button.textContent = "Skip";
+    button.setAttribute("aria-pressed", "false");
+  }
+
+  var remembered = readSkipped();
+  page.querySelectorAll("[data-standard-row]").forEach(function (row) {
+    if (remembered.indexOf(row.dataset.path) !== -1) skip(row);
+  });
+  // Forget paths that are no longer on the page (moved, or no longer candidates).
+  writeSkipped(remembered.filter(function (path) {
+    return !!skippedList.querySelector('[data-path="' + CSS.escape(path) + '"]');
+  }));
+  refreshCounts();
+
+  page.addEventListener("click", function (event) {
+    var button = event.target.closest("[data-standard-skip]");
+    if (!button) return;
+    var row = button.closest("[data-standard-row]");
+    var paths = readSkipped().filter(function (path) { return path !== row.dataset.path; });
+    if (row.classList.contains("is-skipped")) {
+      restore(row);
+    } else {
+      skip(row);
+      paths.push(row.dataset.path);
+    }
+    writeSkipped(paths);
+    refreshCounts();
+  });
+
+  page.querySelectorAll("form[data-standard-confirm]").forEach(function (form) {
+    form.addEventListener("submit", function (event) {
+      if (!window.confirm(form.dataset.standardConfirm)) {
+        event.preventDefault();
+        return;
+      }
+      var submit = form.querySelector("button[type=submit]");
+      if (submit) {
+        submit.disabled = true;
+        submit.textContent = submit.dataset.busyLabel || submit.textContent;
+      }
+    });
+  });
+
+  var toast = document.querySelector("[data-operation-toast]");
+  if (toast) {
+    // The toast belongs to the action that just ran, not to the address: a
+    // reload or a later Back must not announce the same move again.
+    window.history.replaceState(null, "", window.location.pathname + window.location.hash);
+    window.setTimeout(function () { toast.remove(); }, 10000);
+  }
+})();

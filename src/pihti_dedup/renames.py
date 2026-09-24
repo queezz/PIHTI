@@ -117,6 +117,16 @@ class RenameEntry:
     def new_folder(self) -> str:
         return self.new_path.rsplit("/", 1)[0] if "/" in self.new_path else "."
 
+    @property
+    def is_move(self) -> bool:
+        """Same filename, new folder: a standard-part move, not a rename.
+
+        Case-only renames are refused, so an unchanged name with a changed path
+        can only be a move.
+        """
+
+        return self.old_name == self.new_name and self.old_path != self.new_path
+
     def to_dict(self) -> dict:
         return {
             "id": self.id,
@@ -157,6 +167,24 @@ class RenameResult:
     warnings: tuple[str, ...] = field(default_factory=tuple)
 
 
+def check_filename(candidate: str) -> None:
+    """Refuse a filename Windows or Inventor cannot hold reliably.
+
+    Shared by rename and by the standard-part move, which keeps the name but
+    still lands it in a new folder under the same rules.
+    """
+
+    stem = Path(candidate).stem
+    if not stem:
+        raise RenameError("the filename needs a name before the extension")
+    illegal = sorted({char for char in candidate if char in ILLEGAL_NAME_CHARS or ord(char) < 0x20})
+    if illegal:
+        shown = " ".join(repr(char) for char in illegal)
+        raise RenameError(f"a filename cannot contain {shown}")
+    if stem.casefold() in RESERVED_STEMS:
+        raise RenameError(f"{stem} is a reserved Windows device name")
+
+
 def _validate_new_name(new_name: str, old_name: str) -> str:
     """Return the vetted new filename, with the original extension enforced."""
 
@@ -173,15 +201,7 @@ def _validate_new_name(new_name: str, old_name: str) -> str:
         raise RenameError(
             f"the extension is fixed: {old_name} must stay {suffix}, not {typed_suffix}"
         )
-    stem = Path(candidate).stem
-    if not stem:
-        raise RenameError("the filename needs a name before the extension")
-    illegal = sorted({char for char in candidate if char in ILLEGAL_NAME_CHARS or ord(char) < 0x20})
-    if illegal:
-        shown = " ".join(repr(char) for char in illegal)
-        raise RenameError(f"a filename cannot contain {shown}")
-    if stem.casefold() in RESERVED_STEMS:
-        raise RenameError(f"{stem} is a reserved Windows device name")
+    check_filename(candidate)
     if candidate.casefold() == old_name.casefold():
         raise RenameError(
             "that is the same filename. Inventor matches filenames case-insensitively, "

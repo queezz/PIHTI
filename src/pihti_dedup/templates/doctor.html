@@ -23,6 +23,22 @@
     {% if missing_assemblies %}<details class="assembly-more"><summary>{{ missing_assemblies|length }} additional assemblies with missing or ambiguous specific names</summary><div class="doctor-list assembly-doctor-list">{% for assembly in missing_assemblies %}<a class="doctor-row assembly-doctor-row" href="{{ url_for('doctor_assembly', relative_path=assembly.path) }}"><span class="doctor-preview-stack" aria-hidden="true"><img src="{{ preview_url(assembly.path) }}" alt="" loading="lazy" decoding="async" width="64" height="48"></span><span><strong>{{ assembly.name }}</strong><small>{{ assembly.path|winpath }}</small></span><span class="assembly-problem-counts">{% if assembly.missing_count %}<b>{{ assembly.missing_count }} missing</b>{% endif %}{% if assembly.ambiguous_count %}<b>{{ assembly.ambiguous_count }} ambiguous</b>{% endif %}</span></a>{% endfor %}</div></details>{% endif %}
   </section>
 
+  <section class="doctor-panel standard-card">
+    <header><div><p class="micro-heading">Library repair</p><h2>Standard parts</h2></div><strong>{{ standard_candidates|length }}</strong></header>
+    <p class="doctor-intro">Fasteners outside <code>ContentCenter\Fastners</code>, found by their standard iProperty, a designation in the filename, the library's naming convention, or their description.</p>
+    <div class="doctor-list">
+      {% if standard_candidates %}
+      <a class="doctor-row" href="{{ url_for('doctor_standard_parts') }}">
+        <span class="doctor-preview-stack" aria-hidden="true">
+          {% for candidate in standard_candidates[:3] %}<img src="{{ preview_url(candidate.record or candidate.path) }}" alt="" loading="lazy" decoding="async" width="64" height="48">{% endfor %}
+        </span>
+        <span><strong>{{ standard_candidates|length }} standard part{% if standard_candidates|length != 1 %}s{% endif %} outside the library</strong><small>{{ standard_movable }} ready to move · {{ standard_candidates|length - standard_movable }} need a decision first</small></span>
+        <b>Review</b>
+      </a>
+      {% else %}<p class="doctor-empty">No standard parts outside the library.</p>{% endif %}
+    </div>
+  </section>
+
   <div class="doctor-columns doctor-secondary-columns">
     <section class="doctor-panel">
       <header><div><p class="micro-heading">Unique filename repair</p><h2>Collision doctor</h2></div><strong>{{ collisions|length }}</strong></header>

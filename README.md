@@ -209,6 +209,21 @@ keeps current originals, already-renamed destinations, and every filename-based
 referring assembly together, with copy-ready file and folder paths for Inventor.
 The Renames page recalculates **Inventor will ask now** from the live workspace;
 the ledger still notes when the outcome differed at rename time.
+
+Doctor's **Standard parts** card lists fasteners that sit outside
+`ContentCenter\Fastners`. A part is listed when its `standard` iProperty is set,
+its filename carries a JIS, ISO, DIN, or ANSI designation, its name follows the
+library convention (`M3x10-SHCS.ipt`, `M3-nut.ipt`, `M4-Washer.ipt`), or its
+description names a fastener. Each row shows that evidence. A uniquely named
+part gets a **Move** button: the part and its sidecar move into the library,
+and the move is recorded in the rename ledger. Referring assemblies still find
+the part, because Inventor resolves by filename. A byte-identical copy already
+in the library gets **Quarantine copy** instead. A name that exists elsewhere
+is refused and links to Collision Doctor. Every row is confirmed on its own,
+and **Skip** hides a row for this browser tab only. The CLI twin is
+`pihti-dedup standard-parts . --dry`; `--apply --references-checked` runs only
+the plain moves.
+
 ### Previews
 
 Inventor documents and DWG drawings show the preview image they already embed.

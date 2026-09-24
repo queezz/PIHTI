@@ -103,6 +103,34 @@ dropped. Laptop and phone layouts, and the cookbook's narrow-screen checks
 beyond that fold, are deliberately deferred for this project rather than
 skipped.
 
+Version 0.16.0 adds a helper that moves standard fasteners into
+`ContentCenter/Fastners` (`src/pihti_dedup/standard_parts.py`, Doctor's
+**Standard parts** page, and `pihti-dedup standard-parts`). Only `.ipt` files are
+proposed, and only with named evidence. The evidence is one of four kinds: the
+`standard` iProperty that Content Center writes; an explicit JIS, ISO, DIN, or
+ANSI designation in the filename; the library's exact naming convention; or a
+fastener description. A designation number must not start with 0, which keeps
+KiCad footprints such as `R_Axial_DIN0617_...` out. Custom parts whose names
+merely contain "nut" or "screw" are never proposed. `ContentCenter/`, `STEPs`
+import trees, and `OldVersions/` are excluded. The move rests on the resolution
+rule above. With unique filenames on, an assembly whose stored path fails
+searches the project for the filename, and exactly one match binds without a
+dialog. Moving a uniquely named part therefore changes its folder and nothing
+Inventor resolves by, so every referring assembly opens as before. A same-named
+file anywhere else would make that search ambiguous. So a move is refused
+whenever the name exists elsewhere, including a different-byte file already in
+the library, and the row links to Collision Doctor. The one exception is a
+byte-identical copy already at the destination. Then nothing needs to move, and
+the stray copy goes to the recoverable quarantine used by member cleanup, with
+the survivor named. Execution revalidates the file's size, modification time,
+and hash, and rebuilds the collision map, before acting. A move is `Path.rename`
+plus the sidecar. It appends a rename-ledger line with the same filename,
+`will_prompt` false, and a note starting "standard part → ContentCenter", and
+`/renames` shows it as a move. The owner confirms every row separately; there
+is no bulk action in the viewer, and the CLI's `--apply --references-checked`
+runs only the plain moves, never the quarantines. **Skip** hides a row for the
+current browser tab only.
+
 ## Purpose
 
 Provide a local, human-in-the-loop view of filename collisions and byte-level

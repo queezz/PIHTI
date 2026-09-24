@@ -6,6 +6,19 @@ remains authoritative for exact file changes.
 
 ## 2026-09-24
 
+- Shipped `pihti-dedup` 0.16.0: a helper moves standard fasteners into
+  `ContentCenter/Fastners`. Doctor has a fourth card, **Standard parts**, with
+  the candidate count. Its page lists every `.ipt` outside the library that has
+  a `standard` iProperty, a JIS, ISO, DIN, or ANSI designation in its name, the
+  library's naming convention, or a fastener description. Each row shows that
+  evidence, the destination, and the number of referring documents. A uniquely
+  named part moves with one confirmed **Move**, because Inventor finds it again
+  by filename. The move is recorded in the rename ledger, and `/renames` shows
+  it as a move. A byte-identical copy already in the library can be sent to the
+  recoverable quarantine with its survivor named. A name that exists elsewhere
+  is refused and links to Collision Doctor. **Skip** hides a row for the current
+  browser tab. `pihti-dedup standard-parts . --dry` prints the same table, and
+  `--apply --references-checked` runs only the plain moves.
 - Shipped `pihti-dedup` 0.15.0: the catalog is thumbnail-first. Catalog and
   part pages share one three-column layout: a wide left rail with folder or
   file facts, the folder note behind a **Note** button, a hover and keyboard

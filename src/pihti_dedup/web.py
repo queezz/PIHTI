@@ -73,6 +73,19 @@ from pihti_dedup.renames import (
 )
 from pihti_dedup.sidecar import SidecarError, read_sidecar, seed_text, sidecar_path, write_sidecar
 from pihti_dedup.snapshots import Snapshot, Ticker, is_due
+from pihti_dedup.standard_parts import (
+    CONFLICT,
+    DEFAULT_DESTINATION,
+    IDENTICAL,
+    MOVE,
+    OUTCOMES,
+    REFUSED,
+    StandardMoveError,
+    execute_standard_move,
+    find_standard_candidates,
+    is_standard_candidate,
+    plan_standard_move,
+)
 from pihti_dedup.whereused import ReferenceCache, build_index, filename_locations
 
 Scanner = Callable[..., Inventory]
@@ -867,6 +880,8 @@ def create_app(
     catalog_indexes: dict[bool, tuple[Inventory, list[dict]]] = {}
     catalog_indexes_lock = threading.Lock()
     catalog_signals: dict[bool, tuple[Inventory, dict[str, tuple[dict, ...]]]] = {}
+    standard_memo: dict[str, tuple] = {}
+    standard_memo_lock = threading.Lock()
     app.extensions["pihti_inventory_cache"] = cache
     app.extensions["pihti_preview_cache"] = previews
     app.extensions["pihti_reference_cache"] = references
@@ -1062,10 +1077,15 @@ def create_app(
                 item["path"].casefold(),
             )
         )
+        standard_candidates = _standard_candidates(inventory, index, locations)
         return render_template(
             "doctor.html",
             version=__version__,
             workspace=root.name,
+            standard_candidates=standard_candidates,
+            standard_movable=sum(
+                item.plan.outcome == MOVE for item in standard_candidates
+            ),
             collisions=tuple(
                 group
                 for group in inventory.filename_groups
@@ -1360,6 +1380,226 @@ def create_app(
                 url_for("doctor_assembly", relative_path=assembly_path, renamed="1")
             )
         return redirect(url_for("doctor_name", filename=filename, renamed="1"))
+
+    def _standard_candidates(inventory: Inventory, index, locations) -> tuple:
+        # Snapshots are swapped whole, so identity is an exact memo key: the
+        # iProperty pass and the plans are rebuilt only when one of them changed.
+        with standard_memo_lock:
+            cached = standard_memo.get("value")
+            if (
+                cached is not None
+                and cached[0] is inventory
+                and cached[1] is index
+                and cached[2] is locations
+            ):
+                return cached[3]
+
+        def fields_for(record):
+            meta = _catalog_document_meta(record)
+            return meta.fields if meta is not None and meta.ok else None
+
+        candidates = find_standard_candidates(
+            root,
+            inventory.records,
+            fields_for=fields_for,
+            index=index,
+            locations=locations,
+        )
+        with standard_memo_lock:
+            standard_memo["value"] = (inventory, index, locations, candidates)
+        return candidates
+
+    standard_groups = {
+        MOVE: ("Ready to move", "Unique name", "Nothing else in the workspace carries the name."),
+        IDENTICAL: (
+            "Already in the library",
+            "Same bytes at the destination",
+            "The library already holds these bytes under this name; "
+            "the stray copy can go to the recoverable quarantine.",
+        ),
+        CONFLICT: (
+            "Name collision",
+            "Refused",
+            "The name exists elsewhere, so a move would leave Inventor two candidates. "
+            "Settle it in Collision Doctor first.",
+        ),
+        REFUSED: ("Refused", "Cannot move", "The move breaks a path or filename rule."),
+    }
+
+    def _standard_confirm(plan) -> str:
+        if plan.outcome == MOVE:
+            count = len(plan.referrers)
+            return (
+                f"Move this part into the library?\n\n{_windows_path(plan.source_path)}\n"
+                f"→ {_windows_path(plan.destination_path)}\n\n"
+                f"{count} referring document{'s' if count != 1 else ''} will find it again "
+                "by filename. The move is recorded under Renames."
+            )
+        return (
+            "Move only this copy to recoverable quarantine?\n\n"
+            f"{_windows_path(plan.source_path)}\n\n"
+            f"Surviving copy:\n{_windows_path(plan.survivor_path)}\n\n"
+            "Continue only after checking Inventor references."
+        )
+
+    def _standard_parts_context(*, error: str | None = None) -> dict:
+        inventory = cache.get(include_vendor=False)
+        candidates = _standard_candidates(inventory, _current_index(), _current_locations())
+        groups = []
+        order = 0
+        for outcome in OUTCOMES:
+            rows = []
+            for candidate in candidates:
+                if candidate.plan.outcome != outcome:
+                    continue
+                plan = candidate.plan
+                rows.append(
+                    {
+                        "order": order,
+                        "path": candidate.path,
+                        "name": candidate.name,
+                        "record": candidate.record,
+                        "folder": plan.source_folder,
+                        "evidence": candidate.evidence.items,
+                        "plan": plan,
+                        "confirm": _standard_confirm(plan) if plan.actionable else "",
+                    }
+                )
+                order += 1
+            if rows:
+                title, kicker, intro = standard_groups[outcome]
+                groups.append(
+                    {"key": outcome, "title": title, "kicker": kicker, "intro": intro, "rows": rows}
+                )
+        destination = root / DEFAULT_DESTINATION
+        try:
+            library_count = sum(
+                1 for path in destination.iterdir() if path.suffix.casefold() == ".ipt"
+            )
+        except OSError:
+            library_count = 0
+        toast = ""
+        moved_id = request.args.get("moved", "")
+        if moved_id:
+            entry = next((item for item in read_ledger(root) if item.id == moved_id), None)
+            if entry is not None:
+                toast = (
+                    f"Moved {entry.new_name} to {_windows_path(entry.new_folder)}. "
+                    f"Ledger entry {entry.id} is listed under Renames."
+                )
+        quarantined = request.args.get("quarantined", "")
+        if quarantined:
+            event = next(
+                (
+                    item
+                    for item in read_quarantine_manifests(root)
+                    if str(item.get("group_id", "")) == quarantined
+                ),
+                None,
+            )
+            if event is not None:
+                moved = ", ".join(
+                    _windows_path(str(item.get("path", ""))) for item in event.get("files", [])
+                )
+                toast = (
+                    f"Quarantined {moved}. Surviving copy: "
+                    f"{_windows_path(str(event.get('keep_path', '')))}. Restore it from Removed."
+                )
+        return {
+            "version": __version__,
+            "workspace": root.name,
+            "groups": groups,
+            "candidate_count": len(candidates),
+            "destination": DEFAULT_DESTINATION,
+            "library_count": library_count,
+            "form_token": app.config["FORM_TOKEN"],
+            "error": error,
+            "toast": toast,
+        }
+
+    @app.get("/doctor/standard-parts")
+    def doctor_standard_parts():
+        return render_template("doctor_standard_parts.html", **_standard_parts_context())
+
+    def _standard_error(message: str, status: int):
+        return render_template(
+            "doctor_standard_parts.html", **_standard_parts_context(error=message)
+        ), status
+
+    def _fresh_standard_plan(relative_path: str):
+        """Rebuild one plan from live disk: evidence, where-used, collision map."""
+
+        target = workspace_file(root, relative_path)
+        if target is None:
+            raise StandardMoveError("that file is no longer in the workspace")
+        relative = target.relative_to(root).as_posix()
+        meta = read_inventor_document(target)
+        evidence = is_standard_candidate(relative, meta.fields if meta.ok else None)
+        if evidence is None:
+            raise StandardMoveError(f"{target.name} is no longer a standard-part candidate")
+        return plan_standard_move(
+            root,
+            relative,
+            index=build_index(root, cache=references),
+            locations=filename_locations(root),
+            evidence=evidence.labels,
+        )
+
+    def _reviewed_standard_plan(expected_outcome: str):
+        """The live plan for the posted row, or the error response that refuses it."""
+
+        try:
+            plan = _fresh_standard_plan(request.form.get("path", ""))
+        except StandardMoveError as exc:
+            return None, _standard_error(str(exc), 409)
+        if not secrets.compare_digest(request.form.get("signature", ""), plan.signature):
+            return None, _standard_error(
+                f"{plan.name} changed since this page was drawn; review the row again", 409
+            )
+        if plan.outcome != expected_outcome:
+            return None, _standard_error(plan.reason or f"{plan.name} cannot be moved", 409)
+        return plan, None
+
+    @app.post("/doctor/standard-parts/move")
+    def standard_part_move():
+        guard = _guard(request)
+        if guard is not None:
+            return guard
+        plan, refusal = _reviewed_standard_plan(MOVE)
+        if refusal is not None:
+            return refusal
+        if not _flag(request.form.get("confirmed")):
+            return _standard_error(f"confirm the move of {plan.name} first", 400)
+        try:
+            result = execute_standard_move(root, plan, confirmed=True)
+        except (StandardMoveError, OSError) as exc:
+            return _standard_error(str(exc), 409)
+        cache.clear()
+        return redirect(url_for("doctor_standard_parts", moved=result.entry.id))
+
+    @app.post("/doctor/standard-parts/quarantine")
+    def standard_part_quarantine():
+        guard = _guard(request)
+        if guard is not None:
+            return guard
+        plan, refusal = _reviewed_standard_plan(IDENTICAL)
+        if refusal is not None:
+            return refusal
+        if not _flag(request.form.get("references_checked")):
+            return _standard_error("Inventor references must be checked first", 400)
+        if request.form.get("survivor", "").casefold() != plan.survivor_path.casefold():
+            return _standard_error(
+                f"the surviving copy is {_windows_path(plan.survivor_path)}; review the row again",
+                409,
+            )
+        try:
+            result = execute_standard_move(root, plan, confirmed=True)
+        except (StandardMoveError, ValueError, OSError) as exc:
+            return _standard_error(str(exc), 409)
+        cache.clear()
+        return redirect(
+            url_for("doctor_standard_parts", quarantined=result.quarantine.group_id)
+        )
 
     @app.get("/")
     def index():
@@ -2105,7 +2345,16 @@ def create_app(
     def _rename_view(entry, locations: dict[str, tuple[str, ...]]) -> dict:
         current_matches = locations.get(entry.old_name.casefold(), ())
         current_will_prompt = not current_matches
+        # A move keeps the name, so the moved file itself is always a match;
+        # what matters is whether anything else now carries that name.
         return {
+            "is_move": entry.is_move,
+            "move_present": any(
+                path.casefold() == entry.new_path.casefold() for path in current_matches
+            ),
+            "move_others": tuple(
+                path for path in current_matches if path.casefold() != entry.new_path.casefold()
+            ),
             "entry": entry,
             "full_path": str(root / entry.new_path),
             "folder_path": str((root / entry.new_path).parent),

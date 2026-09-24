@@ -1,0 +1,105 @@
+{% extends "base.html" %}
+{% block title %}Standard parts · PIHTI{% endblock %}
+{% block body %}
+<main class="page">
+  {% if toast %}<div class="operation-toast" role="status" data-operation-toast>{{ toast }}</div>{% endif %}
+  <div class="work-grid one-rail doctor-session" data-standard-parts>
+    <div class="work-main">
+      <section class="doctor-head name-session-head">
+        <div>
+          <p class="micro-heading">Library repair</p>
+          <h1>Standard parts</h1>
+          <p>Standard fasteners outside <code>{{ destination|winpath }}</code>. Inventor finds a uniquely named part by filename, so moving it changes no assembly. Each move is confirmed on its own row and recorded under Renames.</p>
+        </div>
+        <span class="doctor-head-actions"><a class="button" href="{{ url_for('doctor') }}">All doctor queues</a></span>
+      </section>
+
+      {% if error %}<p class="metadata-error standard-error" role="alert">{{ error }}</p>{% endif %}
+
+      {% for group in groups %}
+      <section class="doctor-panel standard-group" id="sec-{{ group.key }}" data-standard-group="{{ group.key }}">
+        <header><div><p class="micro-heading">{{ group.kicker }}</p><h2>{{ group.title }}</h2></div><strong data-standard-group-count>{{ group.rows|length }}</strong></header>
+        <p class="doctor-intro">{{ group.intro }}</p>
+        <div class="standard-list" data-standard-list>
+          {% for row in group.rows %}
+          {% set plan = row.plan %}
+          <article class="standard-row" data-standard-row data-path="{{ row.path }}" data-home="{{ group.key }}" data-order="{{ row.order }}">
+            <a class="doctor-file-preview standard-preview" href="{{ url_for('part_page', relative_path=row.path) }}" aria-label="Open {{ row.path|winpath }}">
+              <img src="{{ preview_url(row.record or row.path) }}" alt="Preview of {{ row.path|winpath }}" loading="lazy" decoding="async" width="96" height="72">
+            </a>
+            <div class="standard-body">
+              <a class="standard-name" href="{{ url_for('part_page', relative_path=row.path) }}">{{ row.name }}</a>
+              <small class="standard-folder">{{ row.folder|winpath }}</small>
+              <ul class="standard-evidence" aria-label="Evidence">
+                {% for item in row.evidence %}<li class="evidence-chip is-{{ item.kind }}">{{ item.label }}</li>{% endfor %}
+              </ul>
+            </div>
+            <dl class="standard-facts">
+              {% if plan.outcome == 'already-there-identical' %}
+              <div><dt>Surviving copy</dt><dd><code>{{ plan.survivor_path|winpath }}</code></dd></div>
+              {% else %}
+              <div><dt>Destination</dt><dd><code>{{ plan.destination_path|winpath }}</code></dd></div>
+              {% endif %}
+              <div><dt>Referring documents</dt><dd>{{ plan.referrers|length }}</dd></div>
+            </dl>
+            <div class="standard-actions">
+              {% if plan.outcome == 'move' %}
+              <form method="post" action="{{ url_for('standard_part_move') }}" data-standard-confirm="{{ row.confirm }}">
+                <input type="hidden" name="token" value="{{ form_token }}">
+                <input type="hidden" name="path" value="{{ row.path }}">
+                <input type="hidden" name="signature" value="{{ plan.signature }}">
+                <input type="hidden" name="confirmed" value="1">
+                <button class="button apply-button" type="submit" data-busy-label="Moving…">Move</button>
+              </form>
+              {% elif plan.outcome == 'already-there-identical' %}
+              <form method="post" action="{{ url_for('standard_part_quarantine') }}" data-standard-confirm="{{ row.confirm }}">
+                <input type="hidden" name="token" value="{{ form_token }}">
+                <input type="hidden" name="path" value="{{ row.path }}">
+                <input type="hidden" name="signature" value="{{ plan.signature }}">
+                <input type="hidden" name="survivor" value="{{ plan.survivor_path }}">
+                <input type="hidden" name="references_checked" value="1">
+                <button class="button apply-button" type="submit" data-busy-label="Quarantining…">Quarantine copy</button>
+              </form>
+              {% elif plan.outcome == 'conflict' %}
+              <a class="button" href="{{ url_for('doctor_name', filename=row.name) }}">Open in Collision Doctor</a>
+              {% endif %}
+              <button class="button" type="button" data-standard-skip aria-pressed="false">Skip</button>
+            </div>
+            {% if plan.outcome in ('conflict', 'refused') and plan.reason %}<p class="standard-reason">{{ plan.reason }}</p>{% endif %}
+          </article>
+          {% endfor %}
+        </div>
+      </section>
+      {% else %}
+      <div class="no-results"><strong>No standard parts outside the library.</strong><span>Every file with fastener evidence already sits in {{ destination|winpath }}.</span></div>
+      {% endfor %}
+
+      <section class="doctor-panel standard-group" id="sec-skipped" data-standard-skipped hidden>
+        <header><div><p class="micro-heading">This browser tab only</p><h2>Skipped</h2></div><strong data-standard-skipped-count>0</strong></header>
+        <p class="doctor-intro">Skipped rows return to their group when this tab closes or when you press Restore.</p>
+        <div class="standard-list" data-standard-skipped-list></div>
+      </section>
+    </div>
+
+    <aside class="rail-side" aria-label="Standard parts">
+      <section class="rail-card">
+        <h2>Library</h2>
+        <dl class="scope-list">
+          <div><dt>Folder</dt><dd><code>{{ destination|winpath }}</code></dd></div>
+          <div><dt>Parts there now</dt><dd>{{ library_count }}</dd></div>
+          <div><dt>Candidates outside</dt><dd>{{ candidate_count }}</dd></div>
+        </dl>
+      </section>
+      {% if groups %}
+      <section class="rail-card">
+        <h2>On this page</h2>
+        <nav class="rail-nav" aria-label="Candidate groups">
+          {% for group in groups %}<a class="rail-navrow" href="#sec-{{ group.key }}"><span>{{ group.title }}</span><strong data-standard-nav-count="{{ group.key }}">{{ group.rows|length }}</strong></a>{% endfor %}
+          <a class="rail-navrow" href="#sec-skipped" data-standard-skipped-nav hidden><span>Skipped</span><strong data-standard-nav-count="skipped">0</strong></a>
+        </nav>
+      </section>
+      {% endif %}
+    </aside>
+  </div>
+</main>
+{% endblock %}

@@ -318,6 +318,47 @@ def execute_member_cleanup(
     return MemberCleanupExecution(plan.group_id, quarantine, manifest, moved)
 
 
+def execute_survivor_quarantine(
+    workspace: Path,
+    candidate: CleanupCandidate,
+    survivor: CleanupCandidate,
+    *,
+    source: str,
+    plan_id: str,
+    references_checked: bool,
+    where_used: tuple[str, ...] = (),
+    now: datetime | None = None,
+) -> MemberCleanupExecution:
+    """Quarantine one path whose byte-identical survivor is named explicitly.
+
+    The same recoverable store and manifest as member cleanup; the survivor is
+    revalidated first, so the last copy can never be the one that leaves.
+    """
+
+    if not references_checked:
+        raise ValueError("Inventor references must be checked before quarantining a copy")
+    if not survivor.sha256 or survivor.sha256 != candidate.sha256:
+        raise ValueError("the survivor is not byte-identical to the copy being quarantined")
+    if survivor.path.casefold() == candidate.path.casefold():
+        raise ValueError("the survivor and the quarantined copy are the same path")
+    _validate_candidate(workspace.resolve(), survivor, label="surviving copy")
+    quarantine, manifest, moved = _quarantine_candidates(
+        workspace,
+        (candidate,),
+        suffix=f"{source}-{plan_id[:8]}",
+        plan_signature=plan_id,
+        metadata={
+            "action": "quarantine",
+            "source": source,
+            "group_id": plan_id,
+            "keep_path": survivor.path,
+            "where_used": list(where_used),
+        },
+        now=now,
+    )
+    return MemberCleanupExecution(plan_id, quarantine, manifest, moved)
+
+
 def execute_consolidation(
     workspace: Path,
     plan: ConsolidationPlan,
