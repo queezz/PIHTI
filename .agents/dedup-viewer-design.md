@@ -179,6 +179,30 @@ short window never pushes the shown file out of the rail. The top bar no longer
 counts recoverable files. That number lives only in the Removed page's History
 rail, and the per-request manifest read that fed the old indicator is gone.
 
+Version 0.19.0 revises this on the owner's review. Main-assembly tiles are one
+file-tile column wide with the file tile's 4:3 preview. Links cannot nest, so
+each is a card holding the part link (preview and name) and, on the root page,
+the folder path as a link plus **Open folder**; the folder's own page omits
+both. Coloured tile edges, including the gold left bar, were removed at the
+owner's request because they read as an editing or selection state; that
+device comes from lecturedeck, which is not a webui model (fleet `RULES.md`
+§10). Every signal is now a 9px dot in the tile's top-right corner, in one
+order shared by the tile, the inspector facts, and the legend: collision,
+exact, renamed, unverified, generic (a ring, so it does not read as renamed),
+newer, hero, featured. A second flag, `featured: true`, has the same one-line
+set and clear and the same seeding, and is read in the same `stat` pass as
+`hero`. The flags are set only on the part page (`POST /part/<path>/hero` and
+`/featured`); clearing asks for confirmation, and the inspector states facts
+only. Folder-card strips are manual first: heroes below the card, then featured
+files, each in path order. The rest go round-robin across the card folder's
+subfolders in name order, then its direct files, each round taking the best
+remaining representative: a top-level assembly (no referrer in the where-used
+snapshot), any assembly, a part, another Inventor document, then an export
+whose render is cached; larger first, then path order. A subfolder a manual
+pick came from sits out the rounds it covered, and anything unranked only tops
+up a short strip. Strips are memoised per folder while the inventory, the
+where-used snapshot, and the flag lookup are unchanged.
+
 ## Purpose
 
 Provide a local, human-in-the-loop view of filename collisions and byte-level

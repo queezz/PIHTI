@@ -48,12 +48,22 @@
 
         <section class="part-card metadata-card">
           <h2>Metadata sidecar <code>{{ sidecar_name }}</code></h2>
-          <form class="hero-toggle" method="post" action="{{ url_for('part_hero', relative_path=path) }}">
-            <input type="hidden" name="token" value="{{ form_token }}">
-            <input type="hidden" name="origin" value="part">
-            <input type="hidden" name="hero" value="{{ '0' if hero else '1' }}">
-            <button class="button hero-button" type="submit" aria-pressed="{{ 'true' if hero else 'false' }}" title="{% if hero %}Stop showing {{ name }} as a main assembly{% else %}Show {{ name }} first, as a main assembly{% endif %}">{% if hero %}Clear hero{% else %}Set hero{% endif %}</button>
-          </form>
+          {# The one place the two placement flags are set or cleared. Clearing
+             asks first; setting does not. #}
+          <div class="flag-toggles">
+            <form class="hero-toggle" method="post" action="{{ url_for('part_hero', relative_path=path) }}"{% if hero %} data-flag-confirm="Clear hero on {{ name }}? It stays in its folder; only the Main assemblies placement goes."{% endif %}>
+              <input type="hidden" name="token" value="{{ form_token }}">
+              <input type="hidden" name="origin" value="part">
+              <input type="hidden" name="hero" value="{{ '0' if hero else '1' }}">
+              <button class="button flag-button hero-button" type="submit" aria-pressed="{{ 'true' if hero else 'false' }}" title="{% if hero %}Stop showing {{ name }} among the Main assemblies{% else %}Show {{ name }} among the Main assemblies and first on its folder cards{% endif %}"><i class="signal-dot signal-hero" aria-hidden="true"></i>Main assembly <b>{{ 'on' if hero else 'off' }}</b></button>
+            </form>
+            <form class="featured-toggle" method="post" action="{{ url_for('part_featured', relative_path=path) }}"{% if featured %} data-flag-confirm="Clear featured on {{ name }}? It stays in its folder; only its lead place on the folder cards goes."{% endif %}>
+              <input type="hidden" name="token" value="{{ form_token }}">
+              <input type="hidden" name="origin" value="part">
+              <input type="hidden" name="featured" value="{{ '0' if featured else '1' }}">
+              <button class="button flag-button featured-button" type="submit" aria-pressed="{{ 'true' if featured else 'false' }}" title="{% if featured %}Stop leading the folder cards with {{ name }}{% else %}Lead the folder cards above {{ name }} with its preview{% endif %}"><i class="signal-dot signal-featured" aria-hidden="true"></i>Feature on folder card <b>{{ 'on' if featured else 'off' }}</b></button>
+            </form>
+          </div>
           {% if saved %}<p class="metadata-notice" role="status">Sidecar saved.</p>{% endif %}
           {% if error %}<p class="metadata-error" role="alert">{{ error }}</p>{% endif %}
 
@@ -159,7 +169,7 @@
       <section class="rail-card signal-legend">
         <h2>Signals</h2>
         <ul>
-          {% for mark in signals %}<li><i class="signal-mark signal-{{ mark.kind }} is-{{ signal_shape(mark.kind) }}"></i>{{ mark.text }}</li>{% endfor %}
+          {% for mark in signals %}<li><i class="signal-mark signal-{{ mark.kind }}"></i>{{ mark.text }}</li>{% endfor %}
         </ul>
       </section>
       {% endif %}

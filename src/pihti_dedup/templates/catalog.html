@@ -15,7 +15,7 @@
         <div class="hero-block">
           <p class="grid-label"><strong>Main assemblies</strong> · {{ hero_files|length }}</p>
           <div class="thumb-grid hero-grid">
-            {% for item in hero_files %}{{ hero_tile(item, show_folder=path == '.') }}{% endfor %}
+            {% for item in hero_files %}{{ hero_tile(item, show_folder=path == '.', include_vendor=include_vendor) }}{% endfor %}
           </div>
         </div>
         {% endif %}
@@ -172,13 +172,6 @@
       <section class="rail-card inspector" data-inspector aria-label="File inspector">
         <div class="inspector-head">
           <h2>Inspector</h2>
-          <form class="inspector-hero" method="post" data-inspector-hero hidden>
-            <input type="hidden" name="token" value="{{ form_token }}">
-            <input type="hidden" name="origin" value="{{ path }}">
-            {% if include_vendor %}<input type="hidden" name="include_vendor" value="1">{% endif %}
-            <input type="hidden" name="hero" value="1" data-inspector-hero-value>
-            <button class="button hero-button" type="submit" data-inspector-hero-button>Set hero</button>
-          </form>
         </div>
         <p class="inspector-empty" data-inspector-empty>Hover or arrow onto a file</p>
         <div class="inspector-body" data-inspector-body hidden>
@@ -192,7 +185,7 @@
       <section class="rail-card signal-legend">
         <h2>Signals</h2>
         <ul>
-          {% for kind, shape, text in signal_legend %}<li><i class="signal-mark signal-{{ kind }} is-{{ shape }}"></i>{{ text }}</li>{% endfor %}
+          {% for kind, text in signal_legend %}<li><i class="signal-mark signal-{{ kind }}"></i>{{ text }}</li>{% endfor %}
         </ul>
       </section>
       {% endif %}

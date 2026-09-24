@@ -14,12 +14,13 @@ tags: [boron-probe, bearing]
 supersedes: BoronProbe/parts/B_probe_bearing.ipt
 seeded_from_iproperties: 2026-08-05
 hero: true
+featured: true
 ---
 
 Why this part exists, what it mates with, what is still unverified.
 ```
 
-Frontmatter schema — deliberately seven keys, all optional:
+Frontmatter schema — deliberately eight keys, all optional:
 
 - `part_number` — Inventor Part Number as seeded, kept so a later drift is visible
 - `material` — Inventor Material as seeded
@@ -29,6 +30,9 @@ Frontmatter schema — deliberately seven keys, all optional:
 - `seeded_from_iproperties` — date the sidecar was generated
 - `hero` — `true` when the owner designated this file a main assembly (or main
   file); absent otherwise
+- `featured` — `true` when the file should lead the preview strip of every
+  folder card above it, without a place among the main assemblies; absent
+  otherwise
 
 Sidecars are written next to the CAD file and never committed automatically;
 they surface as untracked or modified files for the owner's own Git flow.
@@ -53,8 +57,11 @@ FRONTMATTER_FIELDS = (
     "supersedes",
     "seeded_from_iproperties",
     "hero",
+    "featured",
 )
 HERO_KEY = "hero"
+FEATURED_KEY = "featured"
+FLAG_KEYS = (HERO_KEY, FEATURED_KEY)
 STATUS_VALUES = ("concept", "draft", "manufactured", "obsolete")
 
 
@@ -81,6 +88,10 @@ class Sidecar:
     @property
     def hero(self) -> bool:
         return self.frontmatter.get(HERO_KEY) is True
+
+    @property
+    def featured(self) -> bool:
+        return self.frontmatter.get(FEATURED_KEY) is True
 
 
 def sidecar_path(cad_path: Path | str) -> Path:
@@ -135,9 +146,10 @@ def validate_frontmatter(frontmatter: dict) -> dict:
     supersedes = frontmatter.get("supersedes")
     if supersedes not in (None, "") and not isinstance(supersedes, str):
         raise SidecarError("supersedes must be a workspace-relative path")
-    hero = frontmatter.get(HERO_KEY)
-    if hero not in (None, "") and not isinstance(hero, bool):
-        raise SidecarError("hero must be true or false")
+    for key in FLAG_KEYS:
+        flag = frontmatter.get(key)
+        if flag not in (None, "") and not isinstance(flag, bool):
+            raise SidecarError(f"{key} must be true or false")
     return frontmatter
 
 
@@ -158,6 +170,7 @@ def seed_frontmatter(
     *,
     seeded_on: datetime.date | None = None,
     hero: bool = False,
+    featured: bool = False,
 ) -> dict[str, object]:
     """Build frontmatter from extracted iProperties, leaving judgement blank."""
 
@@ -175,6 +188,8 @@ def seed_frontmatter(
     }
     if hero:
         seeded[HERO_KEY] = True
+    if featured:
+        seeded[FEATURED_KEY] = True
     return seeded
 
 
@@ -183,33 +198,44 @@ def seed_text(
     *,
     seeded_on: datetime.date | None = None,
     hero: bool = False,
+    featured: bool = False,
 ) -> str:
     """Seed text for a new sidecar: iProperties in frontmatter, empty prose."""
 
-    return format_sidecar(seed_frontmatter(fields, seeded_on=seeded_on, hero=hero))
-
-
-_HERO_LINE = re.compile(r"hero[ \t]*:")
+    return format_sidecar(
+        seed_frontmatter(fields, seeded_on=seeded_on, hero=hero, featured=featured)
+    )
 
 
 def with_hero(text: str, hero: bool) -> str:
-    """Return sidecar text with only the `hero` key set to true or removed.
+    """Return sidecar text with only the `hero` key set to true or removed."""
 
-    The text is parsed first, so frontmatter this tool cannot read is refused
-    rather than rewritten. The edit is one frontmatter line: `hero: true` goes
-    in before the closing fence, or an existing top-level `hero:` line (with
+    return with_flag(text, HERO_KEY, hero)
+
+
+def with_flag(text: str, key: str, value: bool) -> str:
+    """Return sidecar text with only the flag `key` set to true or removed.
+
+    `key` is one of `FLAG_KEYS`. The text is parsed first, so frontmatter this
+    tool cannot read is refused rather than rewritten. The edit is one
+    frontmatter line: `<key>: true` goes in before the closing fence, or an
+    existing top-level `<key>:` line (with
     any indented continuation) comes out. Every other byte is kept: the other
     keys and their formatting, the line endings, and the prose. Should that
     one-line edit ever not yield exactly the intended frontmatter, the
     frontmatter alone is re-serialised; the prose is still left untouched.
     """
 
+    if key not in FLAG_KEYS:
+        raise ValueError(f"not a sidecar flag: {key}")
     current = parse_sidecar(text)
-    if current.hero == hero and (hero or HERO_KEY not in current.frontmatter):
+    present = current.frontmatter.get(key) is True
+    if present == value and (value or key not in current.frontmatter):
         return text
-    wanted = {key: value for key, value in current.frontmatter.items() if key != HERO_KEY}
-    if hero:
-        wanted[HERO_KEY] = True
+    wanted = {name: item for name, item in current.frontmatter.items() if name != key}
+    if value:
+        wanted[key] = True
+    flag_line = re.compile(re.escape(key) + r"[ \t]*:")
 
     bom = "\ufeff" if text.startswith("\ufeff") else ""
     lines = text[len(bom) :].splitlines(keepends=True)
@@ -220,11 +246,11 @@ def with_hero(text: str, hero: bool) -> str:
     for line in lines[1:closing]:
         if skipping and line[:1] in (" ", "\t"):
             continue
-        skipping = bool(_HERO_LINE.match(line))
+        skipping = bool(flag_line.match(line))
         if not skipping:
             kept.append(line)
-    if hero:
-        kept.append(f"{HERO_KEY}: true{newline}")
+    if value:
+        kept.append(f"{key}: true{newline}")
     edited = bom + "".join([lines[0], *kept, *lines[closing:]])
     try:
         if parse_sidecar(edited).frontmatter == wanted:
@@ -268,22 +294,39 @@ def set_hero(
     *,
     seeded_on: datetime.date | None = None,
 ) -> bool:
-    """Set or clear `hero` in the sidecar at `path`; return whether it wrote.
+    """Set or clear `hero` in the sidecar at `path`; return whether it wrote."""
+
+    return set_flag(path, HERO_KEY, hero, fields, seeded_on=seeded_on)
+
+
+def set_flag(
+    path: Path | str,
+    key: str,
+    value: bool,
+    fields: dict[str, object],
+    *,
+    seeded_on: datetime.date | None = None,
+) -> bool:
+    """Set or clear the flag `key` in the sidecar at `path`; return whether it wrote.
 
     A missing sidecar is created only to set the flag, seeded from iProperties
     exactly as a new sidecar is. Clearing the flag of a file with no sidecar
     writes nothing. An existing sidecar that does not parse is refused.
     """
 
+    if key not in FLAG_KEYS:
+        raise ValueError(f"not a sidecar flag: {key}")
     target = Path(path)
     if not target.is_file():
-        if not hero:
+        if not value:
             return False
-        write_sidecar(target, seed_text(fields, seeded_on=seeded_on, hero=True))
+        seeded = seed_frontmatter(fields, seeded_on=seeded_on)
+        seeded[key] = True
+        write_sidecar(target, format_sidecar(seeded))
         return True
     with target.open(encoding="utf-8", newline="") as handle:
         original = handle.read()
-    edited = with_hero(original, hero)
+    edited = with_flag(original, key, value)
     if edited == original:
         return False
     write_sidecar(target, edited, exact=True)

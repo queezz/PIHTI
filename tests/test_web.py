@@ -1164,10 +1164,11 @@ def test_folder_cards_carry_a_thumbnail_strip_from_the_subtree_inventor_first(
     card = html.split('class="folder-card" href="/catalog/Box"', 1)[1].split("</a>", 1)[0]
     strip = re.findall(r'src="/preview/([^"?]+)\?v=', card)
 
-    # Six images from the whole subtree, Inventor documents first in inventory
-    # (path) order; the three earlier meshes would only top up a short strip.
-    assert strip == ["Box/direct.ipt"] + [
-        f"Box/z-deep/inner/part-{index}.ipt" for index in range(5)
+    # Six images from the whole subtree, Inventor documents only: each round
+    # takes one from each subfolder that has one, then one direct file; the
+    # three earlier meshes would only top up a short strip.
+    assert strip == ["Box/z-deep/inner/part-0.ipt", "Box/direct.ipt"] + [
+        f"Box/z-deep/inner/part-{index}.ipt" for index in range(1, 5)
     ]
     assert ">Box</strong>" in card
     assert "<b>12</b> files" in card
@@ -1254,16 +1255,18 @@ def test_tiles_signal_copies_and_names_by_colour_with_a_legend(tmp_path: Path) -
     generic = tile(old_html, "BoronProbe/parts/Part1.ipt")
     clean = tile(old_html, "BoronProbe/parts/clean.ipt")
 
-    # Collision: both members get the collision edge; only the older one the
-    # "newer file exists" dot, which names the folder and never says superseded.
-    assert 'data-edge="collision"' in old_tile and 'data-edge="collision"' in new_tile
-    assert '<i class="signal-dot signal-newer"></i>' in old_tile
+    # Collision: both members get the collision dot; only the older one the
+    # "newer file exists" dot after it, which names the folder and never says
+    # superseded. Every signal is a dot; no tile carries a coloured edge.
+    assert '<i class="signal-dot signal-collision"></i><i class="signal-dot signal-newer"></i>' in old_tile
+    assert '<i class="signal-dot signal-collision"></i>' in new_tile
+    assert "data-edge" not in old_html + new_html
     assert "signal-newer" not in new_tile
     assert "A newer file with this name exists at BoronProbe_2026\\parts" in old_tile
     assert "superseded" not in old_html.casefold()
     assert '<i class="signal-dot signal-generic"></i>' in generic
     assert "Generic name" in generic
-    assert "signal-" not in clean and "data-edge" not in clean and "thumb-details" not in clean
+    assert "signal-" not in clean and "thumb-details" not in clean
     # No words on the tile face: meanings live in the title and the details card.
     face = old_tile.split('<dl class="thumb-details"', 1)[0]
     assert "Same filename, different bytes" in face.split(">", 1)[0]  # the title attribute
@@ -1435,12 +1438,17 @@ def test_folder_strips_are_one_pass_and_bounded() -> None:
 
     strips = web.folder_strips(records, "A", limit=2)
 
+    # Round-robin: a subfolder's first Inventor document, then a direct file.
     assert {key: [item.path for item in value] for key, value in strips.items()} == {
-        "A/B": ["A/B/one.ipt", "A/B/C/two.iam"],
+        "A/B": ["A/B/C/two.iam", "A/B/one.ipt"],
         "A/D": ["A/D/three.ipt"],
     }
+    # At the root the A/B subtree offers its assembly before its part, and the
+    # meshes (no cached render asked for) only top the strip up.
     top = web.folder_strips(records, ".")
-    assert [item.path for item in top["A"]][:3] == ["A/B/one.ipt", "A/B/C/two.iam", "A/D/three.ipt"]
+    assert [item.path for item in top["A"]] == [
+        "A/B/C/two.iam", "A/D/three.ipt", "A/direct.ipt", "A/B/one.ipt", "A/x.stl", "A/B/mesh.step"
+    ]
     assert [item.path for item in top["AB"]] == ["AB/elsewhere.ipt"]
 
 
@@ -2507,8 +2515,12 @@ def test_a_folder_leads_with_its_heroes_and_never_repeats_them(tmp_path: Path) -
     assert browse.index("hero-block") < browse.index("folder-grid") < browse.index("file-block")
     assert '<p class="grid-label"><strong>Main assemblies</strong> · 2</p>' in heroes
     assert re.findall(r'href="/part/([^"]+)"', heroes) == ["Vessel/flange.ipt", "Vessel/vessel-main.iam"]
+    assert heroes.count('<div class="hero-card">') == 2
     assert heroes.count('<a class="thumb-tile hero-tile"') == 2
-    assert "hero-folder" not in heroes  # a folder's own heroes need no location line
+    # A folder's own heroes need no location line and no Open folder: you are there.
+    assert "hero-folder" not in heroes and "Open folder" not in heroes
+    # The file tile's preview size, not a large one.
+    assert heroes.count('width="160" height="120"') == 2 and "max-width" not in heroes
     # The files grid holds the rest, and counts only the rest.
     assert "Vessel/vessel-main.iam" not in files and "Vessel/flange.ipt" not in files
     assert '<span data-filter-count data-total="1">1</span>' in files
@@ -2518,15 +2530,11 @@ def test_a_folder_leads_with_its_heroes_and_never_repeats_them(tmp_path: Path) -
     tile = heroes.split('href="/part/Vessel/vessel-main.iam"', 1)[1].split("</a>", 1)[0]
     details = tile.split('<dl class="thumb-details" hidden>', 1)[1]
     first = details.split("</div>", 1)[0]
-    assert '<i class="signal-mark signal-hero is-bar"></i>' in first and "<dd>Main assembly</dd>" in first
-    assert 'data-hero="1"' in tile or 'data-hero="1"' in heroes
+    assert '<i class="signal-mark signal-hero"></i>' in first and "<dd>Main assembly</dd>" in first
+    assert '<span class="tile-signals" aria-hidden="true"><i class="signal-dot signal-hero"></i></span>' in tile
+    assert 'data-hero="1"' in heroes
     legend = html.split('<section class="rail-card signal-legend">', 1)[1].split("</section>", 1)[0]
-    assert '<li><i class="signal-mark signal-hero is-bar"></i>Hero: a main assembly or file you designated</li>' in legend
-    # The inspector carries the one Hero button, beside its heading.
-    inspector = html.split('<section class="rail-card inspector"', 1)[1].split("</section>", 1)[0]
-    assert "<h2>Inspector</h2>" in inspector and "data-inspector-hero hidden" in inspector
-    assert 'name="origin" value="Vessel"' in inspector
-    assert "data-inspector-hero-button>Set hero</button>" in inspector
+    assert '<li><i class="signal-mark signal-hero"></i>Hero: a main assembly or file you designated</li>' in legend
 
 
 def test_a_folder_holding_only_heroes_still_has_its_inspector(tmp_path: Path) -> None:
@@ -2559,8 +2567,18 @@ def test_the_root_lists_every_hero_with_its_folder_and_omits_the_row_when_none(
 
     assert browse.index("hero-block") < browse.index("folder-grid")
     assert re.findall(r'href="/part/([^"]+)"', heroes) == ["Desk/desk.ipt", "Vessel/Probe/probe-head.iam"]
-    assert '<span class="hero-folder">Vessel\\Probe</span>' in heroes
-    assert '<span class="hero-folder">Desk</span>' in heroes
+    # The folder line is a real link to the folder page, beside an Open folder
+    # action; both sit outside the part link, which keeps preview and name.
+    assert (
+        '<a class="hero-folder" href="/catalog/Vessel/Probe" title="Open the folder Vessel\\Probe">'
+        "Vessel\\Probe</a>"
+    ) in heroes
+    assert '<a class="hero-open-folder" href="/catalog/Vessel/Probe">Open folder</a>' in heroes
+    assert '<a class="hero-folder" href="/catalog/Desk"' in heroes
+    part_link = heroes.split('href="/part/Desk/desk.ipt"', 1)[1].split("</a>", 1)[0]
+    assert '<span class="hero-name">desk.ipt</span>' in part_link and "<img" in part_link
+    assert "/catalog/" not in part_link
+    assert client.get("/catalog/Vessel/Probe").status_code == 200
     assert "data-inspector" in after
 
 
@@ -2603,8 +2621,10 @@ def test_part_page_sets_and_clears_hero_next_to_the_sidecar(tmp_path: Path) -> N
 
     page = client.get("/part/Vessel/flange.ipt").get_data(as_text=True)
     card = page.split('<section class="part-card metadata-card">', 1)[1]
-    assert card.index('class="hero-toggle"') < card.index("Edit raw text")
-    assert '<input type="hidden" name="hero" value="1">' in card and ">Set hero</button>" in card
+    assert card.index('class="hero-toggle"') < card.index('class="featured-toggle"') < card.index("Edit raw text")
+    assert '<input type="hidden" name="hero" value="1">' in card
+    assert "Main assembly <b>off</b></button>" in card
+    assert "data-flag-confirm" not in card  # setting needs no confirmation
 
     response = post_hero(app, client, "Vessel/flange.ipt", True, "part")
     assert response.headers["Location"] == "/part/Vessel/flange.ipt?hero=set&file=Vessel/flange.ipt"
@@ -2613,8 +2633,13 @@ def test_part_page_sets_and_clears_hero_next_to_the_sidecar(tmp_path: Path) -> N
     )
     marked = client.get(response.headers["Location"]).get_data(as_text=True)
     assert "Hero set: flange.ipt" in marked
-    assert ">Clear hero</button>" in marked and 'aria-pressed="true"' in marked
-    assert '<i class="signal-mark signal-hero is-bar"></i>Main assembly' in marked
+    assert "Main assembly <b>on</b></button>" in marked and 'aria-pressed="true"' in marked
+    hero_form = marked.split('<form class="hero-toggle"', 1)[1].split("</form>", 1)[0]
+    assert (
+        'data-flag-confirm="Clear hero on flange.ipt? It stays in its folder; '
+        'only the Main assemblies placement goes."'
+    ) in hero_form
+    assert '<i class="signal-mark signal-hero"></i>Main assembly' in marked
 
     post_hero(app, client, "Vessel/flange.ipt", False, "part")
     assert companion.read_text(encoding="utf-8") == (
@@ -2664,24 +2689,49 @@ def test_hero_lookup_stats_sidecars_and_reads_one_only_when_it_changed(
     assert reads.count("desk.ipt.md") == 2
 
 
-def test_hero_styles_pin_a_double_width_tile_and_a_distinct_mark(tmp_path: Path) -> None:
+def test_hero_styles_pin_the_file_tile_width_and_every_mark_is_a_dot(tmp_path: Path) -> None:
     style = create_app(tmp_path).test_client().get("/static/dedup.css").get_data(as_text=True)
     script = create_app(tmp_path).test_client().get("/static/dedup.js").get_data(as_text=True)
+    rules = re.findall(r"([^{}]+)\{([^{}]*)\}", style)
 
-    hero_rule = style.split(".hero-tile {", 1)[1].split("}", 1)[0]
-    assert "grid-column: span 2;" in hero_rule
-    assert ".hero-tile img { width: 100%; height: auto; margin: 0 auto; aspect-ratio: auto; }" in style
+    # Main assemblies share the file grid's column: nothing widens a hero card
+    # or its grid, and its preview uses the file tile's 4:3 rule.
+    assert ".thumb-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(148px, 1fr));" in style
+    for selector, body in rules:
+        if "hero" in selector:
+            assert "grid-column" not in body and "grid-template-columns" not in body, selector
+    assert ".hero-tile img" not in style
+    assert ".thumb-tile img { display: block; width: 100%; height: auto; aspect-ratio: 4 / 3;" in style
     name_rule = style.split(".hero-name {", 1)[1].split("}", 1)[0]
     assert "ellipsis" not in name_rule and "nowrap" not in name_rule  # names wrap
-    hue = style.split("--hero:", 1)[1].split(";", 1)[0].strip()
-    for other in ("--collision:", "--exact:", "--renamed:", "--accent:"):
-        assert style.split(other, 1)[1].split(";", 1)[0].strip() != hue
-    assert ".signal-hero { background: var(--hero); }" in style
-    assert "#d79b4b" != hue  # the "newer file" dot
-    # The inspector's Hero button follows the shown tile; a toggle lands on its tile.
-    assert "heroForm.action = action;" in script
-    assert 'window.location.hash.indexOf("#file-") === 0' in script
+    folder_rule = style.split(".hero-folder {", 1)[1].split("}", 1)[0]
+    assert "text-decoration: underline" in folder_rule and "var(--accent)" in folder_rule
 
+    # No tile or card rule draws a coloured edge or bar as a mark: every
+    # signal is a dot in the corner.
+    card_classes = (".thumb-tile", ".hero-card", ".hero-tile", ".folder-card")
+    for selector, body in rules:
+        if not any(name in selector for name in card_classes):
+            continue
+        assert "border-left" not in body and "border-top" not in body, selector
+        assert "inset 0 3px" not in body and "inset 3px" not in body, selector
+        assert "::before" not in selector, selector
+    assert "data-edge" not in style and "is-bar" not in style and "is-edge" not in style
+
+    hues = {
+        name: style.split(f"--{name}:", 1)[1].split(";", 1)[0].strip()
+        for name in ("hero", "featured", "collision", "exact", "renamed", "accent")
+    }
+    assert len(set(hues.values())) == len(hues)
+    assert "#d79b4b" not in (hues["hero"], hues["featured"])  # the "newer file" dot
+    assert ".signal-hero { background: var(--hero); }" in style
+    assert ".signal-featured { background: var(--featured); }" in style
+    # The inspector has no hero button; the part page's clear asks first.
+    assert "heroForm" not in script and "data-inspector-hero" not in script
+    assert "window.confirm(form.dataset.flagConfirm)" in script
+    assert 'window.location.hash.indexOf("#file-") === 0' in script
+    # The hero card's folder links prefetch like every other folder link.
+    assert "a.hero-folder, a.hero-open-folder" in script
 
 def test_the_folder_note_rail_renders_the_authored_part_in_a_fixed_budget(tmp_path: Path) -> None:
     root = make_workspace(tmp_path)
@@ -2767,3 +2817,195 @@ def test_the_folder_note_modal_opens_as_a_reader_with_the_editor_behind_edit(
     ).get_data(as_text=True)
     assert 'data-auto-open data-note-view="editor"' in refused  # an error stays in the editor
     assert '<div class="note-dialog-grid" data-note-editor>' in refused
+
+
+def test_the_inspector_states_main_assembly_and_carries_no_hero_form(tmp_path: Path) -> None:
+    root = make_hero_workspace(tmp_path)
+    app = create_app(root)
+    client = app.test_client()
+    post_hero(app, client, "Vessel/vessel-main.iam", True, "part")
+
+    for address in ("/catalog", "/catalog/Vessel"):
+        html = client.get(address).get_data(as_text=True)
+        inspector = html.split('<section class="rail-card inspector"', 1)[1].split("</section>", 1)[0]
+        assert "<h2>Inspector</h2>" in inspector
+        assert "<form" not in inspector and "<button" not in inspector
+        assert "hero" not in inspector.casefold()
+        # The fact the inspector copies is in the tile's hidden details.
+        assert "<dd>Main assembly</dd>" in html
+
+
+def test_featured_leads_folder_cards_without_a_main_assemblies_place(tmp_path: Path) -> None:
+    root = make_hero_workspace(tmp_path)
+    app = create_app(root)
+    client = app.test_client()
+    companion = root / "Vessel" / "parts" / "spacer.ipt.md"
+
+    response = client.post(
+        "/part/Vessel/parts/spacer.ipt/featured",
+        data={"token": app.config["FORM_TOKEN"], "featured": "1", "origin": "part"},
+    )
+    assert response.headers["Location"] == (
+        "/part/Vessel/parts/spacer.ipt?featured=set&file=Vessel/parts/spacer.ipt"
+    )
+    assert read_sidecar(companion).featured is True and read_sidecar(companion).hero is False
+
+    page = client.get(response.headers["Location"]).get_data(as_text=True)
+    assert "Featured set: spacer.ipt" in page
+    assert "Feature on folder card <b>on</b></button>" in page
+    assert "Main assembly <b>off</b></button>" in page
+    featured_form = page.split('<form class="featured-toggle"', 1)[1].split("</form>", 1)[0]
+    assert 'data-flag-confirm="Clear featured on spacer.ipt?' in featured_form
+    assert '<i class="signal-mark signal-featured"></i>Featured' in page
+
+    top = client.get("/catalog").get_data(as_text=True)
+    assert "hero-block" not in top  # featured is not a main assembly
+    card = top.split('class="folder-card" href="/catalog/Vessel"', 1)[1].split("</a>", 1)[0]
+    assert re.findall(r'src="/preview/([^"?]+)\?v=', card)[0] == "Vessel/parts/spacer.ipt"
+
+    folder = client.get("/catalog/Vessel/parts").get_data(as_text=True)
+    tile = folder.split('href="/part/Vessel/parts/spacer.ipt"', 1)[1].split("</a>", 1)[0]
+    assert '<i class="signal-dot signal-featured"></i>' in tile
+    assert '<i class="signal-mark signal-featured"></i></dt><dd>Featured</dd>' in tile
+    legend = folder.split('<section class="rail-card signal-legend">', 1)[1].split("</section>", 1)[0]
+    assert "<li><i class=\"signal-mark signal-featured\"></i>Featured: leads its folder&#39;s card</li>" in legend
+
+    cleared = client.post(
+        "/part/Vessel/parts/spacer.ipt/featured",
+        data={"token": app.config["FORM_TOKEN"], "featured": "0", "origin": "part"},
+    )
+    assert "featured=cleared" in cleared.headers["Location"]
+    assert "featured" not in read_sidecar(companion).frontmatter
+
+
+def test_signal_dots_and_legend_share_one_order_with_hero_then_featured_last(tmp_path: Path) -> None:
+    root = make_hero_workspace(tmp_path)
+    other = root / "Desk" / "flange.ipt"
+    other.write_bytes(b"another flange")  # a filename collision, the older member
+    os.utime(other, ns=(1_700_000_000_000_000_000, 1_700_000_000_000_000_000))
+    app = create_app(root)
+    client = app.test_client()
+    client.get("/duplicates/results")
+    for flag in ("hero", "featured"):
+        client.post(
+            f"/part/Vessel/flange.ipt/{flag}",
+            data={"token": app.config["FORM_TOKEN"], flag: "1", "origin": "part"},
+        )
+
+    html = client.get("/catalog/Vessel").get_data(as_text=True)
+    tile = html.split('href="/part/Vessel/flange.ipt"', 1)[1].split("</a>", 1)[0]
+    dots = re.findall(r'<i class="signal-dot signal-([a-z]+)"></i>', tile)
+    facts = re.findall(r'<i class="signal-mark signal-([a-z]+)"></i>', tile)
+    legend = html.split('<section class="rail-card signal-legend">', 1)[1].split("</section>", 1)[0]
+    kinds = re.findall(r'<i class="signal-mark signal-([a-z]+)"></i>', legend)
+
+    assert dots == facts == ["collision", "hero", "featured"]
+    assert kinds == ["collision", "hero", "featured"]
+    assert [kind for kind, _text in web.SIGNAL_LEGEND] == [
+        "collision", "exact", "renamed", "unverified", "generic", "newer", "hero", "featured"
+    ]
+
+
+def test_folder_card_strips_lead_with_heroes_then_featured_in_every_ancestor(tmp_path: Path) -> None:
+    for relative in (
+        "PV/Cathode/a-part.ipt",
+        "PV/Cathode/z-main.iam",
+        "PV/Flange/b-part.ipt",
+        "PV/Flange/y-feature.ipt",
+        "PV/Pump/c-part.ipt",
+        "PV/Pump/d-part.ipt",
+    ):
+        path = tmp_path / relative
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(b"x")
+    app = create_app(tmp_path)
+    client = app.test_client()
+    token = app.config["FORM_TOKEN"]
+    client.post("/part/PV/Cathode/z-main.iam/hero", data={"token": token, "hero": "1", "origin": "part"})
+    client.post(
+        "/part/PV/Flange/y-feature.ipt/featured",
+        data={"token": token, "featured": "1", "origin": "part"},
+    )
+
+    def strip(address: str, folder: str) -> list[str]:
+        html = client.get(address).get_data(as_text=True)
+        card = html.split(f'class="folder-card" href="/catalog/{folder}"', 1)[1].split("</a>", 1)[0]
+        return re.findall(r'src="/preview/([^"?]+)\?v=', card)
+
+    # The root's PV card: hero, featured, then one pick per subfolder that has
+    # not led yet, then the second round.
+    assert strip("/catalog", "PV") == [
+        "PV/Cathode/z-main.iam",
+        "PV/Flange/y-feature.ipt",
+        "PV/Pump/c-part.ipt",
+        "PV/Cathode/a-part.ipt",
+        "PV/Flange/b-part.ipt",
+        "PV/Pump/d-part.ipt",
+    ]
+    # One level down, each subfolder's own card leads the same way.
+    assert strip("/catalog/PV", "PV/Cathode")[0] == "PV/Cathode/z-main.iam"
+    assert strip("/catalog/PV", "PV/Flange")[0] == "PV/Flange/y-feature.ipt"
+    assert strip("/catalog/PV", "PV/Pump") == ["PV/Pump/c-part.ipt", "PV/Pump/d-part.ipt"]
+
+
+def make_strip_records(paths, sizes=None):
+    sizes = sizes or {}
+    return [
+        web.FileRecord(
+            path, path.rsplit("/", 1)[-1], path.casefold(), "." + path.rsplit(".", 1)[-1],
+            sizes.get(path, 1), 1, None, "A",
+        )
+        for path in paths
+    ]
+
+
+def test_folder_strip_defaults_take_one_from_each_subfolder_before_a_second() -> None:
+    paths = [f"Box/{drawer}/{index}.ipt" for drawer in ("a", "b", "c") for index in range(5)]
+    records = make_strip_records(paths)
+
+    plain = web.folder_strips(records, ".")
+    assert [item.path for item in plain["Box"]] == [
+        "Box/a/0.ipt", "Box/b/0.ipt", "Box/c/0.ipt", "Box/a/1.ipt", "Box/b/1.ipt", "Box/c/1.ipt"
+    ]
+    # A hero still comes first, and its drawer sits out the round it covered.
+    hero = next(record for record in records if record.path == "Box/c/4.ipt")
+    led = web.folder_strips(records, ".", leading=(hero,))
+    assert [item.path for item in led["Box"]] == [
+        "Box/c/4.ipt", "Box/a/0.ipt", "Box/b/0.ipt", "Box/a/1.ipt", "Box/b/1.ipt", "Box/c/0.ipt"
+    ]
+
+
+def test_folder_strip_representatives_are_ranked_assembly_first() -> None:
+    holder = ["Box/holder/main.iam"] + [f"Box/holder/tiny-{index:02d}.ipt" for index in range(10)]
+    drawer = ["Box/drawer/bolt.ipt", "Box/drawer/washer.ipt"]
+    exports = ["Box/exports/cached.stl", "Box/exports/fresh.step"]
+    nested = ["Box/nested/sub.iam", "Box/nested/top.iam"]
+    sizes = {path: 50 for path in holder[1:]}
+    sizes.update({"Box/holder/main.iam": 5, "Box/drawer/washer.ipt": 9, "Box/drawer/bolt.ipt": 3})
+    sizes.update({"Box/nested/sub.iam": 99, "Box/nested/top.iam": 1})
+    records = make_strip_records(holder + drawer + exports + nested, sizes)
+
+    def top_level(record) -> bool:
+        return record.path != "Box/nested/sub.iam"  # top.iam references sub.iam
+
+    def rendered(record) -> bool:
+        return record.path == "Box/exports/cached.stl"
+
+    strips = web.folder_strips(records, ".", top_level=top_level, rendered=rendered)
+    picks = [item.path for item in strips["Box"]]
+
+    # Round one, subfolders in name order: the drawer's largest part, the
+    # export whose render is cached, the holder's assembly (not one of its
+    # larger tiny parts), and the top-level assembly over a larger sub-assembly.
+    assert picks[:4] == [
+        "Box/drawer/washer.ipt",
+        "Box/exports/cached.stl",
+        "Box/holder/main.iam",
+        "Box/nested/top.iam",
+    ]
+    assert picks[4:] == ["Box/drawer/bolt.ipt", "Box/holder/tiny-00.ipt"]
+    assert "Box/exports/fresh.step" not in picks  # an uncached export only tops up
+
+    hero = next(record for record in records if record.path == "Box/holder/tiny-09.ipt")
+    led = web.folder_strips(records, ".", leading=(hero,), top_level=top_level, rendered=rendered)
+    assert [item.path for item in led["Box"]][:2] == ["Box/holder/tiny-09.ipt", "Box/drawer/washer.ipt"]

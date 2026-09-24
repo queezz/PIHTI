@@ -8,8 +8,10 @@ from pihti_dedup.sidecar import (
     parse_sidecar,
     read_sidecar,
     seed_text,
+    set_flag,
     set_hero,
     sidecar_path,
+    with_flag,
     with_hero,
     write_sidecar,
 )
@@ -168,3 +170,30 @@ def test_set_hero_refuses_a_sidecar_it_cannot_parse(tmp_path: Path) -> None:
         set_hero(companion, True, FIELDS)
 
     assert companion.read_bytes() == b"---\nstatus: shipped\n---\n\nKeep me.\n"
+
+
+def test_featured_round_trips_beside_hero_and_changes_one_line(tmp_path: Path) -> None:
+    seeded = seed_text(FIELDS, seeded_on=datetime.date(2026, 9, 24), featured=True)
+    assert parse_sidecar(seeded).featured is True and parse_sidecar(seeded).hero is False
+    assert parse_sidecar(seed_text(FIELDS)).featured is False
+    with pytest.raises(SidecarError, match="featured must be true or false"):
+        parse_sidecar("---\nfeatured: maybe\n---\n")
+
+    original = "---\r\nstatus: draft\r\ntags: [a, b]\r\nhero: true\r\n---\r\n\r\nKeep me.\r\n"
+    marked = with_flag(original, "featured", True)
+    assert marked == original.replace("hero: true\r\n", "hero: true\r\nfeatured: true\r\n")
+    both = parse_sidecar(marked)
+    assert both.hero is True and both.featured is True
+    assert with_flag(marked, "featured", False) == original  # the hero line stays
+    assert with_flag(marked, "featured", True) == marked
+    with pytest.raises(ValueError):
+        with_flag(original, "status", True)
+
+    companion = tmp_path / "flange.ipt.md"
+    assert set_flag(companion, "featured", False, FIELDS) is False and not companion.exists()
+    assert set_flag(companion, "featured", True, FIELDS, seeded_on=datetime.date(2026, 9, 24)) is True
+    written = read_sidecar(companion)
+    assert written.featured is True and written.hero is False
+    assert written.frontmatter["part_number"] == "B_probe_bearing"
+    assert set_flag(companion, "featured", False, FIELDS) is True
+    assert "featured" not in read_sidecar(companion).frontmatter

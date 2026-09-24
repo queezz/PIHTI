@@ -6,6 +6,22 @@ remains authoritative for exact file changes.
 
 ## 2026-09-24
 
+- Shipped `pihti-dedup` 0.19.0: featured files and smaller main assemblies.
+  A second sidecar flag, `featured: true`, puts a file at the front of the
+  preview strip of every folder card above it, without a place among the main
+  assemblies. Heroes and featured files are set and cleared only on the part
+  page, with **Main assembly** and **Feature on folder card** side by side;
+  clearing either asks first. The inspector no longer has a hero button and
+  states "Main assembly" and "Featured" as facts. **Main assemblies** tiles are
+  file-tile size, and on the root page each names its folder as a link with an
+  **Open folder** action beside it. Every tile mark is now a dot in the
+  tile's top-right corner in one order (copies, generic name, newer file,
+  hero, featured), matching the legend; the coloured tile edges and the gold
+  left bar are gone. After the manual picks, a folder card's strip goes
+  round-robin across its subfolders, taking each one's best representative:
+  a top-level assembly, then any assembly, then a part, then an export with a
+  cached render, largest first.
+
 - Shipped `pihti-dedup` 0.18.1: one icon for the browser tab, the top bar, and
   the MkDocs site: a bold P drawn as a path on a navy tile, legible at 16px.
   The old icon set five letters in two fonts and two low-contrast colours.

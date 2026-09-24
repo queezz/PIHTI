@@ -73,10 +73,12 @@ from pihti_dedup.renames import (
     set_settled,
 )
 from pihti_dedup.sidecar import (
+    FEATURED_KEY,
+    HERO_KEY,
     SidecarError,
     read_sidecar,
     seed_text,
-    set_hero,
+    set_flag,
     sidecar_path,
     write_sidecar,
 )
@@ -612,48 +614,121 @@ PREVIEW_STRIP_SIZE = 6
 PROJECT_EXTENSIONS = frozenset({".ipj"})
 
 
-def folder_strips(
-    records, current: str, limit: int = PREVIEW_STRIP_SIZE, leading=()
-) -> dict[str, list]:
-    """First preview candidates below each immediate child of `current`.
+STRIP_EXPORT_EXTENSIONS = frozenset({".stl", ".step", ".stp", ".3mf"})
 
-    One pass over the inventory in its own order. The `leading` records (the
-    designated main assemblies, in path order) open their folder's strip.
-    Inventor documents always carry an embedded preview, so they fill the rest
-    first; other CAD files (STL, STEP, DWG) only top it up. Returns
-    child-folder path -> records.
+
+def strip_rank(record, top_level=None, rendered=None) -> int | None:
+    """How well a file represents its folder on a card; lower is better.
+
+    0: an assembly no other document references (a top-level assembly);
+    1: any other assembly; 2: a part; 3: another Inventor document; 4: an
+    export (STL, STEP, 3MF) whose render is already cached. None: not a
+    representative, only a top-up for a short strip.
+    """
+
+    suffix = record.suffix.casefold()
+    if suffix == ".iam":
+        return 0 if top_level is not None and top_level(record) else 1
+    if suffix == ".ipt":
+        return 2
+    if suffix in INVENTOR_EXTENSIONS:
+        return 3
+    if suffix in STRIP_EXPORT_EXTENSIONS and rendered is not None and rendered(record):
+        return 4
+    return None
+
+
+def folder_strips(
+    records,
+    current: str,
+    limit: int = PREVIEW_STRIP_SIZE,
+    leading=(),
+    top_level=None,
+    rendered=None,
+) -> dict[str, list]:
+    """Preview picks for the card of each immediate child folder of `current`.
+
+    Manual picks come first: the `leading` records (the heroes, then the
+    featured files, each in path order) open the strip of the child folder
+    they sit anywhere below, in the order given. The rest go round-robin, so
+    a card shows what kinds of thing its folder holds rather than six files
+    of its first subfolder: each round takes the best remaining file (see
+    `strip_rank`; larger first, then path order) from each of the card
+    folder's own subfolders in name order, then from its direct files. A
+    subfolder a leading record came from sits out the rounds it has covered.
+    Files with no rank only top a short strip up. No record is repeated.
+
+    `top_level(record)` says whether an assembly is referenced by nothing;
+    `rendered(record)` whether an export's render is cached. One pass over
+    the inventory records; returns child-folder path -> records.
     """
 
     prefix = "" if current == "." else f"{current}/"
     offset = len(prefix)
 
-    def child_of(path: str) -> str | None:
+    def place(path: str) -> tuple[str, str] | None:
+        """(card folder, its subfolder or "" for a direct file), or None."""
+
         if not path.startswith(prefix):
             return None
         slash = path.find("/", offset)
-        return None if slash == -1 else path[:slash]  # -1: a direct file of `current`
+        if slash == -1:
+            return None  # a direct file of `current`
+        below = path.find("/", slash + 1)
+        return path[:slash], "" if below == -1 else path[:below]
 
     first: dict[str, list] = {}
+    taken: dict[str, dict[str, int]] = {}
     for record in leading:
-        child = child_of(record.path)
-        if child is not None:
-            first.setdefault(child, []).append(record)
-    skip = {record.path for items in first.values() for record in items}
-    inventor: dict[str, list] = {}
-    other: dict[str, list] = {}
-    for record in records:
-        child = child_of(record.path)
-        if child is None or record.path in skip:
+        where = place(record.path)
+        if where is None:
             continue
-        bucket = inventor if record.suffix.casefold() in INVENTOR_EXTENSIONS else other
-        items = bucket.setdefault(child, [])
-        if len(items) < limit:
-            items.append(record)
+        child, group = where
+        first.setdefault(child, []).append(record)
+        counts = taken.setdefault(child, {})
+        counts[group] = counts.get(group, 0) + 1
+    skip = {record.path for items in first.values() for record in items}
+    ranked: dict[str, dict[str, list]] = {}
+    other: dict[str, list] = {}
+    for position, record in enumerate(records):
+        where = place(record.path)
+        if where is None or record.path in skip:
+            continue
+        child, group = where
+        rank = strip_rank(record, top_level, rendered)
+        if rank is None:
+            items = other.setdefault(child, [])
+            if len(items) < limit:
+                items.append(record)
+            continue
+        ranked.setdefault(child, {}).setdefault(group, []).append(
+            (rank, -record.size, position, record)
+        )
+
     strips: dict[str, list] = {}
-    for child in first.keys() | inventor.keys() | other.keys():
-        strips[child] = (
-            first.get(child, []) + inventor.get(child, []) + other.get(child, [])
-        )[:limit]
+    for child in first.keys() | ranked.keys() | other.keys():
+        picks = first.get(child, [])[:limit]
+        groups = {
+            group: [item[-1] for item in sorted(items, key=lambda item: item[:3])[:limit]]
+            for group, items in ranked.get(child, {}).items()
+        }
+        order = sorted((group for group in groups if group), key=str.casefold)
+        if "" in groups:
+            order.append("")
+        counts = dict(taken.get(child, {}))
+        cursors = dict.fromkeys(order, 0)
+        rounds = 0
+        while len(picks) < limit and any(cursors[group] < len(groups[group]) for group in order):
+            rounds += 1
+            for group in order:
+                if len(picks) >= limit:
+                    break
+                if counts.get(group, 0) >= rounds or cursors[group] >= len(groups[group]):
+                    continue
+                picks.append(groups[group][cursors[group]])
+                cursors[group] += 1
+                counts[group] = counts.get(group, 0) + 1
+        strips[child] = (picks + other.get(child, []))[:limit]
     return strips
 
 
@@ -665,8 +740,8 @@ def file_signals(inventory: Inventory) -> dict[str, tuple[dict, ...]]:
     """Per-path catalog signals derived from one inventory, without a new scan.
 
     Kinds reuse the Duplicates and Doctor palette: `collision`, `exact`,
-    `unverified`, and `renamed` describe copies (drawn as the tile's top edge);
-    `generic` and `newer` describe the name (drawn as dots). `newer` is
+    `unverified`, and `renamed` describe copies; `generic` and `newer`
+    describe the name. Each is one dot in the tile's corner. `newer` is
     filesystem evidence only: another same-named file has a later mtime.
     """
 
@@ -709,18 +784,27 @@ def file_signals(inventory: Inventory) -> dict[str, tuple[dict, ...]]:
     return {path: tuple(items) for path, items in found.items()}
 
 
-EDGE_PRIORITY = ("collision", "renamed", "exact", "unverified")
 HERO_SIGNAL = {"kind": "hero", "text": "Main assembly"}
+FEATURED_SIGNAL = {"kind": "featured", "text": "Featured"}
+# Every signal is one dot in the tile's top-right corner, in this order, and
+# the legend lists them in the same order. No tile carries a coloured edge.
 SIGNAL_LEGEND = (
-    ("hero", "bar", "Hero: a main assembly or file you designated"),
-    ("collision", "edge", "Same name, different bytes"),
-    ("exact", "edge", "Identical copy elsewhere"),
-    ("renamed", "edge", "Same bytes, other name"),
-    ("unverified", "edge", "Same name, bytes not compared"),
-    ("generic", "dot", "Generic name"),
-    ("newer", "dot", "Newer file with this name exists"),
+    ("collision", "Same name, different bytes"),
+    ("exact", "Identical copy elsewhere"),
+    ("renamed", "Same bytes, other name"),
+    ("unverified", "Same name, bytes not compared"),
+    ("generic", "Generic name"),
+    ("newer", "Newer file with this name exists"),
+    ("hero", "Hero: a main assembly or file you designated"),
+    ("featured", "Featured: leads its folder's card"),
 )
-SIGNAL_SHAPES = {kind: shape for kind, shape, _text in SIGNAL_LEGEND}
+SIGNAL_ORDER = {kind: position for position, (kind, _text) in enumerate(SIGNAL_LEGEND)}
+
+
+def ordered_signals(marks) -> tuple[dict, ...]:
+    """Marks in legend order, so a tile's dots read the same way everywhere."""
+
+    return tuple(sorted(marks, key=lambda mark: SIGNAL_ORDER.get(mark["kind"], len(SIGNAL_ORDER))))
 
 
 def tile_anchor(path: str) -> str:
@@ -925,10 +1009,16 @@ def create_app(
     catalog_indexes: dict[bool, tuple[Inventory, list[dict]]] = {}
     catalog_indexes_lock = threading.Lock()
     catalog_signals: dict[bool, tuple[Inventory, dict[str, tuple[dict, ...]]]] = {}
-    # Designated main assemblies: per scope, the inventory and validation
-    # serial they were found for; per sidecar, the flag read at a (mtime, size).
-    hero_memo: dict[bool, tuple[Inventory, int, tuple[FileRecord, ...]]] = {}
-    hero_flags: dict[str, tuple[int, int, bool]] = {}
+    # Designated main assemblies and featured files: per scope, the inventory
+    # and validation serial they were found for; per sidecar, the two flags
+    # read at a (mtime, size).
+    hero_memo: dict[
+        bool, tuple[Inventory, int, tuple[tuple[FileRecord, ...], tuple[FileRecord, ...]]]
+    ] = {}
+    hero_flags: dict[str, tuple[int, int, bool, bool]] = {}
+    # Folder-card strips per (scope, folder), valid while the inventory, the
+    # where-used index, and the flag lookup are the same objects.
+    strip_memo: dict[tuple[bool, str], tuple[object, object, object, dict[str, list]]] = {}
     hero_lock = threading.Lock()
     standard_memo: dict[str, tuple] = {}
     standard_memo_lock = threading.Lock()
@@ -995,7 +1085,6 @@ def create_app(
     app.jinja_env.tests["newver_name"] = _is_newver_name
     app.jinja_env.tests["generic_cad_name"] = _is_generic_cad_name
     app.jinja_env.globals["RENAMEABLE_EXTENSIONS"] = RENAMEABLE_EXTENSIONS
-    app.jinja_env.globals["signal_shape"] = lambda kind: SIGNAL_SHAPES.get(kind, "edge")
 
     def preview_url(item) -> str:
         """`/preview/<path>?v=<key>` for a FileRecord, a dict/obj with `path`, or a path.
@@ -1049,6 +1138,7 @@ def create_app(
             and "q" not in request.args
             and "saved" not in request.args
             and "hero" not in request.args
+            and "featured" not in request.args
         ):
             response.headers["Cache-Control"] = "private, max-age=5"
             return response
@@ -2096,12 +2186,15 @@ def create_app(
             catalog_signals[inventory.include_vendor] = (inventory, signals)
         return signals
 
-    def _catalog_heroes(inventory: Inventory) -> tuple[FileRecord, ...]:
-        """Records whose sidecar says `hero: true`, in path order.
+    def _catalog_flags(
+        inventory: Inventory,
+    ) -> tuple[tuple[FileRecord, ...], tuple[FileRecord, ...]]:
+        """Records whose sidecar says `hero: true`, then `featured: true`, in path order.
 
-        Memoized per inventory object and validation serial, so it is redone
-        once per snapshot refresh. That pass is one `stat` per record; a
-        sidecar is read only when its size or modification time changed.
+        Both flags come from one pass. Memoized per inventory object and
+        validation serial, so it is redone once per snapshot refresh. That
+        pass is one `stat` per record; a sidecar is read only when its size or
+        modification time changed.
         """
 
         serial = cache.serial(inventory.include_vendor)
@@ -2110,6 +2203,7 @@ def create_app(
             if cached is not None and cached[0] is inventory and cached[1] == serial:
                 return cached[2]
         heroes: list[FileRecord] = []
+        featured: list[FileRecord] = []
         for record in inventory.records:
             companion = root / (record.path + ".md")
             try:
@@ -2120,25 +2214,76 @@ def create_app(
             with hero_lock:
                 known = hero_flags.get(record.path)
             if known is not None and known[:2] == key:
-                flag = known[2]
+                flags = known[2:]
             else:
                 try:
                     sidecar = read_sidecar(companion)
-                    flag = bool(sidecar and sidecar.hero)
+                    flags = (bool(sidecar and sidecar.hero), bool(sidecar and sidecar.featured))
                 except (SidecarError, OSError, UnicodeDecodeError):
-                    flag = False
+                    flags = (False, False)
                 with hero_lock:
-                    hero_flags[record.path] = (*key, flag)
-            if flag:
+                    hero_flags[record.path] = (*key, *flags)
+            if flags[0]:
                 heroes.append(record)
-        found = tuple(sorted(heroes, key=lambda record: record.path.casefold()))
+            if flags[1]:
+                featured.append(record)
+
+        def by_path(items: list[FileRecord]) -> tuple[FileRecord, ...]:
+            return tuple(sorted(items, key=lambda record: record.path.casefold()))
+
+        found = (by_path(heroes), by_path(featured))
         with hero_lock:
             hero_memo[inventory.include_vendor] = (inventory, serial, found)
         return found
 
+    def _catalog_strips(
+        inventory: Inventory,
+        current: str,
+        heroes: tuple[FileRecord, ...],
+        featured: tuple[FileRecord, ...],
+    ) -> dict[str, list]:
+        """Folder-card strips for the children of `current`, memoised per snapshot.
+
+        Manual first: the heroes below each card, then the featured files,
+        then the ranked round-robin of `folder_strips`, which asks the
+        where-used snapshot whether an assembly is top-level.
+        """
+
+        index = _current_index()
+        flags = _catalog_flags(inventory)
+        key = (inventory.include_vendor, current)
+        with hero_lock:
+            cached = strip_memo.get(key)
+        if (
+            cached is not None
+            and cached[0] is inventory
+            and cached[1] is index
+            and cached[2] is flags
+        ):
+            return cached[3]
+        hero_paths = {record.path for record in heroes}
+        leading = (*heroes, *(record for record in featured if record.path not in hero_paths))
+        store = geometry_preview.preview_store(root)
+
+        def top_level(record: FileRecord) -> bool:
+            return not index.referring(record.name)
+
+        def rendered(record: FileRecord) -> bool:
+            target = root / record.path
+            cache_key = geometry_preview.cache_key(target, record.mtime_ns, record.size)
+            return geometry_preview.cache_path(store, cache_key).is_file()
+
+        strips = folder_strips(
+            inventory.records, current, leading=leading, top_level=top_level, rendered=rendered
+        )
+        with hero_lock:
+            strip_memo[key] = (inventory, index, flags, strips)
+        return strips
+
     def _forget_hero(relative: str) -> None:
         with hero_lock:
             hero_memo.clear()
+            strip_memo.clear()
             hero_flags.pop(relative, None)
 
     def _build_catalog_index(inventory: Inventory) -> list[dict]:
@@ -2216,7 +2361,7 @@ def create_app(
         return meta
 
     def _catalog_file(
-        record: FileRecord, index=None, signals=None, heroes=frozenset(), hero_tile=False
+        record: FileRecord, index=None, signals=None, heroes=frozenset(), featured=frozenset()
     ) -> dict:
         target = root / record.path
         companion = sidecar_path(target)
@@ -2259,11 +2404,10 @@ def create_app(
         marks = signals.get(record.path, ()) if signals else ()
         is_hero = record.path in heroes
         if is_hero:
-            marks = (HERO_SIGNAL, *marks)
-        edge = next(
-            (kind for kind in EDGE_PRIORITY if any(mark["kind"] == kind for mark in marks)), ""
-        )
-        dots = [mark for mark in marks if mark["kind"] in {"generic", "newer"}]
+            marks = (*marks, HERO_SIGNAL)
+        if record.path in featured:
+            marks = (*marks, FEATURED_SIGNAL)
+        marks = ordered_signals(marks)
         details: list[tuple[str, str]] = []
         if description or mass is not None or used_in or marks:
             if description:
@@ -2278,16 +2422,11 @@ def create_app(
         return {
             "anchor": tile_anchor(record.path),
             "hero": is_hero,
-            "hero_action": url_for("part_hero", relative_path=record.path),
+            "folder": record.path.rsplit("/", 1)[0] if "/" in record.path else ".",
             "description": description,
-            "preview_size": (
-                _record_preview_size(record) if hero_tile else None
-            ),
             "details": details,
             "used_in": used_in if details else (),
             "signals": marks,
-            "edge": edge,
-            "dots": dots,
             "record": record,
             "summary": summary or metadata_error,
             "status": status,
@@ -2324,8 +2463,9 @@ def create_app(
         show = max(48, min(requested, len(inventory.records) or 48))
 
         project_files: list[dict] = []
-        heroes = _catalog_heroes(inventory)
+        heroes, featured = _catalog_flags(inventory)
         hero_paths = frozenset(record.path for record in heroes)
+        featured_paths = frozenset(record.path for record in featured)
         hero_records: list[FileRecord] = []
         if query:
             folded = query.casefold()
@@ -2334,7 +2474,11 @@ def create_app(
             records = matching[:show]
             total = len(matching)
         else:
-            strips = folder_strips(inventory.records, current, leading=heroes)
+            strips = (
+                _catalog_strips(inventory, current, heroes, featured)
+                if current_stats["children"]
+                else {}
+            )
             child_folders = [
                 _folder_card(by_name[name], strips.get(name))
                 for name in current_stats["children"]
@@ -2370,10 +2514,13 @@ def create_app(
         where_used = _current_index() if records or hero_records else None
         signals = _catalog_signals(inventory)
         hero_files = [
-            _catalog_file(record, where_used, signals, hero_paths, hero_tile=True)
+            _catalog_file(record, where_used, signals, hero_paths, featured_paths)
             for record in hero_records
         ]
-        files = [_catalog_file(record, where_used, signals, hero_paths) for record in records]
+        files = [
+            _catalog_file(record, where_used, signals, hero_paths, featured_paths)
+            for record in records
+        ]
         present = {mark["kind"] for item in hero_files + files for mark in item["signals"]}
         legend = [row for row in SIGNAL_LEGEND if row[0] in present]
 
@@ -2416,11 +2563,12 @@ def create_app(
         }
 
     def _hero_toast() -> str:
-        state = request.args.get("hero", "")
         name = request.args.get("file", "").replace("\\", "/").rsplit("/", 1)[-1]
-        if not name or state not in {"set", "cleared"}:
-            return ""
-        return f"Hero {state}: {name}"
+        for key, label in ((HERO_KEY, "Hero"), (FEATURED_KEY, "Featured")):
+            state = request.args.get(key, "")
+            if name and state in {"set", "cleared"}:
+                return f"{label} {state}: {name}"
+        return ""
 
     def _catalog_note_error(target: Path, draft: str, error: str, status: int):
         relative = target.relative_to(root).as_posix()
@@ -2536,11 +2684,22 @@ def create_app(
 
     @app.post("/part/<path:relative_path>/hero")
     def part_hero(relative_path: str):
-        """Set or clear `hero` in the file's sidecar, then return to where it was pressed.
+        """Set or clear `hero` in the file's sidecar, then return to where it was pressed."""
 
-        The form states the wanted value, so a repeated submit cannot flip it
-        back. A missing sidecar is created seeded from iProperties, exactly as
-        **Create metadata** does; an existing one changes by that one key.
+        return _toggle_flag(relative_path, HERO_KEY)
+
+    @app.post("/part/<path:relative_path>/featured")
+    def part_featured(relative_path: str):
+        """Set or clear `featured` in the file's sidecar, then return to where it was pressed."""
+
+        return _toggle_flag(relative_path, FEATURED_KEY)
+
+    def _toggle_flag(relative_path: str, key: str):
+        """Set or clear one sidecar flag from a form that states the wanted value.
+
+        A repeated submit cannot flip it back. A missing sidecar is created
+        seeded from iProperties, exactly as **Create metadata** does; an
+        existing one changes by that one key.
         """
 
         guard = _guard(request)
@@ -2550,12 +2709,12 @@ def create_app(
         if target is None:
             return render_template("_not_found.html", version=__version__, path=relative_path), 404
         relative = target.relative_to(root).as_posix()
-        hero = _flag(request.form.get("hero"))
+        wanted = _flag(request.form.get(key))
         fields: dict[str, object] = {}
         if target.suffix.casefold() in INVENTOR_EXTENSIONS and not sidecar_path(target).is_file():
             fields = read_inventor_document(target).fields
         try:
-            set_hero(sidecar_path(target), hero, fields)
+            set_flag(sidecar_path(target), key, wanted, fields)
         except SidecarError as exc:
             context = _part_context(target)
             context.update(error=f"the sidecar was not changed: {exc}")
@@ -2566,10 +2725,10 @@ def create_app(
             return render_template("part.html", **context), 500
         finally:
             _forget_hero(relative)
-        state = "set" if hero else "cleared"
+        state = {key: "set" if wanted else "cleared"}
         origin = request.form.get("origin", "")
         if origin == "part":
-            return redirect(url_for("part_page", relative_path=relative, hero=state, file=relative))
+            return redirect(url_for("part_page", relative_path=relative, **state, file=relative))
         folder = "."
         if origin and origin != ".":
             origin_folder = workspace_folder(root, origin)
@@ -2579,7 +2738,7 @@ def create_app(
             url_for(
                 "catalog",
                 relative_folder=None if folder == "." else folder,
-                hero=state,
+                **state,
                 file=relative,
                 include_vendor="1" if _flag(request.form.get("include_vendor")) else None,
                 _anchor=tile_anchor(relative),
@@ -2613,9 +2772,6 @@ def create_app(
             return abs(width), abs(height)
         return None
 
-    def _record_preview_size(record: FileRecord) -> tuple[int, int] | None:
-        return _preview_size(root / record.path, record.mtime_ns, record.size)
-
     def _part_context(target: Path) -> dict:
         relative = target.resolve().relative_to(root).as_posix()
         stat = target.stat()
@@ -2648,10 +2804,15 @@ def create_app(
         crumbs.append({"name": target.name, "path": relative})
         signals = _catalog_signals(inventory).get(relative, ())
         hero = bool(sidecar and sidecar.hero)
+        featured = bool(sidecar and sidecar.featured)
         if hero:
-            signals = (HERO_SIGNAL, *signals)
+            signals = (*signals, HERO_SIGNAL)
+        if featured:
+            signals = (*signals, FEATURED_SIGNAL)
+        signals = ordered_signals(signals)
         return {
             "hero": hero,
+            "featured": featured,
             "toast": _hero_toast(),
             "version": __version__,
             "path": relative,

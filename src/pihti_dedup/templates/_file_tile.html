@@ -1,20 +1,24 @@
 {% macro tile_details(item) %}
 {% if item.details %}
 <dl class="thumb-details" hidden>
-  {% for mark in item.signals %}<div class="detail-signal"><dt><i class="signal-mark signal-{{ mark.kind }} is-{{ signal_shape(mark.kind) }}"></i></dt><dd>{{ mark.text }}</dd></div>{% endfor %}
+  {% for mark in item.signals %}<div class="detail-signal"><dt><i class="signal-mark signal-{{ mark.kind }}"></i></dt><dd>{{ mark.text }}</dd></div>{% endfor %}
   {% for label, value in item.details %}<div><dt>{{ label }}</dt><dd>{{ value }}</dd></div>{% endfor %}
   {% if item.used_in %}<div><dt>Used in</dt><dd><ul>{% for referrer in item.used_in[:6] %}<li title="{{ referrer|winpath }}">{{ referrer.rsplit('/', 1)[-1] }}</li>{% endfor %}{% if item.used_in|length > 6 %}<li>+{{ item.used_in|length - 6 }} more</li>{% endif %}</ul></dd></div>{% endif %}
 </dl>
 {% endif %}
 {% endmacro %}
 
-{% macro tile_attributes(item) %}{% set record = item.record %} id="{{ item.anchor }}" href="{{ url_for('part_page', relative_path=record.path) }}" data-hero="{{ '1' if item.hero else '0' }}" data-hero-action="{{ item.hero_action }}"{% if item.edge %} data-edge="{{ item.edge }}"{% endif %} title="{{ record.path|winpath }}{% for mark in item.signals %}&#10;{{ mark.text }}{% endfor %}"{% endmacro %}
+{% macro tile_attributes(item) %}{% set record = item.record %} id="{{ item.anchor }}" href="{{ url_for('part_page', relative_path=record.path) }}" data-hero="{{ '1' if item.hero else '0' }}" title="{{ record.path|winpath }}{% for mark in item.signals %}&#10;{{ mark.text }}{% endfor %}"{% endmacro %}
+
+{# Every signal is a dot in the top-right corner, in legend order; the words
+   are in the tile's title and the inspector. #}
+{% macro tile_dots(item) %}{% if item.signals %}<span class="tile-signals" aria-hidden="true">{% for mark in item.signals %}<i class="signal-dot signal-{{ mark.kind }}"></i>{% endfor %}</span>{% endif %}{% endmacro %}
 
 {% macro file_tile(item, query=false) %}
 {% set record = item.record %}
 {% set folder = record.path.rsplit('/', 1)[0]|winpath if '/' in record.path else '.' %}
 <a class="thumb-tile{% if item.has_metadata %} has-metadata{% endif %}{% if item.has_story %} has-story{% endif %}{% if item.hero %} is-hero{% endif %}"{{ tile_attributes(item) }}>
-  {% if item.dots %}<span class="tile-signals" aria-hidden="true">{% for mark in item.dots %}<i class="signal-dot signal-{{ mark.kind }}"></i>{% endfor %}</span>{% endif %}
+  {{ tile_dots(item) }}
   <img src="{{ preview_url(record) }}" alt="" loading="lazy" decoding="async" width="160" height="120">
   <span class="thumb-content">
     <span class="thumb-name">{{ record.name }}</span>
@@ -37,19 +41,25 @@
 </a>
 {% endmacro %}
 
-{# A designated main assembly: two grid columns, the preview at no more than
-   its own pixel size, then the name, its Description, and the file size. #}
-{% macro hero_tile(item, show_folder=false) %}
+{# A designated main assembly, at file-tile size. The preview and name open
+   the part page; on the root page the folder line and Open folder go to the
+   folder that holds it. Links cannot nest, so the card holds the part link
+   and the folder links side by side. #}
+{% macro hero_tile(item, show_folder=false, include_vendor=false) %}
 {% set record = item.record %}
-<a class="thumb-tile hero-tile"{{ tile_attributes(item) }}>
-  {% if item.dots %}<span class="tile-signals" aria-hidden="true">{% for mark in item.dots %}<i class="signal-dot signal-{{ mark.kind }}"></i>{% endfor %}</span>{% endif %}
-  <img src="{{ preview_url(record) }}" alt="" loading="lazy" decoding="async"{% if item.preview_size %} width="{{ item.preview_size[0] }}" height="{{ item.preview_size[1] }}" style="max-width: {{ item.preview_size[0] }}px"{% else %} width="512" height="384"{% endif %}>
-  <span class="thumb-content">
+{% set folder_url = url_for('catalog', relative_folder=item.folder, include_vendor='1' if include_vendor else none) if show_folder and item.folder != '.' else none %}
+<div class="hero-card">
+  <a class="thumb-tile hero-tile"{{ tile_attributes(item) }}>
+    {{ tile_dots(item) }}
+    <img src="{{ preview_url(record) }}" alt="" loading="lazy" decoding="async" width="160" height="120">
     <span class="hero-name">{{ record.name }}</span>
-    {% if show_folder %}<span class="hero-folder">{{ record.path.rsplit('/', 1)[0]|winpath if '/' in record.path else 'Workspace root' }}</span>{% endif %}
-    {% if item.description %}<span class="hero-description">{{ item.description }}</span>{% endif %}
+    {{ tile_details(item) }}
+  </a>
+  {% if folder_url %}<a class="hero-folder" href="{{ folder_url }}" title="Open the folder {{ item.folder|winpath }}">{{ item.folder|winpath }}</a>{% endif %}
+  {% if item.description %}<span class="hero-description">{{ item.description }}</span>{% endif %}
+  <span class="hero-foot">
     <span class="thumb-meta">{{ record.size|filesize }}</span>
+    {% if folder_url %}<a class="hero-open-folder" href="{{ folder_url }}">Open folder</a>{% endif %}
   </span>
-  {{ tile_details(item) }}
-</a>
+</div>
 {% endmacro %}

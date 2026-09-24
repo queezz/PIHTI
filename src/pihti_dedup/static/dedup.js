@@ -794,29 +794,8 @@
   var image = inspector && inspector.querySelector("[data-inspector-image]");
   var title = inspector && inspector.querySelector("[data-inspector-title]");
   var facts = inspector && inspector.querySelector("[data-inspector-facts]");
-  var heroForm = inspector && inspector.querySelector("[data-inspector-hero]");
-  var heroValue = heroForm && heroForm.querySelector("[data-inspector-hero-value]");
-  var heroButton = heroForm && heroForm.querySelector("[data-inspector-hero-button]");
   var shown = null;
   var hoverTimer = null;
-
-  // The Hero button acts on the file the inspector shows, and says which.
-  function showHero(tile) {
-    if (!heroForm) return;
-    var action = tile && tile.dataset.heroAction;
-    heroForm.hidden = !action;
-    if (!action) return;
-    var hero = tile.dataset.hero === "1";
-    var name = tile.querySelector(".thumb-name, .hero-name");
-    var label = name ? name.textContent : "this file";
-    heroForm.action = action;
-    heroValue.value = hero ? "0" : "1";
-    heroButton.textContent = hero ? "Clear hero" : "Set hero";
-    heroButton.setAttribute("aria-pressed", hero ? "true" : "false");
-    heroButton.title = hero
-      ? "Stop showing " + label + " as a main assembly"
-      : "Show " + label + " first, as a main assembly";
-  }
 
   // Native size, never upscaled: a small embedded preview stays small.
   function sizeImage(natural) {
@@ -849,7 +828,6 @@
     sizeImage(source.complete ? source.naturalWidth : 0);
     empty.hidden = true;
     body.hidden = false;
-    showHero(tile);
     fitImage();
     shown = tile;
   }
@@ -882,7 +860,6 @@
     empty.hidden = false;
     image.removeAttribute("src");
     facts.replaceChildren();
-    showHero(null);
     shown = null;
   }
 
@@ -964,8 +941,7 @@
     if (event.key === "Escape" && shown) clear();
   });
 
-  // After Set hero / Clear hero the server returns to `#file-...`: focus
-  // that tile and show it, so the next press acts on the same file.
+  // A link to `#file-...` lands on that tile: focus it and show it.
   var landed = window.location.hash.indexOf("#file-") === 0 &&
     document.getElementById(window.location.hash.slice(1));
   if (landed && grid.contains(landed) && landed.matches(TILE)) {
@@ -977,12 +953,25 @@
 (function () {
   "use strict";
 
+  // Clearing a Main assembly or Featured flag on the part page asks first;
+  // setting one does not.
+  document.querySelectorAll("form[data-flag-confirm]").forEach(function (form) {
+    form.addEventListener("submit", function (event) {
+      if (!window.confirm(form.dataset.flagConfirm)) event.preventDefault();
+    });
+  });
+})();
+
+(function () {
+  "use strict";
+
   // The hero toast belongs to the press that just ran, not to the address: a
   // reload or a later Back must not announce it again.
   var toast = document.querySelector("[data-hero-toast]");
   if (!toast) return;
   var url = new URL(window.location.href);
   url.searchParams.delete("hero");
+  url.searchParams.delete("featured");
   url.searchParams.delete("file");
   window.history.replaceState(null, "", url.pathname + url.search + url.hash);
   window.setTimeout(function () { toast.remove(); }, 8000);
@@ -994,7 +983,8 @@
   // Prefetch a catalog page once the pointer rests on its link. Catalog pages
   // are cacheable for five seconds (see `no_store` in web.py), so the click
   // that follows is served from the browser cache.
-  var LINKS = ".folder-tree a.tree-name, .breadcrumbs a, a.folder-card";
+  var LINKS = ".folder-tree a.tree-name, .breadcrumbs a, a.folder-card, " +
+    "a.hero-folder, a.hero-open-folder";
   var DELAY = 100;
   if (!document.querySelector(LINKS) || !window.fetch) return;
   if (navigator.connection && navigator.connection.saveData) return;
@@ -1199,6 +1189,10 @@
     items.forEach(function (item, index) {
       var match = !needle || haystacks[index].indexOf(needle) !== -1;
       item.hidden = !match;
+      // A main-assembly tile sits in a card with its folder links.
+      var card = item.parentElement && item.parentElement.classList.contains("hero-card")
+        ? item.parentElement : null;
+      if (card) card.hidden = !match;
       if (match) shown += 1;
       if (match && item.matches("a.thumb-tile")) files += 1;
     });
