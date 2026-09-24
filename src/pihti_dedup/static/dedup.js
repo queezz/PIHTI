@@ -895,7 +895,7 @@
   // legend, so the preview takes only the room the card has left above the
   // title, a couple of fact lines, and the toggles at its foot; a short
   // window never pushes the shown file out of the rail.
-  var FACT_ROOM = 72;  // the title and a couple of fact lines
+  var FACT_ROOM = 88;  // the title and two fact rows (a badge row is about 28px)
   var PREVIEW_MIN = 32;  // below this a short window shows no preview at all
   var PREVIEW_MAX = 384;
   function fitImage() {
@@ -1250,8 +1250,7 @@
       var match = !needle || haystacks[index].indexOf(needle) !== -1;
       item.hidden = !match;
       // A main-assembly tile sits in a card with its folder links.
-      var card = item.parentElement && item.parentElement.classList.contains("hero-card")
-        ? item.parentElement : null;
+      var card = item.closest(".hero-card");
       if (card) card.hidden = !match;
       if (match) shown += 1;
       if (match && item.matches("a.thumb-tile")) files += 1;

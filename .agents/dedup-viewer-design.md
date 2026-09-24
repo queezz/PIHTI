@@ -229,6 +229,24 @@ the page returns with the tile focused and the toast. At short windows the
 preview yields first; the toggles stay visible. The part page's toggles are
 unchanged.
 
+Version 0.19.2 replaces the corner dots with word badges on the owner's
+review ("badges with a tag in a colored box... that is self explaining"),
+fleet's badge shape: a lowercase word of at most eight letters in a 6px
+rounded box, 0.72rem semibold, the mark's hue as text and border over a faint
+tint of it (`clash`, `copy`, `renamed`, `unhashed`, `generic` in outline only,
+`newer`, `main`, `featured`). `SIGNAL_LEGEND` rows are (kind, word, meaning)
+and every mark carries its word. On a tile the badges are the tile's own last
+row under the size line; tiles and main-assembly cards take their rows from
+the grid as a subgrid, so a wrapped badge row grows its whole grid row and
+the size lines stay level. The inspector's fact rows, the part page's File
+card and toggle buttons, and the Legend use the same badge; the Legend keeps
+each meaning beside its badge. Being taller (158px, most meanings wrap to two
+lines), it puts the inspector/legend tops at 440/769px at 1920×1000 and
+344/469px at 1920×700 on the root, folders, search, and part pages, at every
+scroll depth. At 700px tall the inspector has room for the name and the
+toggles only; the tile's own badges state the marks. A part page whose File
+card lists four or more long marks would outgrow a 700px rail.
+
 ## Purpose
 
 Provide a local, human-in-the-loop view of filename collisions and byte-level

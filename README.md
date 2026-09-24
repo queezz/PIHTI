@@ -288,11 +288,15 @@ rail's inspector: the preview at its own pixel size, plus description, part
 number, material, valid mass, modification date, and the documents that use it,
 when those exist. Enter opens the part page; Escape clears the inspector.
 
-Coloured marks on file tiles flag what the inventory already knows: a top edge
-for a same-name collision, an identical copy, or a same-bytes copy under
-another name, and a dot for a generic name or a newer same-named file elsewhere.
-A tile's tooltip and the inspector state each mark in words; the left rail lists
-the marks present on the page.
+Badges on file tiles flag what the inventory already knows, each a short word
+in a small coloured box in a row under the tile's size line: `clash` (same
+name, different bytes), `copy` (an identical copy elsewhere), `renamed` (same
+bytes under another name), `unhashed` (same name, bytes not compared yet),
+`generic` (a generic name), `newer` (a newer file with this name exists), `main`
+(a main assembly), and `featured`. Hovering a badge shows its full meaning.
+The inspector and the part page's File card list the same badges with that
+meaning beside each, and the **Legend** at the bottom of the left rail always
+shows all eight, in the same order, on every catalog and part page.
 
 The folder note shows in the left rail as rendered Markdown. Only the part
 you wrote is shown, not the generated inventory lists, and it sits in the same

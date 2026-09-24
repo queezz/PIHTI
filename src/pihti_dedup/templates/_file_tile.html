@@ -1,7 +1,12 @@
+{# One mark: a short word in a tinted box, the long meaning as its tooltip.
+   The same badge on the tile, in the inspector, on the part page, and in
+   the legend. #}
+{% macro badge(kind, word, text) %}<b class="badge badge-{{ kind }}" title="{{ text }}">{{ word }}</b>{% endmacro %}
+
 {% macro tile_details(item) %}
 {% if item.details %}
 <dl class="thumb-details" hidden>
-  {% for mark in item.signals %}<div class="detail-signal"><dt><i class="signal-mark signal-{{ mark.kind }}"></i></dt><dd>{{ mark.text }}</dd></div>{% endfor %}
+  {% for mark in item.signals %}<div class="detail-signal"><dt>{{ badge(mark.kind, mark.word, mark.text) }}</dt><dd>{{ mark.text }}</dd></div>{% endfor %}
   {% for label, value in item.details %}<div><dt>{{ label }}</dt><dd>{{ value }}</dd></div>{% endfor %}
   {% if item.used_in %}<div><dt>Used in</dt><dd><ul>{% for referrer in item.used_in[:6] %}<li title="{{ referrer|winpath }}">{{ referrer.rsplit('/', 1)[-1] }}</li>{% endfor %}{% if item.used_in|length > 6 %}<li>+{{ item.used_in|length - 6 }} more</li>{% endif %}</ul></dd></div>{% endif %}
 </dl>
@@ -16,20 +21,20 @@
 <section class="rail-card signal-legend" aria-label="Legend">
   <h2>Legend</h2>
   <ul>
-    {% for kind, text in rows %}<li><i class="signal-mark signal-{{ kind }}"></i>{{ text }}</li>{% endfor %}
+    {% for kind, word, text in rows %}<li>{{ badge(kind, word, text) }}<span>{{ text }}</span></li>{% endfor %}
   </ul>
 </section>
 {% endmacro %}
 
-{# Every signal is a dot in the top-right corner, in legend order; the words
-   are in the tile's title and the inspector. #}
-{% macro tile_dots(item) %}{% if item.signals %}<span class="tile-signals" aria-hidden="true">{% for mark in item.signals %}<i class="signal-dot signal-{{ mark.kind }}"></i>{% endfor %}</span>{% endif %}{% endmacro %}
+{# Every signal is a badge in one row under the size line, in legend order,
+   never over the preview. The row is the tile's own last grid row, so the
+   size lines of one grid row stay level when one tile's badges wrap. #}
+{% macro tile_badges(item) %}<span class="tile-badges">{% for mark in item.signals %}{{ badge(mark.kind, mark.word, mark.text) }}{% endfor %}</span>{% endmacro %}
 
 {% macro file_tile(item, query=false) %}
 {% set record = item.record %}
 {% set folder = record.path.rsplit('/', 1)[0]|winpath if '/' in record.path else '.' %}
 <a class="thumb-tile{% if item.has_metadata %} has-metadata{% endif %}{% if item.has_story %} has-story{% endif %}{% if item.hero %} is-hero{% endif %}"{{ tile_attributes(item) }}>
-  {{ tile_dots(item) }}
   <img src="{{ preview_url(record) }}" alt="" loading="lazy" decoding="async" width="160" height="120">
   <span class="thumb-content">
     <span class="thumb-name">{{ record.name }}</span>
@@ -48,6 +53,7 @@
       {% if item.sidecar %}<span class="metadata-source">documented</span>{% endif %}
     </span>
   </span>
+  {{ tile_badges(item) }}
   {{ tile_details(item) }}
 </a>
 {% endmacro %}
@@ -60,17 +66,19 @@
 {% set record = item.record %}
 {% set folder_url = url_for('catalog', relative_folder=item.folder, include_vendor='1' if include_vendor else none) if show_folder and item.folder != '.' else none %}
 <div class="hero-card">
-  <a class="thumb-tile hero-tile"{{ tile_attributes(item) }}>
-    {{ tile_dots(item) }}
-    <img src="{{ preview_url(record) }}" alt="" loading="lazy" decoding="async" width="160" height="120">
-    <span class="hero-name">{{ record.name }}</span>
-    {{ tile_details(item) }}
-  </a>
-  {% if folder_url %}<a class="hero-folder" href="{{ folder_url }}" title="Open the folder {{ item.folder|winpath }}">{{ item.folder|winpath }}</a>{% endif %}
-  {% if item.description %}<span class="hero-description">{{ item.description }}</span>{% endif %}
-  <span class="hero-foot">
-    <span class="thumb-meta">{{ record.size|filesize }}</span>
-    {% if folder_url %}<a class="hero-open-folder" href="{{ folder_url }}">Open folder</a>{% endif %}
-  </span>
+  <div class="hero-body">
+    <a class="thumb-tile hero-tile"{{ tile_attributes(item) }}>
+      <img src="{{ preview_url(record) }}" alt="" loading="lazy" decoding="async" width="160" height="120">
+      <span class="hero-name">{{ record.name }}</span>
+      {{ tile_details(item) }}
+    </a>
+    {% if folder_url %}<a class="hero-folder" href="{{ folder_url }}" title="Open the folder {{ item.folder|winpath }}">{{ item.folder|winpath }}</a>{% endif %}
+    {% if item.description %}<span class="hero-description">{{ item.description }}</span>{% endif %}
+    <span class="hero-foot">
+      <span class="thumb-meta">{{ record.size|filesize }}</span>
+      {% if folder_url %}<a class="hero-open-folder" href="{{ folder_url }}">Open folder</a>{% endif %}
+    </span>
+  </div>
+  {{ tile_badges(item) }}
 </div>
 {% endmacro %}

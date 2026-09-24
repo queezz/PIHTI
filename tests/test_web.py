@@ -1232,7 +1232,7 @@ def test_tiles_carry_hidden_details_only_when_there_is_something_to_add(
     assert 'image.style.maxWidth = natural ? natural / ratio + "px"' in script  # never upscaled
 
 
-def test_tiles_signal_copies_and_names_by_colour_with_a_legend(tmp_path: Path) -> None:
+def test_tiles_signal_copies_and_names_by_badge_with_a_legend(tmp_path: Path) -> None:
     root = make_workspace(tmp_path)
     older = root / "BoronProbe" / "parts" / "bearing.ipt"
     newer = root / "BoronProbe_2026" / "parts" / "bearing.ipt"
@@ -1255,22 +1255,29 @@ def test_tiles_signal_copies_and_names_by_colour_with_a_legend(tmp_path: Path) -
     generic = tile(old_html, "BoronProbe/parts/Part1.ipt")
     clean = tile(old_html, "BoronProbe/parts/clean.ipt")
 
-    # Collision: both members get the collision dot; only the older one the
-    # "newer file exists" dot after it, which names the folder and never says
-    # superseded. Every signal is a dot; no tile carries a coloured edge.
-    assert '<i class="signal-dot signal-collision"></i><i class="signal-dot signal-newer"></i>' in old_tile
-    assert '<i class="signal-dot signal-collision"></i>' in new_tile
+    # Collision: both members get the clash badge; only the older one the
+    # "newer" badge after it, whose tooltip names the folder and never says
+    # superseded. Every signal is a badge; no tile carries a coloured edge.
+    def badges(tile_html: str) -> list[tuple[str, str]]:
+        row = tile_html.split('<span class="tile-badges">', 1)[1].split("</span>", 1)[0]
+        return re.findall(r'<b class="badge badge-([a-z]+)" title="[^"]*">([a-z]+)</b>', row)
+
+    assert badges(old_tile) == [("collision", "clash"), ("newer", "newer")]
+    assert badges(new_tile) == [("collision", "clash")]
     assert "data-edge" not in old_html + new_html
-    assert "signal-newer" not in new_tile
-    assert "A newer file with this name exists at BoronProbe_2026\\parts" in old_tile
+    assert "badge-newer" not in new_tile
+    assert 'title="A newer file with this name exists at BoronProbe_2026\\parts">newer</b>' in old_tile
     assert "superseded" not in old_html.casefold()
-    assert '<i class="signal-dot signal-generic"></i>' in generic
-    assert "Generic name" in generic
-    assert "signal-" not in clean and "thumb-details" not in clean
-    # No words on the tile face: meanings live in the title and the details card.
+    assert '<b class="badge badge-generic" title="Generic name that says nothing about the part">generic</b>' in generic
+    assert 'class="badge' not in clean and "thumb-details" not in clean
+    assert '<span class="tile-badges"></span>' in clean  # the row, empty
+    # Only the short word on the tile face: meanings live in the tooltips and
+    # the details card.
     face = old_tile.split('<dl class="thumb-details"', 1)[0]
     assert "Same filename, different bytes" in face.split(">", 1)[0]  # the title attribute
-    assert "Same filename, different bytes" not in face.split(">", 1)[1]
+    visible = re.sub(r"<[^>]+>", " ", face.split(">", 1)[1])
+    assert "Same filename, different bytes" not in visible
+    assert "clash" in visible and "newer" in visible
     legend = old_html.split('<section class="rail-card signal-legend" aria-label="Legend">', 1)[1].split("</section>", 1)[0]
     assert "Same name, different bytes" in legend
     assert "Generic name" in legend and "Newer file with this name exists" in legend
@@ -2533,11 +2540,12 @@ def test_a_folder_leads_with_its_heroes_and_never_repeats_them(tmp_path: Path) -
     tile = heroes.split('href="/part/Vessel/vessel-main.iam"', 1)[1].split("</a>", 1)[0]
     details = tile.split('<dl class="thumb-details" hidden>', 1)[1]
     first = details.split("</div>", 1)[0]
-    assert '<i class="signal-mark signal-hero"></i>' in first and "<dd>Main assembly</dd>" in first
-    assert '<span class="tile-signals" aria-hidden="true"><i class="signal-dot signal-hero"></i></span>' in tile
+    assert '<b class="badge badge-hero" title="Main assembly">main</b>' in first and "<dd>Main assembly</dd>" in first
+    card = next(part for part in heroes.split('<div class="hero-card">') if 'href="/part/Vessel/vessel-main.iam"' in part)
+    assert '<span class="tile-badges"><b class="badge badge-hero" title="Main assembly">main</b></span>' in card
     assert 'data-hero="1"' in heroes
     legend = html.split('<section class="rail-card signal-legend" aria-label="Legend">', 1)[1].split("</section>", 1)[0]
-    assert '<li><i class="signal-mark signal-hero"></i>Main assembly</li>' in legend
+    assert '<li><b class="badge badge-hero" title="Main assembly">main</b><span>Main assembly</span></li>' in legend
 
 
 def test_a_folder_holding_only_heroes_still_has_its_inspector(tmp_path: Path) -> None:
@@ -2642,7 +2650,7 @@ def test_part_page_sets_and_clears_hero_next_to_the_sidecar(tmp_path: Path) -> N
         'data-flag-confirm="Clear hero on flange.ipt? It stays in its folder; '
         'only the Main assemblies placement goes."'
     ) in hero_form
-    assert '<i class="signal-mark signal-hero"></i>Main assembly' in marked
+    assert '<b class="badge badge-hero" title="Main assembly">main</b><span>Main assembly</span>' in marked
 
     post_hero(app, client, "Vessel/flange.ipt", False, "part")
     assert companion.read_text(encoding="utf-8") == (
@@ -2692,7 +2700,7 @@ def test_hero_lookup_stats_sidecars_and_reads_one_only_when_it_changed(
     assert reads.count("desk.ipt.md") == 2
 
 
-def test_hero_styles_pin_the_file_tile_width_and_every_mark_is_a_dot(tmp_path: Path) -> None:
+def test_hero_styles_pin_the_file_tile_width_and_every_mark_is_a_badge(tmp_path: Path) -> None:
     style = create_app(tmp_path).test_client().get("/static/dedup.css").get_data(as_text=True)
     script = create_app(tmp_path).test_client().get("/static/dedup.js").get_data(as_text=True)
     rules = re.findall(r"([^{}]+)\{([^{}]*)\}", style)
@@ -2711,7 +2719,7 @@ def test_hero_styles_pin_the_file_tile_width_and_every_mark_is_a_dot(tmp_path: P
     assert "text-decoration: underline" in folder_rule and "var(--accent)" in folder_rule
 
     # No tile or card rule draws a coloured edge or bar as a mark: every
-    # signal is a dot in the corner.
+    # signal is a badge in a row under the size line.
     card_classes = (".thumb-tile", ".hero-card", ".hero-tile", ".folder-card")
     for selector, body in rules:
         if not any(name in selector for name in card_classes):
@@ -2726,9 +2734,20 @@ def test_hero_styles_pin_the_file_tile_width_and_every_mark_is_a_dot(tmp_path: P
         for name in ("hero", "featured", "collision", "exact", "renamed", "accent")
     }
     assert len(set(hues.values())) == len(hues)
-    assert "#d79b4b" not in (hues["hero"], hues["featured"])  # the "newer file" dot
-    assert ".signal-hero { background: var(--hero); }" in style
-    assert ".signal-featured { background: var(--featured); }" in style
+    assert "#d79b4b" not in (hues["hero"], hues["featured"])  # the "newer file" badge
+    # Every mark is a badge: fleet's shape (a small rounded box, a short word,
+    # its hue as text over a tint), one rule per kind, and no dot remains.
+    badge_rule = style.split("\n.badge {", 1)[1].split("}", 1)[0]
+    for part in ("padding: 1px 7px", "border-radius: 6px", "font-size: 0.72rem", "font-weight: 600", "white-space: nowrap"):
+        assert part in badge_rule, part
+    for kind, word, _text in web.SIGNAL_LEGEND:
+        assert f".badge-{kind} {{ color: " in style, kind
+        assert word == word.lower() and word.isalpha() and len(word) <= 8, word
+    assert ".badge-hero { color: var(--hero);" in style
+    assert ".badge-featured { color: var(--featured);" in style
+    assert "signal-dot" not in style and "signal-mark" not in style and "tile-signals" not in style
+    row_rule = style.split(".tile-badges {", 1)[1].split("}", 1)[0]
+    assert "position" not in row_rule and "flex-wrap: wrap" in row_rule  # in flow, never over the preview
     # The part page's clear asks first; so does the inspector's, naming the file.
     assert "heroForm" not in script and "data-inspector-hero" not in script
     assert "window.confirm(form.dataset.flagConfirm)" in script
@@ -2943,7 +2962,8 @@ def test_one_legend_of_every_mark_closes_the_left_rail_on_every_page(tmp_path: P
     client = create_app(make_workspace(tmp_path)).test_client()
     style = client.get("/static/dedup.css").get_data(as_text=True)
     rows = "".join(
-        f'<li><i class="signal-mark signal-{kind}"></i>{text}</li>' for kind, text in web.SIGNAL_LEGEND
+        f'<li><b class="badge badge-{kind}" title="{text}">{word}</b><span>{text}</span></li>'
+        for kind, word, text in web.SIGNAL_LEGEND
     )
 
     legends = []
@@ -2990,7 +3010,8 @@ def test_the_part_page_states_its_own_marks_in_the_file_card(tmp_path: Path) -> 
     part = client.get("/part/BoronProbe/parts/bearing.ipt").get_data(as_text=True)
     card = part.split('<section class="rail-card context-card">', 1)[1].split("</section>", 1)[0]
     marks = card.split('<ul class="file-marks"', 1)[1].split("</ul>", 1)[0]
-    assert '<li><i class="signal-mark signal-collision"></i>Same filename, different bytes' in marks
+    assert '<li><b class="badge badge-collision" title="Same filename, different bytes' in marks
+    assert "clash</b><span>Same filename, different bytes" in marks
 
 
 def test_featured_leads_folder_cards_without_a_main_assemblies_place(tmp_path: Path) -> None:
@@ -3014,7 +3035,7 @@ def test_featured_leads_folder_cards_without_a_main_assemblies_place(tmp_path: P
     assert "Main assembly <b>off</b></button>" in page
     featured_form = page.split('<form class="featured-toggle"', 1)[1].split("</form>", 1)[0]
     assert 'data-flag-confirm="Clear featured on spacer.ipt?' in featured_form
-    assert '<i class="signal-mark signal-featured"></i>Featured' in page
+    assert '<b class="badge badge-featured" title="Featured">featured</b><span>Featured</span>' in page
 
     top = client.get("/catalog").get_data(as_text=True)
     assert "hero-block" not in top  # featured is not a main assembly
@@ -3023,10 +3044,13 @@ def test_featured_leads_folder_cards_without_a_main_assemblies_place(tmp_path: P
 
     folder = client.get("/catalog/Vessel/parts").get_data(as_text=True)
     tile = folder.split('href="/part/Vessel/parts/spacer.ipt"', 1)[1].split("</a>", 1)[0]
-    assert '<i class="signal-dot signal-featured"></i>' in tile
-    assert '<i class="signal-mark signal-featured"></i></dt><dd>Featured</dd>' in tile
+    assert '<span class="tile-badges"><b class="badge badge-featured" title="Featured">featured</b></span>' in tile
+    assert '<b class="badge badge-featured" title="Featured">featured</b></dt><dd>Featured</dd>' in tile
     legend = folder.split('<section class="rail-card signal-legend" aria-label="Legend">', 1)[1].split("</section>", 1)[0]
-    assert '<li><i class="signal-mark signal-featured"></i>Featured on folder card</li>' in legend
+    assert (
+        '<li><b class="badge badge-featured" title="Featured on folder card">featured</b>'
+        "<span>Featured on folder card</span></li>"
+    ) in legend
 
     cleared = client.post(
         "/part/Vessel/parts/spacer.ipt/featured",
@@ -3036,7 +3060,7 @@ def test_featured_leads_folder_cards_without_a_main_assemblies_place(tmp_path: P
     assert "featured" not in read_sidecar(companion).frontmatter
 
 
-def test_signal_dots_and_legend_share_one_order_with_hero_then_featured_last(tmp_path: Path) -> None:
+def test_signal_badges_and_legend_share_one_order_with_hero_then_featured_last(tmp_path: Path) -> None:
     root = make_hero_workspace(tmp_path)
     other = root / "Desk" / "flange.ipt"
     other.write_bytes(b"another flange")  # a filename collision, the older member
@@ -3051,18 +3075,48 @@ def test_signal_dots_and_legend_share_one_order_with_hero_then_featured_last(tmp
         )
 
     html = client.get("/catalog/Vessel").get_data(as_text=True)
-    tile = html.split('href="/part/Vessel/flange.ipt"', 1)[1].split("</a>", 1)[0]
-    dots = re.findall(r'<i class="signal-dot signal-([a-z]+)"></i>', tile)
-    facts = re.findall(r'<i class="signal-mark signal-([a-z]+)"></i>', tile)
+    card = next(part for part in html.split('<div class="hero-card">') if 'href="/part/Vessel/flange.ipt"' in part)
+    row = card.split('<span class="tile-badges">', 1)[1].split("</span>", 1)[0]
+    details = card.split('<dl class="thumb-details" hidden>', 1)[1].split("</dl>", 1)[0]
+    shown = re.findall(r'<b class="badge badge-([a-z]+)"', row)
+    facts = re.findall(r'<dt><b class="badge badge-([a-z]+)"', details)
     legend = html.split('<section class="rail-card signal-legend" aria-label="Legend">', 1)[1].split("</section>", 1)[0]
-    kinds = re.findall(r'<i class="signal-mark signal-([a-z]+)"></i>', legend)
+    kinds = re.findall(r'<b class="badge badge-([a-z]+)"', legend)
 
-    assert dots == facts == ["collision", "hero", "featured"]
+    assert shown == facts == ["collision", "hero", "featured"]
     # The legend is the full set in the same order, not only the marks shown.
-    assert kinds == [kind for kind, _text in web.SIGNAL_LEGEND]
-    assert [kind for kind, _text in web.SIGNAL_LEGEND] == [
+    assert kinds == [kind for kind, _word, _text in web.SIGNAL_LEGEND]
+    assert [kind for kind, _word, _text in web.SIGNAL_LEGEND] == [
         "collision", "exact", "renamed", "unverified", "generic", "newer", "hero", "featured"
     ]
+    assert [word for _kind, word, _text in web.SIGNAL_LEGEND] == [
+        "clash", "copy", "renamed", "unhashed", "generic", "newer", "main", "featured"
+    ]
+
+
+def test_a_clash_tile_and_a_main_assembly_carry_their_badges_under_the_size_line(tmp_path: Path) -> None:
+    root = make_hero_workspace(tmp_path)
+    other = root / "Desk" / "flange.ipt"
+    other.write_bytes(b"another flange")  # same name as Vessel/flange.ipt, other bytes
+    app = create_app(root)
+    client = app.test_client()
+    client.get("/duplicates/results")
+    post_hero(app, client, "Vessel/vessel-main.iam", True, "Vessel")
+
+    desk = client.get("/catalog/Desk").get_data(as_text=True)
+    start = desk.rindex('<a class="thumb-tile', 0, desk.index('href="/part/Desk/flange.ipt"'))
+    tile = desk[start : desk.index("</a>", start)]
+    clash = '<b class="badge badge-collision" title="Same filename, different bytes: 1 other file">clash</b>'
+    # The badge sits in the row under the size line, after the preview, and
+    # its tooltip carries the long meaning.
+    assert tile.index("<img") < tile.index('class="thumb-meta"') < tile.index('<span class="tile-badges">')
+    assert f'<span class="tile-badges">{clash}' in tile
+    assert "Same filename, different bytes: 1 other file" in tile.split(">", 1)[0]  # the tile's title too
+
+    vessel = client.get("/catalog/Vessel").get_data(as_text=True)
+    card = next(part for part in vessel.split('<div class="hero-card">') if 'href="/part/Vessel/vessel-main.iam"' in part)
+    main = '<b class="badge badge-hero" title="Main assembly">main</b>'
+    assert card.index('class="hero-foot"') < card.index(f'<span class="tile-badges">{main}</span>')
 
 
 def test_folder_card_strips_lead_with_heroes_then_featured_in_every_ancestor(tmp_path: Path) -> None:

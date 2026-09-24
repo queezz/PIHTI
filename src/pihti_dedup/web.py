@@ -741,14 +741,15 @@ def file_signals(inventory: Inventory) -> dict[str, tuple[dict, ...]]:
 
     Kinds reuse the Duplicates and Doctor palette: `collision`, `exact`,
     `unverified`, and `renamed` describe copies; `generic` and `newer`
-    describe the name. Each is one dot in the tile's corner. `newer` is
-    filesystem evidence only: another same-named file has a later mtime.
+    describe the name. Each is one short word badge under the tile's size
+    line, with `text` as its tooltip. `newer` is filesystem evidence only:
+    another same-named file has a later mtime.
     """
 
     found: dict[str, list[dict]] = {}
 
     def add(path: str, kind: str, text: str) -> None:
-        found.setdefault(path, []).append({"kind": kind, "text": text})
+        found.setdefault(path, []).append({"kind": kind, "word": SIGNAL_WORDS[kind], "text": text})
 
     for group in inventory.filename_groups:
         others = len(group.records) - 1
@@ -784,27 +785,29 @@ def file_signals(inventory: Inventory) -> dict[str, tuple[dict, ...]]:
     return {path: tuple(items) for path, items in found.items()}
 
 
-HERO_SIGNAL = {"kind": "hero", "text": "Main assembly"}
-FEATURED_SIGNAL = {"kind": "featured", "text": "Featured"}
-# Every signal is one dot in the tile's top-right corner, in this order, and
-# the legend lists all of them in the same order on every page, whether or not
-# a page shows each one, so the legend never changes size. No tile carries a
-# coloured edge.
+# Every signal is one badge: a short lowercase word in a small tinted box
+# (fleet's badge vocabulary), in a row under the tile's size line, in this
+# order. The legend lists all of them in the same order on every page,
+# whether or not a page shows each one, so the legend never changes size.
+# No tile carries a coloured edge. Each row is (kind, badge word, meaning).
 SIGNAL_LEGEND = (
-    ("collision", "Same name, different bytes"),
-    ("exact", "Identical copy elsewhere"),
-    ("renamed", "Same bytes, other name"),
-    ("unverified", "Same name, bytes not compared"),
-    ("generic", "Generic name"),
-    ("newer", "Newer file with this name exists"),
-    ("hero", "Main assembly"),
-    ("featured", "Featured on folder card"),
+    ("collision", "clash", "Same name, different bytes"),
+    ("exact", "copy", "Identical copy elsewhere"),
+    ("renamed", "renamed", "Same bytes, other name"),
+    ("unverified", "unhashed", "Same name, bytes not compared"),
+    ("generic", "generic", "Generic name"),
+    ("newer", "newer", "Newer file with this name exists"),
+    ("hero", "main", "Main assembly"),
+    ("featured", "featured", "Featured on folder card"),
 )
-SIGNAL_ORDER = {kind: position for position, (kind, _text) in enumerate(SIGNAL_LEGEND)}
+SIGNAL_WORDS = {kind: word for kind, word, _text in SIGNAL_LEGEND}
+SIGNAL_ORDER = {kind: position for position, (kind, _word, _text) in enumerate(SIGNAL_LEGEND)}
+HERO_SIGNAL = {"kind": "hero", "word": SIGNAL_WORDS["hero"], "text": "Main assembly"}
+FEATURED_SIGNAL = {"kind": "featured", "word": SIGNAL_WORDS["featured"], "text": "Featured"}
 
 
 def ordered_signals(marks) -> tuple[dict, ...]:
-    """Marks in legend order, so a tile's dots read the same way everywhere."""
+    """Marks in legend order, so a tile's badges read the same way everywhere."""
 
     return tuple(sorted(marks, key=lambda mark: SIGNAL_ORDER.get(mark["kind"], len(SIGNAL_ORDER))))
 

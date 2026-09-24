@@ -6,6 +6,19 @@ remains authoritative for exact file changes.
 
 ## 2026-09-24
 
+- Shipped `pihti-dedup` 0.19.2: word badges instead of corner dots. Every
+  tile mark is now a short lowercase word in a small tinted box, in the hue
+  it already had: `clash` (same name, different bytes), `copy` (identical
+  copy elsewhere), `renamed` (same bytes, other name), `unhashed` (same
+  name, bytes not compared), `generic` (generic name), `newer` (a newer file
+  with this name exists), `main` (main assembly), and `featured`. They sit in
+  a row under the tile's size line, never over the preview; each badge's
+  tooltip carries the long meaning. When one tile's badges wrap, the whole
+  grid row gets the taller badge row, so size lines stay level. The inspector,
+  the part page's File card and toggles, and the Legend use the same badges;
+  the Legend keeps each meaning beside its badge and stays at one height and
+  one place on every catalog and part page.
+
 - Shipped `pihti-dedup` 0.19.1: one fixed legend and the placement toggles in
   the inspector. The left rail's last card is now **Legend** on every catalog
   and part page, always listing every mark in the same order, so it no longer
