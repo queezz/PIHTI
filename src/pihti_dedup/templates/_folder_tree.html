@@ -31,7 +31,7 @@
 </aside>
 {% endmacro %}
 
-{% macro catalog_bar(breadcrumbs, query="", include_vendor=false, filter=true) %}
+{% macro catalog_bar(breadcrumbs, query="", include_vendor=false, filter=true, placeholder="") %}
 <header class="catalog-bar">
   <nav class="breadcrumbs" aria-label="Breadcrumb">
     {% if query %}
@@ -39,7 +39,7 @@
     {% else %}
     {% for crumb in breadcrumbs %}
       {% if not loop.last %}
-      <a href="{{ url_for('catalog', relative_folder=crumb.path if crumb.path != '.' else none, include_vendor='1' if include_vendor else none) }}">{{ crumb.name }}</a><span aria-hidden="true">/</span>
+      <a href="{{ crumb.url or url_for('catalog', relative_folder=crumb.path if crumb.path != '.' else none, include_vendor='1' if include_vendor else none) }}">{{ crumb.name }}</a><span aria-hidden="true">/</span>
       {% else %}<strong aria-current="page">{{ crumb.name }}</strong>{% endif %}
     {% endfor %}
     {% endif %}
@@ -48,7 +48,7 @@
     <label class="searchbox">
       <span class="sr-only">{% if filter %}Filter what is on this page; Enter searches the whole archive{% else %}Search every CAD filename and path{% endif %}</span>
       <span aria-hidden="true">⌕</span>
-      <input type="search" name="q" value="{{ query }}" placeholder="{% if not filter %}Search whole archive{% elif query %}Filter results{% else %}Filter this folder{% endif %}" autocomplete="off"{% if filter %} data-filter-search{% endif %}>
+      <input type="search" name="q" value="{{ query }}" placeholder="{% if placeholder %}{{ placeholder }}{% elif not filter %}Search whole archive{% elif query %}Filter results{% else %}Filter this folder{% endif %}" autocomplete="off"{% if filter %} data-filter-search{% endif %}>
     </label>
     {% if include_vendor %}<input type="hidden" name="include_vendor" value="1">{% endif %}
     <button class="button" type="submit"{% if filter %} data-search-archive{% endif %}>{% if filter %}Search whole archive{% else %}Search{% endif %}</button>

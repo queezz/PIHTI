@@ -166,6 +166,15 @@
           <button class="button note-rail-open" type="button" data-dialog-open="folder-note-dialog" data-note-view="editor" aria-haspopup="dialog" aria-controls="folder-note-dialog">Write one</button>
           {% endif %}
         </div>
+        {# One line at one height whether or not the folder has options; it
+           takes its room from the note budget, so the card never grows. #}
+        {% if sourcing_line %}
+        <p class="sourcing-rail" data-sourcing-rail>
+          <span class="sourcing-rail-label">Sourcing</span>
+          {% if sourcing_line.summary %}<a href="{{ sourcing_line.url }}">{{ sourcing_line.summary }}</a>
+          {% else %}<span class="sourcing-rail-empty">No sourcing yet</span> · <a href="{{ sourcing_line.add_url }}">Add</a>{% endif %}
+        </p>
+        {% endif %}
         {% endif %}
       </section>
       {% if files or hero_files %}

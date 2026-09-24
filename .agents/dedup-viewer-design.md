@@ -247,6 +247,45 @@ scroll depth. At 700px tall the inspector has room for the name and the
 toggles only; the tile's own badges state the marks. A part page whose File
 card lists four or more long marks would outgrow a 700px rail.
 
+Version 0.20.0 adds sourcing notes on the owner's request ("I need a place to
+store shopping options... I want pictures, screenshots, maybe occasional pdf";
+precedent: PIHTI Log's paste-to-attach). Storage is folder-local and portable:
+`<folder>/sourcing/<slug>.md` (frontmatter `title`, `vendor`, `part_number`,
+`url`, `price`, `status` in candidate/quoted/ordered/received/rejected, `for`
+as a list of CAD filenames in that folder, `date`; unknown keys kept) and
+`<folder>/sourcing/attachments/` for pictures and PDFs, referenced by relative
+Markdown links; Obsidian's `![[...]]` embed is rewritten before rendering. No
+file there has a CAD extension, so the scanner, the tree, and the duplicate
+tooling never see them. `sourcing.py` owns the format (sharing the sidecar's
+frontmatter reader); `markdown_view.render` takes an optional `resolve` hook
+that sends a note's `attachments/<name>` links to the attachment route. Pages:
+`/sourcing` (every option grouped by status), `/sourcing/<folder>` (cards,
+newest first), `/sourcing/<folder>/new` and `/<slug>/edit` (form, live
+preview, paste or drop to attach). The Status card stands where the inspector
+stands and narrows the list with the page filter's mechanics. The catalog
+folder card gains one Sourcing line of 1.25rem inside its fixed height, taken
+from the note budget, so the inspector top is unchanged (440px at 1920×1000,
+344px at 1920×700); the Legend's ninth badge (`sourced`) adds a row, so its
+top is now 747px and 447px, again identical on every page and scroll depth.
+Saving writes one note that must parse back to the frontmatter it was built
+from, refuses a stale form (the note changed on disk), keeps keys the form
+does not show, and never commits; a note that does not parse is shown, not
+overwritten. Security boundary: every write (`POST .../new`, `.../edit`,
+`.../attach`) needs a loopback client and the form token; a folder must be one
+the catalog shows (inside the workspace, not the root, not inside a
+`sourcing/` folder). The attach route refuses a body over 25 MB before
+parsing it, accepts only PNG, JPEG, WebP, GIF, SVG, and PDF whose bytes match
+the extension, and writes a timestamped, sanitised name with an exclusive
+create, never over an existing file. `GET /sourcing-file/<path>` serves only a
+file whose resolved path is inside the workspace and directly in a
+`<folder>/sourcing/attachments/` folder with one of those extensions, with
+`X-Content-Type-Options: nosniff`; an SVG also carries
+`Content-Security-Policy: default-src 'none'; style-src 'unsafe-inline';
+sandbox`, so it displays as a picture but never runs as a page; a PDF is
+served inline. An image URL carries `?v=` from the file's mtime and size and
+is immutable while that matches, as previews are. Deleting an option or an
+attachment is not built.
+
 ## Purpose
 
 Provide a local, human-in-the-loop view of filename collisions and byte-level

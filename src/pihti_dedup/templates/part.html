@@ -162,7 +162,7 @@
         </dl>
         {% if signals %}
         <ul class="file-marks" aria-label="What the catalog knows about this file">
-          {% for mark in signals %}<li>{{ badge(mark.kind, mark.word, mark.text) }}<span>{{ mark.text }}</span></li>{% endfor %}
+          {% for mark in signals %}<li>{{ badge(mark.kind, mark.word, mark.text) }}{% if mark.kind == 'sourced' and sourcing_url %}<a href="{{ sourcing_url }}">{{ mark.text }}</a>{% else %}<span>{{ mark.text }}</span>{% endif %}</li>{% endfor %}
         </ul>
         {% endif %}
         <div class="rail-actions">

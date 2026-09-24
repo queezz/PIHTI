@@ -5,8 +5,9 @@ folder's `README.md` and a file's sidecar. Both are hand-edited Markdown, so
 both can drift: a generated note can be hand-edited without going through
 `foldernote.write_folder_note` (which is what strips the generator marker),
 an authored note can lose its summary sentence, and a sidecar can end up with
-frontmatter the tool refuses to parse. This module finds the three drifts and
-reports them; it never writes anything.
+frontmatter the tool refuses to parse. A sourcing note (`<folder>/sourcing/
+*.md`) is hand-editable too. This module finds the four drifts and reports
+them; it never writes anything.
 
 1. **Marker on an authored note** — either the generator marker survived
    somewhere in a note that is otherwise hand-written prose, or the marker is
@@ -19,6 +20,10 @@ reports them; it never writes anything.
    catalog card depend on.
 3. **Sidecar that does not parse** — `sidecar.read_sidecar` raises on the
    file, or its `hero` key is present but not a boolean.
+4. **Sourcing note that does not parse** — `sourcing.parse_option` refuses
+   it: the frontmatter is not readable, or its `status` is not one of
+   `candidate`, `quoted`, `ordered`, `received`, `rejected` (or another key
+   has the wrong shape).
 """
 
 from __future__ import annotations
@@ -32,6 +37,7 @@ from pihti_dedup.geometry_preview import GEOMETRY_EXTENSIONS
 from pihti_dedup.inventor_meta import INVENTOR_EXTENSIONS
 from pihti_dedup.inventory import FileRecord, scan_workspace
 from pihti_dedup.sidecar import SidecarError, read_sidecar, sidecar_path
+from pihti_dedup.sourcing import is_sourcing_path, read_folder_options, sourcing_dir
 
 #: Extensions a sidecar can meaningfully sit beside: Inventor's own OLE
 #: documents plus the geometry/export formats the catalog can preview.
@@ -49,11 +55,13 @@ _STRUCTURAL_PREFIXES = ("#", ">", "-", "*", "```")
 MARKER = "marker"
 SUMMARY = "summary"
 SIDECAR = "sidecar"
-CATEGORY_ORDER = (MARKER, SUMMARY, SIDECAR)
+SOURCING = "sourcing"
+CATEGORY_ORDER = (MARKER, SUMMARY, SIDECAR, SOURCING)
 CATEGORY_TITLES = {
     MARKER: "Marker on an authored note",
     SUMMARY: "Authored note without a summary sentence",
     SIDECAR: "Sidecar that does not parse",
+    SOURCING: "Sourcing note that does not parse",
 }
 
 
@@ -187,6 +195,28 @@ def _sidecar_findings(root: Path, records: Sequence[FileRecord]) -> list[Finding
     return findings
 
 
+def _sourcing_findings(root: Path, folders: Sequence[str]) -> list[Finding]:
+    """Every sourcing note under a scanned folder or any of its ancestors."""
+
+    candidates: set[str] = set()
+    for folder in folders:
+        parts = PurePosixPath(folder).parts
+        for depth in range(1, len(parts) + 1):
+            candidates.add("/".join(parts[:depth]))
+    findings: list[Finding] = []
+    for folder in sorted(candidates, key=str.casefold):
+        if folder == "." or is_sourcing_path(folder):
+            continue
+        path = root / folder
+        if not sourcing_dir(path).is_dir():
+            continue
+        _options, problems = read_folder_options(path, folder)
+        findings.extend(
+            Finding(SOURCING, problem.relative_path, problem.detail) for problem in problems
+        )
+    return findings
+
+
 def check_notes(root: Path) -> CheckResult:
     """Read-only lint over `root`'s folder notes and sidecars.
 
@@ -197,6 +227,10 @@ def check_notes(root: Path) -> CheckResult:
 
     inventory = scan_workspace(root, include_vendor=False, hash_files=False)
     folders = _folders(inventory.records)
-    findings = _folder_note_findings(root, folders) + _sidecar_findings(root, inventory.records)
+    findings = (
+        _folder_note_findings(root, folders)
+        + _sidecar_findings(root, inventory.records)
+        + _sourcing_findings(root, folders)
+    )
     findings.sort(key=lambda finding: (CATEGORY_ORDER.index(finding.category), finding.path.casefold()))
     return CheckResult(tuple(findings))

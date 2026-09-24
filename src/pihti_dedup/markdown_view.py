@@ -18,6 +18,11 @@ token:
 - **Only safe link schemes survive.** A `javascript:` href is stripped from the
   rendered anchor; the link text stays.
 
+A caller may pass `resolve`, a function that maps a surviving *relative* link
+or image target to the URL the viewer serves it from, or returns None to leave
+it as written. Sourcing notes use it so `attachments/quote.pdf` reaches the
+guarded attachment route rather than a path relative to the page.
+
 Nothing here writes to a file.
 """
 
@@ -26,6 +31,7 @@ from __future__ import annotations
 import re
 import threading
 from html.parser import HTMLParser
+from typing import Callable
 from urllib.parse import urlsplit
 
 import markdown
@@ -45,17 +51,39 @@ _LOCAL = threading.local()
 
 
 class _SafeLinks(Treeprocessor):
-    """Drop `href`/`src` values whose scheme is not in `SAFE_SCHEMES`."""
+    """Drop `href`/`src` values whose scheme is not in `SAFE_SCHEMES`.
+
+    A relative target that survives is then offered to the render call's
+    `resolve` function, when one was given.
+    """
 
     def run(self, root):
+        resolve = getattr(self.md, "pihti_resolve", None)
         for element in root.iter():
             attribute = "href" if element.tag == "a" else "src" if element.tag == "img" else None
             if attribute is None:
                 continue
             value = element.get(attribute)
-            if value is not None and not is_safe_url(value):
+            if value is None:
+                continue
+            if not is_safe_url(value):
                 del element.attrib[attribute]
+                continue
+            if resolve is not None and is_relative_target(value):
+                resolved = resolve(value)
+                if resolved is not None:
+                    element.set(attribute, resolved)
         return None
+
+
+def is_relative_target(value: str) -> bool:
+    """True for a scheme-less, host-less path such as `attachments/a.png`."""
+
+    try:
+        parts = urlsplit(value.strip())
+    except ValueError:
+        return False
+    return not parts.scheme and not parts.netloc and bool(parts.path) and not parts.path.startswith("/")
 
 
 def is_safe_url(value: str) -> bool:
@@ -87,12 +115,17 @@ def _engine() -> markdown.Markdown:
     return engine
 
 
-def render(text: str | None) -> Markup:
+def render(text: str | None, resolve: Callable[[str], str | None] | None = None) -> Markup:
     """Render note text to HTML, marked safe because the engine escaped it."""
 
     if not text or not text.strip():
         return Markup("")
-    return Markup(_engine().convert(_COMMENT_RE.sub("", text)))
+    engine = _engine()
+    engine.pihti_resolve = resolve
+    try:
+        return Markup(engine.convert(_COMMENT_RE.sub("", text)))
+    finally:
+        engine.pihti_resolve = None
 
 
 class _TextExtractor(HTMLParser):

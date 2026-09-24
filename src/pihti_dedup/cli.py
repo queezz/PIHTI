@@ -99,10 +99,11 @@ def build_parser() -> argparse.ArgumentParser:
     seed_mode.add_argument("--apply", action="store_true", help="Write the missing sidecars")
     seed.add_argument("--json", metavar="PATH", help="Write the plan or result as JSON")
 
-    notes = subparsers.add_parser("notes", help="Lint folder notes and sidecars")
+    notes = subparsers.add_parser("notes", help="Lint folder notes, sidecars, and sourcing notes")
     notes_commands = notes.add_subparsers(dest="notes_command", required=True)
     notes_check = notes_commands.add_parser(
-        "check", help="Read-only check for marker drift, missing summaries, and bad sidecars"
+        "check",
+        help="Read-only check for marker drift, missing summaries, bad sidecars, and bad sourcing notes",
     )
     notes_check.add_argument("workspace", nargs="?", default=".")
     return parser

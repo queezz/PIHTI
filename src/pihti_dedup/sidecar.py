@@ -104,6 +104,18 @@ def sidecar_path(cad_path: Path | str) -> Path:
 def parse_sidecar(text: str) -> Sidecar:
     """Parse sidecar text, raising `SidecarError` on anything unwritable."""
 
+    loaded, body = split_frontmatter(text)
+    return Sidecar(frontmatter=validate_frontmatter(loaded), body=body)
+
+
+def split_frontmatter(text: str) -> tuple[dict, str]:
+    """Split `---` fenced YAML frontmatter from the prose below it.
+
+    Returns the frontmatter mapping (unvalidated) and the body, raising
+    `SidecarError` when the fences or the YAML are not readable. Sourcing notes
+    share this shape with sidecars, so they share this reader.
+    """
+
     stripped = text.lstrip("﻿")
     if not stripped.startswith(FENCE):
         raise SidecarError("the file must start with a --- frontmatter fence")
@@ -128,7 +140,7 @@ def parse_sidecar(text: str) -> Sidecar:
         loaded = {}
     if not isinstance(loaded, dict):
         raise SidecarError("the frontmatter must be a mapping of keys to values")
-    return Sidecar(frontmatter=validate_frontmatter(loaded), body=body)
+    return loaded, body
 
 
 def validate_frontmatter(frontmatter: dict) -> dict:

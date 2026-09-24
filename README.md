@@ -292,11 +292,12 @@ Badges on file tiles flag what the inventory already knows, each a short word
 in a small coloured box in a row under the tile's size line: `clash` (same
 name, different bytes), `copy` (an identical copy elsewhere), `renamed` (same
 bytes under another name), `unhashed` (same name, bytes not compared yet),
-`generic` (a generic name), `newer` (a newer file with this name exists), `main`
-(a main assembly), and `featured`. Hovering a badge shows its full meaning.
+`generic` (a generic name), `newer` (a newer file with this name exists),
+`sourced` (a sourcing option names it), `main` (a main assembly), and
+`featured`. Hovering a badge shows its full meaning.
 The inspector and the part page's File card list the same badges with that
 meaning beside each, and the **Legend** at the bottom of the left rail always
-shows all eight, in the same order, on every catalog and part page.
+shows all nine, in the same order, on every catalog and part page.
 
 The folder note shows in the left rail as rendered Markdown. Only the part
 you wrote is shown, not the generated inventory lists, and it sits in the same
@@ -373,6 +374,57 @@ To seed the whole workspace at once, preview first:
 `--dry` prints counts and a sample and writes nothing. `--apply` writes sidecars
 only for `.ipt`, `.iam`, `.idw`, and `.ipn` files that do not have one yet;
 existing sidecars are never overwritten.
+
+### Sourcing notes
+
+Parts you buy rather than draw, and the options for them, are kept beside the
+folder they were chosen for. Each option is one Markdown note in the folder's
+`sourcing/` folder, with its pictures and PDFs in `sourcing/attachments/`:
+
+```text
+bellows/sourcing/edge-welded-bellows-40-mm.md
+bellows/sourcing/attachments/20260924-101500-catalogue.png
+bellows/sourcing/attachments/20260924-101512-quote.pdf
+```
+
+The note is YAML frontmatter followed by free prose:
+
+```text
+---
+title: Edge-welded bellows, 40 mm
+vendor: Example Vacuum
+part_number: EWB-40
+url: https://example.com/ewb-40
+price: 38,000 JPY
+status: quoted
+for:
+- bellows.iam
+date: 2026-09-24
+---
+
+Why this one. ![catalogue](attachments/20260924-101500-catalogue.png)
+[Quote](attachments/20260924-101512-quote.pdf)
+```
+
+`status` is one of `candidate`, `quoted`, `ordered`, `received`, or
+`rejected`; `for` lists CAD files in the same folder and may be empty. The links
+are ordinary relative Markdown, so the note reads the same on GitHub, in
+MkDocs, and in Obsidian; Obsidian's `![[attachments/name.png]]` also works.
+
+**Sourcing** in the top bar lists every option in the archive, grouped by
+status. A folder's own page shows its options as cards, newest first, with
+pictures inline and PDFs as links that open in the browser; the Status card on
+the left narrows the list, as does the filter box. In the catalog, each folder
+card has a Sourcing line (`3 options · 1 ordered`, or **Add** when there are
+none), a file named in `for` gets a `sourced` badge, and the inspector names
+the options. **Add option** and **Edit** open a form with the fields, the
+folder's CAD files as checkboxes, and the note text beside a live preview.
+Paste or drop a picture or a PDF (up to 25 MB) into the text to attach it: it
+is saved under `sourcing/attachments/` with a timestamped name and its link
+goes in at the cursor. Saving writes the note and never commits it. Deleting
+an option or an attachment is not built; delete the files yourself. The
+`notes check` gate also reports a sourcing note that does not parse or whose
+status is not one of the five.
 
 ---
 

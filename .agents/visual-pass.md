@@ -14,6 +14,13 @@ carries its own basic structure without anyone filling in metadata by hand.
 | A fact about one file: what it is, its status, that it is superseded | the file's sidecar `<cad filename>.md` (frontmatter + prose) | the tile story card, the inspector, the part page |
 | "This is the main assembly" / "this is the hero" | `hero: true` in that file's sidecar frontmatter | first and larger in its folder, first in the folder strip, in the landing page's Main assemblies row |
 
+**Sourcing.** When he says what a bought part is, where it comes from, what
+it costs, or where an order stands, that lands in the folder's
+`sourcing/<slug>.md` (one note per option: `title`, `vendor`, `part_number`,
+`url`, `price`, `status`, `for`, `date`, then his prose), not in the folder
+note or a sidecar. Screenshots and quotes he hands over go in
+`sourcing/attachments/`. The same rules apply: his words and numbers only.
+
 Cross-references between systems (this goes into that flange's CF70 opening)
 belong in both folder notes, each from its own side, naming the other folder
 by its path in backticks.
@@ -65,8 +72,9 @@ Before committing notes run, from the repository root:
 ```
 
 It reports authored notes that still carry the generator marker, notes without
-a summary sentence under the title, and sidecars whose frontmatter does not
-parse. The usual repository gates apply as well when tooling changed.
+a summary sentence under the title, sidecars whose frontmatter does not
+parse, and sourcing notes that do not parse or whose status is not one of the
+five. The usual repository gates apply as well when tooling changed.
 
 ## Session shape
 

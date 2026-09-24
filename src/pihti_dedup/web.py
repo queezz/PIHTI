@@ -18,7 +18,7 @@ from pathlib import Path
 from typing import Callable
 from urllib.parse import unquote
 
-from flask import Flask, Response, jsonify, redirect, render_template, request, url_for
+from flask import Flask, Response, jsonify, redirect, render_template, request, send_file, url_for
 from markupsafe import escape
 
 from pihti_dedup import __version__, geometry_preview
@@ -83,6 +83,27 @@ from pihti_dedup.sidecar import (
     write_sidecar,
 )
 from pihti_dedup.snapshots import Snapshot, Ticker, is_due
+from pihti_dedup.sourcing import (
+    ATTACHMENT_TYPES,
+    IMAGE_EXTENSIONS,
+    MAX_ATTACHMENT_BYTES,
+    STATUS_VALUES,
+    SourcingError,
+    attachment_target,
+    attachments_dir,
+    is_slug,
+    is_sourcing_path,
+    note_path,
+    parse_option,
+    read_folder_options,
+    rewrite_obsidian_embeds,
+    save_attachment,
+    sourcing_dir,
+    status_counts,
+    summary_line,
+    unique_slug,
+    write_option,
+)
 from pihti_dedup.standard_parts import (
     CONFLICT,
     DEFAULT_DESTINATION,
@@ -797,6 +818,7 @@ SIGNAL_LEGEND = (
     ("unverified", "unhashed", "Same name, bytes not compared"),
     ("generic", "generic", "Generic name"),
     ("newer", "newer", "Newer file with this name exists"),
+    ("sourced", "sourced", "Named in a sourcing option"),
     ("hero", "main", "Main assembly"),
     ("featured", "featured", "Featured on folder card"),
 )
@@ -804,6 +826,29 @@ SIGNAL_WORDS = {kind: word for kind, word, _text in SIGNAL_LEGEND}
 SIGNAL_ORDER = {kind: position for position, (kind, _word, _text) in enumerate(SIGNAL_LEGEND)}
 HERO_SIGNAL = {"kind": "hero", "word": SIGNAL_WORDS["hero"], "text": "Main assembly"}
 FEATURED_SIGNAL = {"kind": "featured", "word": SIGNAL_WORDS["featured"], "text": "Featured"}
+
+
+SOURCED_SIGNAL = {"kind": "sourced", "word": SIGNAL_WORDS["sourced"], "text": "Named in a sourcing option"}
+
+
+def sourced_signal(titles) -> dict:
+    """The `sourced` mark on the part page, which names the options (no Sourced fact there)."""
+
+    return {
+        "kind": "sourced",
+        "word": SIGNAL_WORDS["sourced"],
+        "text": "Sourcing option: " + "; ".join(titles),
+    }
+
+
+def attachment_version(mtime_ns: int, size: int) -> str:
+    """The `v` key of an attachment URL: the file's own stat, nothing else."""
+
+    return f"{mtime_ns:x}-{size:x}"
+
+
+#: Extra room over the attachment cap for the multipart envelope and token.
+ATTACH_ENVELOPE_BYTES = 64 * 1024
 
 
 def ordered_signals(marks) -> tuple[dict, ...]:
@@ -1025,6 +1070,10 @@ def create_app(
     # where-used index, and the flag lookup are the same objects.
     strip_memo: dict[tuple[bool, str], tuple[object, object, object, dict[str, list]]] = {}
     hero_lock = threading.Lock()
+    # Every sourcing note in the archive, per scope, for the inventory and
+    # validation serial it was read at: folder -> (options, problems), and
+    # CAD path -> the titles of the options naming it in `for`.
+    sourcing_memo: dict[bool, tuple[Inventory, int, dict]] = {}
     standard_memo: dict[str, tuple] = {}
     standard_memo_lock = threading.Lock()
     app.extensions["pihti_inventory_cache"] = cache
@@ -1090,6 +1139,7 @@ def create_app(
     app.jinja_env.tests["newver_name"] = _is_newver_name
     app.jinja_env.tests["generic_cad_name"] = _is_generic_cad_name
     app.jinja_env.globals["RENAMEABLE_EXTENSIONS"] = RENAMEABLE_EXTENSIONS
+    app.jinja_env.globals["SOURCING_STATUSES"] = STATUS_VALUES
 
     def preview_url(item) -> str:
         """`/preview/<path>?v=<key>` for a FileRecord, a dict/obj with `path`, or a path.
@@ -1130,7 +1180,7 @@ def create_app(
         # Last-Modified, so a conditional request is exact rather than
         # optimistic. A rendered STEP costs seconds; making the browser refetch
         # 280 of them on every catalog visit would defeat the disk cache.
-        if request.endpoint in {"preview_image", "git_history_preview"}:
+        if request.endpoint in {"preview_image", "git_history_preview", "sourcing_file"}:
             return response
         # A plain catalog page may be reused for five seconds so a page the
         # browser prefetched on hover serves the click that follows. The page
@@ -1744,8 +1794,18 @@ def create_app(
 
     @app.post("/markdown/preview")
     def markdown_preview():
-        """Render unsaved local-note Markdown without writing workspace data."""
-        return jsonify(html=render_markdown(request.form.get("text", "")))
+        """Render unsaved local-note Markdown without writing workspace data.
+
+        A sourcing editor names its folder, so the preview shows the note's
+        attachments the way the saved note will.
+        """
+        text = request.form.get("text", "")
+        folder = request.form.get("sourcing", "")
+        if folder:
+            target = _sourcing_target(folder)
+            if target is not None:
+                return jsonify(html=_render_sourcing(text, target[1]))
+        return jsonify(html=render_markdown(text))
 
     @app.get("/duplicates/results")
     def duplicates_results():
@@ -2366,7 +2426,12 @@ def create_app(
         return meta
 
     def _catalog_file(
-        record: FileRecord, index=None, signals=None, heroes=frozenset(), featured=frozenset()
+        record: FileRecord,
+        index=None,
+        signals=None,
+        heroes=frozenset(),
+        featured=frozenset(),
+        sourced=None,
     ) -> dict:
         target = root / record.path
         companion = sidecar_path(target)
@@ -2412,9 +2477,16 @@ def create_app(
             marks = (*marks, HERO_SIGNAL)
         if record.path in featured:
             marks = (*marks, FEATURED_SIGNAL)
+        sourced_titles = sourced.get(record.path.casefold(), ()) if sourced else ()
+        if sourced_titles:
+            # The titles go in the Sourced fact below, so the badge row states
+            # only what the mark is, as the legend does.
+            marks = (*marks, SOURCED_SIGNAL)
         marks = ordered_signals(marks)
         details: list[tuple[str, str]] = []
         if description or mass is not None or used_in or marks:
+            if sourced_titles:
+                details.append(("Sourced", "; ".join(sourced_titles)))
             if description:
                 details.append(("Description", description))
             if part_number:
@@ -2519,14 +2591,24 @@ def create_app(
 
         where_used = _current_index() if records or hero_records else None
         signals = _catalog_signals(inventory)
+        sourcing_index = _sourcing_index(inventory)
+        sourced = sourcing_index["sourced"]
         hero_files = [
-            _catalog_file(record, where_used, signals, hero_paths, featured_paths)
+            _catalog_file(record, where_used, signals, hero_paths, featured_paths, sourced)
             for record in hero_records
         ]
         files = [
-            _catalog_file(record, where_used, signals, hero_paths, featured_paths)
+            _catalog_file(record, where_used, signals, hero_paths, featured_paths, sourced)
             for record in records
         ]
+        sourcing_line = None
+        if current != "." and not query:
+            options, problems = sourcing_index["folders"].get(current, ([], []))
+            sourcing_line = {
+                "summary": summary_line(options, problems),
+                "url": url_for("sourcing_folder", relative_folder=current),
+                "add_url": url_for("sourcing_new", relative_folder=current),
+            }
 
         note = _read_catalog_note(current)
         note_text = _note_display_text(note)
@@ -2564,6 +2646,7 @@ def create_app(
             "form_token": app.config["FORM_TOKEN"],
             "include_vendor": inventory.include_vendor,
             "toast": _hero_toast(),
+            "sourcing_line": sourcing_line,
         }
 
     def _hero_toast() -> str:
@@ -2813,8 +2896,14 @@ def create_app(
             signals = (*signals, HERO_SIGNAL)
         if featured:
             signals = (*signals, FEATURED_SIGNAL)
+        sourced_titles = _sourcing_index(inventory)["sourced"].get(relative.casefold(), ())
+        if sourced_titles:
+            signals = (*signals, sourced_signal(sourced_titles))
         signals = ordered_signals(signals)
         return {
+            "sourcing_url": (
+                url_for("sourcing_folder", relative_folder=folder) if sourced_titles else ""
+            ),
             "hero": hero,
             "featured": featured,
             "toast": _hero_toast(),
@@ -2856,6 +2945,427 @@ def create_app(
             "error": error,
             "draft": None,
         }
+
+    # ---- Sourcing notes: `<folder>/sourcing/<slug>.md` and its attachments ----
+
+    def _sourcing_index(inventory: Inventory) -> dict:
+        """Every sourcing note under the catalog's folders, memoised per snapshot.
+
+        One `is_dir` per catalog folder, and a read of each note only in the
+        folders that have a `sourcing/` folder. Redone once per validation
+        serial, like the hero lookup, so a note written outside the viewer
+        shows up on the next refresh.
+        """
+
+        serial = cache.serial(inventory.include_vendor)
+        with hero_lock:
+            cached = sourcing_memo.get(inventory.include_vendor)
+            if cached is not None and cached[0] is inventory and cached[1] == serial:
+                return cached[2]
+        folders: dict[str, tuple[list, list]] = {}
+        sourced: dict[str, tuple[str, ...]] = {}
+        for item in _catalog_index(inventory):
+            name = item["name"]
+            if name == "." or is_sourcing_path(name):
+                continue
+            folder = root / name
+            if not sourcing_dir(folder).is_dir():
+                continue
+            options, problems = read_folder_options(folder, name)
+            folders[name] = (options, problems)
+            for option in options:
+                for filename in option.for_files:
+                    key = f"{name}/{filename}".casefold()
+                    sourced[key] = (*sourced.get(key, ()), option.title)
+        # Titles in name order, so a badge reads the same whichever note changed last.
+        sourced = {key: tuple(sorted(titles, key=str.casefold)) for key, titles in sourced.items()}
+        found = {"folders": folders, "sourced": sourced}
+        with hero_lock:
+            sourcing_memo[inventory.include_vendor] = (inventory, serial, found)
+        return found
+
+    def _forget_sourcing() -> None:
+        with hero_lock:
+            sourcing_memo.clear()
+
+    def _sourcing_target(relative: str) -> tuple[Path, str] | None:
+        """(folder path, workspace-relative name) for a catalog folder, or None.
+
+        Only a folder the catalog shows may hold sourcing notes: inside the
+        workspace, not the root, not itself inside a `sourcing/` folder.
+        """
+
+        target = workspace_folder(root, relative)
+        if target is None:
+            return None
+        name = target.relative_to(root).as_posix()
+        if is_sourcing_path(name):
+            return None
+        inventory = cache.get(include_vendor=False, hash_files=False)
+        if name not in {item["name"] for item in _catalog_index(inventory)}:
+            return None
+        return target, name
+
+    def _attachment_url(folder: str, name: str) -> str:
+        relative = f"{folder}/sourcing/attachments/{name}"
+        try:
+            stat = (root / relative).stat()
+        except OSError:
+            return url_for("sourcing_file", relative_path=relative)
+        return url_for(
+            "sourcing_file",
+            relative_path=relative,
+            v=attachment_version(stat.st_mtime_ns, stat.st_size),
+        )
+
+    def _render_sourcing(text: str, folder: str):
+        """A note's prose, rendered; its `attachments/...` links go to the guarded route."""
+
+        def resolve(value: str) -> str | None:
+            name = attachment_target(value)
+            return None if name is None else _attachment_url(folder, name)
+
+        return render_markdown(rewrite_obsidian_embeds(text), resolve=resolve)
+
+    def _option_card(option) -> dict:
+        folder = root / option.folder
+        links = []
+        for name in option.for_files:
+            exists = (folder / name).is_file()
+            links.append(
+                {
+                    "name": name,
+                    "url": (
+                        url_for("part_page", relative_path=f"{option.folder}/{name}")
+                        if exists
+                        else ""
+                    ),
+                }
+            )
+        return {
+            "option": option,
+            "anchor": f"option-{option.slug}",
+            "html": _render_sourcing(option.body, option.folder),
+            "for_links": links,
+            "edit_url": url_for("sourcing_edit", relative_folder=option.folder, slug=option.slug),
+            "folder_url": url_for("sourcing_folder", relative_folder=option.folder),
+        }
+
+    def _sourcing_shell(inventory: Inventory, current: str) -> dict:
+        return {
+            "version": __version__,
+            "tree": folder_tree(_catalog_index(inventory), current=current),
+            "form_token": app.config["FORM_TOKEN"],
+            "statuses": STATUS_VALUES,
+        }
+
+    def _sourcing_crumbs(folder: str, *tail: dict) -> list[dict]:
+        crumbs = _breadcrumbs(folder)
+        crumbs.append(
+            {
+                "name": "Sourcing",
+                "path": folder,
+                "url": url_for("sourcing_folder", relative_folder=folder),
+            }
+        )
+        crumbs.extend(tail)
+        return crumbs
+
+    @app.get("/sourcing")
+    def sourcing_all():
+        inventory = cache.get(include_vendor=False, hash_files=False)
+        index = _sourcing_index(inventory)
+        options = [option for items, _ in index["folders"].values() for option in items]
+        problems = [problem for _, items in index["folders"].values() for problem in items]
+        groups = []
+        for status in STATUS_VALUES:
+            members = sorted(
+                (option for option in options if option.status == status),
+                key=lambda option: option.folder.casefold(),
+            )
+            members.sort(key=lambda option: (option.date, option.mtime_ns), reverse=True)
+            if members:
+                groups.append({"status": status, "cards": [_option_card(o) for o in members]})
+        return render_template(
+            "sourcing.html",
+            **_sourcing_shell(inventory, "."),
+            mode="all",
+            name="Sourcing",
+            path=".",
+            breadcrumbs=[
+                {"name": "Catalog", "path": "."},
+                {"name": "Sourcing", "path": ".", "url": url_for("sourcing_all")},
+            ],
+            groups=groups,
+            cards=[],
+            problems=problems,
+            option_count=len(options),
+            folder_count=len(index["folders"]),
+            counts=status_counts(options),
+            toast="",
+        )
+
+    @app.get("/sourcing/<path:relative_folder>")
+    def sourcing_folder(relative_folder: str):
+        found = _sourcing_target(relative_folder)
+        if found is None:
+            return render_template(
+                "_not_found.html", version=__version__, path=relative_folder
+            ), 404
+        target, name = found
+        inventory = cache.get(include_vendor=False, hash_files=False)
+        options, problems = read_folder_options(target, name)
+        saved = request.args.get("saved", "")
+        toast = next((f"Saved: {option.title}" for option in options if option.slug == saved), "")
+        try:
+            attachments = sum(1 for item in attachments_dir(target).iterdir() if item.is_file())
+        except OSError:
+            attachments = 0
+        return render_template(
+            "sourcing.html",
+            **_sourcing_shell(inventory, name),
+            mode="folder",
+            name=target.name,
+            path=name,
+            absolute_path=str(sourcing_dir(target)),
+            breadcrumbs=_sourcing_crumbs(name),
+            groups=[],
+            cards=[_option_card(option) for option in options],
+            problems=problems,
+            option_count=len(options),
+            attachment_count=attachments,
+            counts=status_counts(options),
+            toast=toast,
+        )
+
+    def _revision(text: str) -> str:
+        return hashlib.sha256(text.encode("utf-8")).hexdigest()[:16]
+
+    @app.route("/sourcing/<path:relative_folder>/new", methods=["GET", "POST"])
+    def sourcing_new(relative_folder: str):
+        return _sourcing_editor(relative_folder, None)
+
+    @app.route("/sourcing/<path:relative_folder>/<slug>/edit", methods=["GET", "POST"])
+    def sourcing_edit(relative_folder: str, slug: str):
+        return _sourcing_editor(relative_folder, slug)
+
+    def _sourcing_editor(relative_folder: str, slug: str | None):
+        """The new/edit form and its save. Writes one note; never commits."""
+
+        if request.method == "POST":
+            guard = _guard(request)
+            if guard is not None:
+                return guard
+        found = _sourcing_target(relative_folder)
+        if found is None:
+            return render_template(
+                "_not_found.html", version=__version__, path=relative_folder
+            ), 404
+        target, name = found
+        path = None
+        existing_text = ""
+        frontmatter: dict = {}
+        body = ""
+        broken = ""
+        if slug is not None:
+            path = note_path(target, slug) if is_slug(slug) else None
+            if path is None or not path.is_file():
+                return render_template(
+                    "_not_found.html", version=__version__, path=f"{name}/sourcing/{slug}.md"
+                ), 404
+            try:
+                existing_text = path.read_text(encoding="utf-8")
+                frontmatter, body = parse_option(existing_text)
+            except (SourcingError, OSError, UnicodeDecodeError) as exc:
+                broken = str(exc).splitlines()[0] if str(exc) else exc.__class__.__name__
+        inventory = cache.get(include_vendor=False, hash_files=False)
+        cad_names = [
+            record.name
+            for record in inventory.records
+            if (record.path.rsplit("/", 1)[0] if "/" in record.path else ".") == name
+            and record.suffix.casefold() not in PROJECT_EXTENSIONS
+        ]
+        error = ""
+        status_code = 200
+        if request.method == "POST" and not broken:
+            form = request.form
+            wanted = dict(frontmatter)
+            wanted["title"] = form.get("title", "").strip()
+            for key in ("vendor", "part_number", "url", "price"):
+                wanted[key] = form.get(key, "").strip()
+            wanted["status"] = form.get("status", "")
+            wanted["for"] = list(dict.fromkeys(item for item in form.getlist("for") if item.strip()))
+            # An ISO date is stored as a YAML date; anything else hand-written
+            # into the note (`2026-09`, `autumn`) is kept as the text it was.
+            date_text = form.get("date", "").strip()
+            try:
+                wanted["date"] = datetime.strptime(date_text, "%Y-%m-%d").date()
+            except ValueError:
+                wanted["date"] = date_text
+            body = form.get("body", "")
+            frontmatter = wanted
+            if not error and path is not None and form.get("revision", "") != _revision(existing_text):
+                error = "the note changed on disk since this form opened; nothing was saved"
+                status_code = 409
+            if not error:
+                written = slug
+                try:
+                    if path is None:
+                        written = unique_slug(target, wanted["title"])
+                        write_option(note_path(target, written), wanted, body, create=True)
+                    else:
+                        write_option(path, wanted, body, create=False)
+                except SourcingError as exc:
+                    error = str(exc)
+                except OSError as exc:
+                    error = f"could not write the sourcing note: {exc}"
+                    status_code = 500
+                finally:
+                    _forget_sourcing()
+                if not error:
+                    return redirect(
+                        url_for(
+                            "sourcing_folder",
+                            relative_folder=name,
+                            saved=written,
+                            _anchor=f"option-{written}",
+                        )
+                    )
+            if status_code == 200:
+                status_code = 400
+        elif request.method == "POST":
+            status_code = 409  # the note on disk does not parse; it is not replaced
+        elif path is None:
+            frontmatter = {"status": STATUS_VALUES[0], "date": datetime.now().date()}
+        chosen = [str(item) for item in (frontmatter.get("for") or ()) if str(item).strip()]
+        choices = [{"name": item, "present": True, "checked": item in chosen} for item in cad_names]
+        choices += [
+            {"name": item, "present": False, "checked": True}
+            for item in chosen
+            if item not in cad_names
+        ]
+
+        def value(key: str) -> str:
+            item = frontmatter.get(key)
+            return "" if item is None else str(item)
+
+        crumb_name = "New option" if path is None else (value("title") or str(slug))
+        return render_template(
+            "sourcing_edit.html",
+            **_sourcing_shell(inventory, name),
+            name=target.name,
+            path=name,
+            absolute_path=str(sourcing_dir(target)),
+            breadcrumbs=_sourcing_crumbs(name, {"name": crumb_name, "path": name}),
+            creating=path is None,
+            slug=slug if path is not None else "",
+            note_name=f"{name}/sourcing/{slug}.md" if path is not None else "",
+            broken=broken,
+            raw_text=existing_text if broken else "",
+            error=error,
+            values={
+                key: value(key)
+                for key in ("title", "vendor", "part_number", "url", "price", "status", "date")
+            },
+            choices=choices,
+            body=body,
+            preview_html=_render_sourcing(body, name),
+            revision=_revision(existing_text) if path is not None else "",
+            option_count=len(read_folder_options(target, name)[0]),
+        ), status_code
+
+    @app.post("/sourcing/<path:relative_folder>/attach")
+    def sourcing_attach(relative_folder: str):
+        """Save one pasted or dropped picture or PDF; answer with its Markdown embed.
+
+        A body larger than the cap allows is refused before it is parsed; then
+        the usual localhost and token guard; then the folder, the type, the
+        bytes and the size. A file is never overwritten.
+        """
+
+        if not _is_loopback(request.remote_addr):
+            return Response("editing is restricted to localhost", status=403)
+        length = request.content_length
+        if length is None:
+            return jsonify(error="the upload must state its length"), 411
+        if length > MAX_ATTACHMENT_BYTES + ATTACH_ENVELOPE_BYTES:
+            return jsonify(error="attachments are limited to 25 MB"), 413
+        guard = _guard(request)
+        if guard is not None:
+            return guard
+        found = _sourcing_target(relative_folder)
+        if found is None:
+            return jsonify(error="no such catalog folder"), 404
+        target, name = found
+        upload = request.files.get("file")
+        if upload is None:
+            return jsonify(error="no file was sent"), 400
+        data = upload.stream.read(MAX_ATTACHMENT_BYTES + 1)
+        if len(data) > MAX_ATTACHMENT_BYTES:
+            return jsonify(error="attachments are limited to 25 MB"), 413
+        try:
+            saved, embed = save_attachment(
+                target, upload.filename or "", data, mimetype=upload.mimetype or ""
+            )
+        except SourcingError as exc:
+            return jsonify(error=str(exc)), 400
+        except OSError as exc:
+            return jsonify(error=f"could not save the attachment: {exc}"), 500
+        return jsonify(
+            name=saved,
+            embed=embed,
+            path=f"{name}/sourcing/attachments/{saved}",
+            url=_attachment_url(name, saved),
+        ), 201
+
+    @app.get("/sourcing-file/<path:relative_path>")
+    def sourcing_file(relative_path: str):
+        """Serve one sourcing attachment, and nothing else.
+
+        The resolved file must be inside the workspace, directly in a
+        `<folder>/sourcing/attachments/` folder, with an allowed extension.
+        An SVG is sandboxed by its Content-Security-Policy; nothing is sniffed.
+        """
+
+        missing = Response("no such attachment", status=404, mimetype="text/plain")
+        target = workspace_file(root, relative_path)
+        if target is None:
+            return missing
+        parts = [part.casefold() for part in target.relative_to(root).parts]
+        if len(parts) < 4 or parts[-3:-1] != ["sourcing", "attachments"]:
+            return missing
+        suffix = target.suffix.casefold()
+        if suffix not in ATTACHMENT_TYPES:
+            return missing
+        try:
+            stat = target.stat()
+        except OSError:
+            return missing
+        response = send_file(
+            target,
+            mimetype=ATTACHMENT_TYPES[suffix],
+            as_attachment=False,
+            download_name=target.name,
+            conditional=True,
+            etag=True,
+            last_modified=stat.st_mtime,
+            max_age=None,
+        )
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        if suffix == ".svg":
+            response.headers["Content-Security-Policy"] = (
+                "default-src 'none'; style-src 'unsafe-inline'; sandbox"
+            )
+        supplied = request.args.get("v", "")
+        if (
+            suffix in IMAGE_EXTENSIONS
+            and supplied
+            and supplied == attachment_version(stat.st_mtime_ns, stat.st_size)
+        ):
+            response.headers["Cache-Control"] = "private, max-age=31536000, immutable"
+        else:
+            response.headers["Cache-Control"] = "private, no-cache"
+        return response
 
     @app.get("/duplicates/data")
     def duplicates_data():

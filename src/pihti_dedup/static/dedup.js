@@ -709,6 +709,8 @@
     if (status) status.textContent = "Updating preview…";
     var body = new FormData();
     body.append("text", input.value);
+    // A sourcing note names its folder, so its attachments preview as saved.
+    if (form.dataset.previewFolder) body.append("sourcing", form.dataset.previewFolder);
     fetch("/markdown/preview", { method: "POST", body: body })
       .then(function (response) {
         if (!response.ok) throw new Error("Preview unavailable");
@@ -1230,10 +1232,14 @@
   // animation frame, Escape clears, nothing persisted. Enter still submits the
   // form, which is the server-side search of the whole archive.
   var input = document.querySelector("input[data-filter-search]");
-  var grid = document.querySelector("[data-thumb-grid]");
+  var grid = document.querySelector("[data-thumb-grid], [data-filter-list]");
   if (!input) return;
   var archive = document.querySelector("[data-search-archive]");
-  var items = grid ? Array.from(grid.querySelectorAll("a.folder-card, a.thumb-tile")) : [];
+  var items = grid ? Array.from(grid.querySelectorAll("a.folder-card, a.thumb-tile, [data-filter-item]")) : [];
+  // Sourcing pages: the Status card narrows the same list the text does.
+  var statusButtons = Array.from(document.querySelectorAll("[data-status-filter]"));
+  var groups = grid ? Array.from(grid.querySelectorAll("[data-filter-group]")) : [];
+  var status = "";
   var haystacks = items.map(function (item) {
     return ((item.getAttribute("title") || "") + " " + item.textContent).toLowerCase();
   });
@@ -1247,7 +1253,8 @@
     var files = 0;
     var shown = 0;
     items.forEach(function (item, index) {
-      var match = !needle || haystacks[index].indexOf(needle) !== -1;
+      var match = (!needle || haystacks[index].indexOf(needle) !== -1) &&
+        (!status || item.dataset.status === status);
       item.hidden = !match;
       // A main-assembly tile sits in a card with its folder links.
       var card = item.closest(".hero-card");
@@ -1255,12 +1262,25 @@
       if (match) shown += 1;
       if (match && item.matches("a.thumb-tile")) files += 1;
     });
+    groups.forEach(function (group) {
+      group.hidden = !group.querySelector("[data-filter-item]:not([hidden])");
+    });
     if (count) {
       count.textContent = needle ? files + " of " + count.dataset.total : count.dataset.total;
     }
-    if (empty) empty.hidden = !needle || shown !== 0 || !items.length;
+    if (empty) empty.hidden = !(needle || status) || shown !== 0 || !items.length;
     if (archive) archive.hidden = !input.value.trim();
   }
+
+  statusButtons.forEach(function (button) {
+    button.addEventListener("click", function () {
+      status = button.dataset.statusFilter || "";
+      statusButtons.forEach(function (other) {
+        other.setAttribute("aria-pressed", other === button ? "true" : "false");
+      });
+      applyFilter();
+    });
+  });
 
   input.addEventListener("input", function () {
     // A hidden page gets no animation frames; filter at once rather than
@@ -1405,4 +1425,116 @@
     window.history.replaceState(null, "", window.location.pathname + window.location.hash);
     window.setTimeout(function () { toast.remove(); }, 10000);
   }
+})();
+
+(function () {
+  "use strict";
+
+  // Sourcing notes: paste or drop a picture or a PDF into the note's text.
+  // Each file is posted to the folder's attach route, which saves it under
+  // `sourcing/attachments/` with a timestamped name and answers with the
+  // Markdown embed; that embed goes in at the cursor. The same shape as
+  // PIHTI Log's paste-to-attach; nothing is kept in the browser.
+  var input = document.querySelector("textarea[data-attach-input]");
+  if (!input || !window.fetch) return;
+  var form = input.closest("form");
+  var token = form && form.querySelector('input[name="token"]');
+  var status = document.querySelector("[data-attach-status]");
+  var LIMIT = 25 * 1024 * 1024;
+  var ALLOWED = /^(image\/(png|jpeg|webp|gif|svg\+xml)|application\/pdf)$/;
+  var queue = Promise.resolve();
+
+  function say(text) {
+    if (status) status.textContent = text;
+  }
+
+  function insert(text) {
+    var start = input.selectionStart;
+    var end = input.selectionEnd;
+    var before = input.value.slice(0, start);
+    var after = input.value.slice(end);
+    // Each embed is its own paragraph: a blank line before and after it.
+    var lead = !before || /\n\n$/.test(before) ? "" : /\n$/.test(before) ? "\n" : "\n\n";
+    var tail = /^\n\n/.test(after) ? "" : /^\n/.test(after) ? "\n" : "\n\n";
+    var chunk = lead + text + tail;
+    input.value = before + chunk + after;
+    input.selectionStart = input.selectionEnd = before.length + chunk.length;
+    input.dispatchEvent(new Event("input", { bubbles: true }));
+  }
+
+  function upload(file) {
+    var name = file.name || "pasted";
+    if (!ALLOWED.test(file.type)) {
+      say("Not attached: " + name + ". Pictures (PNG, JPEG, WebP, GIF, SVG) and PDFs only.");
+      return Promise.resolve();
+    }
+    if (file.size > LIMIT) {
+      say("Not attached: " + name + " is larger than 25 MB.");
+      return Promise.resolve();
+    }
+    say("Attaching " + name + "…");
+    var body = new FormData();
+    body.append("file", file, name);
+    return fetch(input.dataset.attachUrl, {
+      method: "POST",
+      body: body,
+      headers: { "X-PIHTI-Token": token ? token.value : "" },
+      credentials: "same-origin"
+    })
+      .then(function (response) {
+        return response.text().then(function (text) {
+          var result = null;
+          try { result = JSON.parse(text); } catch (_) { result = null; }
+          if (!response.ok || !result || !result.embed) {
+            throw new Error((result && result.error) || text || response.statusText);
+          }
+          return result;
+        });
+      })
+      .then(function (result) {
+        insert(result.embed);
+        say("Attached " + result.name);
+      })
+      .catch(function (error) {
+        say("Not attached: " + name + ". " + error.message);
+      });
+  }
+
+  function take(files) {
+    files.forEach(function (file) {
+      queue = queue.then(function () { return upload(file); });
+    });
+  }
+
+  input.addEventListener("paste", function (event) {
+    var files = Array.from(event.clipboardData ? event.clipboardData.files : []);
+    if (!files.length) return;  // plain text pastes as text
+    event.preventDefault();
+    take(files);
+  });
+  input.addEventListener("dragover", function (event) {
+    if (event.dataTransfer && Array.from(event.dataTransfer.types || []).indexOf("Files") !== -1) {
+      event.preventDefault();
+      event.dataTransfer.dropEffect = "copy";
+    }
+  });
+  input.addEventListener("drop", function (event) {
+    var files = Array.from(event.dataTransfer ? event.dataTransfer.files : []);
+    if (!files.length) return;
+    event.preventDefault();
+    input.focus();
+    take(files);
+  });
+})();
+
+(function () {
+  "use strict";
+
+  // The save toast belongs to the save that just ran, not to the address.
+  var toast = document.querySelector("[data-sourcing-toast]");
+  if (!toast) return;
+  var url = new URL(window.location.href);
+  url.searchParams.delete("saved");
+  window.history.replaceState(null, "", url.pathname + url.search + url.hash);
+  window.setTimeout(function () { toast.remove(); }, 8000);
 })();

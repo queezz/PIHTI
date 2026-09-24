@@ -1,0 +1,90 @@
+{% extends "base.html" %}
+{% from "_folder_tree.html" import tree_rail, catalog_bar %}
+{% block title %}{% if creating %}New option{% else %}{{ values.title or slug }}{% endif %} · {{ name }} · PIHTI{% endblock %}
+
+{% block body %}
+<main class="page">
+  <div class="work-grid catalog-grid">
+    <div class="work-main catalog-main">
+      {{ catalog_bar(breadcrumbs, filter=false) }}
+
+      <section class="part-card sourcing-editor">
+        <h2>{% if creating %}New sourcing option{% else %}Sourcing option <code>{{ note_name|winpath }}</code>{% endif %}</h2>
+        {% if error %}<p class="metadata-error" role="alert">{{ error }}</p>{% endif %}
+
+        {% if broken %}
+        <p class="metadata-error" role="alert">This note does not parse: {{ broken }}. Repair it in a text editor; saving this form would replace it.</p>
+        <pre class="sourcing-raw">{{ raw_text }}</pre>
+        {% else %}
+        <form method="post" class="sourcing-form" data-live-note-form data-preview-folder="{{ path }}">
+          <input type="hidden" name="token" value="{{ form_token }}">
+          {% if revision %}<input type="hidden" name="revision" value="{{ revision }}">{% endif %}
+          <div class="sourcing-fields">
+            <label class="field wide"><span>Title</span><input name="title" type="text" value="{{ values.title }}" required autocomplete="off"></label>
+            <label class="field"><span>Status</span>
+              <select name="status" required>
+                {% for status in statuses %}<option value="{{ status }}"{% if values.status == status %} selected{% endif %}>{{ status }}</option>{% endfor %}
+              </select>
+            </label>
+            <label class="field"><span>Date</span><input name="date" type="{{ 'date' if not values.date or values.date|length == 10 else 'text' }}" value="{{ values.date }}"></label>
+            <label class="field"><span>Vendor</span><input name="vendor" type="text" value="{{ values.vendor }}" autocomplete="off"></label>
+            <label class="field"><span>Part number</span><input name="part_number" type="text" value="{{ values.part_number }}" autocomplete="off" spellcheck="false"></label>
+            <label class="field"><span>Price</span><input name="price" type="text" value="{{ values.price }}" autocomplete="off"></label>
+            <label class="field wide"><span>Link</span><input name="url" type="url" value="{{ values.url }}" placeholder="https://" autocomplete="off" spellcheck="false"></label>
+          </div>
+
+          <fieldset class="sourcing-for">
+            <legend>For</legend>
+            {% if choices %}
+            <div class="sourcing-choices">
+              {% for choice in choices %}<label><input type="checkbox" name="for" value="{{ choice.name }}"{% if choice.checked %} checked{% endif %}><span>{{ choice.name }}</span>{% if not choice.present %}<em>not in this folder</em>{% endif %}</label>{% endfor %}
+            </div>
+            {% else %}
+            <p class="part-note muted">No CAD files sit directly in this folder.</p>
+            {% endif %}
+          </fieldset>
+
+          <div class="sourcing-write">
+            <section class="sourcing-pane">
+              <h3><label for="sourcing-body">Notes</label></h3>
+              <p class="editor-hint">Paste or drop a picture or a PDF to attach it.</p>
+              <textarea id="sourcing-body" name="body" rows="16" data-live-note-input data-attach-input data-attach-url="{{ url_for('sourcing_attach', relative_folder=path) }}">{{ body }}</textarea>
+              <small class="sourcing-attach-status" data-attach-status aria-live="polite"></small>
+            </section>
+            <section class="sourcing-pane" aria-labelledby="sourcing-preview-title">
+              <h3 id="sourcing-preview-title">Preview</h3>
+              <div class="markdown-body sourcing-prose" data-note-preview-body>{{ preview_html }}</div>
+            </section>
+          </div>
+
+          <div class="sourcing-save">
+            <button class="button primary" type="submit">Save</button>
+            <a class="button" href="{{ url_for('sourcing_folder', relative_folder=path) }}">Cancel</a>
+            <small data-live-note-status aria-live="polite"></small>
+          </div>
+        </form>
+        {% endif %}
+      </section>
+    </div>
+
+    <aside class="rail-side rail-context" aria-label="Sourcing scope">
+      <section class="rail-card context-card catalog-context">
+        <h2>Sourcing</h2>
+        <p class="context-title">{{ name }}</p>
+        <div class="context-path">
+          <code title="{{ path|winpath }}\sourcing">{{ path|winpath }}\sourcing</code>
+          <button class="copy-path" type="button" data-copy-text="{{ absolute_path|winpath }}" title="Paste into Explorer's address bar">Copy path</button>
+        </div>
+        <dl class="scope-list">
+          <div><dt>Options</dt><dd>{{ option_count }}</dd></div>
+        </dl>
+        <div class="sourcing-rail-actions">
+          <a class="button" href="{{ url_for('sourcing_folder', relative_folder=path) }}">Back to sourcing</a>
+        </div>
+      </section>
+    </aside>
+
+    {{ tree_rail(tree) }}
+  </div>
+</main>
+{% endblock %}

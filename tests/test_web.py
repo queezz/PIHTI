@@ -3087,10 +3087,12 @@ def test_signal_badges_and_legend_share_one_order_with_hero_then_featured_last(t
     # The legend is the full set in the same order, not only the marks shown.
     assert kinds == [kind for kind, _word, _text in web.SIGNAL_LEGEND]
     assert [kind for kind, _word, _text in web.SIGNAL_LEGEND] == [
-        "collision", "exact", "renamed", "unverified", "generic", "newer", "hero", "featured"
+        "collision", "exact", "renamed", "unverified", "generic", "newer", "sourced", "hero",
+        "featured",
     ]
     assert [word for _kind, word, _text in web.SIGNAL_LEGEND] == [
-        "clash", "copy", "renamed", "unhashed", "generic", "newer", "main", "featured"
+        "clash", "copy", "renamed", "unhashed", "generic", "newer", "sourced", "main",
+        "featured",
     ]
 
 

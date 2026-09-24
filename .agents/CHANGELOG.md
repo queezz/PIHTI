@@ -6,6 +6,23 @@ remains authoritative for exact file changes.
 
 ## 2026-09-24
 
+- Shipped `pihti-dedup` 0.20.0: sourcing notes. A folder's bought parts and
+  the options for them live in `<folder>/sourcing/`, one Markdown note per
+  option (title, vendor, part number, link, price, status, the folder's CAD
+  files it is for, date, then free prose), with pictures and PDFs in
+  `sourcing/attachments/`. **Sourcing** in the top bar lists every option in
+  the archive grouped by status (`candidate`, `quoted`, `ordered`,
+  `received`, `rejected`); each folder has its own page of option cards with
+  pictures inline, a Status card to narrow them, and **Add option**. The
+  editor has the fields as inputs, the folder's CAD files as checkboxes, a
+  live preview, and paste or drop of a picture or PDF into the text to
+  attach it. The folder card in the catalog carries one Sourcing line at a
+  fixed height, a file named by an option gets a `sourced` badge (now in the
+  Legend, which grows by one row), and the inspector states the option
+  titles. `notes check` also reports a sourcing note that does not parse or
+  whose status is not one of the five. Notes are never committed and
+  deleting an option is not built.
+
 - Shipped `pihti-dedup` 0.19.2: word badges instead of corner dots. Every
   tile mark is now a short lowercase word in a small tinted box, in the hue
   it already had: `clash` (same name, different bytes), `copy` (identical
