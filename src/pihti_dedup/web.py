@@ -5,10 +5,12 @@ from __future__ import annotations
 import hashlib
 import ipaddress
 import json
+import logging
 import os
 import re
 import secrets
 import threading
+import time
 from collections import OrderedDict
 from dataclasses import asdict, replace
 from datetime import datetime
@@ -64,10 +66,13 @@ from pihti_dedup.renames import (
     set_settled,
 )
 from pihti_dedup.sidecar import SidecarError, read_sidecar, seed_text, sidecar_path, write_sidecar
+from pihti_dedup.snapshots import Snapshot, Ticker, is_due
 from pihti_dedup.whereused import ReferenceCache, build_index, filename_locations
 
 Scanner = Callable[..., Inventory]
 MergeReader = Callable[[Path], tuple[PullRequestMerge, ...]]
+
+logger = logging.getLogger(__name__)
 
 IPROPERTY_ROWS = (
     ("part_number", "Part number"),
@@ -180,11 +185,36 @@ class InventoryCache:
 
     SCHEMA_VERSION = 1
 
-    def __init__(self, workspace: Path, scanner: Scanner) -> None:
+    def __init__(
+        self,
+        workspace: Path,
+        scanner: Scanner,
+        *,
+        max_age: float = 0.0,
+        idle_interval: float = 60.0,
+        clock: Callable[[], float] = time.monotonic,
+        on_clear: Callable[[], None] | None = None,
+    ) -> None:
+        """`max_age == 0` validates the disk on every `get()`.
+
+        `max_age > 0` serves the in-memory snapshot and leaves validation to
+        `refresh()`/`refresh_due()` (a background ticker), except after
+        `clear()`, on `force=True`/`fresh=True`, and on a true first run.
+        """
+
         self.workspace = workspace
         self.scanner = scanner
-        self._lock = threading.Lock()
+        self.max_age = max_age
+        self.idle_interval = idle_interval
+        self.clock = clock
+        self.on_clear = on_clear
+        self._lock = threading.Lock()  # guards the dictionaries below, never a walk
+        self._refresh_lock = threading.Lock()  # single-flight for every validation
         self._entries: dict[bool, Inventory] = {}
+        self._validated_at: dict[bool, float | None] = {}
+        self._requested: dict[bool, bool] = {}
+        self._dirty: set[bool] = set()
+        self._generation = 0  # bumped by clear(); a validation started earlier is stale
 
     def _path(self, include_vendor: bool) -> Path:
         scope = "vendor" if include_vendor else "default"
@@ -294,37 +324,151 @@ class InventoryCache:
             except OSError:
                 pass
 
-    def get(
-        self, *, include_vendor: bool, hash_files: bool = True, force: bool = False
-    ) -> Inventory:
+    @staticmethod
+    def _hashed(inventory: Inventory) -> bool:
+        return all(record.sha256 for record in inventory.records)
+
+    def _validate(self, include_vendor: bool, *, hash_files: bool, force: bool) -> Inventory:
+        """Walk the disk and merge it with what is known; call with `_refresh_lock` held."""
+
         with self._lock:
+            generation = self._generation
             previous = self._entries.get(include_vendor)
-            if previous is None:
-                previous = self._load(include_vendor)
-            if previous is None:
-                # The vendor scope is a superset of the default scope. Reuse
-                # every overlapping digest when the owner toggles that view
-                # instead of hashing the same thousand files a second time.
-                previous = self._entries.get(not include_vendor) or self._load(
-                    not include_vendor
-                )
-            snapshot = self.scanner(
-                self.workspace, include_vendor=include_vendor, hash_files=False
-            )
-            if previous is not None and not force and self._same_snapshot(snapshot, previous):
-                if not hash_files or all(record.sha256 for record in previous.records):
-                    self._entries[include_vendor] = previous
-                    return previous
-            inventory = self._merge_hashes(
-                snapshot, previous, hash_files=hash_files, force=force
-            )
+            other = self._entries.get(not include_vendor)
+        if previous is None:
+            previous = self._load(include_vendor)
+        if previous is None:
+            # The vendor scope is a superset of the default scope. Reuse
+            # every overlapping digest when the owner toggles that view
+            # instead of hashing the same thousand files a second time.
+            previous = other or self._load(not include_vendor)
+        snapshot = self.scanner(self.workspace, include_vendor=include_vendor, hash_files=False)
+        inventory = None
+        if previous is not None and not force and self._same_snapshot(snapshot, previous):
+            if not hash_files or self._hashed(previous):
+                inventory = previous
+        changed = inventory is None
+        if inventory is None:
+            inventory = self._merge_hashes(snapshot, previous, hash_files=hash_files, force=force)
+        with self._lock:
             self._entries[include_vendor] = inventory
+            self._validated_at[include_vendor] = self.clock()
+            self._requested[include_vendor] = False
+            if generation == self._generation:
+                self._dirty.discard(include_vendor)
+        if changed:
+            # Only a changed inventory is written: a background tick must not
+            # rewrite the JSON into a synced folder every few seconds.
             self._store(inventory)
-            return inventory
+        return inventory
+
+    def get(
+        self,
+        *,
+        include_vendor: bool,
+        hash_files: bool = True,
+        force: bool = False,
+        fresh: bool = False,
+    ) -> Inventory:
+        """Return the inventory for one scope.
+
+        `fresh=True` asks for a synchronous disk validation even in snapshot
+        mode; mutation paths use it so a plan is never built from a snapshot.
+        """
+
+        if self.max_age <= 0 or force or fresh:
+            with self._refresh_lock:
+                return self._validate(include_vendor, hash_files=hash_files, force=force)
+        with self._lock:
+            self._requested[include_vendor] = True
+            current = self._entries.get(include_vendor)
+            dirty = include_vendor in self._dirty
+        if dirty:
+            current = None
+        elif current is None:
+            # First use since the process started: adopt the persisted
+            # inventory at once and let the ticker validate it.
+            loaded = self._load(include_vendor)
+            if loaded is not None:
+                with self._lock:
+                    if include_vendor not in self._entries and include_vendor not in self._dirty:
+                        self._entries[include_vendor] = loaded
+                        self._validated_at[include_vendor] = None
+                    current = self._entries.get(include_vendor)
+                    if include_vendor in self._dirty:
+                        current = None
+        if current is not None and (not hash_files or self._hashed(current)):
+            return current
+        with self._refresh_lock:
+            # Another request may have validated this scope while we waited.
+            with self._lock:
+                current = self._entries.get(include_vendor)
+                usable = (
+                    current is not None
+                    and include_vendor not in self._dirty
+                    and self._validated_at.get(include_vendor) is not None
+                    and (not hash_files or self._hashed(current))
+                )
+            if usable:
+                return current  # type: ignore[return-value]
+            return self._validate(include_vendor, hash_files=hash_files, force=False)
+
+    def refresh(self, include_vendor: bool) -> bool:
+        """Validate one loaded scope now; skip when a validation is already running."""
+
+        with self._lock:
+            if include_vendor not in self._entries:
+                return False
+        if not self._refresh_lock.acquire(blocking=False):
+            return False
+        try:
+            self._validate(include_vendor, hash_files=True, force=False)
+            return True
+        except Exception:
+            logger.exception("inventory refresh failed (include_vendor=%s)", include_vendor)
+            return False
+        finally:
+            self._refresh_lock.release()
+
+    def due(self, include_vendor: bool, now: float | None = None) -> bool:
+        with self._lock:
+            if include_vendor not in self._entries:
+                return False
+            validated_at = self._validated_at.get(include_vendor)
+            requested = self._requested.get(include_vendor, False)
+        if validated_at is None:
+            return True  # adopted from disk, never validated in this process
+        current = self.clock() if now is None else now
+        return is_due(
+            age=current - validated_at,
+            interval=self.max_age,
+            idle_interval=self.idle_interval,
+            requested=requested,
+        )
+
+    def refresh_due(self) -> None:
+        if self.max_age <= 0:
+            return
+        with self._lock:
+            scopes = tuple(self._entries)
+        for include_vendor in scopes:
+            if self.due(include_vendor):
+                self.refresh(include_vendor)
 
     def clear(self) -> None:
+        """Forget that the snapshot is current: the next `get()` validates the disk.
+
+        Both scopes are marked, loaded or not, so a scope first used after a
+        mutation is validated rather than adopted from a stale persisted file.
+        """
+
         with self._lock:
-            self._entries.clear()
+            self._generation += 1
+            self._dirty.update((False, True))
+            if self.max_age <= 0:
+                self._entries.clear()
+        if self.on_clear is not None:
+            self.on_clear()
 
 
 class PreviewCache:
@@ -587,18 +731,83 @@ def create_app(
     *,
     scanner: Scanner = scan_workspace,
     merge_reader: MergeReader = recent_pull_request_merges,
+    refresh_seconds: float = 0.0,
 ) -> Flask:
+    """Build the viewer.
+
+    `refresh_seconds == 0` validates the disk on every request (tests rely on
+    this). `refresh_seconds > 0` serves every read-only page from in-memory
+    snapshots that a background ticker refreshes; mutations still check the
+    live disk and then invalidate the snapshots.
+    """
+
     root = Path(workspace or Path.cwd()).resolve()
     app = Flask(__name__)
     app.config.update(WORKSPACE=root, VERSION=__version__, FORM_TOKEN=secrets.token_urlsafe(32))
-    cache = InventoryCache(root, scanner)
+    cache = InventoryCache(root, scanner, max_age=max(refresh_seconds, 0.0))
     previews = PreviewCache(root)
     references = ReferenceCache()
     catalog_metadata: dict[str, tuple[int, int, DocumentMeta]] = {}
     catalog_metadata_lock = threading.RLock()
+    catalog_indexes: dict[bool, tuple[Inventory, list[dict]]] = {}
+    catalog_indexes_lock = threading.Lock()
     app.extensions["pihti_inventory_cache"] = cache
     app.extensions["pihti_preview_cache"] = previews
     app.extensions["pihti_reference_cache"] = references
+
+    whereused_snapshot: Snapshot | None = None
+    locations_snapshot: Snapshot | None = None
+    merges_snapshot: Snapshot | None = None
+    if refresh_seconds > 0:
+        whereused_snapshot = Snapshot(
+            lambda: build_index(root, cache=references),
+            interval=refresh_seconds,
+            name="whereused_index",
+        )
+        locations_snapshot = Snapshot(
+            lambda: filename_locations(root),
+            interval=refresh_seconds,
+            name="locations",
+        )
+        merges_snapshot = Snapshot(
+            lambda: tuple(merge_reader(root)),
+            interval=max(refresh_seconds, 60.0),
+            idle_interval=max(refresh_seconds, 60.0) * 5,
+            name="merges",
+        )
+        derived = (whereused_snapshot, locations_snapshot, merges_snapshot)
+
+        def invalidate_derived() -> None:
+            for snapshot in derived:
+                snapshot.invalidate()
+
+        cache.on_clear = invalidate_derived
+        ticker = Ticker([cache, *derived], period=refresh_seconds)
+        app.extensions["pihti_snapshots"] = {
+            snapshot.name: snapshot for snapshot in derived
+        }
+
+        @app.before_request
+        def start_ticker():
+            # Lazily, so constructing an app in a test never spawns a thread.
+            if "pihti_ticker" not in app.extensions:
+                app.extensions["pihti_ticker"] = ticker
+            ticker.start()
+
+    def _current_index():
+        if whereused_snapshot is not None:
+            return whereused_snapshot.get()
+        return build_index(root, cache=references)
+
+    def _current_locations() -> dict[str, tuple[str, ...]]:
+        if locations_snapshot is not None:
+            return locations_snapshot.get()
+        return filename_locations(root)
+
+    def _current_merges() -> tuple[PullRequestMerge, ...]:
+        if merges_snapshot is not None:
+            return merges_snapshot.get()
+        return tuple(merge_reader(root))
     app.jinja_env.filters["filesize"] = _filesize
     app.jinja_env.filters["winpath"] = _windows_path
     app.jinja_env.filters["filetime"] = _filetime
@@ -636,8 +845,8 @@ def create_app(
     @app.get("/doctor")
     def doctor():
         inventory = cache.get(include_vendor=False)
-        index = build_index(root, cache=references)
-        locations = filename_locations(root)
+        index = _current_index()
+        locations = _current_locations()
         generic: dict[str, list[FileRecord]] = {}
         for record in inventory.records:
             if (
@@ -727,8 +936,8 @@ def create_app(
                 "_not_found.html", version=__version__, path=relative_path
             ), 404
         target = root / assembly_path
-        index = build_index(root, cache=references)
-        locations = filename_locations(root)
+        index = _current_index()
+        locations = _current_locations()
         ledger = read_ledger(root)
         problems = []
         reference_groups: dict[str, list[str]] = {}
@@ -869,7 +1078,7 @@ def create_app(
         draft_name: str = "",
         pending=None,
     ) -> dict:
-        locations = filename_locations(root)
+        locations = _current_locations()
         current_paths = locations.get(filename.casefold(), ())
         current_members = [
             {
@@ -890,7 +1099,7 @@ def create_app(
                 ]
             )
         )
-        index = build_index(root, cache=references)
+        index = _current_index()
         assembly_path = _validated_doctor_assembly(request.values.get("assembly", ""))
         return {
             "version": __version__,
@@ -1024,7 +1233,7 @@ def create_app(
         pr_folders: dict[str, list[int]] = {
             folder.casefold(): list(numbers) for folder, numbers in KNOWN_PR_FOLDERS.items()
         }
-        merges = tuple(merge_reader(root))
+        merges = _current_merges()
         group_merges: dict[str, list[str]] = {group.id: [] for group in inventory.groups}
         for merge in merges:
             matching = [
@@ -1121,7 +1330,7 @@ def create_app(
         if merge is None:
             return jsonify({"error": f"merged PR #{pr_number} was not found"}), 404
         include_vendor = bool(payload.get("include_vendor"))
-        inventory = cache.get(include_vendor=include_vendor)
+        inventory = cache.get(include_vendor=include_vendor, fresh=True)
         plan = plan_merge_exact_cleanup(inventory, merge)
         if not secrets.compare_digest(str(payload.get("signature", "")), plan.signature):
             return jsonify({"error": "cleanup plan changed; run the dry preview again"}), 409
@@ -1129,6 +1338,7 @@ def create_app(
             execution = execute_cleanup(root, plan, references_checked=True)
         except ValueError as exc:
             return jsonify({"error": str(exc)}), 409
+        cache.clear()
         return jsonify({"execution": execution.to_dict(), "rescan_pending": True})
 
     @app.post("/duplicates/member/<group_id>/delete")
@@ -1144,7 +1354,7 @@ def create_app(
             return jsonify({"error": "Inventor references must be checked first"}), 400
         path = str(payload.get("path", ""))
         include_vendor = bool(payload.get("include_vendor"))
-        inventory = cache.get(include_vendor=include_vendor)
+        inventory = cache.get(include_vendor=include_vendor, fresh=True)
         try:
             plan = plan_member_cleanup(
                 inventory, group_id=group_id, path=path, allow_collision=True
@@ -1169,6 +1379,7 @@ def create_app(
             )
         except ValueError as exc:
             return jsonify({"error": str(exc)}), 409
+        cache.clear()
         return jsonify({"execution": execution.to_dict(), "rescan_pending": True})
 
     @app.post("/duplicates/member/<group_id>/consolidate")
@@ -1183,7 +1394,7 @@ def create_app(
         if payload.get("reviewed") is not True:
             return jsonify({"error": "the revisions must be opened and compared first"}), 400
         include_vendor = bool(payload.get("include_vendor"))
-        inventory = cache.get(include_vendor=include_vendor)
+        inventory = cache.get(include_vendor=include_vendor, fresh=True)
         keep_path = str(payload.get("keep_path", ""))
         try:
             plan = plan_consolidation(
@@ -1202,6 +1413,7 @@ def create_app(
                 completed["post_scan"] = inventory.summary
                 return jsonify(completed)
             return jsonify({"error": str(exc)}), 409
+        cache.clear()
         return jsonify({"execution": execution.to_dict(), "rescan_pending": True})
 
     @app.get("/removed")
@@ -1369,7 +1581,7 @@ def create_app(
     @app.get("/renames")
     def renames():
         entries = list(reversed(read_ledger(root)))
-        locations = filename_locations(root)
+        locations = _current_locations()
         views = [_rename_view(entry, locations) for entry in entries]
         return render_template(
             "renames.html",
@@ -1408,6 +1620,18 @@ def create_app(
         return None
 
     def _catalog_index(inventory: Inventory) -> list[dict]:
+        # Inventories are immutable and swapped whole, so identity is an exact
+        # key: the folder tree is rebuilt only when the inventory changed.
+        with catalog_indexes_lock:
+            cached = catalog_indexes.get(inventory.include_vendor)
+            if cached is not None and cached[0] is inventory:
+                return cached[1]
+        index = _build_catalog_index(inventory)
+        with catalog_indexes_lock:
+            catalog_indexes[inventory.include_vendor] = (inventory, index)
+        return index
+
+    def _build_catalog_index(inventory: Inventory) -> list[dict]:
         stats: dict[str, dict] = {
             ".": {"name": ".", "count": 0, "direct_count": 0, "children": set()}
         }
@@ -1754,7 +1978,7 @@ def create_app(
             "sidecar_name": companion.name,
             "sidecar_exists": companion.is_file(),
             "sidecar_text": companion.read_text(encoding="utf-8") if companion.is_file() else "",
-            "referrers": build_index(root, cache=references).referring(target.name),
+            "referrers": _current_index().referring(target.name),
             "renameable": target.suffix.casefold() in RENAMEABLE_EXTENSIONS,
             "rename_error": None,
             "rename_pending": None,

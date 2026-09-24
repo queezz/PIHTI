@@ -34,6 +34,21 @@ page, and both search and large leaf folders reveal 48 records at a time. The
 current tree ancestry opens on the server; unrelated expansions are deliberately
 not remembered, so the rail cannot accumulate into a second full catalog.
 
+Version 0.14.0 replaces the per-request walk with a snapshot model: the
+inventory, the where-used index, Doctor's filename-location map, and the
+merged-PR history from Git are each built once and served from memory instead
+of being recomputed per page. A background refresher revalidates the snapshot
+every `--refresh-seconds` while someone is browsing (a few seconds; about once
+a minute when idle), hashing only new or changed files and swapping the result
+in atomically. The persisted records under gitignored `.pihti-dedup/` are
+adopted immediately on startup, so a restart is not a cold start. Mutations —
+rename, quarantine, restore, consolidation — still revalidate live disk
+synchronously before acting and invalidate every snapshot afterwards;
+Duplicates' **Refresh** remains the explicit forced full verification. This
+supersedes the 0.6.1 per-request metadata walk described above; passing
+`--refresh-seconds 0` restores that validate-on-every-request behaviour and is
+still the default for `create_app()` in tests.
+
 ## Purpose
 
 Provide a local, human-in-the-loop view of filename collisions and byte-level

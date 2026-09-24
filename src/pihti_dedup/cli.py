@@ -38,6 +38,12 @@ def build_parser() -> argparse.ArgumentParser:
     serve.add_argument("--host", default="127.0.0.1")
     serve.add_argument("--port", type=int, default=4185)
     serve.add_argument("--open", action="store_true", help="Open the viewer in the default browser")
+    serve.add_argument(
+        "--refresh-seconds",
+        type=float,
+        default=5.0,
+        help="Background snapshot refresh period; 0 validates the disk on every request",
+    )
 
     cleanup = subparsers.add_parser(
         "merge-cleanup", help="Preview or quarantine exact copies added by a merged PR"
@@ -296,5 +302,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     if args.open:
         threading.Timer(0.7, lambda: webbrowser.open(url)).start()
     print(f"PIHTI CAD viewer: {url}")
-    create_app(workspace).run(host=args.host, port=args.port, threaded=True, use_reloader=False)
+    create_app(workspace, refresh_seconds=max(args.refresh_seconds, 0.0)).run(
+        host=args.host, port=args.port, threaded=True, use_reloader=False
+    )
     return 0

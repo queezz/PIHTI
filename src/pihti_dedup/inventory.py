@@ -168,34 +168,39 @@ def relative_path(path: Path, root: Path) -> str:
 
 
 def _system_for(path: str) -> str:
-    parts = Path(path).parts
-    return parts[0] if len(parts) > 1 else "."
-
-
-def _vendor_reason(path: Path, display_root: Path) -> str | None:
-    try:
-        parts = tuple(part.casefold() for part in path.relative_to(display_root).parts)
-    except ValueError:
-        return None
-    if len(parts) >= 2 and parts[:2] in VENDOR_PREFIXES:
-        return "Pack-and-Go vendor support"
-    return None
+    return path.split("/", 1)[0] if "/" in path else "."
 
 
 def _directory_exclusion(
-    path: Path,
-    display_root: Path,
+    name: str,
+    relative_path: str,
     skip_dirs: set[str],
     *,
     include_oldversions: bool,
     include_vendor: bool,
 ) -> str | None:
-    if path.name.casefold() in skip_dirs:
+    """Reason to skip directory `name`, whose display-relative path is `relative_path`."""
+
+    folded = name.casefold()
+    if folded in skip_dirs:
         return "excluded directory"
-    if not include_oldversions and path.name.casefold() == "oldversions":
+    if not include_oldversions and folded == "oldversions":
         return "Inventor save history"
     if not include_vendor:
-        return _vendor_reason(path, display_root)
+        parts = tuple(part.casefold() for part in relative_path.split("/"))
+        if len(parts) >= 2 and parts[:2] in VENDOR_PREFIXES:
+            return "Pack-and-Go vendor support"
+    return None
+
+
+def _relative_prefix(path: str, display_root: str) -> str | None:
+    """Lexical display-relative POSIX path of `path`, or None when not beneath the root."""
+
+    if os.path.normcase(path) == os.path.normcase(display_root):
+        return ""
+    prefix = display_root.rstrip("\\/") + os.sep
+    if os.path.normcase(path).startswith(os.path.normcase(prefix)):
+        return path[len(prefix) :].replace("\\", "/")
     return None
 
 
@@ -207,55 +212,76 @@ def _iter_files(
     *,
     include_oldversions: bool,
     include_vendor: bool,
-) -> tuple[list[Path], list[ExcludedPath], list[str]]:
-    files: list[Path] = []
+) -> tuple[list[tuple[Path, str]], list[ExcludedPath], list[str]]:
+    """Walk `roots` with `os.scandir` and return (path, display-relative path) pairs.
+
+    The walk is string-based on purpose. Building a `Path` per entry and
+    calling `relative_to` on each of the workspace's 1,200+ files made the
+    metadata walk several times slower than the directory reads themselves.
+    """
+
+    files: list[tuple[Path, str]] = []
     excluded: list[ExcludedPath] = []
     errors: list[str] = []
+    root_text = str(display_root)
+
+    def relative_of(path: str) -> str:
+        relative = _relative_prefix(path, root_text)
+        return relative if relative is not None else relative_path(Path(path), display_root)
+
+    def wanted(name: str) -> bool:
+        return extensions is None or os.path.splitext(name)[1].casefold() in extensions
 
     for root in roots:
         if root.is_file():
             if extensions is None or root.suffix.casefold() in extensions:
-                files.append(root)
+                files.append((root, relative_of(str(root))))
             continue
         if not root.exists():
             errors.append(f"missing path: {root}")
             continue
 
-        def record_walk_error(error: OSError) -> None:
-            errors.append(
-                f"cannot traverse {relative_path(Path(error.filename or root), display_root)}: {error}"
-            )
+        stack: list[tuple[str, str]] = [(str(root), relative_of(str(root)))]
+        while stack:
+            directory, relative_dir = stack.pop()
+            try:
+                with os.scandir(directory) as entries:
+                    listing = list(entries)
+            except OSError as error:
+                errors.append(f"cannot traverse {relative_of(directory)}: {error}")
+                continue
+            subdirs: list[tuple[str, str]] = []
+            for entry in listing:
+                name = entry.name
+                child_relative = f"{relative_dir}/{name}" if relative_dir else name
+                try:
+                    is_dir = entry.is_dir()
+                except OSError:
+                    is_dir = False
+                if is_dir:
+                    reason = _directory_exclusion(
+                        name,
+                        child_relative,
+                        skip_dirs,
+                        include_oldversions=include_oldversions,
+                        include_vendor=include_vendor,
+                    )
+                    if reason:
+                        excluded.append(ExcludedPath(child_relative, reason))
+                    elif not entry.is_symlink():
+                        subdirs.append((entry.path, child_relative))
+                    continue
+                if wanted(name):
+                    files.append((Path(entry.path), child_relative))
+            # Pop order does not matter: the result is sorted below.
+            stack.extend(subdirs)
 
-        for dirpath, dirnames, filenames in os.walk(root, onerror=record_walk_error):
-            folder = Path(dirpath)
-            kept_dirs: list[str] = []
-            for dirname in dirnames:
-                candidate = folder / dirname
-                reason = _directory_exclusion(
-                    candidate,
-                    display_root,
-                    skip_dirs,
-                    include_oldversions=include_oldversions,
-                    include_vendor=include_vendor,
-                )
-                if reason:
-                    excluded.append(ExcludedPath(relative_path(candidate, display_root), reason))
-                else:
-                    kept_dirs.append(dirname)
-            dirnames[:] = kept_dirs
-            for filename in filenames:
-                path = folder / filename
-                if extensions is None or path.suffix.casefold() in extensions:
-                    files.append(path)
-
-    unique_files: dict[str, Path] = {}
-    for path in files:
-        unique_files.setdefault(os.path.normcase(str(path)), path)
-    files = sorted(
-        unique_files.values(), key=lambda path: relative_path(path, display_root).casefold()
-    )
+    unique_files: dict[str, tuple[Path, str]] = {}
+    for path, relative in files:
+        unique_files.setdefault(os.path.normcase(str(path)), (path, relative))
+    ordered = sorted(unique_files.values(), key=lambda item: item[1].casefold())
     excluded.sort(key=lambda item: item.path.casefold())
-    return files, excluded, errors
+    return ordered, excluded, errors
 
 
 def _make_group(kind: str, records: Sequence[FileRecord], title: str) -> DuplicateGroup:
@@ -378,19 +404,19 @@ def scan_paths(
     )
 
     records: list[FileRecord] = []
-    for path in files:
+    for path, relative in files:
         try:
             stat = path.stat()
             digest = sha256_file(path) if hash_files else None
         except OSError as exc:
-            errors.append(f"cannot read {relative_path(path, root)}: {exc}")
+            errors.append(f"cannot read {relative}: {exc}")
             continue
-        relative = relative_path(path, root)
+        name = relative.rsplit("/", 1)[-1]
         records.append(
             FileRecord(
                 path=relative,
-                name=path.name,
-                name_key=path.name.casefold(),
+                name=name,
+                name_key=name.casefold(),
                 suffix=path.suffix.casefold(),
                 size=stat.st_size,
                 mtime_ns=stat.st_mtime_ns,

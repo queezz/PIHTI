@@ -144,10 +144,20 @@ It opens `http://127.0.0.1:4185/catalog`. The direct module command remains
 available for development, but `lab pihti` is the normal operating surface.
 
 Catalog is the landing view; open **Duplicates** in the top navigation when the
-filename-collision inventory needs review. The server keeps a metadata-validated
-inventory under gitignored `.pihti-dedup/` and reuses unchanged SHA-256 values
-across tabs and restarts. A path is rehashed when its size or modification time
-changes; **Refresh** on Duplicates remains the explicit full verification.
+filename-collision inventory needs review. The server builds an in-memory
+snapshot from the metadata-validated inventory under gitignored
+`.pihti-dedup/` and serves every page from it, refreshing that snapshot in the
+background every few seconds while the viewer is in use (about once a minute
+when idle) and rehashing only paths whose size or modification time changed.
+**Refresh** on Duplicates remains the explicit full verification, and every
+mutation still revalidates the live disk before acting. `lab pihti` is the
+normal way to start the viewer; the direct command form takes a
+`--refresh-seconds` flag to change that period, and `0` restores the previous
+validate-on-every-request behaviour:
+
+```powershell
+& "$HOME\.venvs\pihti-dedup\Scripts\python.exe" -m pihti_dedup serve . --refresh-seconds 0
+```
 
 In Duplicates, use the two right rails to review one duplicate kind, project
 folder, or recent merged PR at a time. PR filters come from local first-parent

@@ -4,6 +4,26 @@ Shipped archive milestones only. PIHTI does not yet have a formal release/versio
 contract, so entries are dated rather than assigned software versions. Git history
 remains authoritative for exact file changes.
 
+## 2026-09-24
+
+- Shipped `pihti-dedup` 0.14.0: the viewer now serves every page from an
+  in-memory snapshot of the workspace instead of walking the filesystem on
+  each request. A background refresher revalidates the snapshot every few
+  seconds while someone is browsing (about once a minute when idle), hashing
+  only new or changed files, and swaps the new snapshot in atomically. The
+  persisted inventory under gitignored `.pihti-dedup/` is adopted immediately
+  on startup, so a restart is not a cold start. The where-used index, the
+  filename-location map Doctor uses, and the merged-PR history from Git are
+  refreshed the same way, so Doctor and Duplicates no longer pay their own
+  walk or a git subprocess per page. Every mutation still revalidates the
+  live disk synchronously before acting and invalidates the snapshots
+  afterwards; Duplicates' **Refresh** remains the explicit forced full
+  verification. `pihti-dedup serve --refresh-seconds N` sets the period; `0`
+  restores the previous validate-on-every-request behaviour, which is also
+  the default for `create_app()` in tests. The directory walk itself was
+  rewritten on `os.scandir` with string paths (130 ms → 38 ms on the
+  1,182-file workspace), and the where-used walk got the same treatment.
+
 ## 2026-08-06
 
 - Shipped `pihti-dedup` 0.13.0: Doctor now starts from an assembly workbench

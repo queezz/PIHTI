@@ -98,12 +98,37 @@ def walk_workspace(
 
     wanted = {suffix.casefold() for suffix in extensions} if extensions else None
     skipped = {name.casefold() for name in skip_dirs}
-    for dirpath, dirnames, filenames in os.walk(root):
-        dirnames[:] = [name for name in dirnames if name.casefold() not in skipped]
-        folder = Path(dirpath)
-        for filename in filenames:
-            if wanted is None or Path(filename).suffix.casefold() in wanted:
-                yield folder / filename
+    # `os.scandir` with plain strings: the directory entry already knows
+    # whether it is a directory, so no per-file `stat` or `Path` construction
+    # is paid for the thousands of files this walk only filters by suffix.
+    # Semantics match the `os.walk` this replaced: unreadable directories are
+    # skipped silently and symlinked directories are listed but not entered.
+    stack = [os.fspath(root)]
+    while stack:
+        folder = stack.pop()
+        try:
+            with os.scandir(folder) as entries:
+                listed = list(entries)
+        except OSError:
+            continue
+        for entry in listed:
+            name = entry.name
+            try:
+                is_dir = entry.is_dir()
+            except OSError:
+                is_dir = False
+            if is_dir:
+                if name.casefold() in skipped:
+                    continue
+                try:
+                    if entry.is_symlink():
+                        continue
+                except OSError:
+                    continue
+                stack.append(entry.path)
+                continue
+            if wanted is None or os.path.splitext(name)[1].casefold() in wanted:
+                yield Path(entry.path)
 
 
 class ReferenceCache:

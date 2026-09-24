@@ -63,13 +63,20 @@ def test_serve_opens_the_catalog_as_the_landing_view(monkeypatch, tmp_path: Path
 
     monkeypatch.setattr(cli.threading, "Timer", ImmediateTimer)
     monkeypatch.setattr(cli.webbrowser, "open", opened.append)
-    monkeypatch.setattr(web, "create_app", lambda _workspace: FakeApp())
+    options: list[dict] = []
+
+    def fake_create_app(_workspace, **kwargs):
+        options.append(kwargs)
+        return FakeApp()
+
+    monkeypatch.setattr(web, "create_app", fake_create_app)
 
     assert cli.main(["serve", str(tmp_path), "--open"]) == 0
     assert opened == ["http://127.0.0.1:4185/catalog"]
     assert runs == [
         {"host": "127.0.0.1", "port": 4185, "threaded": True, "use_reloader": False}
     ]
+    assert options == [{"refresh_seconds": 5.0}]
     assert "PIHTI CAD viewer: http://127.0.0.1:4185/catalog" in capsys.readouterr().out
 
 

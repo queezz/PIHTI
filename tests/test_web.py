@@ -1738,3 +1738,167 @@ def test_styles_indent_the_folder_tree_without_an_inner_scrollbar(tmp_path: Path
     assert "overflow-y: scroll" not in style
     # The owner rejected inner scrolling: nothing may be given a height ceiling.
     assert re.search(r"max-height:\s*\d", style) is None
+
+
+def counting_scanner(calls: list[bool]):
+    def scanner(root: Path, **kwargs):
+        calls.append(kwargs.get("include_vendor", False))
+        return scan_workspace(root, **kwargs)
+
+    return scanner
+
+
+def test_snapshot_cache_serves_persisted_inventory_without_walking(
+    monkeypatch, tmp_path: Path
+) -> None:
+    root = make_workspace(tmp_path)
+    persisted = web.InventoryCache(root, scan_workspace).get(include_vendor=False)
+    calls: list[bool] = []
+    cache = web.InventoryCache(root, counting_scanner(calls), max_age=5)
+
+    adopted = cache.get(include_vendor=False)
+    assert adopted.records == persisted.records
+    assert calls == []
+
+    fresh = root / "BoronProbe" / "parts" / "fresh.ipt"
+    fresh.write_bytes(b"fresh part")
+    assert cache.get(include_vendor=False) is adopted
+    assert cache.get(include_vendor=False, hash_files=False) is adopted
+    assert calls == []
+
+    assert cache.refresh(include_vendor=False) is True
+    assert calls == [False]
+    refreshed = cache.get(include_vendor=False)
+    by_path = {record.path: record for record in refreshed.records}
+    assert by_path["BoronProbe/parts/fresh.ipt"].sha256
+    assert calls == [False]
+    assert cache.refresh(include_vendor=True) is False  # never loaded, never walked
+    assert calls == [False]
+
+    later = root / "BoronProbe" / "parts" / "later.ipt"
+    later.write_bytes(b"later part")
+    cache.clear()
+    cleared = cache.get(include_vendor=False)
+    assert "BoronProbe/parts/later.ipt" in {record.path for record in cleared.records}
+    assert calls == [False, False]
+    assert cache.get(include_vendor=False) is cleared
+    assert calls == [False, False]
+
+    cache.get(include_vendor=False, force=True)
+    cache.get(include_vendor=False, force=True)
+    assert calls == [False, False, False, False]
+
+
+def test_snapshot_cache_validates_synchronously_on_a_true_first_run(tmp_path: Path) -> None:
+    root = make_workspace(tmp_path)
+    calls: list[bool] = []
+    cache = web.InventoryCache(root, counting_scanner(calls), max_age=5)
+
+    first = cache.get(include_vendor=False, hash_files=False)
+    assert calls == [False]
+    assert len(first.records) == 3
+    assert cache.get(include_vendor=False, hash_files=False) is first
+    assert calls == [False]
+
+    # A hashed view of an unhashed snapshot must hash rather than hand back None digests.
+    hashed = cache.get(include_vendor=False)
+    assert all(record.sha256 for record in hashed.records)
+    assert calls == [False, False]
+
+
+def test_snapshot_cache_refresh_due_follows_requests_and_idle_age(tmp_path: Path) -> None:
+    root = make_workspace(tmp_path)
+    now = [100.0]
+    calls: list[bool] = []
+    cache = web.InventoryCache(
+        root, counting_scanner(calls), max_age=5, idle_interval=60, clock=lambda: now[0]
+    )
+    cache.refresh_due()
+    assert calls == []  # nothing loaded, nothing to refresh
+
+    cache.get(include_vendor=False)
+    assert calls == [False]
+    now[0] = 104
+    cache.refresh_due()
+    assert calls == [False]
+
+    cache.get(include_vendor=False)  # requested since the last validation
+    now[0] = 105
+    cache.refresh_due()
+    assert calls == [False, False]
+
+    now[0] = 164
+    cache.refresh_due()  # idle but not yet stale
+    assert calls == [False, False]
+    now[0] = 165
+    cache.refresh_due()
+    assert calls == [False, False, False]
+
+
+def test_snapshot_app_serves_catalog_from_memory_until_refreshed(tmp_path: Path) -> None:
+    root = make_workspace(tmp_path)
+    app = create_app(root, refresh_seconds=5)
+    assert "pihti_ticker" not in app.extensions  # building an app spawns no thread
+    client = app.test_client()
+
+    before = client.get("/catalog/BoronProbe/parts").get_data(as_text=True)
+    assert 'href="/part/BoronProbe/parts/bearing.ipt"' in before
+    ticker = app.extensions["pihti_ticker"]
+    try:
+        assert ticker.running
+        (root / "BoronProbe" / "parts" / "fresh.ipt").write_bytes(b"fresh part")
+
+        stale = client.get("/catalog/BoronProbe/parts").get_data(as_text=True)
+        assert 'href="/part/BoronProbe/parts/fresh.ipt"' not in stale
+
+        assert app.extensions["pihti_inventory_cache"].refresh(include_vendor=False) is True
+        current = client.get("/catalog/BoronProbe/parts").get_data(as_text=True)
+        assert 'href="/part/BoronProbe/parts/fresh.ipt"' in current
+    finally:
+        ticker.stop()
+    assert not ticker.running
+
+
+def test_snapshot_app_clear_invalidates_derived_snapshots(tmp_path: Path) -> None:
+    root = make_workspace(tmp_path)
+    app = create_app(root, refresh_seconds=5)
+    client = app.test_client()
+    try:
+        assert client.get("/doctor").status_code == 200
+        locations = app.extensions["pihti_snapshots"]["locations"]
+        assert "fresh.ipt" not in locations.peek()
+
+        (root / "BoronProbe" / "parts" / "fresh.ipt").write_bytes(b"fresh part")
+        assert "fresh.ipt" not in locations.get()
+
+        app.extensions["pihti_inventory_cache"].clear()
+        assert locations.get()["fresh.ipt"] == ("BoronProbe/parts/fresh.ipt",)
+    finally:
+        app.extensions["pihti_ticker"].stop()
+
+
+def test_catalog_folder_index_is_rebuilt_only_for_a_new_inventory(
+    monkeypatch, tmp_path: Path
+) -> None:
+    root = make_workspace(tmp_path)
+    app = create_app(root, refresh_seconds=5)
+    client = app.test_client()
+    built: list[int] = []
+    original = web.folder_tree
+
+    def counting_tree(index, **kwargs):
+        built.append(id(index))
+        return original(index, **kwargs)
+
+    monkeypatch.setattr(web, "folder_tree", counting_tree)
+    try:
+        client.get("/catalog")
+        client.get("/catalog/BoronProbe")
+        assert len(built) == 2 and built[0] == built[1]  # same memoized index object
+
+        (root / "BoronProbe" / "parts" / "fresh.ipt").write_bytes(b"fresh part")
+        app.extensions["pihti_inventory_cache"].refresh(include_vendor=False)
+        client.get("/catalog")
+        assert built[2] != built[0]
+    finally:
+        app.extensions["pihti_ticker"].stop()
