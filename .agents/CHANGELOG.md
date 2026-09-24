@@ -6,6 +6,11 @@ remains authoritative for exact file changes.
 
 ## 2026-09-24
 
+- Shipped `pihti-dedup` 0.20.2: the stylesheet and script URLs carry the
+  file's modification time, so a viewer update is a new URL in every browser
+  (a Firefox-based browser kept the old stylesheet through a hard refresh);
+  a current version is cached as immutable, anything else stays `no-store`.
+
 - Shipped `pihti-dedup` 0.20.1: every file tile is one grid column wide. A
   file with a description or sidecar prose no longer becomes a two-column
   image-and-story card, which stretched its whole grid row to its own height;

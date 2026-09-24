@@ -6,7 +6,7 @@
   <meta name="color-scheme" content="dark light">
   <title>{% block title %}PIHTI CAD{% endblock %}</title>
   <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='pihtiicon.svg') }}">
-  <link rel="stylesheet" href="{{ url_for('static', filename='dedup.css') }}">
+  <link rel="stylesheet" href="{{ asset_url('dedup.css') }}">
 </head>
 <body>
   <header class="topbar">
@@ -27,6 +27,6 @@
     </div>
   </header>
   {% block body %}{% endblock %}
-  <script src="{{ url_for('static', filename='dedup.js') }}" defer></script>
+  <script src="{{ asset_url('dedup.js') }}" defer></script>
 </body>
 </html>

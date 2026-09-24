@@ -1172,6 +1172,24 @@ def create_app(
 
     app.jinja_env.globals["preview_url"] = preview_url
 
+    def _asset_version(filename: str) -> str:
+        try:
+            return str((Path(app.static_folder) / filename).stat().st_mtime_ns)
+        except OSError:
+            return "0"
+
+    def asset_url(filename: str) -> str:
+        """Static URL carrying the file's modification time.
+
+        A changed stylesheet or script is a new URL, so no browser can keep
+        serving the old one after an update, whatever it thinks of `no-store`
+        on a hard refresh. A matching version is answered as immutable.
+        """
+
+        return url_for("static", filename=filename, v=_asset_version(filename))
+
+    app.jinja_env.globals["asset_url"] = asset_url
+
     @app.after_request
     def no_store(response):
         # `/preview/...` is exempt. Every other page reports live filesystem
@@ -1182,6 +1200,11 @@ def create_app(
         # 280 of them on every catalog visit would defeat the disk cache.
         if request.endpoint in {"preview_image", "git_history_preview", "sourcing_file"}:
             return response
+        if request.endpoint == "static" and response.status_code == 200:
+            filename = request.view_args.get("filename", "") if request.view_args else ""
+            if request.args.get("v") == _asset_version(filename):
+                response.headers["Cache-Control"] = "private, max-age=31536000, immutable"
+                return response
         # A plain catalog page may be reused for five seconds so a page the
         # browser prefetched on hover serves the click that follows. The page
         # is rendered from an inventory snapshot the ticker refreshes on about

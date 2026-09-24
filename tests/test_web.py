@@ -3254,3 +3254,20 @@ def test_folder_strip_representatives_are_ranked_assembly_first() -> None:
     hero = next(record for record in records if record.path == "Box/holder/tiny-09.ipt")
     led = web.folder_strips(records, ".", leading=(hero,), top_level=top_level, rendered=rendered)
     assert [item.path for item in led["Box"]][:2] == ["Box/holder/tiny-09.ipt", "Box/drawer/washer.ipt"]
+
+
+def test_stylesheet_and_script_urls_are_versioned_and_cached_only_when_current(tmp_path: Path) -> None:
+    client = create_app(make_workspace(tmp_path)).test_client()
+    html = client.get("/catalog").get_data(as_text=True)
+    match = re.search(r'href="/static/dedup\.css\?v=(\d+)"', html)
+    assert match, "stylesheet link must carry a version"
+    assert re.search(r'src="/static/dedup\.js\?v=\d+"', html)
+
+    current = client.get(f"/static/dedup.css?v={match.group(1)}")
+    assert current.status_code == 200
+    assert current.headers["Cache-Control"] == "private, max-age=31536000, immutable"
+
+    stale = client.get("/static/dedup.css?v=1")
+    assert stale.status_code == 200
+    assert stale.headers["Cache-Control"] == "no-store"
+    assert client.get("/static/dedup.css").headers["Cache-Control"] == "no-store"
