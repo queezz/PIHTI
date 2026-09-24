@@ -6,6 +6,10 @@ remains authoritative for exact file changes.
 
 ## 2026-09-24
 
+- Shipped `pihti-dedup` 0.18.1: one icon for the browser tab, the top bar, and
+  the MkDocs site: a bold P drawn as a path on a navy tile, legible at 16px.
+  The old icon set five letters in two fonts and two low-contrast colours.
+
 - Shipped `pihti-dedup` 0.18.0: `pihti-dedup notes check .` is the gate for
   a visual pass (`.agents/visual-pass.md`): it reports an authored folder note
   that still carries the generator marker, an authored note whose first line
