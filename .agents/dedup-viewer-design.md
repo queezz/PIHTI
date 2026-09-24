@@ -131,6 +131,54 @@ is no bulk action in the viewer, and the CLI's `--apply --references-checked`
 runs only the plain moves, never the quarantines. **Skip** hides a row for the
 current browser tab only.
 
+Version 0.17.0 lets the owner mark main assemblies. A hero is a flag in the
+file's metadata sidecar: `hero: true`, the seventh frontmatter key. Any
+Inventor document or export can carry it, and a folder may have several. The
+sidecar is used because it is the one metadata surface already accepted: it is
+portable, tracked in Git beside the CAD file, and never committed for the
+owner. The toggle is `POST /part/<path>/hero`, guarded by loopback and the form
+token like the other writes. The form states the value it wants, so a repeated
+submit cannot flip the flag back. With no sidecar, one is seeded from
+iProperties exactly as **Create metadata** seeds it, plus `hero: true`.
+Clearing a flag on a file with no sidecar writes nothing. With a sidecar, the
+text is parsed first, and a sidecar that does not parse is refused. The edit is
+then one line: `hero: true` goes in before the closing fence, or the `hero:`
+line comes out. Other keys, their formatting, the line endings, and the prose
+stay byte-for-byte. If that one-line edit ever fails to give the intended
+frontmatter, only the frontmatter is re-serialised. The toggle returns to the
+page it was pressed on. In the catalog that is the `#file-...` anchor of the
+tile, which is focused and shown in the inspector, with a toast naming the
+file. The query that carries the toast is removed from the address, so a reload
+or Back does not repeat it. Heroes lead a folder's page as a **Main assemblies**
+row of double-width tiles. Each tile shows the preview at up to its own pixel
+size, the name, Description, and size. Heroes are left out of the files grid
+and its count. The root lists every hero in the archive with its folder.
+Folder-card strips start with the subtree's heroes in path order. The tile mark
+is a gold bar down the left edge, a shape and hue no other mark uses. The
+inspector's first fact for a hero is "Main assembly". The lookup is memoized
+per inventory object and per disk-validation serial, a counter
+`InventoryCache` bumps on every validation. The serial is needed because an
+unchanged disk keeps the same `Inventory` object, and a sidecar is not part of
+the inventory. So the lookup is redone once per snapshot refresh: one `stat` per
+record, about 14 ms for this archive's 1182 records. A sidecar is read only
+when its size or modification time has changed.
+
+The same release changes the folder note in the catalog's left rail. The
+authored part of the note is shown as rendered Markdown: everything above the
+generator's inventory (`## Main Assembly`, `## Assemblies`, `## Parts`, and
+its notice), without the leading title. It sits inside a fixed budget of
+`clamp(5rem, calc(100vh - 42rem), 11rem)`. That is 11rem on any window taller
+than about 850px, and the same on every folder at a given window height. So the
+inspector's top edge does not move with the note's length. A note that does
+not fit is cut with a fade. **Read the whole note** opens the modal as a
+reader: the rendered note alone, at a reading measure. **Edit**, beside the ×,
+swaps in the previous preview-and-editor view. A save reopens the reader, and a
+refused save reopens the editor with the draft. The inspector sizes its preview
+to the room the capped rail has left above the title and a few fact lines, so a
+short window never pushes the shown file out of the rail. The top bar no longer
+counts recoverable files. That number lives only in the Removed page's History
+rail, and the per-request manifest read that fed the old indicator is gone.
+
 ## Purpose
 
 Provide a local, human-in-the-loop view of filename collisions and byte-level
@@ -297,7 +345,7 @@ and the mismatch is real evidence: 227 of 999 documents disagree today.
 A metadata sidecar is `<cad filename>.md` — the whole filename plus `.md`, so a
 part and its drawing never collide — holding YAML frontmatter
 (`part_number`, `material`, `status`, `tags`, `supersedes`,
-`seeded_from_iproperties`) and free prose. Seeding copies iProperties and leaves
+`seeded_from_iproperties`, and since 0.17.0 `hero`) and free prose. Seeding copies iProperties and leaves
 judgement blank. Writes reuse the loopback-plus-token boundary of the cleanup
 endpoints, validate that the frontmatter parses before touching the file, and
 never commit: a sidecar simply appears as an untracked or modified file. The CLI

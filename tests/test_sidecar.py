@@ -8,7 +8,9 @@ from pihti_dedup.sidecar import (
     parse_sidecar,
     read_sidecar,
     seed_text,
+    set_hero,
     sidecar_path,
+    with_hero,
     write_sidecar,
 )
 
@@ -66,6 +68,7 @@ def test_missing_sidecar_reads_as_none(tmp_path: Path) -> None:
         ("---\nstatus: shipped\n---\n", "status must be empty or one of"),
         ("---\ntags: bearing\n---\n", "tags must be a YAML list"),
         ("---\nsupersedes: 42\n---\n", "supersedes must be"),
+        ("---\nhero: sure\n---\n", "hero must be true or false"),
     ],
 )
 def test_invalid_sidecars_are_refused_before_anything_is_written(
@@ -87,3 +90,81 @@ def test_unknown_keys_and_prose_survive_a_parse(tmp_path: Path) -> None:
 
     assert parsed.frontmatter["reviewer"] == "queezz"
     assert parsed.body.startswith("# Notes")
+
+
+def test_hero_round_trips_through_seed_and_parse(tmp_path: Path) -> None:
+    seeded = seed_text(FIELDS, seeded_on=datetime.date(2026, 9, 24), hero=True)
+    companion = tmp_path / "vessel.iam.md"
+    write_sidecar(companion, seeded)
+
+    parsed = read_sidecar(companion)
+
+    assert parsed is not None and parsed.hero is True
+    assert seeded.splitlines()[-2:] == ["hero: true", "---"]  # the last key, readable
+    assert parse_sidecar(seed_text(FIELDS)).hero is False
+    assert "hero" not in seed_text(FIELDS)  # an ordinary seed says nothing about it
+
+
+def test_setting_hero_changes_one_line_and_keeps_prose_and_keys_byte_for_byte() -> None:
+    original = (
+        "---\r\n"
+        "part_number: UFC-152\r\n"
+        "tags: [flange, cf150]   # flow style stays flow style\r\n"
+        "reviewer: queezz\r\n"
+        "---\r\n"
+        "\r\n"
+        "# Why\r\n"
+        "\r\n"
+        "The **main** assembly of the vessel.\r\n"
+        "hero: this line is prose, not a key\r\n"
+    )
+
+    marked = with_hero(original, True)
+    cleared = with_hero(marked, False)
+
+    assert marked == original.replace("reviewer: queezz\r\n", "reviewer: queezz\r\nhero: true\r\n")
+    assert parse_sidecar(marked).hero is True
+    assert parse_sidecar(marked).frontmatter["tags"] == ["flange", "cf150"]
+    assert cleared == original  # clearing removes the key and nothing else
+    assert "hero" not in parse_sidecar(cleared).frontmatter
+    assert with_hero(marked, True) == marked  # setting twice is a no-op
+
+
+def test_clearing_removes_a_hand_typed_hero_key_wherever_it_sits() -> None:
+    original = "---\nhero: yes\nstatus: draft\n---\n\nKeep me.\n"
+
+    cleared = with_hero(original, False)
+
+    assert cleared == "---\nstatus: draft\n---\n\nKeep me.\n"
+
+
+def test_set_hero_creates_a_seeded_sidecar_only_to_set_it(tmp_path: Path) -> None:
+    companion = tmp_path / "vessel.iam.md"
+
+    assert set_hero(companion, False, FIELDS) is False
+    assert not companion.exists()  # clearing a flag that was never set writes nothing
+    assert set_hero(companion, True, FIELDS, seeded_on=datetime.date(2026, 9, 24)) is True
+
+    assert companion.read_text(encoding="utf-8") == (
+        "---\n"
+        "part_number: B_probe_bearing\n"
+        "material: PAEK 樹脂\n"
+        "status: ''\n"
+        "tags: []\n"
+        "supersedes: ''\n"
+        "seeded_from_iproperties: 2026-09-24\n"
+        "hero: true\n"
+        "---\n"
+    )
+    assert set_hero(companion, False, FIELDS) is True
+    assert read_sidecar(companion).hero is False
+
+
+def test_set_hero_refuses_a_sidecar_it_cannot_parse(tmp_path: Path) -> None:
+    companion = tmp_path / "vessel.iam.md"
+    companion.write_bytes(b"---\nstatus: shipped\n---\n\nKeep me.\n")
+
+    with pytest.raises(SidecarError):
+        set_hero(companion, True, FIELDS)
+
+    assert companion.read_bytes() == b"---\nstatus: shipped\n---\n\nKeep me.\n"

@@ -632,11 +632,44 @@
   var dialogs = Array.from(document.querySelectorAll("dialog.note-dialog"));
   if (!dialogs.length) return;
 
+  // A folder note opens as a reader; Edit swaps in the editor and back.
+  function setView(dialog, view) {
+    var reader = dialog.querySelector("[data-note-reader]");
+    var editor = dialog.querySelector("[data-note-editor]");
+    var toggle = dialog.querySelector("[data-note-edit]");
+    if (!reader || !editor || !toggle) return;
+    var editing = view === "editor";
+    dialog.dataset.noteView = editing ? "editor" : "reader";
+    reader.hidden = editing;
+    editor.hidden = !editing;
+    toggle.textContent = editing ? "Read" : "Edit";
+    toggle.setAttribute("aria-pressed", editing ? "true" : "false");
+    if (editing) {
+      var input = editor.querySelector("textarea");
+      if (input) input.focus({ preventScroll: true });
+    }
+  }
+
   document.querySelectorAll("[data-dialog-open]").forEach(function (opener) {
     opener.addEventListener("click", function () {
       var dialog = document.getElementById(opener.dataset.dialogOpen);
-      if (dialog && !dialog.open) dialog.showModal();
+      if (!dialog || dialog.open) return;
+      dialog.showModal();
+      if (opener.dataset.noteView) setView(dialog, opener.dataset.noteView);
     });
+  });
+
+  document.querySelectorAll("[data-note-edit]").forEach(function (toggle) {
+    toggle.addEventListener("click", function () {
+      var dialog = toggle.closest("dialog");
+      if (dialog) setView(dialog, dialog.dataset.noteView === "editor" ? "reader" : "editor");
+    });
+  });
+
+  // The rail shows as much of the note as its fixed budget holds; a longer
+  // note is cut with a fade rather than growing the card.
+  document.querySelectorAll("[data-note-rail-body]").forEach(function (body) {
+    body.classList.toggle("is-cut", body.scrollHeight > body.clientHeight + 1);
   });
 
   document.querySelectorAll("[data-dialog-close]").forEach(function (closer) {
@@ -761,8 +794,29 @@
   var image = inspector && inspector.querySelector("[data-inspector-image]");
   var title = inspector && inspector.querySelector("[data-inspector-title]");
   var facts = inspector && inspector.querySelector("[data-inspector-facts]");
+  var heroForm = inspector && inspector.querySelector("[data-inspector-hero]");
+  var heroValue = heroForm && heroForm.querySelector("[data-inspector-hero-value]");
+  var heroButton = heroForm && heroForm.querySelector("[data-inspector-hero-button]");
   var shown = null;
   var hoverTimer = null;
+
+  // The Hero button acts on the file the inspector shows, and says which.
+  function showHero(tile) {
+    if (!heroForm) return;
+    var action = tile && tile.dataset.heroAction;
+    heroForm.hidden = !action;
+    if (!action) return;
+    var hero = tile.dataset.hero === "1";
+    var name = tile.querySelector(".thumb-name, .hero-name");
+    var label = name ? name.textContent : "this file";
+    heroForm.action = action;
+    heroValue.value = hero ? "0" : "1";
+    heroButton.textContent = hero ? "Clear hero" : "Set hero";
+    heroButton.setAttribute("aria-pressed", hero ? "true" : "false");
+    heroButton.title = hero
+      ? "Stop showing " + label + " as a main assembly"
+      : "Show " + label + " first, as a main assembly";
+  }
 
   // Native size, never upscaled: a small embedded preview stays small.
   function sizeImage(natural) {
@@ -778,7 +832,7 @@
     var source = tile.querySelector("img");
     if (!source) return;
     var details = tile.querySelector(".thumb-details");
-    var name = tile.querySelector(".thumb-name");
+    var name = tile.querySelector(".thumb-name, .hero-name");
     var size = tile.querySelector(".thumb-meta");
     title.textContent = name ? name.textContent : "";
     if (details) {
@@ -795,8 +849,31 @@
     sizeImage(source.complete ? source.naturalWidth : 0);
     empty.hidden = true;
     body.hidden = false;
+    showHero(tile);
+    fitImage();
     shown = tile;
   }
+
+  // The rail is capped at the viewport and the folder note above keeps a
+  // fixed budget, so the preview takes only the room the rail has left above
+  // the title and a couple of fact lines; a short window never pushes the
+  // shown file out of the rail.
+  var FACT_ROOM = 72;
+  var PREVIEW_MAX = 384;
+  function fitImage() {
+    var rail = inspector.closest(".rail-context");
+    if (!rail || body.hidden || !inspector.offsetParent) return;
+    var gap = parseFloat(window.getComputedStyle(rail).rowGap) || 0;
+    var below = 0;  // the cards under the inspector, such as the legend
+    for (var card = inspector.nextElementSibling; card; card = card.nextElementSibling) {
+      below += card.offsetHeight + gap;
+    }
+    var cap = parseFloat(window.getComputedStyle(rail).maxHeight) || rail.clientHeight;
+    var limit = rail.getBoundingClientRect().top + cap - below;
+    var room = limit - image.getBoundingClientRect().top - FACT_ROOM;
+    image.style.maxHeight = Math.max(64, Math.min(PREVIEW_MAX, Math.floor(room))) + "px";
+  }
+  window.addEventListener("resize", fitImage);
 
   function clear() {
     window.clearTimeout(hoverTimer);
@@ -805,6 +882,7 @@
     empty.hidden = false;
     image.removeAttribute("src");
     facts.replaceChildren();
+    showHero(null);
     shown = null;
   }
 
@@ -885,6 +963,29 @@
   document.addEventListener("keydown", function (event) {
     if (event.key === "Escape" && shown) clear();
   });
+
+  // After Set hero / Clear hero the server returns to `#file-...`: focus
+  // that tile and show it, so the next press acts on the same file.
+  var landed = window.location.hash.indexOf("#file-") === 0 &&
+    document.getElementById(window.location.hash.slice(1));
+  if (landed && grid.contains(landed) && landed.matches(TILE)) {
+    landed.focus({ preventScroll: true });
+    show(landed);
+  }
+})();
+
+(function () {
+  "use strict";
+
+  // The hero toast belongs to the press that just ran, not to the address: a
+  // reload or a later Back must not announce it again.
+  var toast = document.querySelector("[data-hero-toast]");
+  if (!toast) return;
+  var url = new URL(window.location.href);
+  url.searchParams.delete("hero");
+  url.searchParams.delete("file");
+  window.history.replaceState(null, "", url.pathname + url.search + url.hash);
+  window.setTimeout(function () { toast.remove(); }, 8000);
 })();
 
 (function () {

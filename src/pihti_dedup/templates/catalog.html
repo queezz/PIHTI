@@ -1,15 +1,24 @@
 {% extends "base.html" %}
-{% from "_file_tile.html" import file_tile %}
+{% from "_file_tile.html" import file_tile, hero_tile %}
 {% from "_folder_tree.html" import tree_rail, catalog_bar %}
 {% block title %}{% if query %}Search{% elif path != '.' %}{{ name }}{% else %}Catalog{% endif %} · PIHTI{% endblock %}
 
 {% block body %}
+{% if toast %}<div class="operation-toast" role="status" data-operation-toast data-hero-toast>{{ toast }}</div>{% endif %}
 <main class="page">
   <div class="work-grid catalog-grid">
     <div class="work-main catalog-main">
       {{ catalog_bar(breadcrumbs, query, include_vendor) }}
 
       <section class="catalog-browse" data-thumb-grid aria-label="{% if query %}Matching files{% else %}Folders and files in {{ name }}{% endif %}">
+        {% if hero_files %}
+        <div class="hero-block">
+          <p class="grid-label"><strong>Main assemblies</strong> · {{ hero_files|length }}</p>
+          <div class="thumb-grid hero-grid">
+            {% for item in hero_files %}{{ hero_tile(item, show_folder=path == '.') }}{% endfor %}
+          </div>
+        </div>
+        {% endif %}
         {% if child_folders %}
         <div class="folder-grid">
           {% for folder in child_folders %}
@@ -42,7 +51,7 @@
         </div>
         {% endif %}
         <p class="filter-empty" data-filter-empty hidden>Nothing on this page matches. Enter searches the whole archive.</p>
-        {% if not child_folders and not files %}
+        {% if not child_folders and not files and not hero_files %}
         <div class="no-results">
           {% if query %}<strong>No CAD files match “{{ query }}”.</strong><span>Try part of a filename or folder path.</span>
           {% else %}<strong>No CAD files in this folder.</strong><span>Pick another folder in the tree.</span>{% endif %}
@@ -51,7 +60,8 @@
       </section>
 
       {% if not query and path != '.' %}
-      <dialog class="note-dialog" id="folder-note-dialog" aria-labelledby="folder-note-title"{% if note_dialog_open %} data-auto-open{% endif %}>
+      {% set note_editing = note_error or note_draft is not none %}
+      <dialog class="note-dialog" id="folder-note-dialog" aria-labelledby="folder-note-title"{% if note_dialog_open %} data-auto-open{% endif %} data-note-view="{{ 'editor' if note_editing else 'reader' }}">
         <div class="note-dialog-shell">
           <header class="note-dialog-header">
             <div>
@@ -59,13 +69,21 @@
               <h2 id="folder-note-title">{{ name }}</h2>
               <p>{{ path|winpath }}\README.md</p>
             </div>
-            <button class="dialog-close-x" type="button" data-dialog-close aria-label="Close folder note">×</button>
+            <div class="note-dialog-tools">
+              <button class="button note-edit-toggle" type="button" data-note-edit aria-pressed="{{ 'true' if note_editing else 'false' }}">{{ 'Read' if note_editing else 'Edit' }}</button>
+              <button class="dialog-close-x" type="button" data-dialog-close aria-label="Close folder note">×</button>
+            </div>
           </header>
 
           {% if saved %}<p class="metadata-notice note-dialog-notice" role="status">Folder note saved.</p>{% endif %}
           {% if note_error %}<p class="metadata-error note-dialog-notice" role="alert">{{ note_error }}</p>{% endif %}
 
-          <div class="note-dialog-grid">
+          <section class="note-reader" aria-label="Folder note" data-note-reader{% if note_editing %} hidden{% endif %}>
+            {% if note_html %}<div class="markdown-body note-reader-body">{{ note_html }}</div>
+            {% else %}<p class="part-note muted note-reader-body">No folder note yet. Press Edit to write one.</p>{% endif %}
+          </section>
+
+          <div class="note-dialog-grid" data-note-editor{% if not note_editing %} hidden{% endif %}>
             <section class="note-dialog-pane note-dialog-preview" aria-labelledby="note-preview-title" data-note-preview>
               <h3 id="note-preview-title">Preview</h3>
               {% if note and note.generated %}<p class="generated-note-label">Generated inventory — saving your edit claims it as authored documentation.</p>{% endif %}
@@ -139,16 +157,29 @@
           <div><dt>Files here</dt><dd>{{ direct_count }}</dd></div>
           <div><dt>Below here</dt><dd>{{ subtree_count }}</dd></div>
         </dl>
-        <button class="note-toggle" type="button" data-dialog-open="folder-note-dialog" aria-haspopup="dialog" aria-controls="folder-note-dialog">
-          <strong>Note</strong>
-          <small>{% if note and note.generated %}Generated inventory{% elif note %}Authored{% else %}No note yet{% endif %}</small>
-        </button>
-        {% if note and note.excerpt %}<p class="catalog-description">{{ note.excerpt }}</p>{% endif %}
+        <div class="note-rail" data-note-rail>
+          {% if note_rail_html %}
+          <div class="note-rail-body markdown-body" data-note-rail-body>{{ note_rail_html }}</div>
+          <button class="button note-rail-open" type="button" data-dialog-open="folder-note-dialog" data-note-view="reader" aria-haspopup="dialog" aria-controls="folder-note-dialog">Read the whole note</button>
+          {% else %}
+          <p class="note-rail-empty">No note yet</p>
+          <button class="button note-rail-open" type="button" data-dialog-open="folder-note-dialog" data-note-view="editor" aria-haspopup="dialog" aria-controls="folder-note-dialog">Write one</button>
+          {% endif %}
+        </div>
         {% endif %}
       </section>
-      {% if files %}
+      {% if files or hero_files %}
       <section class="rail-card inspector" data-inspector aria-label="File inspector">
-        <h2>Inspector</h2>
+        <div class="inspector-head">
+          <h2>Inspector</h2>
+          <form class="inspector-hero" method="post" data-inspector-hero hidden>
+            <input type="hidden" name="token" value="{{ form_token }}">
+            <input type="hidden" name="origin" value="{{ path }}">
+            {% if include_vendor %}<input type="hidden" name="include_vendor" value="1">{% endif %}
+            <input type="hidden" name="hero" value="1" data-inspector-hero-value>
+            <button class="button hero-button" type="submit" data-inspector-hero-button>Set hero</button>
+          </form>
+        </div>
         <p class="inspector-empty" data-inspector-empty>Hover or arrow onto a file</p>
         <div class="inspector-body" data-inspector-body hidden>
           <div class="inspector-preview"><img data-inspector-image alt=""></div>
@@ -161,7 +192,7 @@
       <section class="rail-card signal-legend">
         <h2>Signals</h2>
         <ul>
-          {% for kind, shape, text in signal_legend %}<li><i class="signal-mark signal-{{ kind }}{% if shape == 'edge' %} is-edge{% endif %}"></i>{{ text }}</li>{% endfor %}
+          {% for kind, shape, text in signal_legend %}<li><i class="signal-mark signal-{{ kind }} is-{{ shape }}"></i>{{ text }}</li>{% endfor %}
         </ul>
       </section>
       {% endif %}

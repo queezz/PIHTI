@@ -34,6 +34,7 @@ from pihti_dedup.cleanup import (
 )
 from pihti_dedup.foldernote import (
     FolderNoteError,
+    authored_part,
     note_excerpt,
     read_folder_note,
     strip_autogen_marker,
@@ -71,7 +72,14 @@ from pihti_dedup.renames import (
     read_ledger,
     set_settled,
 )
-from pihti_dedup.sidecar import SidecarError, read_sidecar, seed_text, sidecar_path, write_sidecar
+from pihti_dedup.sidecar import (
+    SidecarError,
+    read_sidecar,
+    seed_text,
+    set_hero,
+    sidecar_path,
+    write_sidecar,
+)
 from pihti_dedup.snapshots import Snapshot, Ticker, is_due
 from pihti_dedup.standard_parts import (
     CONFLICT,
@@ -234,6 +242,7 @@ class InventoryCache:
         self._requested: dict[bool, bool] = {}
         self._dirty: set[bool] = set()
         self._generation = 0  # bumped by clear(); a validation started earlier is stale
+        self._serials: dict[bool, int] = {}  # bumped by every disk validation of a scope
 
     def _path(self, include_vendor: bool) -> Path:
         scope = "vendor" if include_vendor else "default"
@@ -372,6 +381,7 @@ class InventoryCache:
         with self._lock:
             self._entries[include_vendor] = inventory
             self._validated_at[include_vendor] = self.clock()
+            self._serials[include_vendor] = self._serials.get(include_vendor, 0) + 1
             self._requested[include_vendor] = False
             if generation == self._generation:
                 self._dirty.discard(include_vendor)
@@ -431,6 +441,17 @@ class InventoryCache:
             if usable:
                 return current  # type: ignore[return-value]
             return self._validate(include_vendor, hash_files=hash_files, force=False)
+
+    def serial(self, include_vendor: bool) -> int:
+        """How many disk validations this scope has had in this process.
+
+        An unchanged disk keeps the same `Inventory` object, so identity alone
+        cannot tell a memo that the disk was looked at again. Files outside the
+        inventory, such as metadata sidecars, key their re-check on this.
+        """
+
+        with self._lock:
+            return self._serials.get(include_vendor, 0)
 
     def refresh(self, include_vendor: bool) -> bool:
         """Validate one loaded scope now; skip when a validation is already running."""
@@ -591,33 +612,48 @@ PREVIEW_STRIP_SIZE = 6
 PROJECT_EXTENSIONS = frozenset({".ipj"})
 
 
-def folder_strips(records, current: str, limit: int = PREVIEW_STRIP_SIZE) -> dict[str, list]:
+def folder_strips(
+    records, current: str, limit: int = PREVIEW_STRIP_SIZE, leading=()
+) -> dict[str, list]:
     """First preview candidates below each immediate child of `current`.
 
-    One pass over the inventory in its own order. Inventor documents always
-    carry an embedded preview, so they fill the strip first; other CAD files
-    (STL, STEP, DWG) only top it up. Returns child-folder path -> records.
+    One pass over the inventory in its own order. The `leading` records (the
+    designated main assemblies, in path order) open their folder's strip.
+    Inventor documents always carry an embedded preview, so they fill the rest
+    first; other CAD files (STL, STEP, DWG) only top it up. Returns
+    child-folder path -> records.
     """
 
     prefix = "" if current == "." else f"{current}/"
     offset = len(prefix)
+
+    def child_of(path: str) -> str | None:
+        if not path.startswith(prefix):
+            return None
+        slash = path.find("/", offset)
+        return None if slash == -1 else path[:slash]  # -1: a direct file of `current`
+
+    first: dict[str, list] = {}
+    for record in leading:
+        child = child_of(record.path)
+        if child is not None:
+            first.setdefault(child, []).append(record)
+    skip = {record.path for items in first.values() for record in items}
     inventor: dict[str, list] = {}
     other: dict[str, list] = {}
     for record in records:
-        path = record.path
-        if not path.startswith(prefix):
+        child = child_of(record.path)
+        if child is None or record.path in skip:
             continue
-        slash = path.find("/", offset)
-        if slash == -1:
-            continue  # a direct file of `current`, not below a child folder
-        child = path[:slash]
         bucket = inventor if record.suffix.casefold() in INVENTOR_EXTENSIONS else other
         items = bucket.setdefault(child, [])
         if len(items) < limit:
             items.append(record)
     strips: dict[str, list] = {}
-    for child in inventor.keys() | other.keys():
-        strips[child] = (inventor.get(child, []) + other.get(child, []))[:limit]
+    for child in first.keys() | inventor.keys() | other.keys():
+        strips[child] = (
+            first.get(child, []) + inventor.get(child, []) + other.get(child, [])
+        )[:limit]
     return strips
 
 
@@ -674,7 +710,9 @@ def file_signals(inventory: Inventory) -> dict[str, tuple[dict, ...]]:
 
 
 EDGE_PRIORITY = ("collision", "renamed", "exact", "unverified")
+HERO_SIGNAL = {"kind": "hero", "text": "Main assembly"}
 SIGNAL_LEGEND = (
+    ("hero", "bar", "Hero: a main assembly or file you designated"),
     ("collision", "edge", "Same name, different bytes"),
     ("exact", "edge", "Identical copy elsewhere"),
     ("renamed", "edge", "Same bytes, other name"),
@@ -682,6 +720,13 @@ SIGNAL_LEGEND = (
     ("generic", "dot", "Generic name"),
     ("newer", "dot", "Newer file with this name exists"),
 )
+SIGNAL_SHAPES = {kind: shape for kind, shape, _text in SIGNAL_LEGEND}
+
+
+def tile_anchor(path: str) -> str:
+    """The fragment id of a file's catalog tile, so a redirect can land on it."""
+
+    return f"file-{_anchor(path)}"
 
 
 def _contained(root: Path, relative_path: str) -> Path | None:
@@ -880,6 +925,11 @@ def create_app(
     catalog_indexes: dict[bool, tuple[Inventory, list[dict]]] = {}
     catalog_indexes_lock = threading.Lock()
     catalog_signals: dict[bool, tuple[Inventory, dict[str, tuple[dict, ...]]]] = {}
+    # Designated main assemblies: per scope, the inventory and validation
+    # serial they were found for; per sidecar, the flag read at a (mtime, size).
+    hero_memo: dict[bool, tuple[Inventory, int, tuple[FileRecord, ...]]] = {}
+    hero_flags: dict[str, tuple[int, int, bool]] = {}
+    hero_lock = threading.Lock()
     standard_memo: dict[str, tuple] = {}
     standard_memo_lock = threading.Lock()
     app.extensions["pihti_inventory_cache"] = cache
@@ -945,6 +995,7 @@ def create_app(
     app.jinja_env.tests["newver_name"] = _is_newver_name
     app.jinja_env.tests["generic_cad_name"] = _is_generic_cad_name
     app.jinja_env.globals["RENAMEABLE_EXTENSIONS"] = RENAMEABLE_EXTENSIONS
+    app.jinja_env.globals["signal_shape"] = lambda kind: SIGNAL_SHAPES.get(kind, "edge")
 
     def preview_url(item) -> str:
         """`/preview/<path>?v=<key>` for a FileRecord, a dict/obj with `path`, or a path.
@@ -977,16 +1028,6 @@ def create_app(
 
     app.jinja_env.globals["preview_url"] = preview_url
 
-    @app.context_processor
-    def global_recovery_status():
-        recoverable = [
-            event for event in read_quarantine_manifests(root) if not event.get("restored_at")
-        ]
-        return {
-            "recoverable_events": len(recoverable),
-            "recoverable_files": sum(len(event.get("files", ())) for event in recoverable),
-        }
-
     @app.after_request
     def no_store(response):
         # `/preview/...` is exempt. Every other page reports live filesystem
@@ -1007,6 +1048,7 @@ def create_app(
             and response.status_code == 200
             and "q" not in request.args
             and "saved" not in request.args
+            and "hero" not in request.args
         ):
             response.headers["Cache-Control"] = "private, max-age=5"
             return response
@@ -2054,6 +2096,51 @@ def create_app(
             catalog_signals[inventory.include_vendor] = (inventory, signals)
         return signals
 
+    def _catalog_heroes(inventory: Inventory) -> tuple[FileRecord, ...]:
+        """Records whose sidecar says `hero: true`, in path order.
+
+        Memoized per inventory object and validation serial, so it is redone
+        once per snapshot refresh. That pass is one `stat` per record; a
+        sidecar is read only when its size or modification time changed.
+        """
+
+        serial = cache.serial(inventory.include_vendor)
+        with hero_lock:
+            cached = hero_memo.get(inventory.include_vendor)
+            if cached is not None and cached[0] is inventory and cached[1] == serial:
+                return cached[2]
+        heroes: list[FileRecord] = []
+        for record in inventory.records:
+            companion = root / (record.path + ".md")
+            try:
+                stat = os.stat(companion)
+            except OSError:
+                continue
+            key = (stat.st_mtime_ns, stat.st_size)
+            with hero_lock:
+                known = hero_flags.get(record.path)
+            if known is not None and known[:2] == key:
+                flag = known[2]
+            else:
+                try:
+                    sidecar = read_sidecar(companion)
+                    flag = bool(sidecar and sidecar.hero)
+                except (SidecarError, OSError, UnicodeDecodeError):
+                    flag = False
+                with hero_lock:
+                    hero_flags[record.path] = (*key, flag)
+            if flag:
+                heroes.append(record)
+        found = tuple(sorted(heroes, key=lambda record: record.path.casefold()))
+        with hero_lock:
+            hero_memo[inventory.include_vendor] = (inventory, serial, found)
+        return found
+
+    def _forget_hero(relative: str) -> None:
+        with hero_lock:
+            hero_memo.clear()
+            hero_flags.pop(relative, None)
+
     def _build_catalog_index(inventory: Inventory) -> list[dict]:
         stats: dict[str, dict] = {
             ".": {"name": ".", "count": 0, "direct_count": 0, "children": set()}
@@ -2128,7 +2215,9 @@ def create_app(
             catalog_metadata[record.path] = (record.mtime_ns, record.size, meta)
         return meta
 
-    def _catalog_file(record: FileRecord, index=None, signals=None) -> dict:
+    def _catalog_file(
+        record: FileRecord, index=None, signals=None, heroes=frozenset(), hero_tile=False
+    ) -> dict:
         target = root / record.path
         companion = sidecar_path(target)
         metadata_error = ""
@@ -2168,6 +2257,9 @@ def create_app(
         mass = mass_properties(fields).get("mass") if fields else None
         used_in = index.referring(record.name) if index is not None else ()
         marks = signals.get(record.path, ()) if signals else ()
+        is_hero = record.path in heroes
+        if is_hero:
+            marks = (HERO_SIGNAL, *marks)
         edge = next(
             (kind for kind in EDGE_PRIORITY if any(mark["kind"] == kind for mark in marks)), ""
         )
@@ -2184,6 +2276,13 @@ def create_app(
                 details.append(("Mass", f"{mass:.4g} g"))
             details.append(("Modified", _filetime(record.mtime_ns)[:16]))
         return {
+            "anchor": tile_anchor(record.path),
+            "hero": is_hero,
+            "hero_action": url_for("part_hero", relative_path=record.path),
+            "description": description,
+            "preview_size": (
+                _record_preview_size(record) if hero_tile else None
+            ),
             "details": details,
             "used_in": used_in if details else (),
             "signals": marks,
@@ -2225,6 +2324,9 @@ def create_app(
         show = max(48, min(requested, len(inventory.records) or 48))
 
         project_files: list[dict] = []
+        heroes = _catalog_heroes(inventory)
+        hero_paths = frozenset(record.path for record in heroes)
+        hero_records: list[FileRecord] = []
         if query:
             folded = query.casefold()
             matching = [record for record in inventory.records if folded in record.path.casefold()]
@@ -2232,7 +2334,7 @@ def create_app(
             records = matching[:show]
             total = len(matching)
         else:
-            strips = folder_strips(inventory.records, current)
+            strips = folder_strips(inventory.records, current, leading=heroes)
             child_folders = [
                 _folder_card(by_name[name], strips.get(name))
                 for name in current_stats["children"]
@@ -2253,13 +2355,26 @@ def create_app(
                 direct = [
                     record for record in direct if record.suffix.casefold() not in PROJECT_EXTENSIONS
                 ]
+            # Main assemblies lead in a row of their own and are not repeated
+            # among the files: every one in the archive at the root, the
+            # folder's own below it.
+            hero_records = (
+                list(heroes)
+                if current == "."
+                else [record for record in direct if record.path in hero_paths]
+            )
+            direct = [record for record in direct if record.path not in hero_paths]
             records = direct[:show]
             total = len(direct)
 
-        where_used = _current_index() if records else None
+        where_used = _current_index() if records or hero_records else None
         signals = _catalog_signals(inventory)
-        files = [_catalog_file(record, where_used, signals) for record in records]
-        present = {mark["kind"] for item in files for mark in item["signals"]}
+        hero_files = [
+            _catalog_file(record, where_used, signals, hero_paths, hero_tile=True)
+            for record in hero_records
+        ]
+        files = [_catalog_file(record, where_used, signals, hero_paths) for record in records]
+        present = {mark["kind"] for item in hero_files + files for mark in item["signals"]}
         legend = [row for row in SIGNAL_LEGEND if row[0] in present]
 
         note = _read_catalog_note(current)
@@ -2274,6 +2389,7 @@ def create_app(
             "absolute_path": str(root if current == "." else root / current),
             "breadcrumbs": _breadcrumbs(current),
             "child_folders": child_folders,
+            "hero_files": hero_files,
             "files": files,
             "shown": len(files),
             "result_total": total,
@@ -2289,13 +2405,22 @@ def create_app(
             "workspace_summary": _workspace_summary() if current == "." else "",
             "note_text": note_text,
             "note_html": render_markdown(note_text),
+            "note_rail_html": render_markdown(authored_part(note_text)),
             "note_error": None,
             "note_draft": None,
             "note_dialog_open": _flag(request.args.get("saved")),
             "saved": _flag(request.args.get("saved")),
             "form_token": app.config["FORM_TOKEN"],
             "include_vendor": inventory.include_vendor,
+            "toast": _hero_toast(),
         }
+
+    def _hero_toast() -> str:
+        state = request.args.get("hero", "")
+        name = request.args.get("file", "").replace("\\", "/").rsplit("/", 1)[-1]
+        if not name or state not in {"set", "cleared"}:
+            return ""
+        return f"Hero {state}: {name}"
 
     def _catalog_note_error(target: Path, draft: str, error: str, status: int):
         relative = target.relative_to(root).as_posix()
@@ -2405,7 +2530,61 @@ def create_app(
         except OSError as exc:
             context.update(error=f"could not write the sidecar: {exc}", draft=text)
             return render_template("part.html", **context), 500
+        finally:
+            _forget_hero(context["path"])
         return redirect(url_for("part_page", relative_path=context["path"], saved="1"))
+
+    @app.post("/part/<path:relative_path>/hero")
+    def part_hero(relative_path: str):
+        """Set or clear `hero` in the file's sidecar, then return to where it was pressed.
+
+        The form states the wanted value, so a repeated submit cannot flip it
+        back. A missing sidecar is created seeded from iProperties, exactly as
+        **Create metadata** does; an existing one changes by that one key.
+        """
+
+        guard = _guard(request)
+        if guard is not None:
+            return guard
+        target = workspace_file(root, relative_path)
+        if target is None:
+            return render_template("_not_found.html", version=__version__, path=relative_path), 404
+        relative = target.relative_to(root).as_posix()
+        hero = _flag(request.form.get("hero"))
+        fields: dict[str, object] = {}
+        if target.suffix.casefold() in INVENTOR_EXTENSIONS and not sidecar_path(target).is_file():
+            fields = read_inventor_document(target).fields
+        try:
+            set_hero(sidecar_path(target), hero, fields)
+        except SidecarError as exc:
+            context = _part_context(target)
+            context.update(error=f"the sidecar was not changed: {exc}")
+            return render_template("part.html", **context), 400
+        except OSError as exc:
+            context = _part_context(target)
+            context.update(error=f"could not write the sidecar: {exc}")
+            return render_template("part.html", **context), 500
+        finally:
+            _forget_hero(relative)
+        state = "set" if hero else "cleared"
+        origin = request.form.get("origin", "")
+        if origin == "part":
+            return redirect(url_for("part_page", relative_path=relative, hero=state, file=relative))
+        folder = "."
+        if origin and origin != ".":
+            origin_folder = workspace_folder(root, origin)
+            if origin_folder is not None:
+                folder = origin_folder.relative_to(root).as_posix()
+        return redirect(
+            url_for(
+                "catalog",
+                relative_folder=None if folder == "." else folder,
+                hero=state,
+                file=relative,
+                include_vendor="1" if _flag(request.form.get("include_vendor")) else None,
+                _anchor=tile_anchor(relative),
+            )
+        )
 
     def _folders(inventory: Inventory) -> list[tuple[str, list]]:
         grouped: dict[str, list] = {}
@@ -2414,7 +2593,7 @@ def create_app(
             grouped.setdefault(parent, []).append(record)
         return sorted(grouped.items(), key=lambda item: item[0].casefold())
 
-    def _preview_size(target: Path, stat: os.stat_result) -> tuple[int, int] | None:
+    def _preview_size(target: Path, mtime_ns: int, size: int) -> tuple[int, int] | None:
         """Pixel size of an embedded Inventor preview, so it renders at 1x.
 
         Only Inventor documents are asked: their preview is read from the file
@@ -2424,7 +2603,7 @@ def create_app(
 
         if target.suffix.casefold() not in INVENTOR_EXTENSIONS:
             return None
-        preview = previews.get(target, stat.st_mtime_ns, stat.st_size)
+        preview = previews.get(target, mtime_ns, size)
         data = preview.data if preview else b""
         if data[:8] == b"\x89PNG\r\n\x1a\n" and len(data) >= 24:
             return int.from_bytes(data[16:20], "big"), int.from_bytes(data[20:24], "big")
@@ -2433,6 +2612,9 @@ def create_app(
             height = int.from_bytes(data[22:26], "little", signed=True)
             return abs(width), abs(height)
         return None
+
+    def _record_preview_size(record: FileRecord) -> tuple[int, int] | None:
+        return _preview_size(root / record.path, record.mtime_ns, record.size)
 
     def _part_context(target: Path) -> dict:
         relative = target.resolve().relative_to(root).as_posix()
@@ -2465,7 +2647,12 @@ def create_app(
         crumbs = _breadcrumbs(folder)
         crumbs.append({"name": target.name, "path": relative})
         signals = _catalog_signals(inventory).get(relative, ())
+        hero = bool(sidecar and sidecar.hero)
+        if hero:
+            signals = (HERO_SIGNAL, *signals)
         return {
+            "hero": hero,
+            "toast": _hero_toast(),
             "version": __version__,
             "path": relative,
             "name": target.name,
@@ -2473,7 +2660,7 @@ def create_app(
             "breadcrumbs": crumbs,
             "tree": folder_tree(index, current=folder),
             "signals": signals,
-            "preview_size": _preview_size(target, stat),
+            "preview_size": _preview_size(target, stat.st_mtime_ns, stat.st_size),
             "stem": target.stem,
             "folder": folder,
             "folder_editable": folder != ".",

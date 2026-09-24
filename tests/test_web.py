@@ -313,6 +313,16 @@ def test_web_cleanup_previews_then_quarantines_with_local_guard(tmp_path: Path) 
     assert canonical.exists()
     assert Path(payload["execution"]["manifest"]).exists()
 
+    # The count lives only in the Removed page's History rail, not in the top bar.
+    catalog = client.get("/catalog").get_data(as_text=True)
+    topbar = catalog.split('<header class="topbar">', 1)[1].split("</header>", 1)[0]
+    assert "recoverable" not in topbar and "quarantine empty" not in topbar
+    assert "local-tool" not in catalog
+    assert '<span class="version">v' in topbar
+    removed = client.get("/removed").get_data(as_text=True)
+    history = removed.split("<h2>History</h2>", 1)[1].split("</section>", 1)[0]
+    assert "<dt>Paths</dt><dd>1</dd>" in history
+
 
 def test_reviewed_collision_consolidates_to_one_logged_restorable_survivor(
     tmp_path: Path,
@@ -942,7 +952,8 @@ def test_catalog_root_and_folder_cards_promote_readme_summaries(tmp_path: Path) 
     assert '<p class="catalog-description">Curated plasma hardware from concept through fabrication outputs.</p>' in landing
     assert 'class="folder-card has-summary" href="/catalog/Plasma%20Vessel"' in landing
     assert 'class="folder-summary">Holds the plasma box inside the full vacuum vessel assembly.</small>' in landing
-    assert '<p class="catalog-description">Holds the plasma box inside the full vacuum vessel assembly.</p>' in folder
+    rail_note = folder.split('<div class="note-rail-body markdown-body" data-note-rail-body>', 1)[1]
+    assert rail_note.startswith("<p>Holds the plasma box inside the full vacuum vessel assembly.</p>")
 
 
 def test_part_page_shows_iproperties_and_flags_a_part_number_mismatch(
@@ -1316,7 +1327,7 @@ def test_the_left_rail_inspector_is_present_only_where_there_are_files(tmp_path:
     context = folder.split('<aside class="rail-side rail-context"', 1)[1].split("</aside>", 1)[0]
     assert '<section class="rail-card inspector" data-inspector' in context
     assert "<p class=\"inspector-empty\" data-inspector-empty>Hover or arrow onto a file</p>" in context
-    assert context.index("note-toggle") < context.index("data-inspector")
+    assert context.index("data-note-rail") < context.index("data-inspector")
     assert "data-inspector" in search
     assert "data-inspector" not in only_folders
 
@@ -1462,12 +1473,12 @@ def test_catalog_header_is_one_compact_line_and_the_note_sits_behind_a_toggle(
     assert "<dt>Below here</dt><dd>1</dd>" in context
     assert f'data-copy-text="{root / "BoronProbe" / "parts"}"' in context
     assert (
-        '<button class="note-toggle" type="button" data-dialog-open="folder-note-dialog"'
-        in context
+        '<button class="button note-rail-open" type="button" data-dialog-open="folder-note-dialog"'
+        ' data-note-view="reader"' in context
     )
-    assert '<p class="catalog-description">PAEK bearing stack for the rotating head.</p>' in context
-    # The note body is only inside the modal the toggle opens.
-    assert main.count("PAEK bearing stack for the rotating head.") == 2  # preview + raw editor
+    assert '<p>PAEK bearing stack for the rotating head.</p>' in context
+    # The whole note is inside the modal: its reader, the preview, the raw editor.
+    assert main.count("PAEK bearing stack for the rotating head.") == 3
     assert main.index('id="folder-note-dialog"') > main.index("data-thumb-grid")
 
     landing = client.get("/catalog").get_data(as_text=True)
@@ -1703,7 +1714,8 @@ def test_the_catalog_renders_a_folder_note_and_strips_markdown_from_the_excerpt(
     html = client.get("/catalog/BoronProbe/parts").get_data(as_text=True)
 
     assert "<strong>PAEK</strong>" in html
-    assert "The PAEK bearing stack." in html  # launch excerpt is plain text
+    rail = html.split("data-note-rail-body>", 1)[1].split("</div>", 1)[0]
+    assert rail == "<p>The <strong>PAEK</strong> bearing stack.</p>"  # rendered in the rail
     assert 'data-dialog-open="folder-note-dialog"' in html
     assert 'id="folder-note-dialog"' in html
     assert 'id="catalog-folder-note-text"' in html
@@ -2218,7 +2230,7 @@ def test_styles_indent_the_folder_tree_and_scroll_only_the_tree_inside_its_pinne
     assert ".thumb-tile.has-story" in style
     assert "grid-column: span 2" in style
     assert ".folder-card.has-summary" in style
-    assert "-webkit-line-clamp: 2" in style
+    assert ".note-rail { height: clamp(5rem, calc(100vh - 42rem), 11rem);" in style
     assert "grid-template-columns: minmax(0, 1.08fr) minmax(0, 0.92fr)" in style
     # The owner once rejected inner scrolling; on 2026-09-24 he ruled a pinned
     # rail the priority ("not nailed, hate it"). So each catalog rail stops
@@ -2399,3 +2411,359 @@ def test_catalog_folder_index_is_rebuilt_only_for_a_new_inventory(
         assert built[2] != built[0]
     finally:
         app.extensions["pihti_ticker"].stop()
+
+
+def make_hero_workspace(root: Path) -> Path:
+    for relative in (
+        "Vessel/vessel-main.iam",
+        "Vessel/flange.ipt",
+        "Vessel/vessel-main.idw",
+        "Vessel/parts/bolt-ring.ipt",
+        "Vessel/parts/spacer.ipt",
+        "Vessel/Probe/probe-head.iam",
+        "Vessel/Probe/tip.ipt",
+        "Desk/desk.ipt",
+    ):
+        path = root / relative
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(relative.encode())
+    return root
+
+
+def post_hero(app, client, path: str, hero: bool, origin: str, **extra):
+    data = {"token": app.config["FORM_TOKEN"], "hero": "1" if hero else "0", "origin": origin}
+    data.update(extra)
+    return client.post(f"/part/{path}/hero", data=data)
+
+
+def test_hero_toggle_keeps_the_localhost_and_token_guard(tmp_path: Path) -> None:
+    app = create_app(make_hero_workspace(tmp_path))
+    client = app.test_client()
+    companion = tmp_path / "Vessel" / "vessel-main.iam.md"
+
+    untokened = client.post(
+        "/part/Vessel/vessel-main.iam/hero", data={"hero": "1", "origin": "Vessel", "token": "guessed"}
+    )
+    remote = client.post(
+        "/part/Vessel/vessel-main.iam/hero",
+        data={"hero": "1", "origin": "Vessel", "token": app.config["FORM_TOKEN"]},
+        environ_base={"REMOTE_ADDR": "192.0.2.10"},
+    )
+    escaped = post_hero(app, client, "../outside.iam", True, "Vessel")
+
+    assert untokened.status_code == 403 and remote.status_code == 403
+    assert escaped.status_code == 404
+    assert not companion.exists()
+
+
+def test_hero_toggle_seeds_a_sidecar_and_returns_to_the_tile(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.setattr(
+        web,
+        "read_inventor_document",
+        lambda _path: make_document(part_number="vessel-main", material="SUS304"),
+    )
+    app = create_app(make_hero_workspace(tmp_path))
+    client = app.test_client()
+    companion = tmp_path / "Vessel" / "vessel-main.iam.md"
+
+    response = post_hero(app, client, "Vessel/vessel-main.iam", True, "Vessel")
+
+    assert response.status_code == 302
+    location = response.headers["Location"]
+    assert location.startswith("/catalog/Vessel?hero=set&file=Vessel/vessel-main.iam#file-")
+    assert location.endswith(web.tile_anchor("Vessel/vessel-main.iam"))
+    sidecar = read_sidecar(companion)
+    assert sidecar is not None and sidecar.hero is True
+    assert sidecar.frontmatter["part_number"] == "vessel-main"
+    assert sidecar.frontmatter["material"] == "SUS304"
+    assert sidecar.body == ""
+
+    page = client.get(location.split("#", 1)[0])
+    html = page.get_data(as_text=True)
+    assert page.headers["Cache-Control"] == "no-store"  # the page after a toggle stays live
+    assert '<div class="operation-toast" role="status" data-operation-toast data-hero-toast>Hero set: vessel-main.iam</div>' in html
+    assert f'id="{web.tile_anchor("Vessel/vessel-main.iam")}"' in html
+
+    cleared = post_hero(app, client, "Vessel/vessel-main.iam", False, "Vessel")
+    assert cleared.headers["Location"].startswith("/catalog/Vessel?hero=cleared&")
+    assert read_sidecar(companion).hero is False
+    assert "Hero cleared: vessel-main.iam" in client.get(cleared.headers["Location"]).get_data(as_text=True)
+    assert "hero-block" not in client.get("/catalog/Vessel").get_data(as_text=True)
+
+
+def test_a_folder_leads_with_its_heroes_and_never_repeats_them(tmp_path: Path) -> None:
+    root = make_hero_workspace(tmp_path)
+    app = create_app(root)
+    client = app.test_client()
+    post_hero(app, client, "Vessel/vessel-main.iam", True, "Vessel")
+    post_hero(app, client, "Vessel/flange.ipt", True, "Vessel")
+
+    html = client.get("/catalog/Vessel").get_data(as_text=True)
+    browse = html.split("data-thumb-grid", 1)[1].split("</section>", 1)[0]
+    heroes = browse.split('<div class="hero-block">', 1)[1].split('<div class="folder-grid">', 1)[0]
+    files = browse.split('<div class="file-block">', 1)[1]
+
+    # Main assemblies first, above the folder cards and the files, in path order.
+    assert browse.index("hero-block") < browse.index("folder-grid") < browse.index("file-block")
+    assert '<p class="grid-label"><strong>Main assemblies</strong> · 2</p>' in heroes
+    assert re.findall(r'href="/part/([^"]+)"', heroes) == ["Vessel/flange.ipt", "Vessel/vessel-main.iam"]
+    assert heroes.count('<a class="thumb-tile hero-tile"') == 2
+    assert "hero-folder" not in heroes  # a folder's own heroes need no location line
+    # The files grid holds the rest, and counts only the rest.
+    assert "Vessel/vessel-main.iam" not in files and "Vessel/flange.ipt" not in files
+    assert '<span data-filter-count data-total="1">1</span>' in files
+    assert 'href="/part/Vessel/vessel-main.idw"' in files
+    # The hero mark: its own shape in the legend, and "Main assembly" as the
+    # first fact the inspector copies.
+    tile = heroes.split('href="/part/Vessel/vessel-main.iam"', 1)[1].split("</a>", 1)[0]
+    details = tile.split('<dl class="thumb-details" hidden>', 1)[1]
+    first = details.split("</div>", 1)[0]
+    assert '<i class="signal-mark signal-hero is-bar"></i>' in first and "<dd>Main assembly</dd>" in first
+    assert 'data-hero="1"' in tile or 'data-hero="1"' in heroes
+    legend = html.split('<section class="rail-card signal-legend">', 1)[1].split("</section>", 1)[0]
+    assert '<li><i class="signal-mark signal-hero is-bar"></i>Hero: a main assembly or file you designated</li>' in legend
+    # The inspector carries the one Hero button, beside its heading.
+    inspector = html.split('<section class="rail-card inspector"', 1)[1].split("</section>", 1)[0]
+    assert "<h2>Inspector</h2>" in inspector and "data-inspector-hero hidden" in inspector
+    assert 'name="origin" value="Vessel"' in inspector
+    assert "data-inspector-hero-button>Set hero</button>" in inspector
+
+
+def test_a_folder_holding_only_heroes_still_has_its_inspector(tmp_path: Path) -> None:
+    root = make_hero_workspace(tmp_path)
+    app = create_app(root)
+    client = app.test_client()
+    post_hero(app, client, "Desk/desk.ipt", True, "Desk")
+
+    html = client.get("/catalog/Desk").get_data(as_text=True)
+
+    assert 'class="file-block"' not in html and "No CAD files in this folder." not in html
+    assert "hero-block" in html and "data-inspector" in html
+
+
+def test_the_root_lists_every_hero_with_its_folder_and_omits_the_row_when_none(
+    tmp_path: Path,
+) -> None:
+    root = make_hero_workspace(tmp_path)
+    app = create_app(root)
+    client = app.test_client()
+
+    before = client.get("/catalog").get_data(as_text=True)
+    assert "hero-block" not in before and "Main assemblies" not in before
+
+    post_hero(app, client, "Vessel/Probe/probe-head.iam", True, ".")
+    post_hero(app, client, "Desk/desk.ipt", True, ".")
+    after = client.get("/catalog").get_data(as_text=True)
+    browse = after.split("data-thumb-grid", 1)[1].split("</section>", 1)[0]
+    heroes = browse.split('<div class="hero-block">', 1)[1].split('<div class="folder-grid">', 1)[0]
+
+    assert browse.index("hero-block") < browse.index("folder-grid")
+    assert re.findall(r'href="/part/([^"]+)"', heroes) == ["Desk/desk.ipt", "Vessel/Probe/probe-head.iam"]
+    assert '<span class="hero-folder">Vessel\\Probe</span>' in heroes
+    assert '<span class="hero-folder">Desk</span>' in heroes
+    assert "data-inspector" in after
+
+
+def test_a_folder_strip_opens_with_the_heroes_below_it(tmp_path: Path) -> None:
+    root = make_hero_workspace(tmp_path)
+    app = create_app(root)
+    client = app.test_client()
+    post_hero(app, client, "Vessel/Probe/tip.ipt", True, "Vessel/Probe")
+
+    html = client.get("/catalog").get_data(as_text=True)
+    card = html.split('class="folder-card" href="/catalog/Vessel"', 1)[1].split("</a>", 1)[0]
+    strip = re.findall(r'src="/preview/([^"?]+)\?v=', card)
+
+    assert strip[0] == "Vessel/Probe/tip.ipt"
+    assert strip.count("Vessel/Probe/tip.ipt") == 1
+
+
+def test_folder_strips_put_leading_records_first_without_repeating_them() -> None:
+    record = web.FileRecord
+    records = [
+        record(path, path.rsplit("/", 1)[-1], path.casefold(), "." + path.rsplit(".", 1)[-1], 1, 1, None, "A")
+        for path in ("A/B/one.ipt", "A/B/two.ipt", "A/B/C/main.iam", "A/D/three.ipt")
+    ]
+    hero = records[2]
+
+    strips = web.folder_strips(records, "A", limit=2, leading=(hero,))
+
+    assert [item.path for item in strips["A/B"]] == ["A/B/C/main.iam", "A/B/one.ipt"]
+    assert [item.path for item in strips["A/D"]] == ["A/D/three.ipt"]
+
+
+def test_part_page_sets_and_clears_hero_next_to_the_sidecar(tmp_path: Path) -> None:
+    root = make_hero_workspace(tmp_path)
+    app = create_app(root)
+    client = app.test_client()
+    companion = root / "Vessel" / "flange.ipt.md"
+    companion.write_text(
+        "---\nstatus: draft\n---\n\nThe flange the whole vessel hangs from.\n", encoding="utf-8"
+    )
+
+    page = client.get("/part/Vessel/flange.ipt").get_data(as_text=True)
+    card = page.split('<section class="part-card metadata-card">', 1)[1]
+    assert card.index('class="hero-toggle"') < card.index("Edit raw text")
+    assert '<input type="hidden" name="hero" value="1">' in card and ">Set hero</button>" in card
+
+    response = post_hero(app, client, "Vessel/flange.ipt", True, "part")
+    assert response.headers["Location"] == "/part/Vessel/flange.ipt?hero=set&file=Vessel/flange.ipt"
+    assert companion.read_text(encoding="utf-8") == (
+        "---\nstatus: draft\nhero: true\n---\n\nThe flange the whole vessel hangs from.\n"
+    )
+    marked = client.get(response.headers["Location"]).get_data(as_text=True)
+    assert "Hero set: flange.ipt" in marked
+    assert ">Clear hero</button>" in marked and 'aria-pressed="true"' in marked
+    assert '<i class="signal-mark signal-hero is-bar"></i>Main assembly' in marked
+
+    post_hero(app, client, "Vessel/flange.ipt", False, "part")
+    assert companion.read_text(encoding="utf-8") == (
+        "---\nstatus: draft\n---\n\nThe flange the whole vessel hangs from.\n"
+    )
+
+
+def test_hero_toggle_refuses_a_sidecar_it_cannot_parse(tmp_path: Path) -> None:
+    root = make_hero_workspace(tmp_path)
+    app = create_app(root)
+    client = app.test_client()
+    companion = root / "Vessel" / "flange.ipt.md"
+    companion.write_bytes(b"---\nstatus: shipped\n---\n\nKeep me.\n")
+
+    response = post_hero(app, client, "Vessel/flange.ipt", True, "Vessel")
+
+    assert response.status_code == 400
+    assert "the sidecar was not changed" in response.get_data(as_text=True)
+    assert companion.read_bytes() == b"---\nstatus: shipped\n---\n\nKeep me.\n"
+
+
+def test_hero_lookup_stats_sidecars_and_reads_one_only_when_it_changed(
+    tmp_path: Path, monkeypatch
+) -> None:
+    root = make_hero_workspace(tmp_path)
+    companion = root / "Desk" / "desk.ipt.md"
+    companion.write_text("---\nhero: true\n---\n", encoding="utf-8")
+    app = create_app(root)
+    client = app.test_client()
+    reads: list[str] = []
+    original = web.read_sidecar
+
+    def counting(path):
+        reads.append(Path(path).name)
+        return original(path)
+
+    monkeypatch.setattr(web, "read_sidecar", counting)
+
+    first = client.get("/catalog/Vessel/parts").get_data(as_text=True)
+    second = client.get("/catalog/Vessel/parts").get_data(as_text=True)
+    assert reads.count("desk.ipt.md") == 1  # read once, then known by its stat
+    assert "Main assemblies" not in first + second  # Desk's hero belongs to Desk
+
+    # An edit outside the viewer is seen at the next disk validation.
+    companion.write_text("---\nstatus: draft\n---\n\nNo longer the main one.\n", encoding="utf-8")
+    assert "hero-block" not in client.get("/catalog").get_data(as_text=True)
+    assert reads.count("desk.ipt.md") == 2
+
+
+def test_hero_styles_pin_a_double_width_tile_and_a_distinct_mark(tmp_path: Path) -> None:
+    style = create_app(tmp_path).test_client().get("/static/dedup.css").get_data(as_text=True)
+    script = create_app(tmp_path).test_client().get("/static/dedup.js").get_data(as_text=True)
+
+    hero_rule = style.split(".hero-tile {", 1)[1].split("}", 1)[0]
+    assert "grid-column: span 2;" in hero_rule
+    assert ".hero-tile img { width: 100%; height: auto; margin: 0 auto; aspect-ratio: auto; }" in style
+    name_rule = style.split(".hero-name {", 1)[1].split("}", 1)[0]
+    assert "ellipsis" not in name_rule and "nowrap" not in name_rule  # names wrap
+    hue = style.split("--hero:", 1)[1].split(";", 1)[0].strip()
+    for other in ("--collision:", "--exact:", "--renamed:", "--accent:"):
+        assert style.split(other, 1)[1].split(";", 1)[0].strip() != hue
+    assert ".signal-hero { background: var(--hero); }" in style
+    assert "#d79b4b" != hue  # the "newer file" dot
+    # The inspector's Hero button follows the shown tile; a toggle lands on its tile.
+    assert "heroForm.action = action;" in script
+    assert 'window.location.hash.indexOf("#file-") === 0' in script
+
+
+def test_the_folder_note_rail_renders_the_authored_part_in_a_fixed_budget(tmp_path: Path) -> None:
+    root = make_workspace(tmp_path)
+    (root / "BoronProbe" / "parts" / "README.md").write_text(
+        "# parts\n\nThe **PAEK** bearing stack.\n\n## Servicing\n\n- clean the ceramics\n\n"
+        "## Main Assembly\n\n- **`bearing.iam`** — selected from the assemblies below\n\n"
+        "## Assemblies (`.iam`)\n\n- `bearing.iam`\n\n"
+        "> Generated CAD inventory — 2026-08-06. To document purpose or status, edit this file.\n\n"
+        "## Parts (`.ipt`)\n\n- `bearing.ipt`\n",
+        encoding="utf-8",
+    )
+    (root / "Plasma Vessel" / "parts" / "README.md").write_text(
+        "<!-- This file was generated by scripts/generate_readmes.py -->\n\n# parts\n\n"
+        "> Generated CAD inventory — 2026-08-06.\n\n## Parts (`.ipt`)\n\n- `bearing.ipt`\n",
+        encoding="utf-8",
+    )
+    client = create_app(root).test_client()
+
+    authored = client.get("/catalog/BoronProbe/parts").get_data(as_text=True)
+    generated = client.get("/catalog/Plasma%20Vessel/parts").get_data(as_text=True)
+    missing = client.get("/catalog/BoronProbe_2026/parts").get_data(as_text=True)
+
+    rail = authored.split("data-note-rail-body>", 1)[1].split("</div>", 1)[0]
+    assert rail.startswith("<p>The <strong>PAEK</strong> bearing stack.</p>")
+    assert "<h2>Servicing</h2>" in rail and "clean the ceramics" in rail
+    assert "Main Assembly" not in rail and "Generated CAD inventory" not in rail
+    assert "<h1>" not in rail  # the rail already names the folder
+    for page in (generated, missing):
+        note = page.split('<div class="note-rail" data-note-rail>', 1)[1].split("</div>", 1)[0]
+        assert '<p class="note-rail-empty">No note yet</p>' in note
+        assert 'data-note-view="editor"' in note and ">Write one</button>" in note
+
+    # One fixed budget: the Note card never grows, so the inspector below it
+    # sits at the same place whatever the note's length.
+    style = client.get("/static/dedup.css").get_data(as_text=True)
+    budget = style.split(".note-rail {", 1)[1].split("}", 1)[0]
+    # 11rem on any desktop window taller than ~850px; one budget for every folder.
+    assert "height: clamp(5rem, calc(100vh - 42rem), 11rem);" in budget
+    assert "max-height" not in budget
+    body_rule = style.split(".note-rail-body {", 1)[1].split("}", 1)[0]
+    assert "overflow: hidden;" in body_rule and "min-height: 0;" in body_rule
+
+    def skeleton(html: str) -> list[str]:
+        context = html.split('<aside class="rail-side rail-context"', 1)[1].split("</aside>", 1)[0]
+        context = re.sub(r"<div class=\"note-rail\" data-note-rail>.*?</button>\s*</div>", "NOTE", context, flags=re.S)
+        return re.findall(r'class="([^"]+)"', context)
+
+    assert skeleton(authored) == skeleton(generated) == skeleton(missing)
+
+
+def test_the_folder_note_modal_opens_as_a_reader_with_the_editor_behind_edit(
+    tmp_path: Path,
+) -> None:
+    app = create_app(make_workspace(tmp_path))
+    client = app.test_client()
+    (tmp_path / "BoronProbe" / "parts" / "README.md").write_text(
+        "# parts\n\nPAEK bearing stack.\n", encoding="utf-8"
+    )
+
+    html = client.get("/catalog/BoronProbe/parts").get_data(as_text=True)
+    dialog = html.split('<dialog class="note-dialog"', 1)[1].split("</dialog>", 1)[0]
+    script = client.get("/static/dedup.js").get_data(as_text=True)
+
+    assert 'data-note-view="reader"' in dialog.split(">", 1)[0]
+    reader = dialog.split('<section class="note-reader"', 1)[1].split("</section>", 1)[0]
+    assert "data-note-reader>" in reader and "<p>PAEK bearing stack.</p>" in reader
+    assert '<div class="note-dialog-grid" data-note-editor hidden>' in dialog
+    assert 'id="catalog-folder-note-text"' in dialog  # present, only hidden
+    tools = dialog.split('<div class="note-dialog-tools">', 1)[1].split("</div>", 1)[0]
+    assert tools.index("data-note-edit") < tools.index("dialog-close-x")
+    assert 'aria-pressed="false">Edit</button>' in tools
+    assert "setView(dialog, opener.dataset.noteView)" in script
+
+    saved = client.post(
+        "/folder/BoronProbe/parts/note",
+        data={"token": app.config["FORM_TOKEN"], "origin": "catalog", "text": "# parts\n\nSaved.\n"},
+    )
+    reopened = client.get(saved.headers["Location"]).get_data(as_text=True)
+    assert 'data-auto-open data-note-view="reader"' in reopened  # lands in the reader
+    refused = client.post(
+        "/folder/BoronProbe/parts/note",
+        data={"token": app.config["FORM_TOKEN"], "origin": "catalog", "text": "  \n"},
+    ).get_data(as_text=True)
+    assert 'data-auto-open data-note-view="editor"' in refused  # an error stays in the editor
+    assert '<div class="note-dialog-grid" data-note-editor>' in refused

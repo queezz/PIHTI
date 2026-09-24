@@ -6,6 +6,20 @@ remains authoritative for exact file changes.
 
 ## 2026-09-24
 
+- Shipped `pihti-dedup` 0.17.0: main assemblies. Any file can be marked a
+  hero with one click, either with **Set hero** in the catalog inspector or on
+  its part page. The mark is `hero: true` in the file's metadata sidecar. A
+  missing sidecar is created from iProperties, and an existing one changes by
+  that one line. A folder's heroes lead its page as a **Main assemblies** row
+  of double-width tiles, and they are not repeated among its files. The catalog
+  root lists every hero in the archive with its folder. Folder-card strips
+  start with the heroes below them. A gold bar on the tile's left edge marks a
+  hero, and the legend explains it. The folder note in the left rail now shows
+  its authored part as rendered Markdown in a fixed space, so the inspector
+  below it stays in the same place on every folder. A longer note fades out and
+  opens in a reader, with **Edit** for the editor. The top bar no longer shows
+  a count of recoverable files; the Removed page's History rail holds that
+  count.
 - Shipped `pihti-dedup` 0.16.0: a helper moves standard fasteners into
   `ContentCenter/Fastners`. Doctor has a fourth card, **Standard parts**, with
   the candidate count. Its page lists every `.ipt` outside the library that has

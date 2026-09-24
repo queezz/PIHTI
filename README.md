@@ -294,12 +294,25 @@ another name, and a dot for a generic name or a newer same-named file elsewhere.
 A tile's tooltip and the inspector state each mark in words; the left rail lists
 the marks present on the page.
 
-The folder note sits behind the **Note** button in the left rail, with its
-one-line summary beneath. The button opens a modal that puts the rendered
-Markdown beside the raw editor; save returns to the same folder and reopens the
-modal with feedback. Close it with ×, **Close**, Escape, or the backdrop. The
-optional full-page editor has breadcrumb navigation and prominent rail cards
-back to the current folder, its parent, and the Catalog root.
+The folder note shows in the left rail as rendered Markdown. Only the part
+you wrote is shown, not the generated inventory lists, and it sits in the same
+fixed space on every folder. A longer note fades out. **Read the whole note**
+opens the note in a reader, and **Edit** beside the × switches to the raw
+editor with a live preview. Save returns to the same folder and reopens the
+reader with feedback. Close it with ×, **Close**, Escape, or the backdrop. A
+folder without a note shows **Write one**, which opens the editor directly.
+The optional full-page editor has breadcrumb navigation and prominent rail
+cards back to the current folder, its parent, and the Catalog root.
+
+Mark a folder's main assembly with **Set hero**. The button is in the left-rail
+inspector for the file shown there, and on the part page above the sidecar.
+One click writes `hero: true` into the file's metadata sidecar and creates the
+sidecar from iProperties if needed. **Clear hero** removes that one line again.
+A folder can have several heroes, and any CAD file can be one. Heroes lead
+their folder as a **Main assemblies** row of double-width tiles and are not
+repeated among the files below. The catalog root lists every hero in the
+archive with its folder, and folder cards show their heroes first in the
+preview strip. A gold bar on a tile's left edge marks a hero.
 
 For useful browse cards, put a one-sentence folder summary directly below the
 note's `# Title`. The Catalog extracts that first prose line and shows it on the
@@ -334,7 +347,7 @@ disagreeing is worth seeing.
 Free-form notes live in a **metadata sidecar**: a Markdown file named after the
 whole CAD filename, so `B_probe_bearing.ipt` gets `B_probe_bearing.ipt.md` next
 to it. It holds YAML frontmatter (`part_number`, `material`, `status`, `tags`,
-`supersedes`, `seeded_from_iproperties`) followed by free prose. The part page
+`supersedes`, `seeded_from_iproperties`, `hero`) followed by free prose. The part page
 creates one seeded from iProperties, or edits the raw file in a textarea; the
 server refuses to write frontmatter it cannot parse. Sidecars are never
 committed for you — they appear as untracked or modified files in your own Git

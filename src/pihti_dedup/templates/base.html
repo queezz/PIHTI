@@ -22,7 +22,6 @@
       <a href="{{ url_for('removed') }}" {% if request.endpoint == 'removed' %}class="is-current" aria-current="page"{% endif %}>Removed</a>
     </nav>
     <div class="topbar-meta">
-      <a class="local-tool" href="{{ url_for('removed') }}"><span aria-hidden="true">●</span>{% if recoverable_files %}{{ recoverable_files }} recoverable file{% if recoverable_files != 1 %}s{% endif %}{% else %}quarantine empty{% endif %}</a>
       <span class="version">v{{ version }}</span>
     </div>
   </header>

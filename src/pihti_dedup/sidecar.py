@@ -13,12 +13,13 @@ status: draft
 tags: [boron-probe, bearing]
 supersedes: BoronProbe/parts/B_probe_bearing.ipt
 seeded_from_iproperties: 2026-08-05
+hero: true
 ---
 
 Why this part exists, what it mates with, what is still unverified.
 ```
 
-Frontmatter schema — deliberately six keys, all optional:
+Frontmatter schema — deliberately seven keys, all optional:
 
 - `part_number` — Inventor Part Number as seeded, kept so a later drift is visible
 - `material` — Inventor Material as seeded
@@ -26,6 +27,8 @@ Frontmatter schema — deliberately six keys, all optional:
 - `tags` — list of short strings
 - `supersedes` — workspace-relative path of the file this one replaces, or empty
 - `seeded_from_iproperties` — date the sidecar was generated
+- `hero` — `true` when the owner designated this file a main assembly (or main
+  file); absent otherwise
 
 Sidecars are written next to the CAD file and never committed automatically;
 they surface as untracked or modified files for the owner's own Git flow.
@@ -34,6 +37,7 @@ they surface as untracked or modified files for the owner's own Git flow.
 from __future__ import annotations
 
 import datetime
+import re
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -48,7 +52,9 @@ FRONTMATTER_FIELDS = (
     "tags",
     "supersedes",
     "seeded_from_iproperties",
+    "hero",
 )
+HERO_KEY = "hero"
 STATUS_VALUES = ("concept", "draft", "manufactured", "obsolete")
 
 
@@ -71,6 +77,10 @@ class Sidecar:
         if isinstance(values, (list, tuple)):
             return tuple(str(value) for value in values)
         return ()
+
+    @property
+    def hero(self) -> bool:
+        return self.frontmatter.get(HERO_KEY) is True
 
 
 def sidecar_path(cad_path: Path | str) -> Path:
@@ -125,6 +135,9 @@ def validate_frontmatter(frontmatter: dict) -> dict:
     supersedes = frontmatter.get("supersedes")
     if supersedes not in (None, "") and not isinstance(supersedes, str):
         raise SidecarError("supersedes must be a workspace-relative path")
+    hero = frontmatter.get(HERO_KEY)
+    if hero not in (None, "") and not isinstance(hero, bool):
+        raise SidecarError("hero must be true or false")
     return frontmatter
 
 
@@ -141,7 +154,10 @@ def format_sidecar(frontmatter: dict, body: str = "") -> str:
 
 
 def seed_frontmatter(
-    fields: dict[str, object], *, seeded_on: datetime.date | None = None
+    fields: dict[str, object],
+    *,
+    seeded_on: datetime.date | None = None,
+    hero: bool = False,
 ) -> dict[str, object]:
     """Build frontmatter from extracted iProperties, leaving judgement blank."""
 
@@ -149,7 +165,7 @@ def seed_frontmatter(
         value = fields.get(name)
         return str(value).strip() if isinstance(value, str) else ""
 
-    return {
+    seeded: dict[str, object] = {
         "part_number": text("part_number"),
         "material": text("material"),
         "status": "",
@@ -157,12 +173,67 @@ def seed_frontmatter(
         "supersedes": "",
         "seeded_from_iproperties": seeded_on or datetime.date.today(),
     }
+    if hero:
+        seeded[HERO_KEY] = True
+    return seeded
 
 
-def seed_text(fields: dict[str, object], *, seeded_on: datetime.date | None = None) -> str:
+def seed_text(
+    fields: dict[str, object],
+    *,
+    seeded_on: datetime.date | None = None,
+    hero: bool = False,
+) -> str:
     """Seed text for a new sidecar: iProperties in frontmatter, empty prose."""
 
-    return format_sidecar(seed_frontmatter(fields, seeded_on=seeded_on))
+    return format_sidecar(seed_frontmatter(fields, seeded_on=seeded_on, hero=hero))
+
+
+_HERO_LINE = re.compile(r"hero[ \t]*:")
+
+
+def with_hero(text: str, hero: bool) -> str:
+    """Return sidecar text with only the `hero` key set to true or removed.
+
+    The text is parsed first, so frontmatter this tool cannot read is refused
+    rather than rewritten. The edit is one frontmatter line: `hero: true` goes
+    in before the closing fence, or an existing top-level `hero:` line (with
+    any indented continuation) comes out. Every other byte is kept: the other
+    keys and their formatting, the line endings, and the prose. Should that
+    one-line edit ever not yield exactly the intended frontmatter, the
+    frontmatter alone is re-serialised; the prose is still left untouched.
+    """
+
+    current = parse_sidecar(text)
+    if current.hero == hero and (hero or HERO_KEY not in current.frontmatter):
+        return text
+    wanted = {key: value for key, value in current.frontmatter.items() if key != HERO_KEY}
+    if hero:
+        wanted[HERO_KEY] = True
+
+    bom = "\ufeff" if text.startswith("\ufeff") else ""
+    lines = text[len(bom) :].splitlines(keepends=True)
+    newline = "\r\n" if lines[0].endswith("\r\n") else "\n"
+    closing = next(index for index in range(1, len(lines)) if lines[index].strip() == FENCE)
+    kept: list[str] = []
+    skipping = False
+    for line in lines[1:closing]:
+        if skipping and line[:1] in (" ", "\t"):
+            continue
+        skipping = bool(_HERO_LINE.match(line))
+        if not skipping:
+            kept.append(line)
+    if hero:
+        kept.append(f"{HERO_KEY}: true{newline}")
+    edited = bom + "".join([lines[0], *kept, *lines[closing:]])
+    try:
+        if parse_sidecar(edited).frontmatter == wanted:
+            return edited
+    except SidecarError:
+        pass
+    rest = "".join(lines[closing + 1 :])
+    dumped = format_sidecar(wanted).rstrip("\n").replace("\n", newline)
+    return f"{bom}{dumped}{newline}{rest}"
 
 
 def read_sidecar(path: Path | str) -> Sidecar | None:
@@ -174,11 +245,46 @@ def read_sidecar(path: Path | str) -> Sidecar | None:
     return parse_sidecar(target.read_text(encoding="utf-8"))
 
 
-def write_sidecar(path: Path | str, text: str) -> Sidecar:
-    """Validate sidecar text, then write it. Invalid text never reaches disk."""
+def write_sidecar(path: Path | str, text: str, *, exact: bool = False) -> Sidecar:
+    """Validate sidecar text, then write it. Invalid text never reaches disk.
+
+    `exact=True` writes the text as given, without adding a final newline, so
+    a one-key edit leaves every other byte of an existing sidecar alone.
+    """
 
     parsed = parse_sidecar(text)
     target = Path(path)
     target.parent.mkdir(parents=True, exist_ok=True)
-    target.write_text(text if text.endswith("\n") else text + "\n", encoding="utf-8", newline="\n")
+    if not exact and not text.endswith("\n"):
+        text += "\n"
+    target.write_text(text, encoding="utf-8", newline="")
     return parsed
+
+
+def set_hero(
+    path: Path | str,
+    hero: bool,
+    fields: dict[str, object],
+    *,
+    seeded_on: datetime.date | None = None,
+) -> bool:
+    """Set or clear `hero` in the sidecar at `path`; return whether it wrote.
+
+    A missing sidecar is created only to set the flag, seeded from iProperties
+    exactly as a new sidecar is. Clearing the flag of a file with no sidecar
+    writes nothing. An existing sidecar that does not parse is refused.
+    """
+
+    target = Path(path)
+    if not target.is_file():
+        if not hero:
+            return False
+        write_sidecar(target, seed_text(fields, seeded_on=seeded_on, hero=True))
+        return True
+    with target.open(encoding="utf-8", newline="") as handle:
+        original = handle.read()
+    edited = with_hero(original, hero)
+    if edited == original:
+        return False
+    write_sidecar(target, edited, exact=True)
+    return True

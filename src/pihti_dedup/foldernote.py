@@ -31,6 +31,14 @@ EXCERPT_LENGTH = 150
 
 # Lines that are structure rather than prose, so never the note's first sentence.
 _SKIP_PREFIXES = ("#", ">", "-", "*", "|", "```", "<!--", "_No ")
+# Where `scripts/generate_readmes.py`'s inventory begins inside a note.
+_GENERATED_STARTS = (
+    "## Main Assembly",
+    "## Assemblies",
+    "## Parts",
+    "> Generated CAD inventory",
+    "> Auto-generated",
+)
 
 
 class FolderNoteError(ValueError):
@@ -107,6 +115,27 @@ def note_excerpt(text: str, limit: int = EXCERPT_LENGTH) -> str:
             continue
         return prose if len(prose) <= limit else prose[: limit - 1].rstrip() + "…"
     return ""
+
+
+def authored_part(text: str) -> str:
+    """The part of a folder note a person wrote, for the catalog's rail card.
+
+    The generator's inventory (`## Main Assembly`, `## Assemblies`, `## Parts`,
+    and its `> Generated CAD inventory` notice) is cut off, however much prose
+    an author added above it, and so is the leading `# Title`: the rail already
+    names the folder. A generated-only note therefore yields ''.
+    """
+
+    kept: list[str] = []
+    for line in strip_autogen_marker(text).splitlines():
+        if line.strip().startswith(_GENERATED_STARTS):
+            break
+        kept.append(line)
+    while kept and not kept[0].strip():
+        kept.pop(0)
+    if kept and kept[0].startswith("# "):
+        kept.pop(0)
+    return "\n".join(kept).strip()
 
 
 def read_folder_note(folder: Path | str) -> FolderNote | None:
