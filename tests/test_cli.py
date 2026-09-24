@@ -7,6 +7,7 @@ import pytest
 import pihti_dedup.cli as cli
 import pihti_dedup.web as web
 from pihti_dedup import geometry_preview
+from pihti_dedup.cache_root import cache_root
 from pihti_dedup.foldernote import AUTOGEN_MARKER
 from pihti_dedup.git_history import PullRequestMerge
 from pihti_dedup.legacy import main as legacy_main
@@ -102,7 +103,10 @@ def test_serve_opens_the_catalog_as_the_landing_view(monkeypatch, tmp_path: Path
         {"host": "127.0.0.1", "port": 4185, "threaded": True, "use_reloader": False}
     ]
     assert options == [{"refresh_seconds": 5.0}]
-    assert "PIHTI CAD viewer: http://127.0.0.1:4185/catalog" in capsys.readouterr().out
+    out = capsys.readouterr().out
+    assert "PIHTI CAD viewer: http://127.0.0.1:4185/catalog" in out
+    assert f"preview and mesh cache: {cache_root(tmp_path)}" in out  # logged once at start
+    assert out.count("preview and mesh cache:") == 1
 
 
 def test_legacy_cli_retains_old_summary_and_group_keys(tmp_path: Path, capsys) -> None:
@@ -188,7 +192,9 @@ def test_warm_previews_builds_the_disk_cache_and_reports_counts(tmp_path: Path, 
     payload = json.loads(report.read_text(encoding="utf-8"))
     assert payload["rendered"] == 1
     assert payload["failures"] == []
-    assert len(list((tmp_path / ".pihti-dedup" / "previews").rglob("*.png"))) == 1
+    assert f"cache root: {cache_root(tmp_path)}" in out
+    assert len(list((cache_root(tmp_path) / "previews").rglob("*.png"))) == 1
+    assert not (tmp_path / ".pihti-dedup" / "previews").exists()
 
     assert cli.main(["warm-previews", str(tmp_path), "--quiet"]) == 0
     second = capsys.readouterr().out
@@ -216,7 +222,9 @@ def test_warm_previews_with_meshes_builds_the_inspector_meshes_once(
     assert payload["rendered"] == 1
     assert payload["meshes"]["rendered"] == 1
     assert payload["meshes"]["failures"] == []
-    assert len(list((tmp_path / ".pihti-dedup" / "meshes").rglob("*.mesh"))) == 1
+    assert f"mesh cache: {cache_root(tmp_path) / 'meshes'}" in out
+    assert len(list((cache_root(tmp_path) / "meshes").rglob("*.mesh"))) == 1
+    assert not (tmp_path / ".pihti-dedup" / "meshes").exists()
 
     assert cli.main(["warm-previews", str(tmp_path), "--meshes", "--quiet"]) == 0
     assert "meshes: considered 1 · built 0 · already cached 1" in capsys.readouterr().out
@@ -224,6 +232,21 @@ def test_warm_previews_with_meshes_builds_the_inspector_meshes_once(
     # Without the flag no mesh pass runs.
     assert cli.main(["warm-previews", str(tmp_path), "--quiet"]) == 0
     assert "meshes:" not in capsys.readouterr().out
+
+
+def test_warm_previews_and_serve_refuse_a_virtualized_cache_root(
+    monkeypatch, tmp_path: Path, capsys
+) -> None:
+    (tmp_path / "PIHTI.ipj").write_bytes(b"")
+    packaged = tmp_path / "AppData" / "Local" / "Packages" / "App_1" / "LocalCache" / "Local"
+    monkeypatch.setenv("PIHTI_DEDUP_CACHE_ROOT", str(packaged))
+    monkeypatch.setattr(cli.threading, "Timer", lambda *_args: pytest.fail("no browser"))
+
+    assert cli.main(["warm-previews", str(tmp_path), "--quiet"]) == 2
+    assert cli.main(["serve", str(tmp_path), "--open"]) == 2
+    err = capsys.readouterr().err
+    assert err.count(f"refusing the cache root {packaged.resolve()}") == 2
+    assert not packaged.exists()
 
 
 def test_warm_previews_reports_a_file_it_could_not_draw(tmp_path: Path, capsys) -> None:

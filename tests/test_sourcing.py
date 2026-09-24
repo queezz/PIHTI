@@ -375,7 +375,7 @@ def test_the_folder_card_has_one_sourcing_line_in_both_states(tmp_path: Path) ->
     rule = style.split(".sourcing-rail {", 1)[1].split("}", 1)[0]
     assert "height: 1.25rem;" in rule and "white-space: nowrap;" in rule and "overflow: hidden;" in rule
     assert (
-        ".rail-context > .catalog-context { height: calc(10.5rem + clamp(5rem, calc(100vh - 42rem), 11rem));"
+        ".rail-context > .catalog-context { height: calc(10.5rem + clamp(4rem, calc(100vh - 46rem), 8rem));"
     ) in style
 
 

@@ -19,6 +19,9 @@ session evidence in `log/`.
   "vendor import, leave alone" disposition, instead of 49 single renames.
   Prepare short role-based name suggestions per bundle for the owner to
   confirm (owner, 2026-09-24: "shorter meaningful names are better").
+- **Git-history previews still cache inside the workspace**
+  (`.pihti-dedup/git-previews/`). 0.23.1 moved previews and meshes to the
+  machine-local cache root; move this one the same way.
 - Laptop and phone layouts are deferred by owner decision 2026-09-24: the
   viewer targets a desktop window beside Inventor (about 1400–2560px wide),
   with one safety fold below 1200px.

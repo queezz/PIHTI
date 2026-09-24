@@ -6,6 +6,20 @@ remains authoritative for exact file changes.
 
 ## 2026-09-24
 
+- Shipped `pihti-dedup` 0.23.1: the inspector's preview gets real room. The
+  Legend is one compact row of its nine badges, wrapping to two rows, each
+  badge's meaning in its tooltip; the folder note's budget in the left rail is
+  now `clamp(4rem, calc(100vh - 46rem), 8rem)`; the inspector keeps a preview
+  area at least 240 px tall on any window 800 px tall or more, which the 3D
+  view fills, with the file's facts scrolling below it. At 1920 wide the 3D
+  view is 383×240 at 900 px tall (none before), 383×331 at 1000 px (383×127
+  before), and 383×143 at 700 px. Previews and meshes move out of the
+  workspace and out of Dropbox to a machine-local cache root,
+  `%LOCALAPPDATA%\pihti-dedup\<workspace-id>\` (`~/.cache/pihti-dedup/...`
+  elsewhere, `PIHTI_DEDUP_CACHE_ROOT` to override); a root that resolves into
+  a packaged app's private AppData tree is refused. `warm-previews` and the
+  viewer print the root they use. The old `.pihti-dedup/previews/` is no
+  longer read and can be deleted.
 - Shipped `pihti-dedup` 0.23.0: an STL, 3MF, or STEP file turns in 3D. In the
   catalog inspector and on the part page its still preview gives way to a
   WebGL view on Inventor's light-blue backdrop, in the same isometric home

@@ -21,9 +21,10 @@ Three rules the rest of the code depends on:
    install can draw.
 3. **Rendering is disk-cached.** A STEP file costs seconds — median 1.05 s and
    up to 6.99 s measured on this workspace — so a catalog visit must never pay
-   for it twice. The cache lives under the gitignored `.pihti-dedup/previews/`,
-   sharded by the first two hex characters of the key, written temp-then-replace
-   so a concurrent reader never sees a half-written PNG.
+   for it twice. The cache lives in `previews/` under the machine-local
+   `cache_root.cache_root(workspace)`, outside the workspace and outside
+   Dropbox, sharded by the first two hex characters of the key, written
+   temp-then-replace so a concurrent reader never sees a half-written PNG.
 
 Only misses are recomputed: the cache stores successes only. A negative entry
 would outlive the reason for it — installing the `step` extra would not
@@ -45,6 +46,7 @@ from functools import lru_cache
 from importlib.util import find_spec
 from pathlib import Path
 
+from pihti_dedup.cache_root import cache_root
 from pihti_dedup.inventor_meta import INVENTOR_EXTENSIONS, Preview
 
 log = logging.getLogger(__name__)
@@ -65,7 +67,6 @@ DRAWING_EXTENSIONS = frozenset({".dwg"})
 GEOMETRY_EXTENSIONS = MESH_EXTENSIONS | TRIMESH_EXTENSIONS | STEP_EXTENSIONS | DRAWING_EXTENSIONS
 
 CACHE_DIRNAME = "previews"
-CACHE_ROOT = ".pihti-dedup"
 
 
 @dataclass(frozen=True)
@@ -159,9 +160,12 @@ def preview_source(suffix: str) -> str:
 
 
 def preview_store(workspace: Path | str) -> Path:
-    """The gitignored directory holding cached preview PNGs."""
+    """The machine-local directory holding cached preview PNGs.
 
-    return Path(workspace) / CACHE_ROOT / CACHE_DIRNAME
+    Raises `cache_root.CacheRootError` when the cache root is refused.
+    """
+
+    return cache_root(workspace) / CACHE_DIRNAME
 
 
 def cache_key(path: Path, mtime_ns: int, st_size: int, size: int = PREVIEW_SIZE) -> str:

@@ -22,6 +22,7 @@ from flask import Flask, Response, jsonify, redirect, render_template, request, 
 from markupsafe import escape
 
 from pihti_dedup import __version__, geometry_preview, inventor_session, mesh_cache
+from pihti_dedup.cache_root import cache_root
 from pihti_dedup.cleanup import (
     execute_cleanup,
     execute_consolidation,
@@ -1092,8 +1093,17 @@ def create_app(
     """
 
     root = Path(workspace or Path.cwd()).resolve()
+    # Previews and meshes live machine-local, outside the workspace and
+    # Dropbox; a refused root (a virtualized AppData tree) stops the start.
+    machine_cache = cache_root(root)
+    logger.info("preview and mesh cache: %s", machine_cache)
     app = Flask(__name__)
-    app.config.update(WORKSPACE=root, VERSION=__version__, FORM_TOKEN=secrets.token_urlsafe(32))
+    app.config.update(
+        WORKSPACE=root,
+        CACHE_ROOT=machine_cache,
+        VERSION=__version__,
+        FORM_TOKEN=secrets.token_urlsafe(32),
+    )
     cache = InventoryCache(root, scanner, max_age=max(refresh_seconds, 0.0))
     previews = PreviewCache(root)
     references = ReferenceCache()

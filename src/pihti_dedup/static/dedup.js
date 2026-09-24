@@ -879,6 +879,7 @@
       if (error.reason) {
         meshNote.textContent = "Still image: " + error.reason + ".";
         meshNote.hidden = false;
+        fitImage();  // the note takes its line from the card, never the toggles'
       }
     });
   }
@@ -936,27 +937,41 @@
   });
 
   // The inspector fills the fixed space between the folder card and the
-  // legend, so the preview takes only the room the card has left above the
-  // title, a couple of fact lines, and the toggles at its foot; a short
-  // window never pushes the shown file out of the rail.
-  var FACT_ROOM = 88;  // the title and two fact rows (a badge row is about 28px)
+  // legend. Its preview area comes first: PREVIEW_FLOOR tall whenever the
+  // card has that much room above the title and the toggles (every window
+  // 800px tall or more), then two fact rows, then any room left grows the
+  // preview up to a square. The fact list takes what remains and scrolls
+  // inside itself; the area keeps one height for every file whose name fits
+  // one line, and gives a wrapped name only the lines it needs.
+  var PREVIEW_FLOOR = 240;
+  var FACT_ROOM = 48;  // two fact rows (a badge row is about 24px)
   var PREVIEW_MIN = 32;  // below this a short window shows no preview at all
   var PREVIEW_MAX = 384;
+  function outerHeight(element) {
+    if (!element || element.hidden) return 0;
+    var style = window.getComputedStyle(element);
+    return element.offsetHeight + (parseFloat(style.marginTop) || 0) + (parseFloat(style.marginBottom) || 0);
+  }
   function fitImage() {
     if (body.hidden || !inspector.offsetParent) return;
     var padding = parseFloat(window.getComputedStyle(inspector).paddingBottom) || 0;
     var limit = inspector.getBoundingClientRect().bottom - padding;
-    var flags = flagBox ? flagBox.offsetHeight : 0;
+    // The flags' own top margin is `auto`, so only their box counts.
+    var below = outerHeight(meshNote) + outerHeight(title) + (flagBox ? flagBox.offsetHeight : 0);
     var preview = image.parentElement;
     preview.hidden = false;
-    var room = limit - preview.getBoundingClientRect().top - FACT_ROOM - flags;
-    preview.hidden = room < PREVIEW_MIN;
-    var limitHeight = Math.max(PREVIEW_MIN, Math.min(PREVIEW_MAX, Math.floor(room)));
-    image.style.maxHeight = limitHeight + "px";
-    // The 3D view takes the still image's box: the card's width, square like
-    // the rendered previews, within the same height budget.
+    var room = Math.floor(limit - preview.getBoundingClientRect().top - below);
+    var square = preview.clientWidth || PREVIEW_MAX;
+    var height = room - FACT_ROOM >= PREVIEW_FLOOR
+      ? Math.min(PREVIEW_MAX, square, room - FACT_ROOM)
+      : Math.min(PREVIEW_FLOOR, room);
+    preview.hidden = height < PREVIEW_MIN;
+    height = Math.max(PREVIEW_MIN, height);
+    preview.style.height = height + "px";
+    image.style.maxHeight = height + "px";
+    // The 3D view fills the preview area: the card's width, the area's height.
     if (viewer && canvas && !canvas.hidden && !preview.hidden) {
-      viewer.resize(preview.clientWidth, Math.min(preview.clientWidth, limitHeight));
+      viewer.resize(preview.clientWidth, height);
     }
     // A window made tall enough to show the preview fetches the waiting mesh.
     if (!preview.hidden && meshWanted && !meshStarted && !meshTimer && V3 && V3.supported()) {

@@ -12,6 +12,7 @@ from pathlib import Path
 from typing import Sequence
 
 from pihti_dedup import __version__, inventor_session
+from pihti_dedup.cache_root import CacheRootError, cache_root
 from pihti_dedup.cleanup import execute_cleanup, plan_merge_exact_cleanup
 from pihti_dedup.git_history import recent_pull_request_merges
 from pihti_dedup.inventor_meta import INVENTOR_EXTENSIONS, read_document
@@ -342,7 +343,8 @@ def _warm_previews(workspace: Path, *, include_vendor: bool, quiet: bool) -> dic
         return geometry_preview.WarmResult().to_dict()
     if missing:
         print(f"note: the '{missing}' extra is absent, so some formats are skipped")
-    print(f"cache: {_windows_path(str(geometry_preview.preview_store(workspace)))}")
+    print(f"cache root: {cache_root(workspace)}")
+    print(f"preview cache: {geometry_preview.preview_store(workspace)}")
 
     def report(index: int, total: int, path: str, state: str, seconds: float) -> None:
         print(f"[{index:>4}/{total}] {state:<8} {seconds:5.2f}s  {_windows_path(path)}", flush=True)
@@ -367,7 +369,7 @@ def _warm_meshes(workspace: Path, *, include_vendor: bool, quiet: bool) -> dict:
 
     from pihti_dedup import mesh_cache
 
-    print(f"mesh cache: {_windows_path(str(mesh_cache.mesh_store(workspace)))}")
+    print(f"mesh cache: {mesh_cache.mesh_store(workspace)}")
 
     def report(index: int, total: int, path: str, state: str, seconds: float) -> None:
         print(f"[{index:>4}/{total}] {state:<9} {seconds:5.2f}s  {_windows_path(path)}", flush=True)
@@ -536,6 +538,11 @@ def main(argv: Sequence[str] | None = None) -> int:
         return 0
 
     if args.command == "warm-previews":
+        try:
+            cache_root(workspace)
+        except CacheRootError as exc:
+            print(f"error: {exc}", file=sys.stderr)
+            return 2
         payload = _warm_previews(
             workspace, include_vendor=args.include_vendor, quiet=args.quiet
         )
@@ -632,10 +639,14 @@ def main(argv: Sequence[str] | None = None) -> int:
     from pihti_dedup.web import create_app
 
     url = f"http://{args.host}:{args.port}/catalog"
+    try:
+        app = create_app(workspace, refresh_seconds=max(args.refresh_seconds, 0.0))
+    except CacheRootError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 2
     if args.open:
         threading.Timer(0.7, lambda: webbrowser.open(url)).start()
     print(f"PIHTI CAD viewer: {url}")
-    create_app(workspace, refresh_seconds=max(args.refresh_seconds, 0.0)).run(
-        host=args.host, port=args.port, threaded=True, use_reloader=False
-    )
+    print(f"preview and mesh cache: {cache_root(workspace)}")
+    app.run(host=args.host, port=args.port, threaded=True, use_reloader=False)
     return 0

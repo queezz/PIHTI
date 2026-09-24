@@ -16,12 +16,13 @@
 {% macro tile_attributes(item) %}{% set record = item.record %}{% set mesh = mesh_url(record) %} id="{{ item.anchor }}" href="{{ url_for('part_page', relative_path=record.path) }}"{% if mesh %} data-mesh="{{ mesh }}"{% endif %} data-hero="{{ '1' if item.hero else '0' }}" data-featured="{{ '1' if item.featured else '0' }}" title="{{ record.path|winpath }}{% for mark in item.signals %}&#10;{{ mark.text }}{% endfor %}"{% endmacro %}
 
 {# The one legend, the last card of the left rail on every catalog and part
-   page: every mark, always in the same order, so it never changes size. #}
+   page: every mark, always in the same order, so it never changes size. The
+   badges are the words; each meaning is the badge's tooltip. #}
 {% macro legend_card(rows) %}
 <section class="rail-card signal-legend" aria-label="Legend">
   <h2>Legend</h2>
   <ul>
-    {% for kind, word, text in rows %}<li>{{ badge(kind, word, text) }}<span>{{ text }}</span></li>{% endfor %}
+    {% for kind, word, text in rows %}<li>{{ badge(kind, word, text) }}</li>{% endfor %}
   </ul>
 </section>
 {% endmacro %}

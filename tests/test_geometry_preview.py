@@ -4,6 +4,7 @@ from pathlib import Path
 import pytest
 
 from pihti_dedup import geometry_preview
+from pihti_dedup.cache_root import cache_root
 from pihti_dedup.inventor_meta import INVENTOR_EXTENSIONS, Preview
 
 GOOD = [(0.0, 0.0, 0.0), (10.0, 0.0, 0.0), (0.0, 10.0, 0.0), (0.0, 0.0, 10.0)]
@@ -66,11 +67,12 @@ def test_the_renderer_version_supersedes_every_stored_key(monkeypatch, tmp_path:
     assert geometry_preview.cache_key(path, 111, 222) != before
 
 
-def test_the_cache_is_sharded_under_the_gitignored_store(tmp_path: Path) -> None:
+def test_the_cache_is_sharded_under_the_machine_local_store(tmp_path: Path) -> None:
     store = geometry_preview.preview_store(tmp_path)
     key = "abcdef" + "0" * 58
 
-    assert store == tmp_path / ".pihti-dedup" / "previews"
+    assert store == cache_root(tmp_path) / "previews"
+    assert tmp_path not in store.parents  # never inside the workspace
     assert geometry_preview.cache_path(store, key) == store / "ab" / f"{key}.png"
 
 
@@ -137,6 +139,7 @@ def test_a_render_is_written_to_disk_once_and_read_back_afterwards(
     assert stored.read_bytes() == first.data
     assert stored.parent.name == stored.stem[:2]  # sharded
     assert not list(geometry_preview.preview_store(workspace).rglob("*.tmp"))
+    assert not (workspace / ".pihti-dedup").exists()  # nothing lands in the workspace
 
     def explode(*_args, **_kwargs):
         raise AssertionError("a cache hit must not re-render")

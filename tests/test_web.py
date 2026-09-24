@@ -8,6 +8,7 @@ from markupsafe import escape
 
 import pihti_dedup.web as web
 from pihti_dedup import geometry_preview
+from pihti_dedup.cache_root import cache_root
 from pihti_dedup.cleanup import plan_member_cleanup
 from pihti_dedup.git_filename_history import FilenameHistory, FilenameOccurrence
 from pihti_dedup.git_history import PullRequestMerge
@@ -661,10 +662,39 @@ def test_an_stl_export_is_rendered_and_served_as_png(tmp_path: Path) -> None:
     assert response.status_code == 200
     assert response.mimetype == "image/png"
     assert response.get_data()[:8] == b"\x89PNG\r\n\x1a\n"
-    # The render landed in the gitignored on-disk cache, sharded.
-    stored = list((root / ".pihti-dedup" / "previews").rglob("*.png"))
+    # The render landed in the machine-local disk cache, sharded, and
+    # nothing landed in the workspace.
+    stored = list((cache_root(root) / "previews").rglob("*.png"))
     assert len(stored) == 1
     assert stored[0].read_bytes() == response.get_data()
+    assert not (root / ".pihti-dedup" / "previews").exists()
+
+
+def test_the_viewer_names_its_cache_root_once_and_ignores_an_old_workspace_cache(
+    tmp_path: Path, caplog
+) -> None:
+    if ".stl" not in geometry_preview.available_extensions():
+        pytest.skip("the 'preview' extra is not installed")
+    root = make_export_workspace(tmp_path)
+    target = root / "BoronProbe" / "exports" / "head.stl"
+    stat = target.stat()
+    key = geometry_preview.cache_key(target, stat.st_mtime_ns, stat.st_size)
+    # A preview cache left in the workspace by an earlier release.
+    old = root / ".pihti-dedup" / "previews" / key[:2] / f"{key}.png"
+    old.parent.mkdir(parents=True)
+    old.write_bytes(b"stale bytes from before the move")
+
+    with caplog.at_level("INFO", logger="pihti_dedup.web"):
+        app = create_app(root)
+    named = [record for record in caplog.records if "preview and mesh cache" in record.message]
+    assert len(named) == 1 and str(cache_root(root)) in named[0].message
+    assert app.config["CACHE_ROOT"] == cache_root(root)
+
+    response = app.test_client().get("/preview/BoronProbe/exports/head.stl")
+
+    assert response.get_data()[:8] == b"\x89PNG\r\n\x1a\n"  # rendered, not the old file
+    assert old.read_bytes() == b"stale bytes from before the move"  # left alone
+    assert len(list((root / ".pihti-dedup" / "previews").rglob("*"))) == 2  # the shard and file
 
 
 def test_the_part_page_and_catalog_show_the_rendered_export(tmp_path: Path) -> None:
@@ -2320,7 +2350,7 @@ def test_styles_indent_the_folder_tree_and_scroll_only_the_tree_inside_its_pinne
     assert ".dialog-close-x" in style
     assert ".thumb-tile.has-metadata" in style
     assert ".folder-card.has-summary" in style
-    assert ".note-rail { height: clamp(5rem, calc(100vh - 42rem), 11rem);" in style
+    assert ".note-rail { height: clamp(4rem, calc(100vh - 46rem), 8rem);" in style
     assert "grid-template-columns: minmax(0, 1.08fr) minmax(0, 0.92fr)" in style
     # The owner once rejected inner scrolling; on 2026-09-24 he ruled a pinned
     # rail the priority ("not nailed, hate it"). So each catalog rail stops
@@ -2619,7 +2649,7 @@ def test_a_folder_leads_with_its_heroes_and_never_repeats_them(tmp_path: Path) -
     assert '<span class="tile-badges"></span>' in card
     assert 'data-hero="1"' in heroes
     legend = html.split('<section class="rail-card signal-legend" aria-label="Legend">', 1)[1].split("</section>", 1)[0]
-    assert '<li><b class="badge badge-hero" title="Main assembly">main</b><span>Main assembly</span></li>' in legend
+    assert '<li><b class="badge badge-hero" title="Main assembly">main</b></li>' in legend
 
 
 def test_a_folder_holding_only_heroes_still_has_its_inspector(tmp_path: Path) -> None:
@@ -2865,8 +2895,9 @@ def test_the_folder_note_rail_renders_the_authored_part_in_a_fixed_budget(tmp_pa
     # sits at the same place whatever the note's length.
     style = client.get("/static/dedup.css").get_data(as_text=True)
     budget = style.split(".note-rail {", 1)[1].split("}", 1)[0]
-    # 11rem on any desktop window taller than ~850px; one budget for every folder.
-    assert "height: clamp(5rem, calc(100vh - 42rem), 11rem);" in budget
+    # 8rem on any desktop window taller than ~860px, 4rem at 800px or less;
+    # one budget for every folder.
+    assert "height: clamp(4rem, calc(100vh - 46rem), 8rem);" in budget
     assert "max-height" not in budget
     body_rule = style.split(".note-rail-body {", 1)[1].split("}", 1)[0]
     assert "overflow: hidden;" in body_rule and "min-height: 0;" in body_rule
@@ -3036,8 +3067,9 @@ def test_the_inspector_toggles_are_quiet_and_never_above_the_preview(tmp_path: P
 def test_one_legend_of_every_mark_closes_the_left_rail_on_every_page(tmp_path: Path) -> None:
     client = create_app(make_workspace(tmp_path)).test_client()
     style = client.get("/static/dedup.css").get_data(as_text=True)
+    # The badges are the words; each meaning is the badge's tooltip only.
     rows = "".join(
-        f'<li><b class="badge badge-{kind}" title="{escape(text)}">{word}</b><span>{escape(text)}</span></li>'
+        f'<li><b class="badge badge-{kind}" title="{escape(text)}">{word}</b></li>'
         for kind, word, text in web.SIGNAL_LEGEND
     )
 
@@ -3056,6 +3088,7 @@ def test_one_legend_of_every_mark_closes_the_left_rail_on_every_page(tmp_path: P
         legend = rail.split('<section class="rail-card signal-legend" aria-label="Legend">', 1)[1]
         assert legend.split("</section>", 1)[1].strip() == "", address  # the last card
         assert "<h2>Legend</h2>" in legend and rows in legend, address
+        assert "<span>" not in legend, address  # no meaning text beside a badge
         legends.append(legend)
     assert len(set(legends)) == 1
     # Nothing in the script shows or hides legend rows.
@@ -3066,10 +3099,22 @@ def test_one_legend_of_every_mark_closes_the_left_rail_on_every_page(tmp_path: P
     ceiling = "calc(100vh - var(--bar-height) - var(--content-pad) - var(--page-foot) - 1px)"
     assert f".rail-context {{ height: {ceiling}; }}" in style
     assert (
-        ".rail-context > .catalog-context { height: calc(10.5rem + clamp(5rem, calc(100vh - 42rem), 11rem));"
+        ".rail-context > .catalog-context { height: calc(10.5rem + clamp(4rem, calc(100vh - 46rem), 8rem));"
     ) in style
     assert ".rail-context > .inspector { flex: 1 1 0; min-height: 0;" in style
     assert ".rail-context > .signal-legend { margin-top: auto;" in style
+    # The legend is one compact wrapping row beside its heading, not two
+    # columns of meanings.
+    legend_list = style.split(".signal-legend ul {", 1)[1].split("}", 1)[0]
+    assert "flex-wrap: wrap;" in legend_list and "grid" not in legend_list
+    # The inspector's preview area has a guaranteed floor the 3D view fills,
+    # and only the fact list below it scrolls.
+    script = client.get("/static/dedup.js").get_data(as_text=True)
+    assert "var PREVIEW_FLOOR = 240;" in script
+    assert 'preview.style.height = height + "px";' in script
+    assert "viewer.resize(preview.clientWidth, height);" in script
+    facts = style.split(".inspector-facts {", 1)[1].split("}", 1)[0]
+    assert "overflow-y: auto;" in facts and "min-height: 0;" in facts
     for address in ("/catalog", "/catalog/BoronProbe/parts", "/catalog?q=bearing"):
         html = client.get(address).get_data(as_text=True)
         assert '<section class="rail-card context-card catalog-context">' in html, address
@@ -3123,8 +3168,7 @@ def test_featured_leads_folder_cards_without_a_main_assemblies_place(tmp_path: P
     assert '<b class="badge badge-featured" title="Cover">cover</b></dt><dd>Cover</dd>' in tile
     legend = folder.split('<section class="rail-card signal-legend" aria-label="Legend">', 1)[1].split("</section>", 1)[0]
     assert (
-        '<li><b class="badge badge-featured" title="Shows on its folder&#39;s card">cover</b>'
-        "<span>Shows on its folder&#39;s card</span></li>"
+        '<li><b class="badge badge-featured" title="Shows on its folder&#39;s card">cover</b></li>'
     ) in legend
 
     cleared = client.post(
@@ -3485,11 +3529,12 @@ def test_a_mesh_is_cached_on_disk_and_the_second_request_reads_the_file(
     needs_mesh_loader()
     root = make_export_workspace(tmp_path)
     first = create_app(root).test_client().get("/mesh/BoronProbe/exports/head.stl")
-    stored = list((root / ".pihti-dedup" / "meshes").rglob("*.mesh"))
+    stored = list((cache_root(root) / "meshes").rglob("*.mesh"))
     assert len(stored) == 1
     assert stored[0].parent.name == stored[0].name[:2]  # sharded like previews
     assert stored[0].read_bytes() == first.get_data()
-    assert not list((root / ".pihti-dedup" / "meshes").rglob("*.tmp"))
+    assert not list((cache_root(root) / "meshes").rglob("*.tmp"))
+    assert not (root / ".pihti-dedup" / "meshes").exists()  # nothing in the workspace
 
     def no_loading(_path):
         raise AssertionError("the cached mesh should have been served")
@@ -3511,6 +3556,7 @@ def test_a_mesh_over_the_cap_is_refused_with_its_reason(tmp_path: Path, monkeypa
 
     assert response.status_code == 404
     assert response.get_json() == {"reason": "too large for the inspector"}
+    assert not (cache_root(root) / "meshes").exists()
     assert not (root / ".pihti-dedup" / "meshes").exists()
 
     # A mesh cached under a higher cap is refused too once the cap is lower.

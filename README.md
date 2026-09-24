@@ -260,18 +260,25 @@ the plain moves.
 
 Inventor documents and DWG drawings show the preview image they already embed.
 STL, STEP/STP, and 3MF carry none, so the tool renders one from the geometry and
-caches the PNG under gitignored `.pihti-dedup/previews/`. A STEP render costs a
-second or two, so build them all once instead of paying for them on a catalog
-visit:
+caches the PNG on this machine, outside the workspace and outside Dropbox, in
+`%LOCALAPPDATA%\pihti-dedup\<workspace-id>\previews\` (`~/.cache/pihti-dedup/`
+on other systems). The workspace id is the folder name plus a short hash of
+its path; set `PIHTI_DEDUP_CACHE_ROOT` to use another base folder. A STEP
+render costs a second or two, so build them all once instead of paying for
+them on a catalog visit:
 
 ```powershell
 & "$HOME\.venvs\pihti-dedup\Scripts\python.exe" -m pihti_dedup warm-previews .
 ```
 
-Add `--meshes` to also build the 3D views under `.pihti-dedup/meshes/`; a first
-build of the whole workspace takes about a minute and a quarter, mostly STEP
-parsing. The cache is keyed by the file's modification time and size, so a
-resaved part is redrawn automatically and nothing has to be cleared by hand. DXF is not
+The command prints the cache folder it writes to, and the viewer prints the
+same folder when it starts. Add `--meshes` to also build the 3D views in the
+`meshes` folder beside `previews`; a first build of the whole workspace takes
+about a minute and a quarter, mostly STEP parsing. Each machine builds its own
+cache once. The cache is keyed by the file's modification time and size, so a
+resaved part is redrawn automatically and nothing has to be cleared by hand.
+Releases before 0.23.1 kept previews in `.pihti-dedup/previews/` inside the
+workspace; that folder is no longer read and can be deleted. DXF is not
 covered and shows the placeholder.
 
 For a merged PR, preview merge-added same-name, byte-identical copies from the
@@ -338,7 +345,8 @@ bytes under another name), `unhashed` (same name, bytes not compared yet),
 Tiles in the Main assemblies row leave out `main`, since the row says it.
 The inspector and the part page's File card list the same badges with that
 meaning beside each, and the **Legend** at the bottom of the left rail always
-shows all nine, in the same order, on every catalog and part page.
+shows all nine in one compact row, in the same order, on every catalog and
+part page; hover a badge there for its meaning.
 
 The folder note shows in the left rail as rendered Markdown. Only the part
 you wrote is shown, not the generated inventory lists, and it sits in the same

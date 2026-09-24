@@ -21,7 +21,8 @@ Three rules, mirroring `geometry_preview`:
    extension `geometry_preview.available_extensions()` lists; without the
    extra, `build` reports why and the caller answers 404.
 2. **Disk-cached, successes only.** A STEP parse costs seconds, so a mesh is
-   stored under the gitignored `.pihti-dedup/meshes/`, sharded like previews,
+   stored in `meshes/` under the machine-local `cache_root.cache_root`
+   (outside the workspace and outside Dropbox), sharded like previews,
    keyed by path, modification time, size, and the format version, and
    written temp-then-replace. A refusal is not stored: installing an extra or
    raising the cap must not be masked by a stale marker.
@@ -42,6 +43,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from pihti_dedup import geometry_preview
+from pihti_dedup.cache_root import cache_root
 
 log = logging.getLogger(__name__)
 
@@ -94,9 +96,9 @@ def unavailable_reason(suffix: str) -> str:
 
 
 def mesh_store(workspace: Path | str) -> Path:
-    """The gitignored directory holding cached mesh binaries."""
+    """The machine-local directory holding cached mesh binaries."""
 
-    return Path(workspace) / geometry_preview.CACHE_ROOT / CACHE_DIRNAME
+    return cache_root(workspace) / CACHE_DIRNAME
 
 
 def cache_key(path: Path, mtime_ns: int, st_size: int) -> str:

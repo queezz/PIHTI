@@ -430,6 +430,42 @@ coasts unless `prefers-reduced-motion` is set. The part page uses the same
 view at the still preview's size. Inventor documents keep their embedded
 image: there is no geometry outside Inventor.
 
+Version 0.23.1 gives the inspector's preview real room and moves the
+rebuildable caches off Dropbox. At 1920×900, the common docked-laptop and
+1080p-with-browser-chrome height, 0.23.0 left the inspector no preview at all.
+The Legend is now one compact row of its nine badges beside its heading,
+wrapping to two rows (52px tall), and each meaning lives only in its badge's
+tooltip, as on the tiles; the inspector facts and the part page's File card
+still state meanings beside their badges. The folder note's budget is
+`clamp(4rem, calc(100vh - 46rem), 8rem)`: its summary sentence and about
+three lines show at 900px, and from about 820px down only **Read the whole
+note** stays. The left rail's cards sit 10px apart and the inspector's own
+spacing is a little tighter. The script sizes the preview area: 240px first
+whenever the card has that much room above the name and toggles (every window
+800px tall or more), then two fact rows, then any remainder grows the area
+up to a square; the fact list takes what is left and scrolls inside itself,
+and the 3D canvas fills the whole area. Measured on a scratch copy at 1920
+wide, folder card / inspector / legend tops are 84/390/775px at 900 tall,
+84/390/875px at 1000, and 84/326/575px at 700, identical on the root, a
+folder with STL files, a search, and the part page (no inspector there) at
+every scroll depth; the preview area is 383×240, 383×331, and 383×143, and
+383×240 at 800. Previews and meshes now live under
+`cache_root.cache_root(workspace)`: `<base>/<workspace-id>/previews/` and
+`/meshes/`, where the base is `PIHTI_DEDUP_CACHE_ROOT` when set, else
+`%LOCALAPPDATA%\pihti-dedup` on Windows and `~/.cache/pihti-dedup` elsewhere,
+and the id is the workspace folder's name plus the first 12 hex characters of
+the SHA-256 of its resolved path. The base is resolved before use, and one
+inside `AppData\Local\Packages\...\LocalCache` (a packaged app's private
+view of AppData) is refused with an error naming it: `serve` and
+`warm-previews` exit 2 rather than fill a cache no other program can see. The
+viewer prints the root once at start; `warm-previews` prints it before the
+first file. The inventory snapshots, the quarantine store, and the Git
+history previews stay in the workspace's `.pihti-dedup/`. A
+`.pihti-dedup/previews/` left by an earlier release is left alone and never
+read; the first visits after upgrading draw previews afresh unless
+`warm-previews` is run again. The test suite points the cache base at a
+per-test temporary folder, so no test writes the owner's machine cache.
+
 ## Purpose
 
 Provide a local, human-in-the-loop view of filename collisions and byte-level
