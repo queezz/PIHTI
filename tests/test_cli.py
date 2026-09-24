@@ -45,6 +45,7 @@ def write_stl(path: Path, triangles=TETRAHEDRON) -> Path:
 
 
 def test_scan_command_writes_portable_json(tmp_path: Path, capsys) -> None:
+    (tmp_path / "PIHTI.ipj").write_bytes(b"")
     (tmp_path / "one").mkdir()
     (tmp_path / "two").mkdir()
     (tmp_path / "one" / "part.ipt").write_bytes(b"same")
@@ -59,7 +60,18 @@ def test_scan_command_writes_portable_json(tmp_path: Path, capsys) -> None:
     assert "same-name/exact-copy groups: 1" in capsys.readouterr().out
 
 
+def test_scan_refuses_a_workspace_without_an_ipj_file(tmp_path: Path, capsys) -> None:
+    (tmp_path / "one").mkdir()
+    (tmp_path / "one" / "part.ipt").write_bytes(b"same")
+
+    assert cli.main(["scan", str(tmp_path)]) == 2
+
+    err = capsys.readouterr().err
+    assert "is not an Inventor workspace (no .ipj file here); pass the PIHTI folder" in err
+
+
 def test_serve_opens_the_catalog_as_the_landing_view(monkeypatch, tmp_path: Path, capsys) -> None:
+    (tmp_path / "PIHTI.ipj").write_bytes(b"")
     opened: list[str] = []
     runs: list[dict] = []
 
@@ -113,6 +125,7 @@ def test_legacy_cli_retains_old_summary_and_group_keys(tmp_path: Path, capsys) -
 def test_merge_cleanup_cli_has_dry_and_guarded_apply_modes(
     tmp_path: Path, capsys, monkeypatch
 ) -> None:
+    (tmp_path / "PIHTI.ipj").write_bytes(b"")
     canonical = tmp_path / "Canonical" / "part.ipt"
     candidate = tmp_path / "Submission" / "part.ipt"
     canonical.parent.mkdir()
@@ -158,6 +171,7 @@ def test_merge_cleanup_cli_has_dry_and_guarded_apply_modes(
 def test_warm_previews_builds_the_disk_cache_and_reports_counts(tmp_path: Path, capsys) -> None:
     if ".stl" not in geometry_preview.available_extensions():
         pytest.skip("the 'preview' extra is not installed")
+    (tmp_path / "PIHTI.ipj").write_bytes(b"")
     exports = tmp_path / "BoronProbe" / "exports"
     exports.mkdir(parents=True)
     write_stl(exports / "head.stl")
@@ -185,6 +199,7 @@ def test_warm_previews_builds_the_disk_cache_and_reports_counts(tmp_path: Path, 
 def test_warm_previews_reports_a_file_it_could_not_draw(tmp_path: Path, capsys) -> None:
     if ".stl" not in geometry_preview.available_extensions():
         pytest.skip("the 'preview' extra is not installed")
+    (tmp_path / "PIHTI.ipj").write_bytes(b"")
     (tmp_path / "broken.stl").write_bytes(b"not an stl")
 
     assert cli.main(["warm-previews", str(tmp_path), "--quiet"]) == 1
@@ -195,6 +210,7 @@ def test_warm_previews_reports_a_file_it_could_not_draw(tmp_path: Path, capsys) 
 
 
 def test_meta_seed_previews_then_writes_missing_sidecars(tmp_path: Path, capsys) -> None:
+    (tmp_path / "PIHTI.ipj").write_bytes(b"")
     parts = tmp_path / "BoronProbe" / "parts"
     parts.mkdir(parents=True)
     (parts / "bearing.ipt").write_bytes(b"cad")
@@ -228,6 +244,7 @@ def test_meta_seed_previews_then_writes_missing_sidecars(tmp_path: Path, capsys)
 
 
 def test_notes_check_is_clean_on_a_tidy_workspace(tmp_path: Path, capsys) -> None:
+    (tmp_path / "PIHTI.ipj").write_bytes(b"")
     folder = tmp_path / "BoronProbe"
     folder.mkdir()
     (folder / "probe.iam").write_bytes(b"assembly")
@@ -242,6 +259,7 @@ def test_notes_check_is_clean_on_a_tidy_workspace(tmp_path: Path, capsys) -> Non
 
 
 def test_notes_check_reports_prose_hand_written_above_a_marker(tmp_path: Path, capsys) -> None:
+    (tmp_path / "PIHTI.ipj").write_bytes(b"")
     folder = tmp_path / "BoronProbe"
     folder.mkdir()
     (folder / "probe.iam").write_bytes(b"assembly")
@@ -258,6 +276,7 @@ def test_notes_check_reports_prose_hand_written_above_a_marker(tmp_path: Path, c
 
 
 def test_notes_check_reports_a_heading_directly_under_the_title(tmp_path: Path, capsys) -> None:
+    (tmp_path / "PIHTI.ipj").write_bytes(b"")
     folder = tmp_path / "BoronProbe"
     folder.mkdir()
     (folder / "probe.iam").write_bytes(b"assembly")
@@ -274,6 +293,7 @@ def test_notes_check_reports_a_heading_directly_under_the_title(tmp_path: Path, 
 def test_notes_check_does_not_flag_an_authored_note_with_a_summary_sentence(
     tmp_path: Path, capsys
 ) -> None:
+    (tmp_path / "PIHTI.ipj").write_bytes(b"")
     folder = tmp_path / "BoronProbe"
     folder.mkdir()
     (folder / "probe.iam").write_bytes(b"assembly")
@@ -289,6 +309,7 @@ def test_notes_check_does_not_flag_an_authored_note_with_a_summary_sentence(
 
 
 def test_notes_check_reports_a_sidecar_with_broken_frontmatter(tmp_path: Path, capsys) -> None:
+    (tmp_path / "PIHTI.ipj").write_bytes(b"")
     folder = tmp_path / "BoronProbe"
     folder.mkdir()
     (folder / "bearing.ipt").write_bytes(b"part")

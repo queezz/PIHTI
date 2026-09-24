@@ -1198,7 +1198,9 @@ def create_app(
         entry = next((item for item in read_ledger(root) if item.id == entry_id), None)
         if entry is None or not entry.repair_note:
             return None
-        if entry.fully_repaired:
+        if entry.fully_repaired and entry.repaired and not entry.not_applicable:
+            # The one-clause case: the note is just "repaired through
+            # Inventor X", so the saved names can be appended to it plainly.
             saved = ", ".join(_windows_path(path) for path in entry.repaired)
             text = f"Renamed and {entry.repair_note}: {saved} saved and verified."
         else:
@@ -2949,6 +2951,7 @@ def create_app(
             "current_will_prompt": current_will_prompt,
             "status_changed": current_will_prompt != entry.will_prompt,
             "repaired": frozenset(path.casefold() for path in entry.repaired),
+            "not_applicable": frozenset(path.casefold() for path in entry.not_applicable),
         }
 
     @app.get("/part/<path:relative_path>")

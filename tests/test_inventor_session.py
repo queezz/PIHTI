@@ -106,6 +106,7 @@ def test_a_referrer_without_a_matching_descriptor_is_closed_unsaved(tmp_path: Pa
     )
 
     assert dict(result.outcomes) == {first: REPAIRED, second: NO_DESCRIPTOR}
+    assert result.complete
     assert ("save", "stand.iam", False) not in app.log
     assert ("close", "stand.iam", True) in app.log
     assert app.ours() == []
@@ -165,6 +166,9 @@ def test_a_reference_resolved_to_a_surviving_copy_is_left_alone(tmp_path: Path) 
     )
 
     assert result.outcomes == ((first, REPAIRED), (second, NO_DESCRIPTOR))
+    # second was never applicable (it already used the surviving copy), so it
+    # does not block completeness.
+    assert result.complete
     assert app.disk[str(second).casefold()] == [str(survivor)]
     assert ("save", "stand.iam", False) not in app.log
 

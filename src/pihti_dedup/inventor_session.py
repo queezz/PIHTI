@@ -393,7 +393,16 @@ class RepairResult:
 
     @property
     def complete(self) -> bool:
-        return bool(self.outcomes) and all(outcome == REPAIRED for _, outcome in self.outcomes)
+        """Every referrer whose reference resolved to this file was repaired.
+
+        A `no-descriptor` referrer was never applicable to this rename (its
+        matching descriptors all resolved to a surviving copy, or it never
+        named this file at all) and does not count against completeness.
+        """
+
+        return bool(self.outcomes) and all(
+            outcome in (REPAIRED, NO_DESCRIPTOR) for _, outcome in self.outcomes
+        )
 
 
 def _close(document: Any) -> None:

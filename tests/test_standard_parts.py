@@ -43,6 +43,7 @@ def make_standard_workspace(root: Path) -> Path:
     """One movable screw, one copy already in the library, one name collision,
     and the custom look-alikes that must never be proposed."""
 
+    write(root / "PIHTI.ipj", b"")
     write(root / LIBRARY / "M3-nut.ipt", b"library nut")
     write(root / "Probe" / "parts" / "M3x10-SHCS.ipt", b"cap screw")
     write(root / "Probe" / "parts" / "M3-nut.ipt", b"library nut")

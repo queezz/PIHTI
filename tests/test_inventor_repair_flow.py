@@ -28,6 +28,7 @@ def make_workspace(root: Path) -> tuple[Path, FakeInventor]:
     """Body.ipt, named by two assemblies; the fake Inventor knows both."""
 
     root = root.resolve()
+    (root / "PIHTI.ipj").write_bytes(b"")
     parts = root / "Frame" / "parts"
     parts.mkdir(parents=True)
     part = parts / "Body.ipt"
@@ -75,6 +76,36 @@ def test_a_partial_repair_stays_open_and_names_what_was_not_repaired(tmp_path: P
         "repaired through Inventor 2027.1: Frame/probe.iam; "
         "not repaired: Frame/stand.iam (open in Inventor: close it first)"
     )
+
+
+def test_a_rename_settles_when_every_referrer_uses_another_copy(tmp_path: Path) -> None:
+    """A referrer whose only matching descriptor resolved elsewhere before the
+    rename is `no-descriptor`, not a failure: it never named this file, so it
+    does not block the rename from settling."""
+
+    root = tmp_path.resolve()
+    (root / "PIHTI.ipj").write_bytes(b"")
+    part = root / "Frame" / "parts" / "Body.ipt"
+    part.parent.mkdir(parents=True)
+    part.write_bytes(b"geometry")
+    other = root / "Other" / "Body.ipt"
+    other.parent.mkdir()
+    other.write_bytes(b"other geometry")
+    bracket = root / "Other" / "bracket.iam"
+    bracket.write_bytes(reference_bytes(str(other)))
+    app = FakeInventor({bracket: [str(other)]})
+
+    plan = plan_rename(root, "Frame/parts/Body.ipt", "Frame-body", index=build_index(root))
+    entry = execute_rename(root, plan, confirmed=True, session=fake_session(app)).entry
+
+    assert entry.repaired == ()
+    assert entry.not_applicable == ("Other/bracket.iam",)
+    assert entry.settled and entry.fully_repaired and entry.will_prompt is False
+    assert entry.repair_note == (
+        "nothing to repair through Inventor 2027.1; "
+        "use another file with this name: Other/bracket.iam"
+    )
+    assert app.disk[str(bracket).casefold()] == [str(other)]
 
 
 def test_no_answer_from_inventor_renames_nothing_and_writes_no_ledger(tmp_path: Path) -> None:
@@ -276,7 +307,10 @@ def test_the_confirmation_names_a_referrer_that_uses_another_copy(tmp_path: Path
     client.post("/doctor/name/Body.ipt", data={**form, "confirm_repair": "1", "confirm_collision": "1"})
     entry = read_ledger(root)[0]
     assert entry.repaired == ("Frame/probe.iam", "Frame/stand.iam")
-    assert not entry.settled
+    # bracket.iam's reference resolved to the survivor copy, not this file: it
+    # was never applicable, so it does not block settling.
+    assert entry.not_applicable == ("Other/bracket.iam",)
+    assert entry.settled and entry.fully_repaired
     assert app.disk[str(bracket).casefold()] == [str(other)]
     assert other.is_file()
 
@@ -357,3 +391,15 @@ def test_cli_rename_repair_without_inventor_renames_nothing(tmp_path: Path, caps
     assert code == 2
     assert "Inventor is not running" in capsys.readouterr().err
     assert (root / "Frame" / "parts" / "Body.ipt").is_file()
+
+
+def test_cli_rename_refuses_a_workspace_without_an_ipj_file(tmp_path: Path, capsys) -> None:
+    root, _ = make_workspace(tmp_path)
+    (root / "PIHTI.ipj").unlink()
+
+    code = cli.main(["rename", "Frame/parts/Body.ipt", "Frame-body", str(root)])
+
+    err = capsys.readouterr().err
+    assert code == 2
+    assert "is not an Inventor workspace (no .ipj file here); pass the PIHTI folder" in err
+    assert (root / "Frame" / "parts" / "Body.ipt").is_file() and read_ledger(root) == ()

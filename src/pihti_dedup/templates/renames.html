@@ -35,8 +35,12 @@
         {% if entry.fully_repaired %}
         <p class="rename-flavor repaired">
           <strong>Repaired through Inventor.</strong>
-          Every referring document below was repointed to <code>{{ entry.new_name }}</code>, saved,
-          and verified on reopen, so no dialog is left to answer.
+          {% if entry.repaired %}Every applicable referring document below was repointed to
+          <code>{{ entry.new_name }}</code>, saved, and verified on reopen{% if entry.not_applicable %};
+          the rest already used another file with this name{% endif %}, so no dialog is left to answer.
+          {% else %}No referring document needed repointing; every one already used another file with
+          this name, so no dialog is left to answer.
+          {% endif %}
         </p>
         {% elif view.is_move and view.move_present and not view.move_others %}
         <p class="rename-flavor moved">
@@ -67,7 +71,7 @@
         </p>
         {% endif %}
 
-        {% if entry.repair_note and not entry.fully_repaired %}
+        {% if entry.repair_note and not (entry.fully_repaired and not entry.not_applicable) %}
         <p class="rename-flavor partial">{{ entry.repair_note|winpath }}.</p>
         {% endif %}
 
@@ -95,7 +99,8 @@
               <label>
                 <input type="checkbox" data-referrer-check="{{ entry.id }}::{{ referrer }}">
                 <code>{{ referrer|winpath }}</code>
-                {% if referrer.casefold() in view.repaired %}<small class="referrer-repaired">repaired</small>{% endif %}
+                {% if referrer.casefold() in view.repaired %}<small class="referrer-repaired">repaired</small>
+                {% elif referrer.casefold() in view.not_applicable %}<small class="referrer-elsewhere">uses another file with this name</small>{% endif %}
               </label>
             </li>
             {% endfor %}

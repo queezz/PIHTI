@@ -340,7 +340,13 @@ repointing". `/renames` shows "Repaired through Inventor" with the Settled box
 checked and marks each repaired referrer. The session probe is cached for
 5 s; `create_app(session_factory=...)` injects it, and the test suite pins it
 to "not running". The CLI twin is `pihti-dedup rename <path> <new name>
-[workspace] [--repair] [--dry] [--confirm-collision]`.
+[workspace] [--repair] [--dry] [--confirm-collision]`. 0.21.1 stopped
+counting a `no-descriptor` referrer (its matching descriptors all resolved to
+another file keeping the old name) as unrepaired — it no longer blocks
+`settled`, `will_prompt`, the CLI exit code, or the web toast, is reported as
+"uses another file with this name" rather than "not repaired", and every
+workspace-taking subcommand now refuses a folder without an `.ipj` file at
+its root before it walks anything.
 
 ## Purpose
 

@@ -32,6 +32,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+from pihti_dedup.inventor_session import NO_DESCRIPTOR, REPAIRED
 from pihti_dedup.sidecar import sidecar_path
 from pihti_dedup.whereused import REFERENCED_EXTENSIONS, WhereUsed, filename_locations
 
@@ -123,15 +124,23 @@ class RenameEntry:
     #: Referrers (workspace-relative) whose references Inventor repointed to the
     #: new file, saved, and verified on reopen.
     repaired: tuple[str, ...] = ()
+    #: Referrers whose matching descriptors all resolved to another file that
+    #: kept the old name (or who never named this file at all): a `no-descriptor`
+    #: outcome. Never applicable to this rename, so never "not repaired".
+    not_applicable: tuple[str, ...] = ()
     repair_note: str = ""
 
     @property
     def fully_repaired(self) -> bool:
-        """Every referrer at rename time was repaired through Inventor."""
+        """Every referrer whose reference resolved to this file was repaired.
 
-        if not self.repaired:
+        A referrer recorded in `not_applicable` was never pointed at this file
+        and does not count against completeness.
+        """
+
+        if not self.repaired and not self.not_applicable:
             return False
-        done = {path.casefold() for path in self.repaired}
+        done = {path.casefold() for path in (*self.repaired, *self.not_applicable)}
         return all(path.casefold() in done for path in self.where_used)
 
     @property
@@ -162,6 +171,7 @@ class RenameEntry:
             "sidecar_moved": self.sidecar_moved,
             "notes": self.notes,
             "repaired": list(self.repaired),
+            "not_applicable": list(self.not_applicable),
             "repair_note": self.repair_note,
         }
 
@@ -180,6 +190,7 @@ class RenameEntry:
             sidecar_moved=bool(payload.get("sidecar_moved", False)),
             notes=str(payload.get("notes", "")),
             repaired=tuple(str(item) for item in payload.get("repaired") or ()),
+            not_applicable=tuple(str(item) for item in payload.get("not_applicable") or ()),
             repair_note=str(payload.get("repair_note", "")),
         )
 
@@ -344,11 +355,12 @@ def execute_rename(
                 warnings.append(f"the CAD file moved but its sidecar did not: {exc}")
 
     repaired: tuple[str, ...] = ()
+    not_applicable: tuple[str, ...] = ()
     repair_note = ""
     will_prompt = plan.will_prompt
     settled = False
     if repair is not None:
-        repaired, repair_note = _repair_summary(root, plan, repair)
+        repaired, not_applicable, repair_note = _repair_summary(root, plan, repair)
         if repair.complete:
             will_prompt = False
             settled = True
@@ -367,6 +379,7 @@ def execute_rename(
             settled=settled,
             sidecar_moved=sidecar_moved,
             repaired=repaired,
+            not_applicable=not_applicable,
             repair_note=repair_note,
         ),
     )
@@ -416,11 +429,14 @@ def _rename_with_repair(
 
 
 def _outcome_words(root: Path, outcome: str) -> str:
-    """A referrer's outcome as the ledger note says it to a person."""
+    """A failed referrer's outcome as the ledger note says it to a person.
+
+    `no-descriptor` is not a failure (see `_repair_summary`) and is never
+    passed here.
+    """
 
     words = {
         "skipped-open-in-inventor": "open in Inventor: close it first",
-        "no-descriptor": "no reference to this file",
     }
     return words.get(outcome) or _portable(root, outcome)
 
@@ -435,26 +451,45 @@ def _portable(root: Path, text: str) -> str:
 
 def _repair_summary(
     root: Path, plan: RenamePlan, repair: RepairResult
-) -> tuple[tuple[str, ...], str]:
-    """Workspace-relative repaired referrers, and one plain sentence for the ledger."""
+) -> tuple[tuple[str, ...], tuple[str, ...], str]:
+    """Workspace-relative repaired and not-applicable referrers, and a ledger sentence.
+
+    A `no-descriptor` referrer's matching descriptors all resolved to another
+    file that kept the old name (or it never named this file at all): it was
+    never applicable to this rename, so it is reported separately and never
+    folded into "not repaired".
+    """
 
     by_absolute = {str(root / referrer): referrer for referrer in plan.referrers}
     repaired: list[str] = []
+    not_applicable: list[str] = []
     missed: list[str] = []
     for path, outcome in repair.outcomes:
         relative = by_absolute.get(str(path), str(path))
-        if outcome == "repaired":
+        if outcome == REPAIRED:
             repaired.append(relative)
+        elif outcome == NO_DESCRIPTOR:
+            not_applicable.append(relative)
         else:
             missed.append(f"{relative} ({_outcome_words(root, outcome)})")
     where = f"Inventor {repair.version}".strip()
+
     if not missed:
-        return tuple(repaired), f"repaired through {where}"
+        # Nothing failed: every referrer was either repaired or was never
+        # applicable. The repaired names are the caller's to add (the toast
+        # names them again), so this sentence does not list them itself.
+        clauses = [f"repaired through {where}" if repaired else f"nothing to repair through {where}"]
+        if not_applicable:
+            clauses.append(f"use another file with this name: {', '.join(not_applicable)}")
+        return tuple(repaired), tuple(not_applicable), "; ".join(clauses)
+
     if repaired:
         note = f"repaired through {where}: {', '.join(repaired)}; not repaired: {'; '.join(missed)}"
     else:
         note = f"not repaired through {where}: {'; '.join(missed)}"
-    return tuple(repaired), note
+    if not_applicable:
+        note += f"; use another file with this name: {', '.join(not_applicable)}"
+    return tuple(repaired), tuple(not_applicable), note
 
 
 def ledger_path(root: Path) -> Path:

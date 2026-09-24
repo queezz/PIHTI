@@ -22,6 +22,28 @@ from pihti_dedup.sidecar import SidecarError, seed_text, sidecar_path, write_sid
 SEED_SAMPLE = 10
 
 
+class WorkspaceError(ValueError):
+    """The resolved workspace is not an Inventor project."""
+
+
+def resolve_workspace(path: str) -> Path:
+    """Resolve `path` and refuse it unless an Inventor project sits at its root.
+
+    `UsingUniqueFilenames=Yes` makes the whole workspace fair game for every
+    command below, so a folder picked by mistake (a home directory, say) must
+    fail here, before anything is walked, rather than get scanned in full.
+    Every workspace-taking subcommand goes through this one check.
+    """
+
+    workspace = Path(path).resolve()
+    if not any(workspace.glob("*.ipj")):
+        raise WorkspaceError(
+            f"{workspace} is not an Inventor workspace (no .ipj file here); "
+            "pass the PIHTI folder"
+        )
+    return workspace
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="pihti-dedup", description=__doc__)
     parser.add_argument("--version", action="version", version=__version__)
@@ -342,6 +364,14 @@ def _relative(workspace: Path, path: Path | str) -> str:
         return str(path)
 
 
+def _outcome_text(outcome: str) -> str:
+    """A repair outcome as the CLI reports it; matches the dry-run wording."""
+
+    if outcome == inventor_session.NO_DESCRIPTOR:
+        return "uses another file with the old name"
+    return outcome
+
+
 def _rename(
     workspace: Path,
     relative_path: str,
@@ -424,7 +454,7 @@ def _rename(
         print(f"warning: {warning}", file=sys.stderr)
     if result.repair is not None:
         for path, outcome in result.repair.outcomes:
-            print(f"  {_relative(workspace, path)}: {outcome}")
+            print(f"  {_relative(workspace, path)}: {_outcome_text(outcome)}")
     entry = result.entry
     print(f"ledger: {entry.id} settled={'yes' if entry.settled else 'no'}")
     if entry.repair_note:
@@ -447,7 +477,11 @@ def _print_notes_check(result: CheckResult) -> None:
 
 def main(argv: Sequence[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
-    workspace = Path(args.workspace).resolve()
+    try:
+        workspace = resolve_workspace(args.workspace)
+    except WorkspaceError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 2
 
     if args.command == "scan":
         extensions = None if args.all_files else CAD_EXTENSIONS

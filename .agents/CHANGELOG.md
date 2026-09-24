@@ -6,6 +6,17 @@ remains authoritative for exact file changes.
 
 ## 2026-09-24
 
+- Shipped `pihti-dedup` 0.21.1: two fixes from the first real repair run. A
+  referrer whose matching descriptors all resolved to another file keeping
+  the old name (`no-descriptor`) was counted as unrepaired; it is not
+  applicable to the rename and no longer blocks `settled`, `will_prompt`, the
+  CLI exit code, or the web toast — it is reported as "uses another file with
+  this name" instead of "not repaired". Every workspace-taking subcommand
+  (`scan`, `serve`, `merge-cleanup`, `warm-previews`, `meta seed`,
+  `standard-parts`, `notes check`, `rename`) now refuses a folder without an
+  `.ipj` file at its root before walking anything, so pointing the tool at
+  the wrong directory fails fast instead of scanning it.
+
 - Shipped `pihti-dedup` 0.21.0: a rename can repair its referring assemblies
   through the running Inventor session, without Design Assistant. Inventor
   opens each referrer invisibly before the file moves, repoints the matching
