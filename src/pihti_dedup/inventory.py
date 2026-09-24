@@ -12,6 +12,7 @@ import os
 from collections import defaultdict
 from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
+from functools import cached_property
 from pathlib import Path
 from typing import Iterable, Sequence
 
@@ -63,6 +64,32 @@ class DuplicateGroup:
         return payload
 
 
+#: Autodesk support article "While working with Inventor newVer files are
+#: created": during a save Inventor writes the new state to
+#: `<name>.newVer.<ext>` and removes it when the save completes. A leftover
+#: means that last step did not run, typically because another program (a
+#: sync client such as Dropbox) held the file.
+NEWVER_EXPLANATION = (
+    "Inventor writes this file during a save and removes it when the save completes; "
+    "it stays behind when another program, such as a sync client, held the file."
+)
+
+
+@dataclass(frozen=True)
+class SaveLeftover:
+    """A `.newVer` file that is not a plain identical leftover.
+
+    `state` is `differs` (its base file exists with other bytes) or `orphan`
+    (no base file beside it).
+    """
+
+    path: str
+    base_path: str
+    state: str
+    record: FileRecord
+    base: FileRecord | None = None
+
+
 @dataclass(frozen=True)
 class Inventory:
     root: Path
@@ -78,6 +105,46 @@ class Inventory:
     @property
     def groups(self) -> tuple[DuplicateGroup, ...]:
         return self.filename_groups + self.renamed_groups
+
+    @cached_property
+    def split_groups(self) -> tuple[DuplicateGroup, ...]:
+        """Identical-copy groups carved out of same-name, different-byte groups.
+
+        Every hash bucket of two or more members inside a collision group is
+        a byte-identical copy set of its own; members with a unique hash are
+        a name clash only and belong to Doctor, not to Duplicates.
+        """
+
+        return split_exact_groups(self.filename_groups)
+
+    @property
+    def duplicate_groups(self) -> tuple[DuplicateGroup, ...]:
+        """What the Duplicates view lists: byte-identical groups only."""
+
+        identical = [group for group in self.filename_groups if group.kind == "exact"]
+        identical.extend(self.split_groups)
+        identical.sort(key=lambda group: (-len(group.records), group.title.casefold()))
+        return tuple(identical) + self.renamed_groups
+
+    @property
+    def name_clash_groups(self) -> tuple[DuplicateGroup, ...]:
+        """Same name, bytes differing or not compared: Doctor's business."""
+
+        return tuple(
+            group for group in self.filename_groups if group.kind in {"collision", "unverified"}
+        )
+
+    def find_group(self, group_id: str) -> DuplicateGroup | None:
+        return next(
+            (group for group in (*self.groups, *self.split_groups) if group.id == group_id),
+            None,
+        )
+
+    @cached_property
+    def save_leftovers(self) -> tuple[SaveLeftover, ...]:
+        """`.newVer` files that differ from their base file or have none."""
+
+        return interrupted_saves(self.records)
 
     @property
     def summary(self) -> dict[str, int]:
@@ -284,7 +351,12 @@ def _iter_files(
     return ordered, excluded, errors
 
 
-def _make_group(kind: str, records: Sequence[FileRecord], title: str) -> DuplicateGroup:
+def _make_group(
+    kind: str,
+    records: Sequence[FileRecord],
+    title: str,
+    characterization: str | None = None,
+) -> DuplicateGroup:
     ordered = tuple(sorted(records, key=lambda record: record.path.casefold()))
     names = tuple(sorted({record.name for record in ordered}, key=str.casefold))
     hashes = tuple(sorted({record.sha256 for record in ordered if record.sha256}))
@@ -300,9 +372,11 @@ def _make_group(kind: str, records: Sequence[FileRecord], title: str) -> Duplica
     redundant_bytes = sum(
         group[0].size * (len(group) - 1) for group in hash_buckets.values() if len(group) > 1
     )
-    characterization = "newver" if kind == "renamed" and _is_newver_pair(ordered) else None
-    if characterization == "newver":
-        title = "newVer pair — identical bytes"
+    if kind == "renamed" and characterization is None:
+        leftovers = newver_leftovers(ordered)
+        if leftovers:
+            characterization = "newver"
+            title = f"Inventor save leftover — identical to {leftovers[0][1].name}"
     return DuplicateGroup(
         id=group_id,
         kind=kind,
@@ -318,21 +392,90 @@ def _make_group(kind: str, records: Sequence[FileRecord], title: str) -> Duplica
     )
 
 
-def _newver_base_name(name: str) -> str | None:
-    path = Path(name)
-    marker = ".newver"
-    if not path.stem.casefold().endswith(marker):
+NEWVER_MARKER = ".newver"
+
+
+def newver_base_path(path: str) -> str | None:
+    """The base file a `<name>.newVer.<ext>` save leftover belongs beside.
+
+    Inventor writes the leftover in the base file's own folder, so the base
+    path is the same folder with the `.newVer` marker removed.
+    """
+
+    folder, _, name = path.rpartition("/")
+    stem, dot, suffix = name.rpartition(".")
+    if not dot or not stem.casefold().endswith(NEWVER_MARKER) or len(stem) == len(NEWVER_MARKER):
         return None
-    return f"{path.stem[: -len(marker)]}{path.suffix}".casefold()
+    base = f"{stem[: -len(NEWVER_MARKER)]}.{suffix}"
+    return f"{folder}/{base}" if folder else base
 
 
-def _is_newver_pair(records: Sequence[FileRecord]) -> bool:
-    names = {record.name_key for record in records}
-    return any(
-        base_name is not None and base_name in names
-        for record in records
-        if (base_name := _newver_base_name(record.name)) is not None
-    )
+def newver_leftovers(
+    records: Sequence[FileRecord],
+) -> tuple[tuple[FileRecord, FileRecord], ...]:
+    """(leftover, base) pairs inside one byte-identical group.
+
+    A pair counts only when the base sits in the same folder with the same
+    bytes and the same modified time: the save wrote the new state, and the
+    original already was that state.
+    """
+
+    by_path = {record.path.casefold(): record for record in records}
+    pairs = []
+    for record in records:
+        base_path = newver_base_path(record.path)
+        base = by_path.get(base_path.casefold()) if base_path else None
+        if (
+            base is not None
+            and record.sha256
+            and record.sha256 == base.sha256
+            and record.mtime_ns == base.mtime_ns
+        ):
+            pairs.append((record, base))
+    return tuple(pairs)
+
+
+def interrupted_saves(records: Sequence[FileRecord]) -> tuple[SaveLeftover, ...]:
+    """`.newVer` leftovers whose base differs, and leftovers without a base.
+
+    An identical leftover is a Duplicates matter and is not listed here. A
+    pair whose bytes are not both known is not judged at all.
+    """
+
+    by_path = {record.path.casefold(): record for record in records}
+    found: list[SaveLeftover] = []
+    for record in records:
+        base_path = newver_base_path(record.path)
+        if base_path is None:
+            continue
+        base = by_path.get(base_path.casefold())
+        if base is None:
+            found.append(SaveLeftover(record.path, base_path, "orphan", record))
+            continue
+        if not record.sha256 or not base.sha256 or record.sha256 == base.sha256:
+            continue
+        found.append(SaveLeftover(record.path, base.path, "differs", record, base))
+    found.sort(key=lambda item: (item.state != "differs", item.path.casefold()))
+    return tuple(found)
+
+
+def split_exact_groups(
+    filename_groups: Sequence[DuplicateGroup],
+) -> tuple[DuplicateGroup, ...]:
+    """One `exact` group per shared hash inside each same-name collision group."""
+
+    split: list[DuplicateGroup] = []
+    for group in filename_groups:
+        if group.kind != "collision":
+            continue
+        buckets: dict[str, list[FileRecord]] = defaultdict(list)
+        for record in group.records:
+            if record.sha256:
+                buckets[record.sha256].append(record)
+        for bucket in buckets.values():
+            if len(bucket) > 1:
+                split.append(_make_group("exact", bucket, group.title, characterization="split"))
+    return tuple(split)
 
 
 def classify(

@@ -4,6 +4,7 @@ import struct
 from pathlib import Path
 
 import pytest
+from markupsafe import escape
 
 import pihti_dedup.web as web
 from pihti_dedup import geometry_preview
@@ -73,12 +74,16 @@ def test_shell_is_immediate_and_results_are_loaded_separately(tmp_path: Path) ->
     result_html = results.get_data(as_text=True)
     assert results.status_code == 200
     assert "bearing.ipt" in result_html
-    assert "different bytes" in result_html
+    # The two identical bearings form one group; the different-byte third is a
+    # name clash for Doctor, not a duplicate.
+    assert "identical bytes" in result_html
+    assert "other files with this name differ" in result_html
+    assert "different bytes" not in result_html
     assert "data-filter-search" in result_html
     assert "data-include-vendor" in result_html
     assert "Copy paths" not in result_html
-    assert result_html.count('data-copy="') == 6
-    expected = tmp_path / "BoronProbe_2026" / "parts" / "bearing.ipt"
+    assert result_html.count('data-copy="') == 4
+    expected = tmp_path / "BoronProbe" / "parts" / "bearing.ipt"
     assert f'data-copy="{expected}"' in result_html
     assert f'data-copy="{expected.parent}"' in result_html
     assert 'data-copy-kind="file" title="Paste into Inventor\'s File name field"' in result_html
@@ -335,10 +340,18 @@ def test_reviewed_collision_consolidates_to_one_logged_restorable_survivor(
     )
     keep = "BoronProbe_2026/parts/bearing.ipt"
 
+    # Different-byte revisions are never offered for removal on Duplicates;
+    # the reviewed consolidation lives behind a closed disclosure in Doctor.
     page = client.get("/duplicates/results").get_data(as_text=True)
-    assert page.count("Keep only this") == 3
-    assert page.count(">Quarantine this</button>") == 3
-    assert "data-consolidate-keep" in page
+    assert "Keep only this" not in page
+    assert "Quarantine this" not in page
+    assert "data-consolidate-keep" not in page
+    session = client.get("/doctor/name/bearing.ipt").get_data(as_text=True)
+    assert '<details class="part-card consolidate-disclosure" data-doctor-consolidate' in session
+    assert "<summary>Consolidate after comparing in Inventor</summary>" in session
+    assert "opened side by side in Inventor" in session
+    assert f'data-consolidate-src="/duplicates/member/{group.id}/consolidate"' in session
+    assert session.count("data-consolidate-keep") == 3
 
     applied = client.post(
         f"/duplicates/member/{group.id}/consolidate",
@@ -515,10 +528,17 @@ def test_newver_pair_is_characterized_and_offers_confirmed_member_delete(
     client = app.test_client()
 
     result_html = client.get("/duplicates/results").get_data(as_text=True)
-    assert "newVer pair — identical bytes" in result_html
-    assert "same bytes and modified time; origin unproven" in result_html
-    assert result_html.count("data-member-delete") == 2
+    assert "Inventor save leftover — identical to Part5.ipt" in result_html
+    assert "removes it when the save completes" in result_html
+    assert "origin unproven" not in result_html
+    # One quiet action, on the leftover only; the original keeps no action.
+    assert result_html.count("data-member-delete") == 1
+    assert result_html.count(">Remove leftover</button>") == 1
     assert 'data-display-path="Parts\\Part5.newVer.ipt"' in result_html
+    assert 'data-display-path="Parts\\Part5.ipt"' not in result_html
+    assert "delete-member" not in result_html
+    assert ">Rename<" not in result_html
+    assert result_html.count('<p class="group-explain">') == 1
 
     unconfirmed = client.post(
         f"/duplicates/member/{group.id}/delete",
@@ -555,9 +575,11 @@ def test_duplicate_rows_show_a_preview_and_link_to_the_part_page(tmp_path: Path)
 
     result_html = client.get("/duplicates/results").get_data(as_text=True)
 
-    assert result_html.count('class="member-thumb"') == 3
-    assert 'src="/preview/BoronProbe_2026/parts/bearing.ipt?v=' in result_html
-    assert 'href="/part/BoronProbe_2026/parts/bearing.ipt"' in result_html
+    assert result_html.count('class="member-thumb"') == 2
+    assert 'src="/preview/BoronProbe/parts/bearing.ipt?v=' in result_html
+    assert 'href="/part/BoronProbe/parts/bearing.ipt"' in result_html
+    # The unique-hash member of the name group is not a duplicate of anything.
+    assert 'href="/part/BoronProbe_2026/parts/bearing.ipt"' not in result_html
     assert 'loading="lazy"' in result_html
 
 
@@ -2026,7 +2048,7 @@ def test_duplicate_rows_link_to_the_guarded_rename_action(tmp_path: Path) -> Non
     result_html = client.get("/duplicates/results").get_data(as_text=True)
 
     assert result_html.count('href="/part/BoronProbe/parts/bearing.ipt#rename"') == 1
-    assert result_html.count(">Rename<") == 3
+    assert result_html.count(">Rename<") == 2
 
 
 def test_doctor_keeps_a_name_session_open_until_the_last_original_is_renamed(
@@ -2189,7 +2211,9 @@ def test_doctor_starts_from_assembly_and_lists_direct_name_problems(
     assert "Body.ipt" in html
     assert "2 possible silent targets" in html
     assert "Missing.ipt" in html
-    assert "Never tracked in reachable Git history" in html
+    assert "No commit of this repository ever had a file with this name." in html
+    assert "not from a file you lost" in html
+    assert "Never tracked" not in html
     assert "Unique.ipt" not in html
     assert html.count("Preview of A\\Body.ipt") == 1
     assert html.count("Preview of B\\Body.ipt") == 1
@@ -2572,7 +2596,8 @@ def test_a_folder_leads_with_its_heroes_and_never_repeats_them(tmp_path: Path) -
     first = details.split("</div>", 1)[0]
     assert '<b class="badge badge-hero" title="Main assembly">main</b>' in first and "<dd>Main assembly</dd>" in first
     card = next(part for part in heroes.split('<div class="hero-card">') if 'href="/part/Vessel/vessel-main.iam"' in part)
-    assert '<span class="tile-badges"><b class="badge badge-hero" title="Main assembly">main</b></span>' in card
+    # The row title says it; the tile's badge line does not repeat "main".
+    assert '<span class="tile-badges"></span>' in card
     assert 'data-hero="1"' in heroes
     legend = html.split('<section class="rail-card signal-legend" aria-label="Legend">', 1)[1].split("</section>", 1)[0]
     assert '<li><b class="badge badge-hero" title="Main assembly">main</b><span>Main assembly</span></li>' in legend
@@ -2914,11 +2939,12 @@ def test_the_inspector_carries_both_toggles_at_its_foot_for_the_file_it_names(
 
     script = client.get("/static/dedup.js").get_data(as_text=True)
     assert 'on: "Main assembly · clear"' in script and 'off: "Make main assembly"' in script
-    assert 'on: "Featured · clear"' in script and 'off: "Feature on folder card"' in script
+    assert 'on: "Cover · clear"' in script and 'off: "Use as folder cover"' in script
+    assert "Featured" not in script
     assert (
         '"Clear main assembly on " + name + "? It stays in its folder; only the placement goes."'
     ) in script
-    assert '"Stop featuring " + name + " on its folder cards?"' in script
+    assert '"Stop using " + name + " as its folder\'s cover?"' in script
     # Clearing asks with the file's name; setting acts at once; a form still
     # pointed at another file than the one shown is refused.
     assert 'form.dataset.confirm = on ? text.confirm(name) : "";' in script
@@ -2947,7 +2973,7 @@ def test_an_inspector_toggle_returns_to_the_folder_with_the_tile_and_the_toast(
     assert again.headers["Location"] == response.headers["Location"]  # a double submit stays set
     assert read_sidecar(companion).featured is True
     page = client.get(response.headers["Location"].split("#", 1)[0]).get_data(as_text=True)
-    assert "Featured set: spacer.ipt" in page
+    assert "Cover set: spacer.ipt" in page
     tile = page.split('href="/part/Vessel/parts/spacer.ipt"', 1)[1].split(">", 1)[0]
     assert 'data-featured="1"' in tile
     assert f'id="{anchor}" href="/part/Vessel/parts/spacer.ipt"' in page
@@ -2992,7 +3018,7 @@ def test_one_legend_of_every_mark_closes_the_left_rail_on_every_page(tmp_path: P
     client = create_app(make_workspace(tmp_path)).test_client()
     style = client.get("/static/dedup.css").get_data(as_text=True)
     rows = "".join(
-        f'<li><b class="badge badge-{kind}" title="{text}">{word}</b><span>{text}</span></li>'
+        f'<li><b class="badge badge-{kind}" title="{escape(text)}">{word}</b><span>{escape(text)}</span></li>'
         for kind, word, text in web.SIGNAL_LEGEND
     )
 
@@ -3060,12 +3086,12 @@ def test_featured_leads_folder_cards_without_a_main_assemblies_place(tmp_path: P
     assert read_sidecar(companion).featured is True and read_sidecar(companion).hero is False
 
     page = client.get(response.headers["Location"]).get_data(as_text=True)
-    assert "Featured set: spacer.ipt" in page
-    assert "Feature on folder card <b>on</b></button>" in page
+    assert "Cover set: spacer.ipt" in page
+    assert ">cover</b>Cover · clear</button>" in page
     assert "Main assembly <b>off</b></button>" in page
     featured_form = page.split('<form class="featured-toggle"', 1)[1].split("</form>", 1)[0]
-    assert 'data-flag-confirm="Clear featured on spacer.ipt?' in featured_form
-    assert '<b class="badge badge-featured" title="Featured">featured</b><span>Featured</span>' in page
+    assert "data-flag-confirm=\"Stop using spacer.ipt as its folder's cover?" in featured_form
+    assert '<b class="badge badge-featured" title="Cover">cover</b><span>Cover</span>' in page
 
     top = client.get("/catalog").get_data(as_text=True)
     assert "hero-block" not in top  # featured is not a main assembly
@@ -3074,12 +3100,12 @@ def test_featured_leads_folder_cards_without_a_main_assemblies_place(tmp_path: P
 
     folder = client.get("/catalog/Vessel/parts").get_data(as_text=True)
     tile = folder.split('href="/part/Vessel/parts/spacer.ipt"', 1)[1].split("</a>", 1)[0]
-    assert '<span class="tile-badges"><b class="badge badge-featured" title="Featured">featured</b></span>' in tile
-    assert '<b class="badge badge-featured" title="Featured">featured</b></dt><dd>Featured</dd>' in tile
+    assert '<span class="tile-badges"><b class="badge badge-featured" title="Cover">cover</b></span>' in tile
+    assert '<b class="badge badge-featured" title="Cover">cover</b></dt><dd>Cover</dd>' in tile
     legend = folder.split('<section class="rail-card signal-legend" aria-label="Legend">', 1)[1].split("</section>", 1)[0]
     assert (
-        '<li><b class="badge badge-featured" title="Featured on folder card">featured</b>'
-        "<span>Featured on folder card</span></li>"
+        '<li><b class="badge badge-featured" title="Shows on its folder&#39;s card">cover</b>'
+        "<span>Shows on its folder&#39;s card</span></li>"
     ) in legend
 
     cleared = client.post(
@@ -3113,7 +3139,9 @@ def test_signal_badges_and_legend_share_one_order_with_hero_then_featured_last(t
     legend = html.split('<section class="rail-card signal-legend" aria-label="Legend">', 1)[1].split("</section>", 1)[0]
     kinds = re.findall(r'<b class="badge badge-([a-z]+)"', legend)
 
-    assert shown == facts == ["collision", "hero", "featured"]
+    # The Main assemblies row omits its own "main" badge; the inspector fact keeps it.
+    assert shown == ["collision", "featured"]
+    assert facts == ["collision", "hero", "featured"]
     # The legend is the full set in the same order, not only the marks shown.
     assert kinds == [kind for kind, _word, _text in web.SIGNAL_LEGEND]
     assert [kind for kind, _word, _text in web.SIGNAL_LEGEND] == [
@@ -3122,7 +3150,7 @@ def test_signal_badges_and_legend_share_one_order_with_hero_then_featured_last(t
     ]
     assert [word for _kind, word, _text in web.SIGNAL_LEGEND] == [
         "clash", "copy", "renamed", "unhashed", "generic", "newer", "sourced", "main",
-        "featured",
+        "cover",
     ]
 
 
@@ -3148,7 +3176,13 @@ def test_a_clash_tile_and_a_main_assembly_carry_their_badges_under_the_size_line
     vessel = client.get("/catalog/Vessel").get_data(as_text=True)
     card = next(part for part in vessel.split('<div class="hero-card">') if 'href="/part/Vessel/vessel-main.iam"' in part)
     main = '<b class="badge badge-hero" title="Main assembly">main</b>'
-    assert card.index('class="hero-foot"') < card.index(f'<span class="tile-badges">{main}</span>')
+    # The Main assemblies row carries no "main" badge; its title says it.
+    assert card.index('class="hero-foot"') < card.index('<span class="tile-badges"></span>')
+    # An ordinary tile elsewhere, a search result, keeps it.
+    search = client.get("/catalog?q=vessel-main").get_data(as_text=True)
+    start = search.rindex('<a class="thumb-tile', 0, search.index('href="/part/Vessel/vessel-main.iam"'))
+    found = search[start : search.index("</a>", start)]
+    assert f'<span class="tile-badges">{main}</span>' in found
 
 
 def test_folder_card_strips_lead_with_heroes_then_featured_in_every_ancestor(tmp_path: Path) -> None:
@@ -3271,3 +3305,68 @@ def test_stylesheet_and_script_urls_are_versioned_and_cached_only_when_current(t
     assert stale.status_code == 200
     assert stale.headers["Cache-Control"] == "no-store"
     assert client.get("/static/dedup.css").headers["Cache-Control"] == "no-store"
+
+
+def test_duplicates_rail_points_name_clashes_to_doctor(tmp_path: Path) -> None:
+    client = create_app(make_workspace(tmp_path)).test_client()
+
+    result_html = client.get("/duplicates/results").get_data(as_text=True)
+
+    assert 'data-kind="collision"' not in result_html
+    assert "kind-collision" not in result_html
+    assert 'data-kind-filter="collision"' not in result_html
+    assert '<span>Identical copies</span><strong>1</strong>' in result_html
+    assert '<span>Same bytes, other name</span><strong>0</strong>' in result_html
+    assert 'href="/doctor#name-clashes" data-clash-pointer>1 name clash → Doctor</a>' in result_html
+    assert 'id="name-clashes"' in client.get("/doctor").get_data(as_text=True)
+
+
+def test_doctor_collision_session_leads_with_rename_and_repair(tmp_path: Path) -> None:
+    from inventor_fake import FakeInventor, fake_session
+
+    root = make_workspace(tmp_path)
+    assembly = root / "BoronProbe" / "probe.iam"
+    assembly.write_bytes("\x00bearing.ipt\x00".encode("utf-16-le"))
+    session = fake_session(FakeInventor({}))
+    client = create_app(root, session_factory=lambda: session).test_client()
+
+    html = client.get("/doctor/name/bearing.ipt").get_data(as_text=True)
+
+    assert html.count("Review rename</button>") == 3
+    assert html.count('name="repair" value="1" checked> Repair references through Inventor') == 3
+    disclosure = html.split('<details class="part-card consolidate-disclosure"', 1)[1]
+    assert disclosure.split(">", 1)[0].count(" open") == 0
+    assert html.index("Review rename") < html.index("Consolidate after comparing in Inventor")
+    assert "Keep only this" not in html and "Quarantine this" not in html
+
+
+def test_doctor_lists_interrupted_saves_without_a_removal_action(tmp_path: Path) -> None:
+    parts = tmp_path / "Parts"
+    parts.mkdir()
+    (parts / "Bracket.ipt").write_bytes(b"original")
+    (parts / "Bracket.newVer.ipt").write_bytes(b"newer work")
+    (parts / "Gone.newVer.ipt").write_bytes(b"lonely")
+    (parts / "Clip.ipt").write_bytes(b"same")
+    (parts / "Clip.newVer.ipt").write_bytes(b"same")
+    stamp = 1_750_458_966_208_000_000
+    for name in ("Clip.ipt", "Clip.newVer.ipt"):
+        os.utime(parts / name, ns=(stamp, stamp))
+    client = create_app(tmp_path).test_client()
+
+    html = client.get("/doctor").get_data(as_text=True)
+
+    section = html.split('id="interrupted-saves"', 1)[1].split("</section>", 1)[0]
+    assert html.index('id="interrupted-saves"') < html.index("Assembly workbenches")
+    assert (
+        "<code>Bracket.newVer.ipt</code> differs from <code>Bracket.ipt</code>: it may hold "
+        "newer work that never replaced the original. Open both in Inventor and compare; if "
+        "the leftover is the later state, replace the original with it in Inventor, then "
+        "remove the leftover."
+    ) in section
+    assert "<code>Gone.newVer.ipt</code>: orphan save leftover" in section
+    assert "Clip.newVer.ipt" not in section
+    assert "data-member-delete" not in section and "Remove leftover" not in section
+    # The identical pair is a Duplicates matter, with its one quiet action.
+    duplicates = client.get("/duplicates/results").get_data(as_text=True)
+    assert "Inventor save leftover — identical to Clip.ipt" in duplicates
+    assert "Bracket.newVer.ipt" not in duplicates

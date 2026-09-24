@@ -5,7 +5,7 @@
   if (!host) return;
 
   var FILTER_KEY = "pihti-dedup-filter";
-  var FILTER_KINDS = { all: true, collision: true, exact: true, renamed: true };
+  var FILTER_KINDS = { all: true, exact: true, renamed: true };
   var filterState = readFilterState();
   var toastTimer = null;
   var resultsRequest = 0;
@@ -246,27 +246,9 @@
         removeCard(card);
         return;
       }
-      var hashes = new Set(members.map(function (member) {
-        return member.dataset.recordHash;
-      }).filter(Boolean));
       var fileCount = card.querySelector("[data-group-file-count]");
-      var hashCount = card.querySelector("[data-group-hash-count]");
       if (fileCount) fileCount.textContent = members.length + " files";
-      if (hashCount) {
-        hashCount.textContent = hashes.size + " distinct " +
-          (hashes.size === 1 ? "hash" : "hashes");
-      }
-      if ((card.dataset.kind === "collision" || card.dataset.kind === "exact") && hashes.size) {
-        var kind = hashes.size === 1 ? "exact" : "collision";
-        card.classList.toggle("kind-collision", kind === "collision");
-        card.classList.toggle("kind-exact", kind === "exact");
-        card.dataset.kind = kind;
-        var icon = card.querySelector(".kind-icon");
-        var label = card.querySelector(".kind-label");
-        if (icon) icon.textContent = kind === "collision" ? "≠" : "=";
-        if (label) label.textContent = kind === "collision" ? "different bytes" : "identical bytes";
-      }
-      card.querySelectorAll("[data-member-delete], [data-consolidate-keep]").forEach(function (action) {
+      card.querySelectorAll("[data-member-delete]").forEach(function (action) {
         action.disabled = true;
         action.title = "Rescan before another cleanup action in this changed group";
       });
@@ -520,16 +502,16 @@
       button.addEventListener("click", async function () {
         var displayPath = button.dataset.displayPath;
         var keepPath = button.dataset.keep;
-        var isCollision = button.dataset.groupKind === "collision";
+        var isLeftover = button.dataset.leftover === "true";
         var card = button.closest("[data-group]");
         var row = button.closest(".member");
         var hideWholeCard = card.querySelectorAll(".member").length <= 2;
-        if (!window.confirm(
-          "Move only this file to recoverable quarantine?\n\n" + displayPath +
-          "\n\nRemaining same-name file(s):\n" + keepPath +
-          (isCollision
-            ? "\n\nThese files have different bytes. Continue only because you reviewed this revision."
-            : "\n\nContinue only after checking Inventor references.")
+        if (!window.confirm(isLeftover
+          ? "Remove this Inventor save leftover to recoverable quarantine?\n\n" + displayPath +
+            "\n\nIdentical original, which stays:\n" + keepPath
+          : "Move only this file to recoverable quarantine?\n\n" + displayPath +
+            "\n\nRemaining identical file(s):\n" + keepPath +
+            "\n\nContinue only after checking Inventor references."
         )) return;
         if (hideWholeCard) {
           card.dataset.operationPending = "true";
@@ -539,7 +521,7 @@
         }
         showToast("Moving to quarantine: " + displayPath);
         button.disabled = true;
-        button.textContent = "Deleting…";
+        button.textContent = isLeftover ? "Removing…" : "Deleting…";
         try {
           var response = await fetch(button.dataset.deleteSrc, {
             method: "POST",
@@ -551,7 +533,6 @@
               path: button.dataset.path,
               signature: button.dataset.signature,
               references_checked: true,
-              reviewed: isCollision,
               include_vendor: vendor.checked,
             }),
           });
@@ -573,50 +554,6 @@
         }
       });
     });
-    host.querySelectorAll("[data-consolidate-keep]").forEach(function (button) {
-      button.addEventListener("click", async function () {
-        var card = button.closest("[data-group]");
-        var count = card.querySelectorAll(".member").length - 1;
-        var keepPath = button.dataset.displayPath;
-        if (!window.confirm(
-          "Keep this reviewed revision and move the other " + count +
-          " same-name file(s) to recoverable quarantine?\n\nKEEP:\n" + keepPath +
-          "\n\nThis records where the removed paths went. Continue only because you opened " +
-          "and compared these different-byte revisions."
-        )) return;
-        card.dataset.operationPending = "true";
-        applyFilters();
-        showToast("Moving reviewed revisions to quarantine…");
-        button.disabled = true;
-        button.textContent = "Quarantining…";
-        try {
-          var response = await fetch(button.dataset.consolidateSrc, {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              "X-PIHTI-Token": cleanupCard.dataset.formToken,
-            },
-            body: JSON.stringify({
-              keep_path: button.dataset.keepPath,
-              reviewed: true,
-              include_vendor: vendor.checked,
-            }),
-          });
-          var result = await response.json();
-          if (!response.ok) throw new Error(result.error || "Consolidation failed");
-          removeCard(card);
-          showToast((result.already_applied ? "Already completed. " : "") +
-            "Quarantined " + result.execution.moved.length +
-            " reviewed revisions. Answer recorded under Removed.");
-        } catch (error) {
-          window.alert(error.message);
-          delete card.dataset.operationPending;
-          applyFilters();
-          button.disabled = false;
-          button.textContent = "Keep only this";
-        }
-      });
-    });
     resetCleanupContext(restoredMerge && restoredMerge.dataset.planSrc ? restoredMerge : null);
     applyFilters();
     saveFilterState();
@@ -624,6 +561,53 @@
   }
 
   loadResults({ includeVendor: filterState.includeVendor });
+})();
+
+(function () {
+  "use strict";
+
+  // Doctor name session: the reviewed consolidation of different-byte
+  // revisions, reached only through its closed disclosure.
+  var box = document.querySelector("[data-doctor-consolidate]");
+  if (!box) return;
+  box.querySelectorAll("[data-consolidate-keep]").forEach(function (button) {
+    button.addEventListener("click", async function () {
+      var keepPath = button.dataset.displayPath;
+      var others = Number(box.dataset.memberCount || "0") - 1;
+      if (!window.confirm(
+        "Keep this revision and move the other " + others +
+        " file(s) with this name to recoverable quarantine?\n\nKEEP:\n" + keepPath +
+        "\n\nContinue only because you opened these revisions side by side in Inventor " +
+        "and compared them."
+      )) return;
+      box.querySelectorAll("[data-consolidate-keep]").forEach(function (other) {
+        other.disabled = true;
+      });
+      var original = button.textContent;
+      button.textContent = "Moving…";
+      try {
+        var response = await fetch(box.dataset.consolidateSrc, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "X-PIHTI-Token": box.dataset.formToken,
+          },
+          body: JSON.stringify({ keep_path: button.dataset.keepPath, reviewed: true }),
+        });
+        var result = await response.json();
+        if (!response.ok) throw new Error(result.error || "Consolidation failed");
+        var target = new URL(box.dataset.done, window.location.href);
+        target.searchParams.set("kept", button.dataset.keepPath);
+        window.location.assign(target.toString());
+      } catch (error) {
+        window.alert(error.message);
+        box.querySelectorAll("[data-consolidate-keep]").forEach(function (other) {
+          other.disabled = false;
+        });
+        button.textContent = original;
+      }
+    });
+  });
 })();
 
 (function () {
@@ -854,11 +838,11 @@
       confirm: function (name) { return "Clear main assembly on " + name + "? It stays in its folder; only the placement goes."; }
     },
     featured: {
-      on: "Featured · clear",
-      off: "Feature on folder card",
-      setTitle: function (name) { return "Lead the folder cards above " + name + " with its preview"; },
-      clearTitle: function (name) { return "Stop leading the folder cards with " + name + " (asks first)"; },
-      confirm: function (name) { return "Stop featuring " + name + " on its folder cards?"; }
+      on: "Cover · clear",
+      off: "Use as folder cover",
+      setTitle: function (name) { return "Show " + name + " on its folder's card"; },
+      clearTitle: function (name) { return "Stop showing " + name + " on its folder's card (asks first)"; },
+      confirm: function (name) { return "Stop using " + name + " as its folder's cover?"; }
     }
   };
   function pointFlags(tile, name) {
@@ -1014,7 +998,7 @@
 (function () {
   "use strict";
 
-  // Clearing a Main assembly or Featured flag on the part page asks first;
+  // Clearing a Main assembly or folder cover on the part page asks first;
   // setting one does not. The inspector's toggles do the same in their own
   // handler, for whichever file they are pointed at.
   document.querySelectorAll("form[data-flag-confirm]").forEach(function (form) {
@@ -1150,7 +1134,14 @@
   if (!ledger) return;
 
   var CHECK_KEY = "pihti-rename-referrers";
+  var SETTLED_KEY = "pihti-rename-settled-filter";
   var search = ledger.querySelector("[data-rename-search]");
+  var settledButtons = Array.from(ledger.querySelectorAll("[data-settled-filter]"));
+  var settledFilter = "all";
+  try {
+    var savedFilter = localStorage.getItem(SETTLED_KEY);
+    if (savedFilter === "settled" || savedFilter === "unsettled") settledFilter = savedFilter;
+  } catch (_) { /* storage disabled — show every rename */ }
   var cards = Array.from(ledger.querySelectorAll("[data-rename-entry]"));
   var counter = ledger.querySelector("[data-rename-count]");
   var empty = ledger.querySelector("[data-rename-empty]");
@@ -1197,8 +1188,12 @@
         if (!response.ok) throw new Error(result.error || "Could not update the ledger");
         box.checked = result.settled;
         var card = box.closest("[data-rename-entry]");
-        if (card) card.classList.toggle("is-settled", result.settled);
+        if (card) {
+          card.classList.toggle("is-settled", result.settled);
+          card.dataset.settled = result.settled ? "true" : "false";
+        }
         if (status) status.textContent = result.settled ? "Settled" : "Reopened";
+        syncSettledCounts();
       } catch (error) {
         box.checked = !wanted;
         if (status) status.textContent = error.message;
@@ -1208,11 +1203,21 @@
     });
   });
 
+  function syncSettledCounts() {
+    var settled = cards.filter(function (card) { return card.dataset.settled === "true"; }).length;
+    var settledCount = ledger.querySelector("[data-settled-count]");
+    var unsettledCount = ledger.querySelector("[data-unsettled-count]");
+    if (settledCount) settledCount.textContent = String(settled);
+    if (unsettledCount) unsettledCount.textContent = String(cards.length - settled);
+  }
+
   function filterRenames() {
     var query = search ? search.value.trim().toLowerCase() : "";
     var shown = 0;
     cards.forEach(function (card) {
-      var match = !query || card.dataset.search.indexOf(query) !== -1;
+      var settled = card.dataset.settled === "true";
+      var match = (!query || card.dataset.search.indexOf(query) !== -1) &&
+        (settledFilter === "all" || (settledFilter === "settled") === settled);
       card.hidden = !match;
       if (match) shown += 1;
     });
@@ -1220,8 +1225,23 @@
     if (empty) empty.hidden = shown !== 0;
   }
 
+  function selectSettled(value) {
+    settledFilter = value;
+    settledButtons.forEach(function (button) {
+      var active = button.dataset.settledFilter === value;
+      button.classList.toggle("is-active", active);
+      button.setAttribute("aria-pressed", active ? "true" : "false");
+    });
+    try { localStorage.setItem(SETTLED_KEY, value); }
+    catch (_) { /* the filter still holds for this visit */ }
+    filterRenames();
+  }
+
+  settledButtons.forEach(function (button) {
+    button.addEventListener("click", function () { selectSettled(button.dataset.settledFilter); });
+  });
   if (search) search.addEventListener("input", filterRenames);
-  filterRenames();
+  selectSettled(settledFilter);
 })();
 
 (function () {

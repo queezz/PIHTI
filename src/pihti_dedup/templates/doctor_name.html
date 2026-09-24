@@ -12,6 +12,7 @@
   </section>
 
   {% if renamed %}<p class="metadata-notice doctor-notice" role="status">{% if rename_notice %}{{ rename_notice.text }}{% else %}Renamed and recorded.{% endif %} This session remains open so the last original cannot disappear from view.</p>{% endif %}
+  {% if consolidated_keep %}<p class="metadata-notice doctor-notice" role="status">Kept <code>{{ consolidated_keep|winpath }}</code>; the other revisions are in recoverable quarantine, recorded under Removed.</p>{% endif %}
   {% if rename_error %}<p class="metadata-error" role="alert">{{ rename_error }}</p>{% endif %}
 
   <div class="work-grid one-rail doctor-session">
@@ -63,6 +64,18 @@
         <p class="doctor-complete"><strong>No original remains.</strong> Inventor will now ask for every unresolved reference to <code>{{ filename }}</code>.</p>
         {% endif %}
       </section>
+
+      {% if consolidation %}
+      <details class="part-card consolidate-disclosure" data-doctor-consolidate data-consolidate-src="{{ consolidation.src }}" data-form-token="{{ form_token }}" data-done="{{ consolidation.done }}" data-member-count="{{ consolidation.members|length }}">
+        <summary>Consolidate after comparing in Inventor</summary>
+        <p class="part-note">Only after these revisions were opened side by side in Inventor and compared: keep one, and the others move to recoverable quarantine.</p>
+        <ul class="consolidate-list">
+          {% for member in consolidation.members %}
+          <li><code>{{ member.path|winpath }}</code>{% if member.sha256 %} <small>{{ member.sha256[:10] }}</small>{% endif %}<button class="copy-path" type="button" data-consolidate-keep data-keep-path="{{ member.path }}" data-display-path="{{ member.path|winpath }}">Keep this one</button></li>
+          {% endfor %}
+        </ul>
+      </details>
+      {% endif %}
 
       <section class="part-card">
         <h2>Referring assemblies and drawings</h2>

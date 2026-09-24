@@ -62,6 +62,11 @@ FRONTMATTER_FIELDS = (
 HERO_KEY = "hero"
 FEATURED_KEY = "featured"
 FLAG_KEYS = (HERO_KEY, FEATURED_KEY)
+#: The viewer calls the folder-card flag "cover". The stored key stays
+#: `featured`, which existing sidecars carry; `cover: true` is read as the same
+#: flag, and either one true counts. Nothing rewrites one into the other.
+COVER_KEY = "cover"
+FLAG_ALIASES = {FEATURED_KEY: (FEATURED_KEY, COVER_KEY)}
 STATUS_VALUES = ("concept", "draft", "manufactured", "obsolete")
 
 
@@ -91,7 +96,7 @@ class Sidecar:
 
     @property
     def featured(self) -> bool:
-        return self.frontmatter.get(FEATURED_KEY) is True
+        return any(self.frontmatter.get(key) is True for key in FLAG_ALIASES[FEATURED_KEY])
 
 
 def sidecar_path(cad_path: Path | str) -> Path:
@@ -158,7 +163,7 @@ def validate_frontmatter(frontmatter: dict) -> dict:
     supersedes = frontmatter.get("supersedes")
     if supersedes not in (None, "") and not isinstance(supersedes, str):
         raise SidecarError("supersedes must be a workspace-relative path")
-    for key in FLAG_KEYS:
+    for key in (*FLAG_KEYS, COVER_KEY):
         flag = frontmatter.get(key)
         if flag not in (None, "") and not isinstance(flag, bool):
             raise SidecarError(f"{key} must be true or false")
@@ -241,13 +246,19 @@ def with_flag(text: str, key: str, value: bool) -> str:
     if key not in FLAG_KEYS:
         raise ValueError(f"not a sidecar flag: {key}")
     current = parse_sidecar(text)
-    present = current.frontmatter.get(key) is True
-    if present == value and (value or key not in current.frontmatter):
+    # Setting writes `key` alone; clearing removes every synonym, so a
+    # `cover: true` written by hand cannot keep a cleared flag set.
+    aliases = FLAG_ALIASES.get(key, (key,))
+    present = any(current.frontmatter.get(name) is True for name in aliases)
+    if value and present:
         return text
-    wanted = {name: item for name, item in current.frontmatter.items() if name != key}
+    if not value and not any(name in current.frontmatter for name in aliases):
+        return text
+    removed = (key,) if value else aliases
+    wanted = {name: item for name, item in current.frontmatter.items() if name not in removed}
     if value:
         wanted[key] = True
-    flag_line = re.compile(re.escape(key) + r"[ \t]*:")
+    flag_line = re.compile("(?:" + "|".join(re.escape(name) for name in removed) + r")[ \t]*:")
 
     bom = "\ufeff" if text.startswith("\ufeff") else ""
     lines = text[len(bom) :].splitlines(keepends=True)

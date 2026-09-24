@@ -29,7 +29,7 @@
 {# Every signal is a badge in one row under the size line, in legend order,
    never over the preview. The row is the tile's own last grid row, so the
    size lines of one grid row stay level when one tile's badges wrap. #}
-{% macro tile_badges(item) %}<span class="tile-badges">{% for mark in item.signals %}{{ badge(mark.kind, mark.word, mark.text) }}{% endfor %}</span>{% endmacro %}
+{% macro tile_badges(item, skip=none) %}<span class="tile-badges">{% for mark in item.signals if mark.kind != skip %}{{ badge(mark.kind, mark.word, mark.text) }}{% endfor %}</span>{% endmacro %}
 
 {# Every file tile is one grid column wide with the same rows: preview,
    name, at most two lines of the description or sidecar summary (the whole
@@ -82,6 +82,7 @@
       {% if folder_url %}<a class="hero-open-folder" href="{{ folder_url }}">Open folder</a>{% endif %}
     </span>
   </div>
-  {{ tile_badges(item) }}
+  {# The row's own title says "Main assemblies"; its tiles do not repeat it. #}
+  {{ tile_badges(item, skip='hero') }}
 </div>
 {% endmacro %}

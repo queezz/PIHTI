@@ -381,13 +381,16 @@ def _rename(
     dry: bool,
     confirm_collision: bool,
 ) -> int:
-    from pihti_dedup.renames import RenameError, execute_rename, plan_rename, read_ledger
+    from pihti_dedup.renames import (
+        RenameError,
+        execute_rename,
+        plan_rename,
+        read_ledger,
+        settled_pairs,
+    )
     from pihti_dedup.whereused import build_index
 
-    settled = frozenset(
-        (referrer, entry.old_name) for entry in read_ledger(workspace) for referrer in entry.repaired
-    )
-    index = build_index(workspace, settled=settled)
+    index = build_index(workspace, settled=settled_pairs(read_ledger(workspace)))
     try:
         plan = plan_rename(workspace, relative_path, new_name, index=index)
     except RenameError as exc:
@@ -452,10 +455,16 @@ def _rename(
         print(f"sidecar: {_windows_path(plan.sidecar_to or '')}")
     for warning in result.warnings:
         print(f"warning: {warning}", file=sys.stderr)
-    if result.repair is not None:
-        for path, outcome in result.repair.outcomes:
-            print(f"  {_relative(workspace, path)}: {_outcome_text(outcome)}")
     entry = result.entry
+    if result.repair is not None:
+        indirect = {path.casefold() for path in entry.indirect}
+        for path, outcome in result.repair.outcomes:
+            relative = _relative(workspace, path)
+            if relative.replace("\\", "/").casefold() in indirect:
+                text = "holds the old name only indirectly; Inventor refreshes it on the next save"
+            else:
+                text = _outcome_text(outcome)
+            print(f"  {relative}: {text}")
     print(f"ledger: {entry.id} settled={'yes' if entry.settled else 'no'}")
     if entry.repair_note:
         print(f"note: {entry.repair_note}")

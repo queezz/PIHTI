@@ -176,7 +176,7 @@ def plan_consolidation(
 ) -> ConsolidationPlan:
     """Keep one manually chosen collision member and quarantine every other one."""
 
-    group = next((item for item in inventory.groups if item.id == group_id), None)
+    group = inventory.find_group(group_id)
     if group is None:
         raise ValueError("duplicate group was not found")
     if group.kind != "collision":
@@ -218,7 +218,7 @@ def plan_member_cleanup(
 ) -> MemberCleanupPlan:
     """Plan one member quarantine while preserving every other group member."""
 
-    group = next((item for item in inventory.groups if item.id == group_id), None)
+    group = inventory.find_group(group_id)
     if group is None:
         raise ValueError("duplicate group was not found")
     supported = {"exact", "renamed", "collision"} if allow_collision else {"exact", "renamed"}

@@ -161,30 +161,46 @@ validate-on-every-request behaviour:
 & "$HOME\.venvs\pihti-dedup\Scripts\python.exe" -m pihti_dedup serve . --refresh-seconds 0
 ```
 
-In Duplicates, use the two right rails to review one duplicate kind, project
-folder, or recent merged PR at a time. PR filters come from local first-parent
+Duplicates lists byte-identical files only: the same name with the same
+bytes (**Identical copies**), and the same bytes under another name (**Same
+bytes, other name**). When several files share a name but not all their
+bytes, each set of identical members is shown as its own group, and a member
+whose bytes match nothing is not a duplicate at all. Same-name files with
+different bytes are name clashes, not duplicates: the rail counts them and
+links to Doctor, where they are repaired by renaming. In Duplicates, use the
+two right rails to review one kind, project folder, or recent merged PR at a
+time. PR filters come from local first-parent
 Git history and do not require GitHub access. Each member row can copy either the
 absolute file path for Inventor's **File name** field or its containing folder for
 the dialog's address bar. Rows include size,
 modified time, and the short byte hash.
 
-Byte-identical rows also have a **Delete** action. Its confirmation revalidates
-the selected file's path, size, modified time, and SHA-256, requires another
-identical survivor, then moves only that member to gitignored quarantine and
-writes a restoration manifest. `*.newVer.ipt` pairs are called out separately:
-the current workspace has seven base/`newVer` pairs with identical bytes and
-timestamps, but that evidence does not prove which program created the suffix.
+Every row has a **Delete** action. Its confirmation revalidates the selected
+file's path, size, modified time, and SHA-256, requires another identical
+survivor, then moves only that member to gitignored quarantine and writes a
+restoration manifest. A `<name>.newVer.ipt` file is an Inventor save leftover:
+during a save Inventor writes the new state to that file and removes it when
+the save completes, so one that stays behind means the last step did not run,
+typically because another program such as Dropbox held the file. When the
+leftover has the same bytes and modified time as the original beside it, the
+group is titled **Inventor save leftover** and only the leftover row has an
+action, **Remove leftover**; the original has none. A leftover that differs
+from its original, or has no original beside it, is not a duplicate: Doctor
+lists it under **Interrupted saves** to be compared in Inventor, with no
+removal action.
 The complete review context—text, kind, folder, merged PR, extension,
 cross-folder scope, and vendor scope—survives deletion, rescans, and reloads.
 After a mutation, the refreshed list keeps the next visible group at the same
 viewport position and reports success in a fixed toast instead of inserting a
 banner that shifts the results.
 
-Different-byte collision rows support owner-reviewed cleanup after the revisions
-have been opened and compared in Inventor. **Quarantine this** moves only the
-selected revision; **Keep only this** selects a canonical survivor and moves
-every other member. Either action also moves an adjacent metadata sidecar to the
-sibling `PIHTI-quarantine/runs/` store. The searchable
+Different-byte revisions of one name are never offered for removal on
+Duplicates. In their Doctor name session each member's action is a rename,
+with the Inventor repair when Inventor is running. Below the members, a closed
+**Consolidate after comparing in Inventor** section keeps one revision and
+moves the others to quarantine, for use only after the revisions were opened
+side by side in Inventor. Any removal also moves an adjacent metadata sidecar
+to the sibling `PIHTI-quarantine/runs/` store. The searchable
 **Removed** page records each old path, the chosen survivor, possible referrers
 by filename, and a guarded Restore action. Opening an old part URL returns the
 same answer instead of a generic 404. Files beneath a top-level folder introduced
@@ -199,9 +215,12 @@ Use **Doctor** when the right operation is renaming rather than consolidation.
 Assembly Workbenches are the primary route for STEP/import repair: choose the
 referring `.iam`, inspect its preview and direct embedded names, then keep that
 assembly as the context while repairing one component at a time. Missing names
-remain visible until Inventor repoints and saves the assembly. For each missing
-name, Doctor searches every reachable Git ref and shows whether the file was
-never tracked, was deleted, or was renamed; historical Inventor previews and
+remain visible until Inventor repoints and saves the assembly; a top-level
+assembly that names a repaired sub-assembly's part only indirectly stops
+showing it once the repair is recorded, because Inventor refreshes that name on
+the assembly's next save. For each missing name, Doctor searches every
+reachable Git ref and shows whether a commit ever had a file with that name,
+whether it was deleted, or whether it was renamed; historical Inventor previews and
 copy-ready current rename destinations sit beside that evidence.
 Collision Doctor opens every repeated Inventor filename as one durable repair
 session, so renaming two members cannot make the final unversioned member vanish
@@ -307,7 +326,8 @@ name, different bytes), `copy` (an identical copy elsewhere), `renamed` (same
 bytes under another name), `unhashed` (same name, bytes not compared yet),
 `generic` (a generic name), `newer` (a newer file with this name exists),
 `sourced` (a sourcing option names it), `main` (a main assembly), and
-`featured`. Hovering a badge shows its full meaning.
+`cover` (shows on its folder's card). Hovering a badge shows its full meaning.
+Tiles in the Main assemblies row leave out `main`, since the row says it.
 The inspector and the part page's File card list the same badges with that
 meaning beside each, and the **Legend** at the bottom of the left rail always
 shows all nine, in the same order, on every catalog and part page.
@@ -332,8 +352,8 @@ not repeated among the files below. The catalog root lists every hero in the
 archive with its folder as the click target, and folder cards show their
 heroes first in the preview strip. A gold dot in the tile corner marks a hero;
 the inspector states it as a fact, and its toggles name the file they act on.
-**Feature on folder card**, beside it in both places, writes `featured: true`
-instead: the file then leads the preview strip of every folder card above it
+**Use as folder cover**, beside it in both places, writes `featured: true`
+(a hand-written `cover: true` reads the same) instead: the file then leads the preview strip of every folder card above it
 without joining the Main assemblies row. When nothing is marked, a folder card
 samples one representative per subfolder, preferring an assembly that nothing
 else references, then any assembly, then a part.

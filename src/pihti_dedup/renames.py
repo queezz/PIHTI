@@ -125,23 +125,44 @@ class RenameEntry:
     #: new file, saved, and verified on reopen.
     repaired: tuple[str, ...] = ()
     #: Referrers whose matching descriptors all resolved to another file that
-    #: kept the old name (or who never named this file at all): a `no-descriptor`
-    #: outcome. Never applicable to this rename, so never "not repaired".
+    #: kept the old name (or, when nothing was repaired, who never named this
+    #: file at all): a `no-descriptor` outcome. Never applicable to this
+    #: rename, so never "not repaired".
     not_applicable: tuple[str, ...] = ()
     repair_note: str = ""
+    #: Referrers that held no descriptor for the old name at all while at least
+    #: one other referrer was repaired: a top-level assembly lists a
+    #: sub-assembly's components by name only indirectly, and keeps the old
+    #: name in its bytes until Inventor saves it again.
+    indirect: tuple[str, ...] = ()
 
     @property
     def fully_repaired(self) -> bool:
         """Every referrer whose reference resolved to this file was repaired.
 
-        A referrer recorded in `not_applicable` was never pointed at this file
-        and does not count against completeness.
+        A referrer recorded in `not_applicable` or `indirect` was never
+        pointed at this file directly and does not count against completeness.
         """
 
         if not self.repaired and not self.not_applicable:
             return False
-        done = {path.casefold() for path in (*self.repaired, *self.not_applicable)}
+        done = {
+            path.casefold() for path in (*self.repaired, *self.not_applicable, *self.indirect)
+        }
         return all(path.casefold() in done for path in self.where_used)
+
+    @property
+    def has_repair_record(self) -> bool:
+        """The entry carries the per-referrer repair fields, not only a note."""
+
+        return bool(self.repaired or self.not_applicable or self.indirect)
+
+    @property
+    def repair_version(self) -> str:
+        """The Inventor version named in the repair note, when there is one."""
+
+        match = re.search(r"through Inventor ([^\s:;,]+)", self.repair_note)
+        return match.group(1) if match else ""
 
     @property
     def new_folder(self) -> str:
@@ -173,6 +194,7 @@ class RenameEntry:
             "repaired": list(self.repaired),
             "not_applicable": list(self.not_applicable),
             "repair_note": self.repair_note,
+            "indirect": list(self.indirect),
         }
 
     @classmethod
@@ -192,6 +214,7 @@ class RenameEntry:
             repaired=tuple(str(item) for item in payload.get("repaired") or ()),
             not_applicable=tuple(str(item) for item in payload.get("not_applicable") or ()),
             repair_note=str(payload.get("repair_note", "")),
+            indirect=tuple(str(item) for item in payload.get("indirect") or ()),
         )
 
 
@@ -356,11 +379,12 @@ def execute_rename(
 
     repaired: tuple[str, ...] = ()
     not_applicable: tuple[str, ...] = ()
+    indirect: tuple[str, ...] = ()
     repair_note = ""
     will_prompt = plan.will_prompt
     settled = False
     if repair is not None:
-        repaired, not_applicable, repair_note = _repair_summary(root, plan, repair)
+        repaired, not_applicable, indirect, repair_note = _repair_summary(root, plan, repair)
         if repair.complete:
             will_prompt = False
             settled = True
@@ -381,6 +405,7 @@ def execute_rename(
             repaired=repaired,
             not_applicable=not_applicable,
             repair_note=repair_note,
+            indirect=indirect,
         ),
     )
     return RenameResult(
@@ -449,47 +474,88 @@ def _portable(root: Path, text: str) -> str:
     return text
 
 
+def indirect_clause(paths) -> str:
+    """The sentence for referrers that hold the old name only indirectly."""
+
+    paths = list(paths)
+    if len(paths) == 1:
+        return (
+            f"{paths[0]} holds the old name only indirectly; "
+            "Inventor refreshes it on the next save"
+        )
+    return (
+        f"{', '.join(paths)} hold the old name only indirectly; "
+        "Inventor refreshes them on the next save"
+    )
+
+
 def _repair_summary(
     root: Path, plan: RenamePlan, repair: RepairResult
-) -> tuple[tuple[str, ...], tuple[str, ...], str]:
-    """Workspace-relative repaired and not-applicable referrers, and a ledger sentence.
+) -> tuple[tuple[str, ...], tuple[str, ...], tuple[str, ...], str]:
+    """Workspace-relative repaired, not-applicable and indirect referrers, and a note.
 
-    A `no-descriptor` referrer's matching descriptors all resolved to another
-    file that kept the old name (or it never named this file at all): it was
-    never applicable to this rename, so it is reported separately and never
-    folded into "not repaired".
+    A `no-descriptor` referrer held no descriptor that resolved to this file,
+    so it is never folded into "not repaired". When its old-name descriptors
+    resolved to another file that kept the name, it is `not_applicable` (it
+    uses that other file). When it held no old-name descriptor at all while
+    another referrer was repaired, it is `indirect`: a top-level assembly
+    that reaches the file through a sub-assembly and keeps the old name in
+    its bytes until Inventor saves it again.
     """
 
     by_absolute = {str(root / referrer): referrer for referrer in plan.referrers}
+    elsewhere = {str(path) for path in repair.elsewhere}
     repaired: list[str] = []
-    not_applicable: list[str] = []
+    no_descriptor: list[tuple[str, bool]] = []
     missed: list[str] = []
     for path, outcome in repair.outcomes:
         relative = by_absolute.get(str(path), str(path))
         if outcome == REPAIRED:
             repaired.append(relative)
         elif outcome == NO_DESCRIPTOR:
-            not_applicable.append(relative)
+            no_descriptor.append((relative, str(path) in elsewhere))
         else:
             missed.append(f"{relative} ({_outcome_words(root, outcome)})")
+    indirect = [relative for relative, other in no_descriptor if repaired and not other]
+    not_applicable = [relative for relative, _other in no_descriptor if relative not in indirect]
     where = f"Inventor {repair.version}".strip()
 
+    extra: list[str] = []
+    if not_applicable:
+        extra.append(f"use another file with this name: {', '.join(not_applicable)}")
+    if indirect:
+        extra.append(indirect_clause(indirect))
+
     if not missed:
-        # Nothing failed: every referrer was either repaired or was never
-        # applicable. The repaired names are the caller's to add (the toast
-        # names them again), so this sentence does not list them itself.
+        # Nothing failed: every referrer was repaired, was never applicable,
+        # or holds the name only indirectly. The repaired names are the
+        # caller's to add (the toast names them again), so this sentence does
+        # not list them itself.
         clauses = [f"repaired through {where}" if repaired else f"nothing to repair through {where}"]
-        if not_applicable:
-            clauses.append(f"use another file with this name: {', '.join(not_applicable)}")
-        return tuple(repaired), tuple(not_applicable), "; ".join(clauses)
+        note = "; ".join([*clauses, *extra])
+        return tuple(repaired), tuple(not_applicable), tuple(indirect), note
 
     if repaired:
         note = f"repaired through {where}: {', '.join(repaired)}; not repaired: {'; '.join(missed)}"
     else:
         note = f"not repaired through {where}: {'; '.join(missed)}"
-    if not_applicable:
-        note += f"; use another file with this name: {', '.join(not_applicable)}"
-    return tuple(repaired), tuple(not_applicable), note
+    note = "; ".join([note, *extra])
+    return tuple(repaired), tuple(not_applicable), tuple(indirect), note
+
+
+def settled_pairs(entries) -> frozenset[tuple[str, str]]:
+    """`(referrer, old name)` pairs the where-used index should no longer show.
+
+    A repaired referrer keeps the old name only as a fossil string in its saved
+    bytes; an indirect referrer keeps it until Inventor saves it again. In both
+    cases the name no longer describes what the document uses.
+    """
+
+    return frozenset(
+        (referrer, entry.old_name)
+        for entry in entries
+        for referrer in (*entry.repaired, *entry.indirect)
+    )
 
 
 def ledger_path(root: Path) -> Path:

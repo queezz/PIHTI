@@ -8,6 +8,33 @@
     <p>Work from an ambiguous filename to its parts and referring assemblies. Renames remain guarded, logged, and folder-local.</p>
   </section>
 
+  {% if interrupted %}
+  <section class="doctor-panel interrupted-saves" id="interrupted-saves">
+    <header><div><p class="micro-heading">Inventor save leftovers</p><h2>Interrupted saves</h2></div><strong>{{ interrupted|length }}</strong></header>
+    <div class="doctor-list">
+      {% for item in interrupted %}
+      <div class="doctor-row interrupted-row is-{{ item.state }}" data-interrupted-save="{{ item.state }}">
+        <a class="doctor-preview-stack" href="{{ url_for('part_page', relative_path=item.path) }}" aria-label="Open {{ item.path|winpath }}"><img src="{{ preview_url(item.path) }}" alt="" loading="lazy" decoding="async" width="64" height="48"></a>
+        <div class="interrupted-body">
+          {% if item.state == 'differs' %}
+          <p><code>{{ item.name }}</code> differs from <code>{{ item.base_name }}</code>: it may hold newer work that never replaced the original. Open both in Inventor and compare; if the leftover is the later state, replace the original with it in Inventor, then remove the leftover.</p>
+          <small>{{ item.path|winpath }} · modified {{ item.mtime_ns|filetime }}</small>
+          <small>{{ item.base_path|winpath }} · modified {{ item.base_mtime_ns|filetime }}</small>
+          {% else %}
+          <p><code>{{ item.name }}</code>: orphan save leftover; no <code>{{ item.base_name }}</code> beside it.</p>
+          <small>{{ item.path|winpath }} · modified {{ item.mtime_ns|filetime }}</small>
+          {% endif %}
+        </div>
+        <span class="interrupted-actions">
+          <button class="copy-path" type="button" data-copy-text="{{ item.absolute|winpath }}">Copy leftover path</button>
+          {% if item.state == 'differs' %}<button class="copy-path" type="button" data-copy-text="{{ item.base_absolute|winpath }}">Copy original path</button>{% endif %}
+        </span>
+      </div>
+      {% endfor %}
+    </div>
+  </section>
+  {% endif %}
+
   <section class="doctor-panel assembly-queue">
     <header><div><p class="micro-heading">Work in Inventor context</p><h2>Assembly workbenches</h2></div><strong>{{ assemblies|length }}</strong></header>
     <p class="doctor-intro">Start with the assembly that came from the import. Inspect it in Inventor, then repair its embedded missing, ambiguous, and generic names in sequence.</p>
@@ -40,7 +67,7 @@
   </section>
 
   <div class="doctor-columns doctor-secondary-columns">
-    <section class="doctor-panel">
+    <section class="doctor-panel" id="name-clashes">
       <header><div><p class="micro-heading">Unique filename repair</p><h2>Collision doctor</h2></div><strong>{{ collisions|length }}</strong></header>
       <p class="doctor-intro">Every repeated Inventor filename is a resolution hazard, whether its bytes match or not.</p>
       <div class="doctor-list">

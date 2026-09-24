@@ -1,6 +1,8 @@
+import os
 from pathlib import Path
 
-from pihti_dedup.inventory import CAD_EXTENSIONS, scan_paths, scan_workspace
+from pihti_dedup.cleanup import plan_member_cleanup
+from pihti_dedup.inventory import CAD_EXTENSIONS, newver_leftovers, scan_paths, scan_workspace
 
 
 def _write(path: Path, content: bytes) -> None:
@@ -83,12 +85,80 @@ def test_no_hash_marks_repeated_names_unverified(tmp_path: Path) -> None:
     assert inventory.renamed_groups == ()
 
 
+def _same_time(*paths: Path, stamp: int = 1_750_458_966_208_000_000) -> None:
+    for path in paths:
+        os.utime(path, ns=(stamp, stamp))
+
+
 def test_newver_exact_pair_gets_conservative_characterization(tmp_path: Path) -> None:
     _write(tmp_path / "Parts" / "Part5.ipt", b"same")
     _write(tmp_path / "Parts" / "Part5.newVer.ipt", b"same")
+    _same_time(tmp_path / "Parts" / "Part5.ipt", tmp_path / "Parts" / "Part5.newVer.ipt")
 
     group = scan_workspace(tmp_path).renamed_groups[0]
 
     assert group.characterization == "newver"
-    assert group.title == "newVer pair — identical bytes"
+    assert group.title == "Inventor save leftover — identical to Part5.ipt"
     assert group.to_dict()["characterization"] == "newver"
+
+
+def test_a_same_name_group_splits_into_its_identical_copies(tmp_path: Path) -> None:
+    """{A, A, B}: the two A members are one identical group on Duplicates, B is
+    a name clash only, and the summary still counts the collision."""
+
+    _write(tmp_path / "TempController" / "Body.ipt", b"twin")
+    _write(tmp_path / "TempController-v2" / "Body.ipt", b"twin")
+    _write(tmp_path / "GX12" / "Body.ipt", b"other body")
+
+    inventory = scan_workspace(tmp_path)
+
+    assert inventory.summary["collision_groups"] == 1
+    assert inventory.to_dict()["summary"]["collision_groups"] == 1
+    assert [group.kind for group in inventory.filename_groups] == ["collision"]
+    shown = inventory.duplicate_groups
+    assert [group.kind for group in shown] == ["exact"]
+    assert shown[0].characterization == "split"
+    assert shown[0].title == "Body.ipt"
+    assert [record.path for record in shown[0].records] == [
+        "TempController-v2/Body.ipt",
+        "TempController/Body.ipt",
+    ]
+    assert all(group.kind != "collision" for group in shown)
+    assert inventory.name_clash_groups == inventory.filename_groups
+    # The split group is found by id, and its guarded member delete keeps the twin.
+    assert inventory.find_group(shown[0].id) == shown[0]
+    plan = plan_member_cleanup(inventory, group_id=shown[0].id, path="TempController/Body.ipt")
+    assert plan.group_kind == "exact"
+    assert plan.candidate.keep_paths == ("TempController-v2/Body.ipt",)
+
+
+def test_only_the_newver_member_of_a_leftover_pair_is_the_leftover(tmp_path: Path) -> None:
+    base = tmp_path / "Parts" / "Part5.ipt"
+    leftover = tmp_path / "Parts" / "Part5.newVer.ipt"
+    _write(base, b"same")
+    _write(leftover, b"same")
+    _same_time(base, leftover)
+
+    group = scan_workspace(tmp_path).renamed_groups[0]
+    pairs = newver_leftovers(group.records)
+
+    assert [(item.path, original.path) for item, original in pairs] == [
+        ("Parts/Part5.newVer.ipt", "Parts/Part5.ipt")
+    ]
+
+
+def test_differing_and_orphan_leftovers_are_interrupted_saves(tmp_path: Path) -> None:
+    _write(tmp_path / "Parts" / "Bracket.ipt", b"original")
+    _write(tmp_path / "Parts" / "Bracket.newVer.ipt", b"newer work")
+    _write(tmp_path / "Parts" / "Gone.newVer.ipt", b"lonely")
+    _write(tmp_path / "Other" / "Bracket.ipt", b"newer work")  # same bytes, other folder
+
+    inventory = scan_workspace(tmp_path)
+
+    found = {(item.path, item.base_path, item.state) for item in inventory.save_leftovers}
+    assert found == {
+        ("Parts/Bracket.newVer.ipt", "Parts/Bracket.ipt", "differs"),
+        ("Parts/Gone.newVer.ipt", "Parts/Gone.ipt", "orphan"),
+    }
+    # A differing pair is never a save-leftover card on Duplicates.
+    assert all(group.characterization != "newver" for group in inventory.duplicate_groups)

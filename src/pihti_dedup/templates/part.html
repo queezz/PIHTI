@@ -58,11 +58,11 @@
               <input type="hidden" name="hero" value="{{ '0' if hero else '1' }}">
               <button class="button flag-button hero-button" type="submit" aria-pressed="{{ 'true' if hero else 'false' }}" title="{% if hero %}Stop showing {{ name }} among the Main assemblies{% else %}Show {{ name }} among the Main assemblies and first on its folder cards{% endif %}"><b class="badge badge-hero" aria-hidden="true">main</b>Main assembly <b>{{ 'on' if hero else 'off' }}</b></button>
             </form>
-            <form class="featured-toggle" method="post" action="{{ url_for('part_featured', relative_path=path) }}"{% if featured %} data-flag-confirm="Clear featured on {{ name }}? It stays in its folder; only its lead place on the folder cards goes."{% endif %}>
+            <form class="featured-toggle" method="post" action="{{ url_for('part_featured', relative_path=path) }}"{% if featured %} data-flag-confirm="Stop using {{ name }} as its folder's cover? It stays in its folder; only its place on the folder card goes."{% endif %}>
               <input type="hidden" name="token" value="{{ form_token }}">
               <input type="hidden" name="origin" value="part">
               <input type="hidden" name="featured" value="{{ '0' if featured else '1' }}">
-              <button class="button flag-button featured-button" type="submit" aria-pressed="{{ 'true' if featured else 'false' }}" title="{% if featured %}Stop leading the folder cards with {{ name }}{% else %}Lead the folder cards above {{ name }} with its preview{% endif %}"><b class="badge badge-featured" aria-hidden="true">featured</b>Feature on folder card <b>{{ 'on' if featured else 'off' }}</b></button>
+              <button class="button flag-button featured-button" type="submit" aria-pressed="{{ 'true' if featured else 'false' }}" title="{% if featured %}Stop showing {{ name }} on its folder's card{% else %}Show {{ name }} on its folder's card{% endif %}"><b class="badge badge-featured" aria-hidden="true">cover</b>{{ 'Cover · clear' if featured else 'Use as folder cover' }}</button>
             </form>
           </div>
           {% if saved %}<p class="metadata-notice" role="status">Sidecar saved.</p>{% endif %}

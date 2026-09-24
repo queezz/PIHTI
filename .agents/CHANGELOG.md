@@ -6,6 +6,28 @@ remains authoritative for exact file changes.
 
 ## 2026-09-24
 
+- Shipped `pihti-dedup` 0.22.0: Duplicates lists byte-identical files only.
+  A same-name group with mixed bytes shows each identical set as its own
+  group with the guarded Delete; a member whose bytes match nothing is not
+  listed, and same-name/different-bytes groups move to Doctor, counted in the
+  rail as "N name clashes → Doctor". Doctor's name session leads each member
+  with the rename and its Inventor repair; consolidating different-byte
+  revisions stays behind a closed "Consolidate after comparing in Inventor"
+  section, and "Keep only this" / "Quarantine this" are gone. `.newVer` files
+  are named for what they are, Inventor save leftovers: an identical one is
+  offered only **Remove leftover**, and one that differs from its original,
+  or has none, is listed under Doctor's **Interrupted saves** to compare in
+  Inventor, never removed. After a repair, a top-level assembly that names
+  the renamed part only indirectly is recorded as `indirect` and stops
+  showing a missing name until Inventor saves it again; the workbench shows
+  renamed destinations without a click. The Renames page reads at a glance: a
+  one-line head per entry with its state, referrers with badges, copy-ready
+  paths beside them, a settled filter in the rail, and the green repaired
+  state for any repaired entry. The Git-history answer and the folder-card
+  flag are reworded in plain words: "No commit of this repository ever had a
+  file with this name", and "cover" (the sidecar key stays `featured`, with
+  `cover: true` read the same).
+
 - Shipped `pihti-dedup` 0.21.1: two fixes from the first real repair run. A
   referrer whose matching descriptors all resolved to another file keeping
   the old name (`no-descriptor`) was counted as unrepaired; it is not

@@ -14,7 +14,7 @@
         </select>
       </label>
       <label class="check-control"><input type="checkbox" data-filter-cross> Cross-folder only</label>
-      <span class="shown-count"><strong data-visible-count>{{ inventory.groups|length }}</strong> shown</span>
+      <span class="shown-count"><strong data-visible-count>{{ groups|length }}</strong> shown</span>
     </section>
 
     <section class="dry-plan" data-plan-panel hidden aria-live="polite">
@@ -27,7 +27,10 @@
     </section>
 
     <section class="group-list" aria-label="Duplicate groups">
-      {% for group in inventory.groups %}
+      {# The save-leftover explanation is stated once, on the first such card;
+         the others carry it as the label's tooltip. #}
+      {% set explained = namespace(done=false) %}
+      {% for group in groups %}
       <article
         class="dup-card kind-{{ group.kind }}"
         id="group-{{ group.id }}"
@@ -40,23 +43,20 @@
         data-cross="{{ 'true' if group.cross_folder else 'false' }}"
         data-search="{{ group.title|lower }} {{ group.names|join(' ')|lower }} {% for record in group.records %}{{ record.path|lower }} {% endfor %}">
         <header class="group-head">
-          <span class="kind-icon" aria-hidden="true">
-            {% if group.kind == 'collision' %}≠{% elif group.kind == 'exact' %}={% elif group.kind == 'renamed' %}↔{% else %}?{% endif %}
-          </span>
+          <span class="kind-icon" aria-hidden="true">{% if group.kind == 'exact' %}={% else %}↔{% endif %}</span>
           <div class="group-title">
             <div class="title-line">
               <h2>{{ group.title }}</h2>
-              <span class="kind-label">{% if group.kind == 'collision' %}different bytes{% elif group.kind == 'exact' %}identical bytes{% elif group.characterization == 'newver' %}newVer pair{% elif group.kind == 'renamed' %}renamed copy{% else %}unverified{% endif %}</span>
+              <span class="kind-label"{% if group.characterization == 'newver' %} title="{{ newver_explanation }}"{% endif %}>{% if group.characterization == 'newver' %}save leftover{% elif group.kind == 'exact' %}identical bytes{% else %}same bytes, other name{% endif %}</span>
             </div>
             <p>
               <span data-group-file-count>{{ group.records|length }} files</span>
-              <span aria-hidden="true">·</span>
-              <span data-group-hash-count>{{ group.hashes|length }} distinct {{ 'hash' if group.hashes|length == 1 else 'hashes' }}</span>
               {% if group.cross_folder %}<span aria-hidden="true">·</span> crosses folders{% endif %}
-              {% if group.characterization == 'newver' %}<span aria-hidden="true">·</span> same bytes{% if group.records|map(attribute='mtime_ns')|unique|list|length == 1 %} and modified time{% endif %}; origin unproven{% endif %}
+              {% if group.characterization == 'split' %}<span aria-hidden="true">·</span> other files with this name differ{% endif %}
             </p>
+            {% if group.characterization == 'newver' and not explained.done %}<p class="group-explain">{{ newver_explanation }}</p>{% set explained.done = true %}{% endif %}
           </div>
-          {% if group.kind == 'collision' and group.extensions|length == 1 and group.extensions[0] in RENAMEABLE_EXTENSIONS %}<a class="button group-doctor" href="{{ url_for('doctor_name', filename=group.title) }}">Open group in Doctor</a>{% endif %}
+          {% if group.characterization == 'split' and group.extensions|length == 1 and group.extensions[0] in RENAMEABLE_EXTENSIONS %}<a class="button group-doctor" href="{{ url_for('doctor_name', filename=group.title) }}">Name clash in Doctor</a>{% endif %}
         </header>
 
         <div class="members">
@@ -85,15 +85,13 @@
             <div class="member-actions">
               <button class="copy-path" type="button" data-copy="{{ inventory.root }}\{{ record.path|winpath }}" data-copy-kind="file" title="Paste into Inventor's File name field">Copy file path</button>
               <button class="copy-path" type="button" data-copy="{{ inventory.root }}\{{ record.path.rsplit('/', 1)[0]|winpath }}" data-copy-kind="folder" title="Paste into Inventor's address bar">Copy folder</button>
-              {% if group.kind == 'collision' %}
-              <button class="delete-member" type="button" data-consolidate-keep data-consolidate-src="{{ url_for('consolidation_apply', group_id=group.id) }}" data-keep-path="{{ record.path }}" data-display-path="{{ record.path|winpath }}" title="Keep this reviewed revision and quarantine every other member">Keep only this</button>
-              {% endif %}
-              {% if record.suffix in RENAMEABLE_EXTENSIONS %}
+              {% if record.suffix in RENAMEABLE_EXTENSIONS and group.characterization != 'newver' %}
               <a class="copy-path" href="{{ url_for('part_page', relative_path=record.path) }}#rename" title="Rename this file on its part page, with the where-used check">Rename</a>
               {% endif %}
               {% if member_plan %}
+              {% set leftover_base = leftover_bases.get((group.id, record.path)) %}
               <button
-                class="delete-member"
+                class="{% if leftover_base %}copy-path remove-leftover{% else %}delete-member{% endif %}"
                 type="button"
                 data-member-delete
                 data-delete-src="{{ url_for('member_cleanup_apply', group_id=group.id) }}"
@@ -101,9 +99,9 @@
                 data-display-path="{{ record.path|winpath }}"
                 data-signature="{{ member_plan.signature }}"
                 data-keep="{{ member_plan.candidate.keep_paths|map('winpath')|join(' · ') }}"
-                data-group-kind="{{ group.kind }}"
-                data-idle-label="{% if group.kind == 'collision' %}Quarantine this{% else %}Delete{% endif %}"
-                title="Move only this file to recoverable quarantine after confirmation">{% if group.kind == 'collision' %}Quarantine this{% else %}Delete{% endif %}</button>
+                {% if leftover_base %}data-leftover="true"{% endif %}
+                data-idle-label="{% if leftover_base %}Remove leftover{% else %}Delete{% endif %}"
+                title="Move only this file to recoverable quarantine after confirmation">{% if leftover_base %}Remove leftover{% else %}Delete{% endif %}</button>
               {% endif %}
             </div>
           </div>
@@ -123,17 +121,17 @@
     <section class="rail-card">
       <h2>Groups</h2>
       <div class="rail-filters" role="group" aria-label="Filter by duplicate kind">
-        <button type="button" class="rail-filter is-active" data-kind-filter="all" aria-pressed="true"><span>All</span><strong>{{ inventory.groups|length }}</strong></button>
-        <button type="button" class="rail-filter collision" data-kind-filter="collision" aria-pressed="false"><span>Collisions</span><strong>{{ inventory.summary.collision_groups }}</strong></button>
-        <button type="button" class="rail-filter exact" data-kind-filter="exact" aria-pressed="false"><span>Exact copies</span><strong>{{ inventory.summary.exact_groups }}</strong></button>
-        <button type="button" class="rail-filter renamed" data-kind-filter="renamed" aria-pressed="false"><span>Renamed copies</span><strong>{{ inventory.summary.renamed_groups }}</strong></button>
+        <button type="button" class="rail-filter is-active" data-kind-filter="all" aria-pressed="true"><span>All</span><strong>{{ groups|length }}</strong></button>
+        <button type="button" class="rail-filter exact" data-kind-filter="exact" aria-pressed="false"><span>Identical copies</span><strong>{{ kind_counts.exact }}</strong></button>
+        <button type="button" class="rail-filter renamed" data-kind-filter="renamed" aria-pressed="false"><span>Same bytes, other name</span><strong>{{ kind_counts.renamed }}</strong></button>
       </div>
+      {% if clash_count %}<a class="rail-link" href="{{ url_for('doctor') }}#name-clashes" data-clash-pointer>{{ clash_count }} name clash{% if clash_count != 1 %}es{% endif %} → Doctor</a>{% endif %}
     </section>
 
     <section class="rail-card">
       <h2>Folders</h2>
       <nav class="rail-nav" aria-label="Filter by project folder">
-        <button type="button" class="rail-navrow is-active" data-system-filter="" aria-pressed="true"><span>All folders</span><strong>{{ inventory.groups|length }}</strong></button>
+        <button type="button" class="rail-navrow is-active" data-system-filter="" aria-pressed="true"><span>All folders</span><strong>{{ groups|length }}</strong></button>
         {% for folder in folder_stats %}
         <button type="button" class="rail-navrow" data-system-filter="{{ folder.name|lower }}" aria-pressed="false">
           <span title="{{ folder.name }}">{{ folder.name }}</span>

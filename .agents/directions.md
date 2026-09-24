@@ -13,14 +13,6 @@ session evidence in `log/`.
   Recommendation: `TempController-v2` is the newer tree (fan, LRS-150 supply,
   thermocouple socket) and looks like the one that was built; keep it.
   Safe default: nothing is removed; both trees stay as they are.
-- **Split name clashes out of Duplicates.** Same-name/different-bytes groups
-  such as `Body.ipt` are shown as duplicates with **Keep only this** on every
-  row, but the thumbnails show unrelated vendor parts. Route them to Doctor
-  only, and add a perceptual hash of the embedded Inventor previews as a third
-  signal beside filename and byte hash: same name, same picture → likely a
-  resave worth comparing; same name, different picture → a name clash, not a
-  duplicate. (Owner, 2026-09-24: "the duplicates, they are not, and the
-  pictures show it.")
 - **Collapse vendor import bundles.** The 49 generic names live in 11 STEP
   import folders. Doctor should show each bundle as one item with the
   re-import instruction (import the vendor STEP as a single named part) and a

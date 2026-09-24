@@ -56,6 +56,10 @@ DEFAULT_TIMEOUT = 60.0
 PROBE_TIMEOUT = 5.0
 
 _RENAMED = "\0renamed"
+#: Record-key prefix marking a `no-descriptor` referrer whose references by the
+#: old name all resolved to a surviving copy (it uses another file), as
+#: opposed to one holding no descriptor for the old name at all.
+_ELSEWHERE = "\0elsewhere\0"
 
 
 class SessionTimeout(RuntimeError):
@@ -386,6 +390,11 @@ class RepairResult:
     renamed: bool
     outcomes: tuple[tuple[Path, str], ...]
     timed_out: bool = False
+    #: `no-descriptor` referrers whose old-name references resolved to a
+    #: surviving copy before the rename. The other `no-descriptor` referrers
+    #: carried no descriptor for the old name at all: a top-level assembly
+    #: names a sub-assembly's components only indirectly.
+    elsewhere: tuple[Path, ...] = ()
 
     @property
     def repaired(self) -> tuple[Path, ...]:
@@ -509,6 +518,8 @@ def repair_references(
                         and _name_key(descriptor.FullFileName) == old_key
                     ]
                     if not matches:
+                        if elsewhere:
+                            run.record(_ELSEWHERE + str(path), True)
                         run.record(str(path), NO_DESCRIPTOR)
                         continue
                     for descriptor in matches:
@@ -538,8 +549,15 @@ def repair_references(
         records = exc.records
         timed_out = True
     renamed = bool(records.pop(_RENAMED, False))
+    elsewhere_paths = tuple(
+        path for path in paths if records.pop(_ELSEWHERE + str(path), False)
+    )
     missing = f"failed: {NO_ANSWER}" if timed_out else "failed: no outcome was recorded"
     outcomes = tuple((path, str(records.get(str(path), missing))) for path in paths)
     return RepairResult(
-        version=session.version, renamed=renamed, outcomes=outcomes, timed_out=timed_out
+        version=session.version,
+        renamed=renamed,
+        outcomes=outcomes,
+        timed_out=timed_out,
+        elsewhere=elsewhere_paths,
     )

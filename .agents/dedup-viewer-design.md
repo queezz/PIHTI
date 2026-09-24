@@ -348,6 +348,51 @@ another file keeping the old name) as unrepaired — it no longer blocks
 workspace-taking subcommand now refuses a folder without an `.ipj` file at
 its root before it walks anything.
 
+Version 0.22.0 narrows Duplicates to byte-identical groups, from the owner's
+review ("we are way past 'same name, maybe a duplicate'"). The surface reads
+`Inventory.duplicate_groups`: `exact` filename groups, one `exact` group per
+hash bucket of two or more members inside each same-name collision group
+(`split_groups`, characterization `split`, reached by id through
+`Inventory.find_group` so the guarded member Delete works on them), and the
+`renamed` groups. A member whose hash is unique inside its name group is not
+listed. `collision` and `unverified` groups leave the surface; `summary`, the
+JSON export, and the catalog `clash` badge still count them. The Groups rail
+offers All / Identical copies / Same bytes, other name and one link, "N name
+clashes → Doctor", to Doctor's collision queue (`#name-clashes`). Doctor's
+name session leads each member with the guarded rename and its Inventor
+repair; the reviewed consolidation (`consolidation_apply`, unchanged) is
+reachable only there, behind a closed "Consolidate after comparing in
+Inventor" disclosure, and "Keep only this" / "Quarantine this" are gone.
+`.newVer` files are classified as Inventor save leftovers (see "Individual
+exact-copy cleanup and `newVer`"). After a repair, a referrer that recorded
+`no-descriptor` while no descriptor of its own had resolved to a surviving copy,
+and while at least one other referrer was repaired, is stored in the new
+ledger field `indirect`: a top-level assembly lists a sub-assembly's
+components by name and keeps the old name until Inventor saves it again.
+`RepairResult.elsewhere` carries which `no-descriptor` referrers did resolve
+to a survivor, so a referrer using another file is never marked indirect and
+its reference stays visible. `renames.settled_pairs` feeds `build_index` with
+repaired and indirect pairs alike; the note, the toast, and the CLI say "holds
+the old name only indirectly; Inventor refreshes it on the next save". Older
+ledger lines load unchanged. On the workbench the "Renamed destinations" row
+opens by default. `/renames` is rebuilt for scanning: each card has one head
+line (old name struck, new name, date, a `repaired`, `settled`, `moved`, or
+`needs repoint` badge) and a two-column body capped at 70rem, the referrers
+with per-row badges (`repaired`, `uses another file with this name`,
+`indirect`) on the left and the Copy folder / Copy full path buttons with a
+middle-ellipsized path line on the right; the rail's Ledger card filters
+All / Unsettled / Settled. An entry with repair fields shows the green
+repaired state even when the old name survives elsewhere, adds "Other files
+named ... still exist elsewhere; they were not touched", and no longer prints
+the frozen repair sentence; an entry with no repair data keeps the live
+workspace banner. The Git-history answer for a missing name now reads "No
+commit of this repository ever had a file with this name." The folder-card
+flag is called "cover" everywhere the viewer speaks (badge, legend, inspector
+fact, "Use as folder cover" / "Cover · clear", toast); the sidecar key stays
+`featured: true`, `cover: true` is read as a synonym, either one true counts,
+and clearing removes both. The Main assemblies row omits its tiles' `main`
+badge; tiles elsewhere keep it.
+
 ## Purpose
 
 Provide a local, human-in-the-loop view of filename collisions and byte-level
@@ -474,13 +519,33 @@ with **Delete**. The confirmation names that Windows path and at least one
 byte-identical survivor. The localhost/token-protected endpoint force-rescans,
 compares a signature covering path, size, modified time, and SHA-256, and moves
 the one selected member to recoverable quarantine with its own manifest.
-Different-byte collisions never receive this action.
+Different-byte collisions never receive this action, and since 0.22.0 they are
+not listed on Duplicates at all.
 
-Seven current renamed-copy groups match `name.ipt` plus `name.newVer.ipt`. In
-all seven, the two files have identical SHA-256 values and identical filesystem
-modified timestamps. The UI characterizes these as **newVer pairs** but says
-“origin unproven”: neither the bytes nor the timestamp establishes that Autodesk
-Inventor created the suffix, and no Autodesk documentation for it was found.
+A `<name>.newVer.<ext>` file is an Inventor save leftover. Autodesk's support
+article "While working with Inventor newVer files are created" explains it:
+during a save Inventor writes the new state to the `.newVer` file and removes
+it when the save completes; a leftover means that final step did not run,
+typically because another program, such as a sync client like Dropbox, held
+the file. The classification (`inventory.newver_base_path`,
+`newver_leftovers`, `interrupted_saves`) looks for the base file in the same
+folder:
+
+- Same bytes and same modified time as the base: the renamed group is titled
+  "Inventor save leftover — identical to <base name>", states the explanation
+  once, and offers one quiet action on the leftover row only, **Remove
+  leftover** (the ordinary recoverable member quarantine). The base row has no
+  action. Six current pairs are of this kind.
+- Different bytes: not a duplicate. Doctor's **Interrupted saves** section
+  says the leftover may hold newer work that never replaced the original, to
+  open both in Inventor and compare, and, if the leftover is the later state,
+  to replace the original with it in Inventor before removing the leftover. No
+  removal action is offered.
+- No base file beside it: listed in the same section as an orphan save
+  leftover, without an action.
+
+Same bytes with a different modified time is left an ordinary renamed-copy
+group.
 
 ### Catalog, part page, and metadata sidecars
 
@@ -765,5 +830,7 @@ useful read-only viewer.
   https://help.autodesk.com/cloudhelp/2025/ENU/Inventor-Help/files/GUID-34126F60-3093-4144-8AA5-809B4D35DCA1.htm
 - Autodesk Inventor Help, “About Resolution of File Search”:
   https://help.autodesk.com/cloudhelp/2022/ENU/Inventor-Help/files/GUID-CD73F9CD-F485-4CAE-AA64-0E80BA15CCA3.htm
+- Autodesk support, “While working with Inventor newVer files are created”:
+  what a `.newVer` file is and why one stays behind after a save.
 - Autodesk Inventor Help, “Pack and Go Reference”:
   https://help.autodesk.com/cloudhelp/2026/ENU/Inventor-Help/files/GUID-B25088E2-AF91-4774-A168-C141F6147AD8.htm

@@ -56,10 +56,12 @@ from pihti_dedup.inventor_meta import (
 from pihti_dedup.inventor_meta import read_document as read_inventor_document
 from pihti_dedup.inventor_session import CLOSE_FIRST, NO_ANSWER, Session, SessionTimeout, path_key
 from pihti_dedup.inventory import (
+    NEWVER_EXPLANATION,
     ExcludedPath,
     FileRecord,
     Inventory,
     classify,
+    newver_leftovers,
     scan_workspace,
     sha256_file,
 )
@@ -69,9 +71,11 @@ from pihti_dedup.renames import (
     RENAMEABLE_EXTENSIONS,
     RenameError,
     execute_rename,
+    indirect_clause,
     plan_rename,
     read_ledger,
     set_settled,
+    settled_pairs,
 )
 from pihti_dedup.sidecar import (
     FEATURED_KEY,
@@ -795,9 +799,15 @@ def file_signals(inventory: Inventory) -> dict[str, tuple[dict, ...]]:
     for group in inventory.renamed_groups:
         others = len(group.records) - 1
         plural = "s" if others != 1 else ""
+        leftovers = {
+            leftover.path: base for leftover, base in newver_leftovers(group.records)
+        }
+        bases = {base.path for base in leftovers.values()}
         for record in group.records:
-            if group.characterization == "newver":
-                text = "newVer pair: same bytes under a .newVer name; origin unproven"
+            if record.path in leftovers:
+                text = f"Inventor save leftover, identical to {leftovers[record.path].name}"
+            elif record.path in bases:
+                text = "An identical Inventor save leftover sits beside this file"
             else:
                 text = f"Same bytes as {others} file{plural} with a different name"
             add(record.path, "renamed", text)
@@ -821,12 +831,12 @@ SIGNAL_LEGEND = (
     ("newer", "newer", "Newer file with this name exists"),
     ("sourced", "sourced", "Named in a sourcing option"),
     ("hero", "main", "Main assembly"),
-    ("featured", "featured", "Featured on folder card"),
+    ("featured", "cover", "Shows on its folder's card"),
 )
 SIGNAL_WORDS = {kind: word for kind, word, _text in SIGNAL_LEGEND}
 SIGNAL_ORDER = {kind: position for position, (kind, _word, _text) in enumerate(SIGNAL_LEGEND)}
 HERO_SIGNAL = {"kind": "hero", "word": SIGNAL_WORDS["hero"], "text": "Main assembly"}
-FEATURED_SIGNAL = {"kind": "featured", "word": SIGNAL_WORDS["featured"], "text": "Featured"}
+FEATURED_SIGNAL = {"kind": "featured", "word": SIGNAL_WORDS["featured"], "text": "Cover"}
 
 
 SOURCED_SIGNAL = {"kind": "sourced", "word": SIGNAL_WORDS["sourced"], "text": "Named in a sourcing option"}
@@ -1131,9 +1141,7 @@ def create_app(
             ledger = read_ledger(root)
         except OSError:
             return frozenset()
-        return frozenset(
-            (referrer, entry.old_name) for entry in ledger for referrer in entry.repaired
-        )
+        return settled_pairs(ledger)
 
     def _fresh_index():
         return build_index(root, cache=references, settled=_settled_pairs())
@@ -1198,11 +1206,22 @@ def create_app(
         entry = next((item for item in read_ledger(root) if item.id == entry_id), None)
         if entry is None or not entry.repair_note:
             return None
-        if entry.fully_repaired and entry.repaired and not entry.not_applicable:
-            # The one-clause case: the note is just "repaired through
-            # Inventor X", so the saved names can be appended to it plainly.
+        if entry.fully_repaired and entry.repaired:
+            # Every referrer is accounted for, so the toast is built from the
+            # recorded fields rather than the ledger sentence.
+            version = entry.repair_version
+            where = f"Inventor {version}" if version else "Inventor"
             saved = ", ".join(_windows_path(path) for path in entry.repaired)
-            text = f"Renamed and {entry.repair_note}: {saved} saved and verified."
+            parts = [f"Renamed and repaired through {where}: {saved} saved and verified."]
+            if entry.not_applicable:
+                others = [_windows_path(path) for path in entry.not_applicable]
+                verb = "uses" if len(others) == 1 else "use"
+                parts.append(f"{', '.join(others)} {verb} another file with this name.")
+            if entry.indirect:
+                parts.append(
+                    indirect_clause(_windows_path(path) for path in entry.indirect) + "."
+                )
+            text = " ".join(parts)
         else:
             text = f"Renamed; {_windows_path(entry.repair_note)}."
         return {"text": text, "complete": entry.fully_repaired, "repaired": entry.repaired}
@@ -1415,10 +1434,26 @@ def create_app(
             )
         )
         standard_candidates = _standard_candidates(inventory, index, locations)
+        interrupted = [
+            {
+                "state": item.state,
+                "path": item.path,
+                "name": item.record.name,
+                "base_path": item.base_path,
+                "base_name": item.base_path.rsplit("/", 1)[-1],
+                "absolute": str(root / item.path),
+                "base_absolute": str(root / item.base_path),
+                "folder_absolute": str((root / item.path).parent),
+                "mtime_ns": item.record.mtime_ns,
+                "base_mtime_ns": item.base.mtime_ns if item.base else None,
+            }
+            for item in inventory.save_leftovers
+        ]
         return render_template(
             "doctor.html",
             version=__version__,
             workspace=root.name,
+            interrupted=interrupted,
             standard_candidates=standard_candidates,
             standard_movable=sum(
                 item.plan.outcome == MOVE for item in standard_candidates
@@ -1622,7 +1657,32 @@ def create_app(
         assembly_path = _validated_doctor_assembly(request.values.get("assembly", ""))
         referrers = index.referring(filename)
         inventor = _inventor_state(referrers) if current_members and referrers else None
+        consolidation = None
+        if len(current_members) > 1:
+            clash = next(
+                (
+                    group
+                    for group in cache.get(include_vendor=False).filename_groups
+                    if group.kind == "collision"
+                    and group.records[0].name_key == filename.casefold()
+                ),
+                None,
+            )
+            if clash is not None:
+                consolidation = {
+                    "src": url_for("consolidation_apply", group_id=clash.id),
+                    "members": [
+                        {"path": record.path, "sha256": record.sha256 or ""}
+                        for record in clash.records
+                    ],
+                    "done": url_for(
+                        "doctor_name", filename=filename, assembly=assembly_path or None
+                    ),
+                }
+        kept = request.args.get("kept", "")
         return {
+            "consolidation": consolidation,
+            "consolidated_keep": kept if workspace_file(root, kept) is not None else "",
             "version": __version__,
             "workspace": root.name,
             "filename": filename,
@@ -2028,27 +2088,22 @@ def create_app(
             inventory = cache.get(include_vendor=include_vendor, force=force)
         except Exception as exc:  # a local scan failure should stay visible in the shell
             return render_template("_scan_error.html", message=str(exc)), 500
+        groups = inventory.duplicate_groups
         folder_stats = []
         for system in sorted({record.system for record in inventory.records}, key=str.casefold):
-            matching = [group for group in inventory.groups if system in group.systems]
-            folder_stats.append(
-                {
-                    "name": system,
-                    "groups": len(matching),
-                    "collisions": sum(group.kind == "collision" for group in matching),
-                }
-            )
+            matching = [group for group in groups if system in group.systems]
+            folder_stats.append({"name": system, "groups": len(matching)})
 
         merge_views = []
         pr_folders: dict[str, list[int]] = {
             folder.casefold(): list(numbers) for folder, numbers in KNOWN_PR_FOLDERS.items()
         }
         merges = _current_merges()
-        group_merges: dict[str, list[str]] = {group.id: [] for group in inventory.groups}
+        group_merges: dict[str, list[str]] = {group.id: [] for group in groups}
         for merge in merges:
             matching = [
                 group
-                for group in inventory.groups
+                for group in groups
                 if any(record.path in merge.paths for record in group.records)
             ]
             merge_key = str(merge.number)
@@ -2063,7 +2118,6 @@ def create_app(
                     "cad_files": merge.cad_files,
                     "folders": merge.folders,
                     "groups": len(matching),
-                    "collisions": sum(group.kind == "collision" for group in matching),
                     "cleanup_candidates": len(cleanup_plan.candidates),
                 }
             )
@@ -2082,25 +2136,35 @@ def create_app(
                 "edited": edited_prs,
                 "target": bool(folder_prs or added_prs),
             }
-        extensions = sorted({suffix for group in inventory.groups for suffix in group.extensions})
+        extensions = sorted({suffix for group in groups for suffix in group.extensions})
         member_plans = {}
-        for group in inventory.groups:
-            if group.kind not in {"exact", "renamed", "collision"}:
-                continue
-            for record in group.records:
+        leftover_bases: dict[tuple[str, str], str] = {}
+        for group in groups:
+            removable = [record.path for record in group.records]
+            if group.characterization == "newver":
+                # A save leftover is removable; the original it duplicates is not.
+                pairs = newver_leftovers(group.records)
+                removable = [leftover.path for leftover, _base in pairs]
+                for leftover, base in pairs:
+                    leftover_bases[(group.id, leftover.path)] = base.path
+            for path in removable:
                 try:
-                    plan = plan_member_cleanup(
-                        inventory,
-                        group_id=group.id,
-                        path=record.path,
-                        allow_collision=group.kind == "collision",
-                    )
+                    plan = plan_member_cleanup(inventory, group_id=group.id, path=path)
                 except ValueError:
                     continue
-                member_plans[(group.id, record.path)] = plan.to_dict()
+                member_plans[(group.id, path)] = plan.to_dict()
+        kind_counts = {
+            "exact": sum(group.kind == "exact" for group in groups),
+            "renamed": sum(group.kind == "renamed" for group in groups),
+        }
         return render_template(
             "_results.html",
             inventory=inventory,
+            groups=groups,
+            kind_counts=kind_counts,
+            clash_count=len(inventory.name_clash_groups),
+            leftover_bases=leftover_bases,
+            newver_explanation=NEWVER_EXPLANATION,
             folder_stats=folder_stats,
             merge_views=merge_views,
             group_merges=group_merges,
@@ -2879,7 +2943,7 @@ def create_app(
 
     def _hero_toast() -> str:
         name = request.args.get("file", "").replace("\\", "/").rsplit("/", 1)[-1]
-        for key, label in ((HERO_KEY, "Hero"), (FEATURED_KEY, "Featured")):
+        for key, label in ((HERO_KEY, "Hero"), (FEATURED_KEY, "Cover")):
             state = request.args.get(key, "")
             if name and state in {"set", "cleared"}:
                 return f"{label} {state}: {name}"
@@ -2935,23 +2999,68 @@ def create_app(
         current_will_prompt = not current_matches
         # A move keeps the name, so the moved file itself is always a match;
         # what matters is whether anything else now carries that name.
+        others = tuple(
+            path for path in current_matches if path.casefold() != entry.new_path.casefold()
+        )
+        move_present = any(
+            path.casefold() == entry.new_path.casefold() for path in current_matches
+        )
+        repaired = {path.casefold() for path in entry.repaired}
+        elsewhere = {path.casefold() for path in entry.not_applicable}
+        indirect = {path.casefold() for path in entry.indirect}
+        referrers = []
+        for path in entry.where_used:
+            key = path.casefold()
+            folder, _, name = path.rpartition("/")
+            referrers.append(
+                {
+                    "path": path,
+                    "name": name,
+                    "folder": folder or ".",
+                    "badge": "repaired"
+                    if key in repaired
+                    else "elsewhere"
+                    if key in elsewhere
+                    else "indirect"
+                    if key in indirect
+                    else "",
+                }
+            )
+        # Recorded repair data decides the state; the live workspace decides
+        # it only for an entry that carries none.
+        if entry.repaired or entry.fully_repaired:
+            state, label = "repaired", "repaired"
+        elif entry.settled:
+            state, label = "settled", "settled"
+        elif entry.is_move and move_present and not others:
+            state, label = "moved", "moved"
+        else:
+            state, label = "needs-repoint", "needs repoint"
+        full_path = _windows_path(str(root / entry.new_path))
+        folder_path = _windows_path(str((root / entry.new_path).parent))
+        full_head, _, full_tail = full_path.rpartition("\\")
+        folder_head, _, folder_tail = folder_path.rpartition("\\")
         return {
             "is_move": entry.is_move,
-            "move_present": any(
-                path.casefold() == entry.new_path.casefold() for path in current_matches
-            ),
-            "move_others": tuple(
-                path for path in current_matches if path.casefold() != entry.new_path.casefold()
-            ),
+            "move_present": move_present,
+            "move_others": others if entry.is_move else (),
+            "others_elsewhere": others,
             "entry": entry,
-            "full_path": str(root / entry.new_path),
-            "folder_path": str((root / entry.new_path).parent),
+            "state": state,
+            "state_label": label,
+            "full_path": full_path,
+            "folder_path": folder_path,
+            "full_head": f"{full_head}\\" if full_head else "",
+            "full_tail": full_tail,
+            "folder_head": f"{folder_head}\\" if folder_head else "",
+            "folder_tail": folder_tail,
             "search": f"{entry.old_name} {entry.new_name} {entry.new_path}".casefold(),
             "current_matches": current_matches,
             "current_will_prompt": current_will_prompt,
             "status_changed": current_will_prompt != entry.will_prompt,
-            "repaired": frozenset(path.casefold() for path in entry.repaired),
-            "not_applicable": frozenset(path.casefold() for path in entry.not_applicable),
+            "referrers": referrers,
+            "repaired_names": [path.rpartition("/")[2] for path in entry.repaired],
+            "note_only": bool(entry.repair_note) and not entry.has_repair_record,
         }
 
     @app.get("/part/<path:relative_path>")

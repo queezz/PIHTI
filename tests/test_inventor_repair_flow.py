@@ -19,6 +19,7 @@ from pihti_dedup.renames import (
     plan_rename,
     read_ledger,
     set_settled,
+    settled_pairs,
 )
 from pihti_dedup.web import INVENTOR_ABSENT, create_app
 from pihti_dedup.whereused import build_index
@@ -167,6 +168,222 @@ def test_ledger_lines_with_and_without_the_repair_keys_both_load(tmp_path: Path)
     assert lines[0]["repaired"] == [] and lines[1]["repaired"] == ["A/top.iam"]
 
 
+def make_nested_workspace(root: Path) -> tuple[Path, FakeInventor]:
+    """Body.ipt inside sub.iam, inside top.iam: top.iam names Body.ipt only
+    indirectly (its bytes list it, its descriptors do not)."""
+
+    root = root.resolve()
+    (root / "PIHTI.ipj").write_bytes(b"")
+    part = root / "Frame" / "parts" / "Body.ipt"
+    part.parent.mkdir(parents=True)
+    part.write_bytes(b"geometry")
+    sub = root / "Frame" / "sub.iam"
+    top = root / "Frame" / "top.iam"
+    sub.write_bytes(reference_bytes(str(part)))
+    top.write_bytes(reference_bytes(str(sub), str(part)))
+    app = FakeInventor({sub: [str(part)], top: [str(sub)]})
+    return root, app
+
+
+def test_a_top_assembly_without_a_descriptor_is_recorded_as_indirect(tmp_path: Path) -> None:
+    root, app = make_nested_workspace(tmp_path)
+
+    entry = execute_rename(root, planned(root), session=fake_session(app)).entry
+
+    assert entry.repaired == ("Frame/sub.iam",)
+    assert entry.indirect == ("Frame/top.iam",)
+    assert entry.not_applicable == ()
+    assert entry.fully_repaired and entry.settled and entry.will_prompt is False
+    assert entry.repair_note == (
+        "repaired through Inventor 2027.1; Frame/top.iam holds the old name only "
+        "indirectly; Inventor refreshes it on the next save"
+    )
+    line = json.loads(ledger_path(root).read_text(encoding="utf-8"))
+    assert line["indirect"] == ["Frame/top.iam"]
+
+
+def test_a_referrer_using_a_surviving_copy_is_never_indirect(tmp_path: Path) -> None:
+    """With another Body.ipt kept, a referrer whose descriptor resolves to it
+    uses that file: it stays `not_applicable`, and its reference stays shown."""
+
+    root, app = make_workspace(tmp_path)
+    other = root / "Other" / "Body.ipt"
+    other.parent.mkdir()
+    other.write_bytes(b"other geometry")
+    bracket = root / "Other" / "bracket.iam"
+    bracket.write_bytes(reference_bytes(str(other)))
+    app.disk[str(bracket).casefold()] = [str(other)]
+
+    plan = plan_rename(root, "Frame/parts/Body.ipt", "Frame-body", index=build_index(root))
+    entry = execute_rename(root, plan, confirmed=True, session=fake_session(app)).entry
+
+    assert entry.repaired == ("Frame/probe.iam", "Frame/stand.iam")
+    assert entry.not_applicable == ("Other/bracket.iam",)
+    assert entry.indirect == ()
+    assert build_index(root, settled=settled_pairs((entry,))).referring("Body.ipt") == (
+        "Other/bracket.iam",
+    )
+
+
+def test_ledger_lines_with_and_without_the_indirect_key_both_load(tmp_path: Path) -> None:
+    path = ledger_path(tmp_path)
+    path.parent.mkdir(parents=True)
+    old = {
+        "id": "a" * 16,
+        "timestamp": "2026-09-24T00:00:00+00:00",
+        "old_path": "A/x.ipt",
+        "new_path": "A/y.ipt",
+        "old_name": "x.ipt",
+        "new_name": "y.ipt",
+        "where_used": ["A/sub.iam", "A/top.iam"],
+        "repaired": ["A/sub.iam"],
+        "not_applicable": [],
+        "repair_note": "repaired through Inventor 2027.1",
+        "will_prompt": False,
+        "settled": True,
+    }
+    new = {**old, "id": "b" * 16, "indirect": ["A/top.iam"]}
+    path.write_text(json.dumps(old) + "\n" + json.dumps(new) + "\n", encoding="utf-8")
+
+    first, second = read_ledger(tmp_path)
+    assert first.indirect == () and not first.fully_repaired
+    assert second.indirect == ("A/top.iam",) and second.fully_repaired
+    assert RenameEntry.from_dict(second.to_dict()) == second
+    assert RenameEntry.from_dict(first.to_dict()) == first
+    assert settled_pairs((first,)) == {("A/sub.iam", "x.ipt")}
+    assert settled_pairs((second,)) == {("A/sub.iam", "x.ipt"), ("A/top.iam", "x.ipt")}
+
+
+# ---- where-used --------------------------------------------------------------
+
+
+def test_an_indirect_referrer_stops_naming_the_old_name(tmp_path: Path) -> None:
+    root, app = make_nested_workspace(tmp_path)
+    entry = execute_rename(root, planned(root), session=fake_session(app)).entry
+
+    plain = build_index(root)
+    settled = build_index(root, settled=settled_pairs((entry,)))
+
+    # top.iam was never saved, so its bytes still list Body.ipt.
+    assert "Frame/top.iam" in plain.referring("Body.ipt")
+    assert settled.referring("Body.ipt") == ()
+    assert "Body.ipt" not in settled.names_in("Frame/top.iam")
+
+
+def test_the_workbench_stops_showing_the_indirect_old_name(tmp_path: Path) -> None:
+    root, app = make_nested_workspace(tmp_path)
+    session = fake_session(app)
+    flask_app = create_app(root, session_factory=lambda: session)
+    client = flask_app.test_client()
+
+    done = client.post(
+        "/doctor/name/Body.ipt",
+        data={
+            "token": flask_app.config["FORM_TOKEN"],
+            "relative_path": "Frame/parts/Body.ipt",
+            "new_name": "Frame-body",
+            "repair": "1",
+            "confirm_repair": "1",
+            "assembly": "Frame/top.iam",
+        },
+    )
+    assert done.status_code == 302
+    page = client.get(done.headers["Location"]).get_data(as_text=True)
+    assert (
+        "Frame\\top.iam holds the old name only indirectly; "
+        "Inventor refreshes it on the next save."
+    ) in page
+    assert "is-missing" not in page
+    assert "This assembly has no direct missing, ambiguous, or generic names." in page
+
+
+def test_renamed_destinations_are_open_on_the_workbench(tmp_path: Path) -> None:
+    root, _app = make_workspace(tmp_path)
+    other = root / "Other" / "Body.ipt"
+    other.parent.mkdir()
+    other.write_bytes(b"other geometry")
+    flask_app = create_app(root)
+    client = flask_app.test_client()
+    client.post(
+        "/part/Frame/parts/Body.ipt/rename",
+        data={
+            "token": flask_app.config["FORM_TOKEN"],
+            "new_name": "Frame-body",
+            "confirm_collision": "1",
+        },
+    )
+
+    page = client.get("/doctor/assembly/Frame/probe.iam").get_data(as_text=True)
+
+    assert '<details class="assembly-renamed" open><summary>Renamed destinations (1)' in page
+
+
+def test_a_repaired_entry_renders_green_even_when_the_old_name_survives(tmp_path: Path) -> None:
+    root, app = make_workspace(tmp_path)
+    other = root / "Other" / "Body.ipt"
+    other.parent.mkdir()
+    other.write_bytes(b"other geometry")
+    plan = plan_rename(root, "Frame/parts/Body.ipt", "Frame-body", index=build_index(root))
+    execute_rename(root, plan, confirmed=True, session=fake_session(app))
+
+    page = create_app(root).test_client().get("/renames").get_data(as_text=True)
+
+    assert "Repaired through Inventor 2027.1." in page
+    assert "Other files named <code>Body.ipt</code> still exist elsewhere; they were not touched." in page
+    assert "Inventor will NOT ask now." not in page
+    assert "not repaired" not in page
+    assert 'class="rename-badge is-repaired"' in page
+    assert page.count('class="referrer-repaired">repaired</small>') == 2
+
+
+def test_a_legacy_repaired_entry_does_not_print_its_frozen_note(tmp_path: Path) -> None:
+    """A 0.21.0 line: `repaired` plus a note naming an indirect referrer as
+    "not repaired". The recorded fields speak; the frozen sentence does not."""
+
+    root, _app = make_workspace(tmp_path)
+    (root / "Frame" / "parts" / "Body.ipt").rename(root / "Frame" / "parts" / "Frame-body.ipt")
+    legacy = {
+        "id": "c" * 16,
+        "timestamp": "2026-09-24T13:24:38+00:00",
+        "old_path": "Frame/parts/Body.ipt",
+        "new_path": "Frame/parts/Frame-body.ipt",
+        "old_name": "Body.ipt",
+        "new_name": "Frame-body.ipt",
+        "where_used": ["Frame/probe.iam", "Frame/stand.iam"],
+        "repaired": ["Frame/probe.iam"],
+        "repair_note": (
+            "repaired through Inventor 2027.1: Frame/probe.iam; not repaired: "
+            "Frame/stand.iam (no reference to this file)"
+        ),
+        "will_prompt": True,
+        "settled": False,
+    }
+    ledger_path(root).parent.mkdir(parents=True, exist_ok=True)
+    ledger_path(root).write_text(json.dumps(legacy) + "\n", encoding="utf-8")
+
+    page = create_app(root).test_client().get("/renames").get_data(as_text=True)
+
+    assert "Repaired through Inventor 2027.1." in page
+    assert "not repaired" not in page
+    assert "no reference to this file" not in page
+    assert "Check the unmarked documents below by hand." in page
+
+
+def test_a_plain_entry_keeps_the_live_red_banner(tmp_path: Path) -> None:
+    root, _app = make_workspace(tmp_path)
+    other = root / "Other" / "Body.ipt"
+    other.parent.mkdir()
+    other.write_bytes(b"other geometry")
+    plan = plan_rename(root, "Frame/parts/Body.ipt", "Frame-body", index=build_index(root))
+    execute_rename(root, plan, confirmed=True)
+
+    page = create_app(root).test_client().get("/renames").get_data(as_text=True)
+
+    assert "Inventor will NOT ask now." in page
+    assert 'class="rename-badge is-needs-repoint"' in page
+    assert "Repaired through Inventor" not in page
+
+
 # ---- where-used --------------------------------------------------------------
 
 
@@ -259,7 +476,7 @@ def test_doctor_rename_confirms_then_repairs_and_the_ledger_settles(tmp_path: Pa
     assert "Frame\\probe.iam" in part and "Frame\\stand.iam" in part
 
     ledger = client.get("/renames").get_data(as_text=True)
-    assert "Repaired through Inventor." in ledger
+    assert "Repaired through Inventor 2027.1." in ledger
     assert f'data-rename-settled="{entry.id}" checked' in ledger
     assert ledger.count('class="referrer-repaired">repaired</small>') == 2
     assert "<dt>Repaired</dt><dd>1</dd>" in ledger

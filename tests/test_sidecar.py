@@ -197,3 +197,16 @@ def test_featured_round_trips_beside_hero_and_changes_one_line(tmp_path: Path) -
     assert written.frontmatter["part_number"] == "B_probe_bearing"
     assert set_flag(companion, "featured", False, FIELDS) is True
     assert "featured" not in read_sidecar(companion).frontmatter
+
+
+def test_cover_reads_as_the_folder_card_flag_and_clearing_removes_both() -> None:
+    original = "---\npart_number: A\ncover: true\n---\n\nProse.\n"
+    assert parse_sidecar(original).featured is True
+    # Either key true counts; nothing rewrites one into the other.
+    assert with_flag(original, "featured", True) == original
+    both = "---\nfeatured: false\ncover: true\n---\n"
+    assert parse_sidecar(both).featured is True
+    assert with_flag(original, "featured", False) == "---\npart_number: A\n---\n\nProse.\n"
+    assert parse_sidecar(with_flag(both, "featured", False)).featured is False
+    with pytest.raises(SidecarError, match="cover must be true or false"):
+        parse_sidecar("---\ncover: maybe\n---\n")
