@@ -1,8 +1,28 @@
 # Cathode-Anode-Flange
 
+The current plasma source: cathode and pre-anode inside the cathode box, mounted on the CF70 opening of the water-cooled flange in `Plasma-Flange-2024`.
+
 This is the clean souorce design. It removes the hot W filament problem: the W vapor contamination entering the main plasma box and settling on surfaces and samples. And it works.
 
 Issues: the anode is not shielded from the cathode electrons. I've tried to do so, but than the ignition was bad. The result: welded SUS connector to Cu rod. Solution: add a dedicated tungsten ignition helper, and shield the connection.
+
+## How it mounts
+
+- `Cathode-Anode-70IC-flange-with-feeds.iam` is the main assembly.
+- It goes into the CF70 opening of the water-cooled CF150 flange
+  (`Plasma Vessel/Plasma-Flange-2024`, `cathode-box-on-a-flange.iam`). That
+  flange and its copper cathode box stay fixed; this assembly is the part that
+  comes out.
+
+## Servicing
+
+The plasma source is removed on the CF70: easy, fast, cheap. Then, as needed:
+
+- change the cathode,
+- adjust the pre-anode so it does not short,
+- clean the ceramics.
+
+(owner, 2026-09-24)
 
 ## Main Assembly
 
