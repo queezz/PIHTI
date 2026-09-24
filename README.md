@@ -268,8 +268,10 @@ visit:
 & "$HOME\.venvs\pihti-dedup\Scripts\python.exe" -m pihti_dedup warm-previews .
 ```
 
-The cache is keyed by the file's modification time and size, so a resaved part
-is redrawn automatically and nothing has to be cleared by hand. DXF is not
+Add `--meshes` to also build the 3D views under `.pihti-dedup/meshes/`; a first
+build of the whole workspace takes about a minute and a quarter, mostly STEP
+parsing. The cache is keyed by the file's modification time and size, so a
+resaved part is redrawn automatically and nothing has to be cleared by hand. DXF is not
 covered and shows the placeholder.
 
 For a merged PR, preview merge-added same-name, byte-identical copies from the
@@ -308,8 +310,9 @@ right, with the current branch open. Both rails stay in place while the page
 scrolls; a long tree scrolls inside its own card. A single line above the
 thumbnails holds the breadcrumb and a filter field. Typing filters the folder
 cards and file tiles already on the page; Enter, or **Search whole archive**,
-runs the global server-side search instead. Large file sets and search results
-appear 48 at a time behind an explicit **Show 48 more** control.
+runs the global server-side search instead. A folder shows every file it
+holds, with previews loaded as they scroll into view; an archive-wide search
+shows 48 results at a time, and **Show 48 more** lands on the first new one.
 
 The thumbnails come first. Child folders are cards with a strip of up to six
 previews from the files below them (Inventor documents first); the folder's own
@@ -319,6 +322,11 @@ Hovering a file tile, or moving to it with the arrow keys, shows it in the left
 rail's inspector: the preview at its own pixel size, plus description, part
 number, material, valid mass, modification date, and the documents that use it,
 when those exist. Enter opens the part page; Escape clears the inspector.
+An STL, 3MF, or STEP file turns in 3D in the inspector and on its part page:
+drag to turn, use the wheel to zoom, right-drag or Shift-drag to pan, and
+double-click to return to the starting view. Inventor documents keep their
+still preview, and a mesh too large to send (over 400,000 triangles) keeps
+the still image with a one-line note.
 
 Badges on file tiles flag what the inventory already knows, each a short word
 in a small coloured box in a row under the tile's size line: `clash` (same

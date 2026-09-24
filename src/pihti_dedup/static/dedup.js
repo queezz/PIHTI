@@ -786,6 +786,8 @@
   var facts = inspector && inspector.querySelector("[data-inspector-facts]");
   var flagBox = inspector && inspector.querySelector("[data-inspector-flags]");
   var flagForms = inspector ? Array.from(inspector.querySelectorAll("form[data-inspector-flag]")) : [];
+  var canvas = inspector && inspector.querySelector("[data-inspector-canvas]");
+  var meshNote = inspector && inspector.querySelector("[data-inspector-mesh-note]");
   var shown = null;
   var hoverTimer = null;
 
@@ -821,8 +823,64 @@
     pointFlags(tile, title.textContent);
     empty.hidden = true;
     body.hidden = false;
-    fitImage();
     shown = tile;
+    wantMesh(tile.dataset.mesh || "");
+    fitImage();
+  }
+
+  // An STL, 3MF, or STEP tile turns in 3D. Only the file the inspector shows
+  // is fetched, once it has been shown for MESH_DELAY and only while the card
+  // has room for a preview, so walking or hovering across many tiles never
+  // queues requests; the still image stays until the mesh arrives and
+  // whenever it cannot (a refusal names its reason below the preview).
+  var V3 = window.PihtiViewer3D;
+  var MESH_DELAY = 150;
+  var viewer = null;
+  var meshWanted = "";
+  var meshStarted = "";
+  var meshTimer = null;
+  var meshAbort = null;
+  function stillImage() {
+    if (canvas) canvas.hidden = true;
+    image.hidden = false;
+  }
+  function wantMesh(url) {
+    if (!canvas || url === meshWanted) return;
+    window.clearTimeout(meshTimer);
+    meshTimer = null;
+    if (meshAbort) meshAbort.abort();
+    meshAbort = null;
+    meshWanted = url;
+    meshStarted = "";
+    if (viewer) viewer.clear();  // the GPU buffers of the file shown before
+    stillImage();
+    meshNote.hidden = true;
+    if (url && V3 && V3.supported()) meshTimer = window.setTimeout(loadMesh, MESH_DELAY);
+  }
+  function loadMesh() {
+    meshTimer = null;
+    var url = meshWanted;
+    if (!url || meshStarted === url || image.parentElement.hidden) return;
+    meshStarted = url;
+    var controller = window.AbortController ? new AbortController() : null;
+    meshAbort = controller;
+    V3.fetchMesh(url, controller && controller.signal).then(function (mesh) {
+      if (meshWanted !== url) return;
+      meshAbort = null;
+      if (!viewer) viewer = V3.create(canvas, { onLost: stillImage });
+      if (!viewer) return;
+      canvas.hidden = false;
+      image.hidden = true;
+      fitImage();
+      if (!viewer.show(mesh)) stillImage();
+    }, function (error) {
+      if (meshWanted !== url || error.name === "AbortError") return;
+      meshAbort = null;
+      if (error.reason) {
+        meshNote.textContent = "Still image: " + error.reason + ".";
+        meshNote.hidden = false;
+      }
+    });
   }
 
   // The two placement toggles act on the file the inspector names, and on
@@ -893,7 +951,17 @@
     preview.hidden = false;
     var room = limit - preview.getBoundingClientRect().top - FACT_ROOM - flags;
     preview.hidden = room < PREVIEW_MIN;
-    image.style.maxHeight = Math.max(PREVIEW_MIN, Math.min(PREVIEW_MAX, Math.floor(room))) + "px";
+    var limitHeight = Math.max(PREVIEW_MIN, Math.min(PREVIEW_MAX, Math.floor(room)));
+    image.style.maxHeight = limitHeight + "px";
+    // The 3D view takes the still image's box: the card's width, square like
+    // the rendered previews, within the same height budget.
+    if (viewer && canvas && !canvas.hidden && !preview.hidden) {
+      viewer.resize(preview.clientWidth, Math.min(preview.clientWidth, limitHeight));
+    }
+    // A window made tall enough to show the preview fetches the waiting mesh.
+    if (!preview.hidden && meshWanted && !meshStarted && !meshTimer && V3 && V3.supported()) {
+      meshTimer = window.setTimeout(loadMesh, MESH_DELAY);
+    }
   }
   window.addEventListener("resize", fitImage);
 
@@ -902,6 +970,7 @@
     if (!inspector) return;
     body.hidden = true;
     empty.hidden = false;
+    wantMesh("");
     image.removeAttribute("src");
     facts.replaceChildren();
     flagForms.forEach(function (form) { form.removeAttribute("action"); delete form.dataset.file; });
@@ -993,6 +1062,40 @@
     landed.focus({ preventScroll: true });
     show(landed);
   }
+})();
+
+(function () {
+  "use strict";
+
+  // Part page: an STL, 3MF, or STEP file turns in 3D in the still preview's
+  // place, at the size the preview was shown at; the image is the fallback.
+  var V3 = window.PihtiViewer3D;
+  var box = document.querySelector("[data-mesh-viewer]");
+  if (!box || !V3 || !V3.supported()) return;
+  var image = box.querySelector("img");
+  var canvas = box.querySelector("canvas");
+  var note = box.querySelector(".mesh-note");
+  V3.fetchMesh(box.dataset.mesh).then(function (mesh) {
+    function swap() {
+      var width = image.offsetWidth || 512;
+      var height = image.offsetHeight || width;
+      var viewer = V3.create(canvas, {
+        onLost: function () { canvas.hidden = true; image.hidden = false; }
+      });
+      if (!viewer) return;
+      canvas.hidden = false;
+      image.hidden = true;
+      viewer.resize(width, height);
+      if (!viewer.show(mesh)) { canvas.hidden = true; image.hidden = false; }
+    }
+    if (image.complete) swap();
+    else image.addEventListener("load", swap, { once: true });
+  }, function (error) {
+    if (error.reason && note) {
+      note.textContent = "Still image: " + error.reason + ".";
+      note.hidden = false;
+    }
+  });
 })();
 
 (function () {

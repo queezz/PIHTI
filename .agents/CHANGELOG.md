@@ -6,6 +6,18 @@ remains authoritative for exact file changes.
 
 ## 2026-09-24
 
+- Shipped `pihti-dedup` 0.23.0: an STL, 3MF, or STEP file turns in 3D. In the
+  catalog inspector and on the part page its still preview gives way to a
+  WebGL view on Inventor's light-blue backdrop, in the same isometric home
+  view: drag to turn, wheel to zoom toward the pointer, right-drag or
+  Shift-drag to pan, double-click to return home. The mesh is fetched only for
+  the file the inspector shows, after it has rested there for 150 ms, from a
+  new `/mesh/<path>` route that reuses the preview loader, caches a compact
+  binary under `.pihti-dedup/meshes/`, and refuses meshes above 400,000
+  triangles; the still image stays whenever there is no mesh and says why in
+  one line. `warm-previews --meshes` builds every mesh once. Folder pages now
+  show every file they hold; only archive-wide search keeps **Show 48 more**,
+  which now lands on the first tile it reveals.
 - Shipped `pihti-dedup` 0.22.0: Duplicates lists byte-identical files only.
   A same-name group with mixed bytes shows each identical set as its own
   group with the guarded Delete; a member whose bytes match nothing is not

@@ -42,9 +42,11 @@
           <div class="thumb-grid">
             {% for item in files %}{{ file_tile(item, query=query) }}{% endfor %}
           </div>
+          {# Only a search is revealed in batches; the link lands on the first
+             tile it reveals, so the reading place is kept. #}
           {% if has_more %}
           <div class="catalog-more">
-            <a class="button" href="{{ url_for('catalog', relative_folder=path if not query and path != '.' else none, q=query or none, show=next_show, include_vendor='1' if include_vendor else none) }}">Show 48 more</a>
+            <a class="button" href="{{ url_for('catalog', q=query, show=next_show, include_vendor='1' if include_vendor else none, _anchor=next_anchor) }}">Show 48 more</a>
             <span>{{ result_total - shown }} still hidden</span>
           </div>
           {% endif %}
@@ -184,7 +186,13 @@
         </div>
         <p class="inspector-empty" data-inspector-empty>Hover or arrow onto a file</p>
         <div class="inspector-body" data-inspector-body hidden>
-          <div class="inspector-preview"><img data-inspector-image alt=""></div>
+          {# An STL, 3MF, or STEP file turns in 3D on the canvas once its mesh
+             arrives; the still image stays until then and on any failure. #}
+          <div class="inspector-preview" data-inspector-preview>
+            <img data-inspector-image alt="">
+            <canvas class="mesh-canvas" data-inspector-canvas hidden title="Drag to turn · wheel to zoom · right-drag or Shift-drag to pan · double-click for the starting view"></canvas>
+          </div>
+          <p class="mesh-note" data-inspector-mesh-note hidden></p>
           <strong class="inspector-title" data-inspector-title></strong>
           <div class="inspector-facts" data-inspector-facts></div>
           {# Quiet toggles at the foot of the card for the file named above.

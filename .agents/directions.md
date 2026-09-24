@@ -19,8 +19,6 @@ session evidence in `log/`.
   "vendor import, leave alone" disposition, instead of 49 single renames.
   Prepare short role-based name suggestions per bundle for the owner to
   confirm (owner, 2026-09-24: "shorter meaningful names are better").
-- **Show 48 more** reloads at the top of the list instead of keeping the
-  viewport where the button was.
 - Laptop and phone layouts are deferred by owner decision 2026-09-24: the
   viewer targets a desktop window beside Inventor (about 1400–2560px wide),
   with one safety fold below 1200px.

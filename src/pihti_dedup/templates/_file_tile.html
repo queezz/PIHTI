@@ -13,7 +13,7 @@
 {% endif %}
 {% endmacro %}
 
-{% macro tile_attributes(item) %}{% set record = item.record %} id="{{ item.anchor }}" href="{{ url_for('part_page', relative_path=record.path) }}" data-hero="{{ '1' if item.hero else '0' }}" data-featured="{{ '1' if item.featured else '0' }}" title="{{ record.path|winpath }}{% for mark in item.signals %}&#10;{{ mark.text }}{% endfor %}"{% endmacro %}
+{% macro tile_attributes(item) %}{% set record = item.record %}{% set mesh = mesh_url(record) %} id="{{ item.anchor }}" href="{{ url_for('part_page', relative_path=record.path) }}"{% if mesh %} data-mesh="{{ mesh }}"{% endif %} data-hero="{{ '1' if item.hero else '0' }}" data-featured="{{ '1' if item.featured else '0' }}" title="{{ record.path|winpath }}{% for mark in item.signals %}&#10;{{ mark.text }}{% endfor %}"{% endmacro %}
 
 {# The one legend, the last card of the left rail on every catalog and part
    page: every mark, always in the same order, so it never changes size. #}

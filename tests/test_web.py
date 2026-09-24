@@ -860,24 +860,43 @@ def test_catalog_browses_one_folder_level_at_a_time(tmp_path: Path) -> None:
     assert 'href="/part/bellows/Design%20Data/vendor.ipt"' in vendor
 
 
-def test_catalog_search_and_large_folders_reveal_bounded_batches(tmp_path: Path) -> None:
+def test_a_folder_shows_every_file_and_only_search_reveals_bounded_batches(
+    tmp_path: Path,
+) -> None:
     bulk = tmp_path / "3D-printing"
     bulk.mkdir()
     for index in range(55):
         (bulk / f"fixture-{index:02}.stl").write_bytes(str(index).encode())
     client = create_app(tmp_path).test_client()
 
-    first = client.get("/catalog/3D-printing").get_data(as_text=True)
-    more = client.get("/catalog/3D-printing?show=96").get_data(as_text=True)
-    search = client.get("/catalog?q=fixture-0").get_data(as_text=True)
+    folder = client.get("/catalog/3D-printing").get_data(as_text=True)
+    ignored = client.get("/catalog/3D-printing?show=48").get_data(as_text=True)
+    search = client.get("/catalog?q=fixture").get_data(as_text=True)
+    more = client.get("/catalog?q=fixture&show=96").get_data(as_text=True)
+    narrow = client.get("/catalog?q=fixture-0").get_data(as_text=True)
 
-    assert first.count('class="thumb-tile"') == 48
-    assert "7 still hidden" in first
-    assert "Show 48 more" in first
+    # A folder has no cap and no "Show more": every direct file is a tile,
+    # and every preview is lazy, so the browser fetches only what it shows.
+    assert folder.count('class="thumb-tile"') == 55
+    assert ignored.count('class="thumb-tile"') == 55
+    for index in range(55):
+        assert f'href="/part/3D-printing/fixture-{index:02}.stl"' in folder
+    assert "Show 48 more" not in folder and "still hidden" not in folder
+    tiles = re.findall(r'<a class="thumb-tile[^>]*>\s*<img [^>]*>', folder)
+    assert len(tiles) == 55
+    assert all('loading="lazy"' in tile and 'decoding="async"' in tile for tile in tiles)
+
+    # A search is still revealed 48 at a time, and "Show 48 more" lands on the
+    # first tile it reveals, so the reader keeps their place.
+    assert search.count('class="thumb-tile"') == 48
+    assert "7 still hidden" in search
+    first_new = web.tile_anchor("3D-printing/fixture-48.stl")
+    assert f'href="/catalog?q=fixture&amp;show=55#{first_new}">Show 48 more</a>' in search
     assert more.count('class="thumb-tile"') == 55
+    assert f'id="{first_new}"' in more
     assert "still hidden" not in more
-    assert search.count('class="thumb-tile"') == 10
-    assert "Global results" in search
+    assert narrow.count('class="thumb-tile"') == 10
+    assert "Global results" in narrow
 
 
 def test_catalog_promotes_sidecar_prose_status_material_and_tags(tmp_path: Path) -> None:
@@ -3370,3 +3389,232 @@ def test_doctor_lists_interrupted_saves_without_a_removal_action(tmp_path: Path)
     duplicates = client.get("/duplicates/results").get_data(as_text=True)
     assert "Inventor save leftover — identical to Clip.ipt" in duplicates
     assert "Bracket.newVer.ipt" not in duplicates
+
+
+# --- The inspector's 3D view: /mesh/<path> -----------------------------------
+
+
+def needs_mesh_loader() -> None:
+    if ".stl" not in geometry_preview.available_extensions():
+        pytest.skip("the 'preview' extra is not installed")
+
+
+def ascii_stl(path: Path, triangles) -> Path:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    lines = ["solid tiny"]
+    for triangle in triangles:
+        lines += ["  facet normal 0 0 1", "    outer loop"]
+        lines += [f"      vertex {x} {y} {z}" for x, y, z in triangle]
+        lines += ["    endloop", "  endfacet"]
+    lines.append("endsolid tiny")
+    path.write_text("\n".join(lines) + "\n", encoding="ascii")
+    return path
+
+
+def mesh_header(data: bytes) -> tuple:
+    magic, version, count, *box = struct.unpack_from("<12sII6f", data, 0)
+    return magic, version, count, box
+
+
+def test_the_mesh_route_serves_a_binary_stl_as_positions_and_flat_normals(tmp_path: Path) -> None:
+    needs_mesh_loader()
+    root = make_export_workspace(tmp_path)
+    client = create_app(root).test_client()
+
+    response = client.get("/mesh/BoronProbe/exports/head.stl")
+    data = response.get_data()
+
+    assert response.status_code == 200
+    assert response.mimetype == "application/octet-stream"
+    magic, version, count, box = mesh_header(data)
+    assert magic == b"PIHTIMESH\0\0\0"
+    assert version == web.mesh_cache.MESH_FORMAT_VERSION
+    assert count == 4
+    assert box == [0, 0, 0, 10, 10, 10]
+    assert len(data) == 44 + count * 9 * 4 * 2
+    positions = struct.unpack_from(f"<{count * 9}f", data, 44)
+    normals = struct.unpack_from(f"<{count * 9}f", data, 44 + count * 36)
+    assert positions[:9] == (0, 0, 0, 10, 0, 0, 0, 10, 0)
+    # One face normal per triangle, repeated for its three vertices.
+    assert normals[:9] == (0, 0, 1) * 3
+
+
+def test_the_mesh_route_reads_an_ascii_stl_with_the_same_loader(tmp_path: Path) -> None:
+    needs_mesh_loader()
+    ascii_stl(
+        tmp_path / "Fixtures" / "wedge.stl",
+        [[(0, 0, 0), (2, 0, 0), (0, 3, 0)], [(0, 0, 0), (2, 0, 0), (0, 0, 4)]],
+    )
+    client = create_app(tmp_path).test_client()
+
+    response = client.get("/mesh/Fixtures/wedge.stl")
+
+    assert response.status_code == 200
+    _magic, _version, count, box = mesh_header(response.get_data())
+    assert count == 2
+    assert box == [0, 0, 0, 2, 3, 4]
+
+
+def test_the_mesh_route_refuses_traversal_and_every_other_extension(tmp_path: Path) -> None:
+    root = make_export_workspace(tmp_path)
+    outside = tmp_path.parent / "outside-secret.stl"
+    binary_stl(outside, [[(0, 0, 0), (1, 0, 0), (0, 1, 0)]])
+    (root / "BoronProbe" / "exports" / "notes.txt").write_text("text", encoding="utf-8")
+    client = create_app(root).test_client()
+
+    for url in (
+        "/mesh/..%2Foutside-secret.stl",
+        "/mesh/..%2F..%2FWindows%2Fwin.ini",
+        "/mesh/C:%5CWindows%5Cwin.ini",
+        "/mesh/BoronProbe/exports/absent.stl",
+        "/mesh/BoronProbe/exports/head.ipt",
+        "/mesh/BoronProbe/exports/notes.txt",
+    ):
+        response = client.get(url)
+        assert response.status_code == 404, url
+        assert response.get_json()["reason"], url
+        assert response.headers["Cache-Control"] == "no-store", url
+    assert client.get("/mesh/BoronProbe/exports/head.ipt").get_json() == {
+        "reason": "not a mesh format"
+    }
+
+
+def test_a_mesh_is_cached_on_disk_and_the_second_request_reads_the_file(
+    tmp_path: Path, monkeypatch
+) -> None:
+    needs_mesh_loader()
+    root = make_export_workspace(tmp_path)
+    first = create_app(root).test_client().get("/mesh/BoronProbe/exports/head.stl")
+    stored = list((root / ".pihti-dedup" / "meshes").rglob("*.mesh"))
+    assert len(stored) == 1
+    assert stored[0].parent.name == stored[0].name[:2]  # sharded like previews
+    assert stored[0].read_bytes() == first.get_data()
+    assert not list((root / ".pihti-dedup" / "meshes").rglob("*.tmp"))
+
+    def no_loading(_path):
+        raise AssertionError("the cached mesh should have been served")
+
+    monkeypatch.setattr(geometry_preview, "load_triangles", no_loading)
+    again = create_app(root).test_client().get("/mesh/BoronProbe/exports/head.stl")
+
+    assert again.status_code == 200
+    assert again.get_data() == first.get_data()
+
+
+def test_a_mesh_over_the_cap_is_refused_with_its_reason(tmp_path: Path, monkeypatch) -> None:
+    needs_mesh_loader()
+    root = make_export_workspace(tmp_path)
+    client = create_app(root).test_client()
+    monkeypatch.setattr(web.mesh_cache, "MAX_TRIANGLES", 3)
+
+    response = client.get("/mesh/BoronProbe/exports/head.stl")
+
+    assert response.status_code == 404
+    assert response.get_json() == {"reason": "too large for the inspector"}
+    assert not (root / ".pihti-dedup" / "meshes").exists()
+
+    # A mesh cached under a higher cap is refused too once the cap is lower.
+    monkeypatch.setattr(web.mesh_cache, "MAX_TRIANGLES", 400_000)
+    assert client.get("/mesh/BoronProbe/exports/head.stl").status_code == 200
+    monkeypatch.setattr(web.mesh_cache, "MAX_TRIANGLES", 3)
+    assert client.get("/mesh/BoronProbe/exports/head.stl").get_json() == {
+        "reason": "too large for the inspector"
+    }
+
+
+def test_a_missing_loader_is_a_404_with_a_reason_and_writes_nothing(
+    tmp_path: Path, monkeypatch
+) -> None:
+    root = make_export_workspace(tmp_path)
+    (root / "BoronProbe" / "exports" / "head.step").write_bytes(b"ISO-10303-21;")
+    monkeypatch.setattr(geometry_preview, "available_extensions", frozenset)
+    client = create_app(root).test_client()
+
+    stl = client.get("/mesh/BoronProbe/exports/head.stl")
+    step = client.get("/mesh/BoronProbe/exports/head.step")
+
+    assert stl.status_code == step.status_code == 404
+    assert stl.get_json() == {"reason": "needs the 'preview' extra"}
+    assert step.get_json() == {"reason": "needs the 'step' extra"}
+    assert not (root / ".pihti-dedup").exists()
+
+
+def test_a_versioned_mesh_url_is_immutable_only_while_it_names_the_current_file(
+    tmp_path: Path,
+) -> None:
+    needs_mesh_loader()
+    root = make_export_workspace(tmp_path)
+    target = root / "BoronProbe" / "exports" / "head.stl"
+    stat = target.stat()
+    key = web.mesh_version(stat.st_mtime_ns, stat.st_size)
+    url = "/mesh/BoronProbe/exports/head.stl"
+    client = create_app(root).test_client()
+
+    right = client.get(f"{url}?v={key}")
+    wrong = client.get(f"{url}?v=0-0-m0")
+    bare = client.get(url)
+    again = client.get(url, headers={"If-None-Match": bare.headers["ETag"]})
+
+    assert re.fullmatch(r"[0-9a-f]+-[0-9a-f]+-m\d+", key)
+    assert right.headers["Cache-Control"] == "private, max-age=31536000, immutable"
+    assert right.headers["ETag"] and right.headers["Last-Modified"]
+    for response in (wrong, bare):
+        assert "immutable" not in response.headers["Cache-Control"]
+        assert "no-cache" in response.headers["Cache-Control"]
+        assert "no-store" not in response.headers["Cache-Control"]
+    assert again.status_code == 304
+
+    stamp = stat.st_mtime_ns + 2_000_000_000
+    os.utime(target, ns=(stamp, stamp))
+    assert "no-cache" in client.get(f"{url}?v={key}").headers["Cache-Control"]
+
+
+def test_tiles_the_inspector_and_the_part_page_carry_what_the_3d_view_needs(
+    tmp_path: Path,
+) -> None:
+    root = make_export_workspace(tmp_path)
+    (root / "BoronProbe" / "exports" / "head.3mf").write_bytes(b"zip")
+    (root / "BoronProbe" / "exports" / "head.step").write_bytes(b"ISO-10303-21;")
+    client = create_app(root).test_client()
+
+    catalog = client.get("/catalog/BoronProbe/exports").get_data(as_text=True)
+    stl_part = client.get("/part/BoronProbe/exports/head.stl").get_data(as_text=True)
+    ipt_part = client.get("/part/BoronProbe/exports/head.ipt").get_data(as_text=True)
+
+    for name in ("head.stl", "head.3mf", "head.step"):
+        tile = re.search(rf'<a class="thumb-tile[^"]*" id="[^"]*" href="/part/BoronProbe/exports/{re.escape(name)}"[^>]*>', catalog)
+        assert tile, name
+        assert re.search(rf'data-mesh="/mesh/BoronProbe/exports/{re.escape(name)}\?v=[0-9a-f]+-[0-9a-f]+-m\d+"', tile.group(0)), name
+    ipt_tile = re.search(r'<a class="thumb-tile[^"]*" id="[^"]*" href="/part/BoronProbe/exports/head.ipt"[^>]*>', catalog)
+    assert ipt_tile and "data-mesh" not in ipt_tile.group(0)  # Inventor keeps its still image
+
+    inspector = catalog.split("data-inspector ", 1)[1].split("</section>", 1)[0]
+    assert "<img data-inspector-image" in inspector
+    assert '<canvas class="mesh-canvas" data-inspector-canvas hidden' in inspector
+    assert "data-inspector-mesh-note hidden" in inspector
+    assert "viewer3d.js?v=" in catalog
+    assert catalog.index("viewer3d.js?v=") < catalog.index("dedup.js?v=")
+
+    assert re.search(r'data-mesh-viewer data-mesh="/mesh/BoronProbe/exports/head.stl\?v=', stl_part)
+    assert '<canvas class="mesh-canvas" hidden' in stl_part
+    assert 'src="/preview/BoronProbe/exports/head.stl?v=' in stl_part  # the fallback stays
+    assert "data-mesh" not in ipt_part and "mesh-canvas" not in ipt_part
+
+
+def test_the_packaged_viewer_is_plain_webgl_and_fetches_only_the_shown_file(
+    tmp_path: Path,
+) -> None:
+    client = create_app(make_workspace(tmp_path)).test_client()
+
+    viewer = client.get("/static/viewer3d.js").get_data(as_text=True)
+    script = client.get("/static/dedup.js").get_data(as_text=True)
+
+    assert 'getContext("webgl"' in viewer
+    assert "import " not in viewer and "require(" not in viewer and "http" not in viewer
+    assert 'var MAGIC = "PIHTIMESH";' in viewer
+    assert "prefers-reduced-motion: reduce" in viewer
+    assert "gl.deleteBuffer" in viewer
+    assert len(viewer.splitlines()) < 400
+    assert "var MESH_DELAY = 150;" in script
+    assert "meshAbort.abort()" in script
+    assert "viewer.clear()" in script

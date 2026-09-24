@@ -10,8 +10,11 @@
       {{ catalog_bar(breadcrumbs, filter=false) }}
 
       <section class="part-sheet">
-        <div class="part-preview">
+        {% set mesh = mesh_url(path) %}
+        <div class="part-preview"{% if mesh %} data-mesh-viewer data-mesh="{{ mesh }}"{% endif %}>
           <img src="{{ preview_url(path) }}" alt="Preview of {{ name }}"{% if preview_size %} width="{{ preview_size[0] }}" height="{{ preview_size[1] }}"{% endif %}>
+          {% if mesh %}<canvas class="mesh-canvas" hidden title="Drag to turn · wheel to zoom · right-drag or Shift-drag to pan · double-click for the starting view"></canvas>
+          <p class="mesh-note" hidden></p>{% endif %}
           {% if preview_source %}<p class="preview-source muted">{{ preview_source }}</p>{% endif %}
         </div>
         <div class="part-identity">

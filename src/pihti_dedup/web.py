@@ -21,7 +21,7 @@ from urllib.parse import unquote
 from flask import Flask, Response, jsonify, redirect, render_template, request, send_file, url_for
 from markupsafe import escape
 
-from pihti_dedup import __version__, geometry_preview, inventor_session
+from pihti_dedup import __version__, geometry_preview, inventor_session, mesh_cache
 from pihti_dedup.cleanup import (
     execute_cleanup,
     execute_consolidation,
@@ -636,7 +636,27 @@ def preview_version(mtime_ns: int, size: int) -> str:
     return f"{mtime_ns:x}-{size:x}-r{geometry_preview.RENDERER_VERSION}"
 
 
+def mesh_version(mtime_ns: int, size: int) -> str:
+    """The `v` key a mesh URL carries: the file's stat plus the mesh format."""
+
+    return f"{mtime_ns:x}-{size:x}-m{mesh_cache.MESH_FORMAT_VERSION}"
+
+
+def _mesh_etag(path: Path, stat: os.stat_result) -> str:
+    raw = "\0".join(
+        [
+            os.path.normcase(str(path)),
+            str(stat.st_mtime_ns),
+            str(stat.st_size),
+            f"mesh{mesh_cache.MESH_FORMAT_VERSION}",
+        ]
+    )
+    return hashlib.sha256(raw.encode("utf-8")).hexdigest()[:32]
+
+
 PREVIEW_STRIP_SIZE = 6
+#: Archive-wide search results are revealed this many at a time; folders are not.
+SEARCH_BATCH = 48
 PROJECT_EXTENSIONS = frozenset({".ipj"})
 
 
@@ -1318,6 +1338,31 @@ def create_app(
 
     app.jinja_env.globals["preview_url"] = preview_url
 
+    def mesh_url(item) -> str:
+        """`/mesh/<path>?v=<key>` for an STL, 3MF, or STEP file; "" for anything else.
+
+        Takes what `preview_url` takes. The inspector and the part page turn
+        the file in 3D from this URL and keep the still preview otherwise.
+        """
+
+        path = item if isinstance(item, str) else getattr(item, "path", "")
+        if not path or not mesh_cache.eligible(Path(path).suffix):
+            return ""
+        mtime_ns = getattr(item, "mtime_ns", None)
+        size = getattr(item, "size", None)
+        if mtime_ns is None or size is None:
+            target = workspace_file(root, path)
+            try:
+                stat = target.stat() if target is not None else None
+            except OSError:
+                stat = None
+            if stat is None:
+                return ""
+            mtime_ns, size = stat.st_mtime_ns, stat.st_size
+        return url_for("mesh_file", relative_path=path, v=mesh_version(mtime_ns, size))
+
+    app.jinja_env.globals["mesh_url"] = mesh_url
+
     def _asset_version(filename: str) -> str:
         try:
             return str((Path(app.static_folder) / filename).stat().st_mtime_ns)
@@ -1344,7 +1389,7 @@ def create_app(
         # Last-Modified, so a conditional request is exact rather than
         # optimistic. A rendered STEP costs seconds; making the browser refetch
         # 280 of them on every catalog visit would defeat the disk cache.
-        if request.endpoint in {"preview_image", "git_history_preview", "sourcing_file"}:
+        if request.endpoint in {"preview_image", "mesh_file", "git_history_preview", "sourcing_file"}:
             return response
         if request.endpoint == "static" and response.status_code == 200:
             filename = request.view_args.get("filename", "") if request.view_args else ""
@@ -2363,6 +2408,59 @@ def create_app(
             response.cache_control.no_cache = True  # revalidate, never serve stale
         return response.make_conditional(request)
 
+    # Meshes that were refused for a reason only a change to the file can
+    # lift (over the cap, unreadable), so a hover does not re-parse a STEP
+    # file for seconds to learn the same answer. Keyed with the cap itself.
+    mesh_refusals: OrderedDict[tuple[str, int, int, int], str] = OrderedDict()
+    mesh_lock = threading.Lock()
+
+    @app.get("/mesh/<path:relative_path>")
+    def mesh_file(relative_path: str):
+        """The inspector's 3D mesh for an STL, 3MF, or STEP file, or 404 with a reason."""
+
+        def refuse(reason: str):
+            response = jsonify({"reason": reason})
+            response.status_code = 404
+            response.headers["Cache-Control"] = "no-store"
+            return response
+
+        target = workspace_file(root, relative_path)
+        if target is None:
+            return refuse("no such workspace file")
+        if not mesh_cache.eligible(target.suffix):
+            return refuse("not a mesh format")
+        try:
+            stat = target.stat()
+        except OSError:
+            return refuse("no such workspace file")
+        key = (
+            os.path.normcase(str(target)),
+            stat.st_mtime_ns,
+            stat.st_size,
+            mesh_cache.MAX_TRIANGLES,
+        )
+        with mesh_lock:
+            known = mesh_refusals.get(key)
+        if known:
+            return refuse(known)
+        result = mesh_cache.get_or_build(root, target, stat.st_mtime_ns, stat.st_size)
+        if result.data is None:
+            if result.reason in {mesh_cache.TOO_LARGE, mesh_cache.UNREADABLE}:
+                with mesh_lock:
+                    mesh_refusals[key] = result.reason
+                    while len(mesh_refusals) > 256:
+                        mesh_refusals.popitem(last=False)
+            return refuse(result.reason)
+        response = Response(result.data, mimetype="application/octet-stream")
+        response.last_modified = stat.st_mtime
+        response.set_etag(_mesh_etag(target, stat))
+        if request.args.get("v", "") == mesh_version(stat.st_mtime_ns, stat.st_size):
+            response.headers["Cache-Control"] = "private, max-age=31536000, immutable"
+        else:
+            response.cache_control.private = True
+            response.cache_control.no_cache = True
+        return response.make_conditional(request)
+
     @app.get("/catalog", defaults={"relative_folder": None})
     @app.get("/catalog/<path:relative_folder>")
     def catalog(relative_folder: str | None):
@@ -2826,11 +2924,14 @@ def create_app(
             {"name": current, "count": 0, "direct_count": 0, "children": ()},
         )
         query = request.args.get("q", "").strip()
+        # A folder shows every file it holds directly; only an archive-wide
+        # search is revealed in batches, `show` at a time.
         try:
-            requested = int(request.args.get("show", "48"))
+            requested = int(request.args.get("show", str(SEARCH_BATCH)))
         except ValueError:
-            requested = 48
-        show = max(48, min(requested, len(inventory.records) or 48))
+            requested = SEARCH_BATCH
+        show = max(SEARCH_BATCH, min(requested, len(inventory.records) or SEARCH_BATCH))
+        next_anchor = ""
 
         project_files: list[dict] = []
         heroes, featured = _catalog_flags(inventory)
@@ -2843,6 +2944,9 @@ def create_app(
             child_folders: list[dict] = []
             records = matching[:show]
             total = len(matching)
+            if total > show:
+                # "Show more" lands on the first newly revealed tile.
+                next_anchor = tile_anchor(matching[show].path)
         else:
             strips = (
                 _catalog_strips(inventory, current, heroes, featured)
@@ -2878,7 +2982,7 @@ def create_app(
                 else [record for record in direct if record.path in hero_paths]
             )
             direct = [record for record in direct if record.path not in hero_paths]
-            records = direct[:show]
+            records = direct
             total = len(direct)
 
         where_used = _current_index() if records or hero_records else None
@@ -2919,7 +3023,8 @@ def create_app(
             "shown": len(files),
             "result_total": total,
             "query": query,
-            "next_show": min(total, show + 48),
+            "next_show": min(total, show + SEARCH_BATCH),
+            "next_anchor": next_anchor,
             "has_more": len(files) < total,
             "subtree_count": current_stats["count"],
             "direct_count": current_stats["direct_count"],

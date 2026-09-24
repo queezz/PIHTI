@@ -107,6 +107,11 @@ def build_parser() -> argparse.ArgumentParser:
     warm.add_argument("workspace", nargs="?", default=".")
     warm.add_argument("--include-vendor", action="store_true")
     warm.add_argument("--quiet", action="store_true", help="Counts only, no per-file progress")
+    warm.add_argument(
+        "--meshes",
+        action="store_true",
+        help="Also build the inspector's 3D meshes for STL, 3MF, and STEP files",
+    )
     warm.add_argument("--json", metavar="PATH", help="Write the result as JSON")
 
     meta = subparsers.add_parser("meta", help="Metadata sidecars beside CAD files")
@@ -357,6 +362,28 @@ def _warm_previews(workspace: Path, *, include_vendor: bool, quiet: bool) -> dic
     return result.to_dict()
 
 
+def _warm_meshes(workspace: Path, *, include_vendor: bool, quiet: bool) -> dict:
+    """Build every missing inspector mesh, so the first 3D view is instant too."""
+
+    from pihti_dedup import mesh_cache
+
+    print(f"mesh cache: {_windows_path(str(mesh_cache.mesh_store(workspace)))}")
+
+    def report(index: int, total: int, path: str, state: str, seconds: float) -> None:
+        print(f"[{index:>4}/{total}] {state:<9} {seconds:5.2f}s  {_windows_path(path)}", flush=True)
+
+    result = mesh_cache.warm_meshes(
+        workspace, include_vendor=include_vendor, progress=None if quiet else report
+    )
+    print(
+        f"meshes: considered {result.considered} · built {result.rendered} · "
+        f"already cached {result.cached} · failed {result.failed} in {result.seconds:.1f}s"
+    )
+    for failure in result.failures:
+        print(f"warning: {failure}", file=sys.stderr)
+    return result.to_dict()
+
+
 def _relative(workspace: Path, path: Path | str) -> str:
     try:
         return _windows_path(Path(path).relative_to(workspace).as_posix())
@@ -512,11 +539,17 @@ def main(argv: Sequence[str] | None = None) -> int:
         payload = _warm_previews(
             workspace, include_vendor=args.include_vendor, quiet=args.quiet
         )
+        if args.meshes:
+            meshes = _warm_meshes(
+                workspace, include_vendor=args.include_vendor, quiet=args.quiet
+            )
+            payload = {**payload, "meshes": meshes}
         if args.json:
             Path(args.json).write_text(
                 json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
             )
-        return 1 if payload["failures"] else 0
+        failed = payload["failures"] or payload.get("meshes", {}).get("failures")
+        return 1 if failed else 0
 
     if args.command == "meta":
         payload = _seed_sidecars(workspace, include_vendor=args.include_vendor, apply=args.apply)

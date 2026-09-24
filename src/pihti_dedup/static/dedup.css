@@ -372,6 +372,11 @@ button, select, input[type="checkbox"] { cursor: pointer; }
 .inspector-flag { padding: 4px 8px; }
 .inspector-preview { flex: none; display: flex; justify-content: center; border-radius: 6px; background: #101822; }
 .inspector-preview img { display: block; width: 100%; height: auto; max-height: min(24rem, calc(100vh - 34rem)); object-fit: contain; }
+/* The 3D view of an STL, 3MF, or STEP file stands in the still image's box
+   on Inventor's light-blue backdrop; the script sizes it. */
+.mesh-canvas { display: block; max-width: 100%; border-radius: 6px; cursor: grab; touch-action: none; }
+.mesh-canvas:active { cursor: grabbing; }
+.mesh-note { flex: none; margin: 4px 0 0; color: var(--dim); font-size: 0.66rem; }
 .inspector-title { flex: none; margin: 8px 0 4px; font-size: 0.8rem; overflow-wrap: anywhere; }
 .inspector-facts { min-height: 0; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; }
 .inspector-plain { margin: 0; color: var(--dim); font-size: 0.7rem; }

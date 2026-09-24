@@ -196,6 +196,36 @@ def test_warm_previews_builds_the_disk_cache_and_reports_counts(tmp_path: Path, 
     assert "[   1/1]" not in second
 
 
+def test_warm_previews_with_meshes_builds_the_inspector_meshes_once(
+    tmp_path: Path, capsys
+) -> None:
+    if ".stl" not in geometry_preview.available_extensions():
+        pytest.skip("the 'preview' extra is not installed")
+    (tmp_path / "PIHTI.ipj").write_bytes(b"")
+    exports = tmp_path / "BoronProbe" / "exports"
+    exports.mkdir(parents=True)
+    write_stl(exports / "head.stl")
+    (exports / "head.ipt").write_bytes(b"cad")  # no geometry outside Inventor
+    report = tmp_path / "warm.json"
+
+    assert cli.main(["warm-previews", str(tmp_path), "--meshes", "--json", str(report)]) == 0
+
+    out = capsys.readouterr().out
+    assert "meshes: considered 1 · built 1 · already cached 0 · failed 0" in out
+    payload = json.loads(report.read_text(encoding="utf-8"))
+    assert payload["rendered"] == 1
+    assert payload["meshes"]["rendered"] == 1
+    assert payload["meshes"]["failures"] == []
+    assert len(list((tmp_path / ".pihti-dedup" / "meshes").rglob("*.mesh"))) == 1
+
+    assert cli.main(["warm-previews", str(tmp_path), "--meshes", "--quiet"]) == 0
+    assert "meshes: considered 1 · built 0 · already cached 1" in capsys.readouterr().out
+
+    # Without the flag no mesh pass runs.
+    assert cli.main(["warm-previews", str(tmp_path), "--quiet"]) == 0
+    assert "meshes:" not in capsys.readouterr().out
+
+
 def test_warm_previews_reports_a_file_it_could_not_draw(tmp_path: Path, capsys) -> None:
     if ".stl" not in geometry_preview.available_extensions():
         pytest.skip("the 'preview' extra is not installed")

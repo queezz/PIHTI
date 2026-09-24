@@ -393,6 +393,43 @@ fact, "Use as folder cover" / "Cover · clear", toast); the sidecar key stays
 and clearing removes both. The Main assemblies row omits its tiles' `main`
 badge; tiles elsewhere keep it.
 
+Version 0.23.0 answers two owner requests of 2026-09-24: turn STLs in the
+inspector, and drop "Show 48 more" from folders. A folder page renders every
+direct file (the largest direct folder holds 172 in the default scope); tiles
+already carry `loading="lazy"` and `decoding="async"`, and per-tile work stays
+memoised per snapshot, so `/catalog/3D-printing` went from 7 ms for 48 tiles
+to 22 ms for all 172. Only an archive-wide search is still revealed 48 at a
+time; its link carries the first newly revealed tile's anchor, so the reload
+lands there instead of at the top. The 3D view has one server boundary,
+`GET /mesh/<path>?v=<mtime>-<size>-m<format>`: `_contained` resolution, then
+only `.stl`, `.3mf`, `.step`, `.stp`; anything else, a missing extra, a parse
+failure, or a mesh above `mesh_cache.MAX_TRIANGLES` (400,000, about 29 MB) is
+a `no-store` 404 carrying `{"reason": ...}`, which the page prints as one line
+under the still image. The body is little-endian: `PIHTIMESH` padded to 12
+bytes, uint32 format version, uint32 triangle count, six float32 for the
+bounding box, then 9N float32 positions and 9N float32 flat normals, so the
+browser hands both blocks to WebGL without copying. Geometry comes from
+`geometry_preview.load_triangles`, the loader the still renderer uses, with
+degenerate faces dropped as there. The binary is cached under
+`.pihti-dedup/meshes/`, sharded like previews, keyed by normcased path,
+modification time, size, and `MESH_FORMAT_VERSION`, and written
+temp-then-replace; refusals are not stored on disk (a process memo keyed with
+the cap spares a re-parse), and a cached mesh is still refused if the cap has
+since been lowered. A matching `v` is answered immutable, anything else
+revalidates by ETag, as previews do. `warm-previews --meshes` builds the whole
+cache: 243 files, 240 built and 3 over the cap, in 71 s; the largest served
+mesh is 212,630 triangles (15.3 MB). The client is `static/viewer3d.js`,
+plain WebGL 1 and no library, because the job is small (one vertex buffer
+pair, an orthographic camera fit to the box, one camera-relative key light
+plus ambient and a view fill copied from `mesh_render.Style`, two-sided flat
+shading) and the tool ships no downloaded code. The inspector fetches only
+the file it shows, after 150 ms there and only while its card has room for a
+preview, aborts a superseded request, keeps the last six meshes in a page
+memo, and deletes the previous file's GPU buffers on every switch; a flick
+coasts unless `prefers-reduced-motion` is set. The part page uses the same
+view at the still preview's size. Inventor documents keep their embedded
+image: there is no geometry outside Inventor.
+
 ## Purpose
 
 Provide a local, human-in-the-loop view of filename collisions and byte-level

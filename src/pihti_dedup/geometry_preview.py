@@ -190,6 +190,29 @@ def cache_path(store: Path | str, key: str) -> Path:
     return Path(store) / key[:2] / f"{key}.png"
 
 
+def load_triangles(path: Path | str):
+    """The (N, 3, 3) float32 triangles of an STL, 3MF, or STEP file, or None.
+
+    The one loader behind both the still preview and the inspector's 3D mesh,
+    so the two always show the same geometry. None means the format is not a
+    mesh or its extra is not installed; a parse failure raises.
+    """
+
+    target = Path(path)
+    suffix = target.suffix.casefold()
+    if suffix not in available_extensions() or suffix in DRAWING_EXTENSIONS:
+        return None
+    from pihti_dedup import mesh_render
+
+    if suffix in MESH_EXTENSIONS:
+        return mesh_render.load_stl(target)
+    if suffix in STEP_EXTENSIONS:
+        return mesh_render.load_step(target)
+    if suffix in TRIMESH_EXTENSIONS:
+        return mesh_render.load_trimesh(target)
+    return None
+
+
 def render(path: Path | str, *, size: int = PREVIEW_SIZE) -> Preview | None:
     """Render one geometry file to a PNG `Preview`, or None if it cannot be.
 
@@ -210,13 +233,8 @@ def render(path: Path | str, *, size: int = PREVIEW_SIZE) -> Preview | None:
         else:
             from pihti_dedup import mesh_render
 
-            if suffix in MESH_EXTENSIONS:
-                triangles = mesh_render.load_stl(target)
-            elif suffix in STEP_EXTENSIONS:
-                triangles = mesh_render.load_step(target)
-            elif suffix in TRIMESH_EXTENSIONS:
-                triangles = mesh_render.load_trimesh(target)
-            else:
+            triangles = load_triangles(target)
+            if triangles is None:
                 return None
             image = mesh_render.render_triangles(triangles, size=size, ssaa=2)
     except FileNotFoundError:
