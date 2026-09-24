@@ -331,9 +331,11 @@ folder card; subsequent headings and labelled facts stay in the full note. The
 editor prompt and empty-note template make this structure explicit.
 
 Catalog file tiles use the same principle. When a metadata sidecar contains
-prose, or an Inventor document carries a useful Description, the tile becomes a
-wider image-and-story card. Status, tags, material, and a nonredundant Part
-Number appear as readable chips; material-only records stay compact. Sidecar
+prose, or an Inventor document carries a useful Description, the tile shows up
+to two lines of it under the name, at the same width as every other tile; the
+whole text is that line's tooltip, and a Description is also the inspector's
+Description row. Status, tags, material, and a nonredundant Part Number
+appear as readable chips; material-only records stay compact. Sidecar
 prose takes precedence over iProperties, and iProperties reads are cached until
 the CAD file's size or modification time changes. The Catalog root's left rail
 also shows the repository README's opening summary.

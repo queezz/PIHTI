@@ -246,6 +246,10 @@ lines), it puts the inspector/legend tops at 440/769px at 1920×1000 and
 scroll depth. At 700px tall the inspector has room for the name and the
 toggles only; the tile's own badges state the marks. A part page whose File
 card lists four or more long marks would outgrow a 700px rail.
+Version 0.20.1 removes the two-column story tile, whose own height set its
+whole grid row: a description or sidecar summary is two clamped lines inside
+the ordinary one-column tile, the whole text in its tooltip (and a Description
+in the inspector).
 
 Version 0.20.0 adds sourcing notes on the owner's request ("I need a place to
 store shopping options... I want pictures, screenshots, maybe occasional pdf";

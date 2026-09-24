@@ -2466,7 +2466,6 @@ def create_app(
         has_metadata = bool(
             summary or status or tags or material or part_number or metadata_error
         )
-        has_story = bool(summary or metadata_error)
         # Hover/keyboard details: rendered only when something exists beyond
         # the name, size, and chips the tile already shows.
         mass = mass_properties(fields).get("mass") if fields else None
@@ -2512,7 +2511,6 @@ def create_app(
             "material": material,
             "part_number": part_number,
             "has_metadata": has_metadata,
-            "has_story": has_story,
             "sidecar": sidecar is not None,
         }
 

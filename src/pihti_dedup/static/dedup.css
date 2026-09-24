@@ -494,10 +494,6 @@ button, select, input[type="checkbox"] { cursor: pointer; }
 .tile-badges { display: flex; flex-wrap: wrap; align-content: flex-start; gap: 4px; }
 .thumb-grid > .thumb-tile { display: grid; grid-row: span 3; grid-template-rows: subgrid; row-gap: 6px; }
 .thumb-grid > .hero-card { display: grid; grid-row: span 2; grid-template-rows: subgrid; row-gap: 6px; }
-.thumb-grid > .thumb-tile.has-story { row-gap: 6px; }
-.thumb-grid > .thumb-tile.has-story > img { grid-column: 1; grid-row: 1 / -1; }
-.thumb-grid > .thumb-tile.has-story > .thumb-content { grid-column: 2; grid-row: 1 / 3; }
-.thumb-grid > .thumb-tile.has-story > .tile-badges { grid-column: 2; grid-row: 3; }
 .thumb-details .detail-signal { align-items: center; }
 .thumb-details .detail-signal dt { display: flex; align-items: center; }
 /* The legend: every badge in one fixed order, read down two columns, its
@@ -511,13 +507,8 @@ button, select, input[type="checkbox"] { cursor: pointer; }
 .thumb-tile { min-width: 0; display: flex; flex-direction: column; gap: 6px; padding: 7px; border: 1px solid var(--line-soft); border-radius: 7px; color: var(--text); background: #0d141c; text-decoration: none; }
 .thumb-tile:hover { border-color: #40566c; background: #141d28; }
 .thumb-tile.has-metadata { border-color: #30465a; background: #101a24; }
-.thumb-tile.has-story {
-  grid-column: span 2; display: grid; grid-template-columns: minmax(120px, 0.9fr) minmax(0, 1.1fr);
-  gap: 10px;
-}
 .thumb-tile.has-metadata:hover { border-color: var(--accent); background: #142131; }
 .thumb-tile img { display: block; width: 100%; height: auto; aspect-ratio: 4 / 3; object-fit: contain; border-radius: 4px; background: #101822; }
-.thumb-tile.has-story img { height: 100%; min-height: 9rem; aspect-ratio: auto; }
 .thumb-content { min-width: 0; display: flex; flex: 1; flex-direction: column; gap: 6px; }
 /* Main assemblies: their own row above the folders and files, each card one
    file-tile column wide with the file tile's 4:3 preview. The card holds the
@@ -540,10 +531,11 @@ button, select, input[type="checkbox"] { cursor: pointer; }
 .hero-open-folder:hover { border-color: var(--accent); color: var(--text); }
 .thumb-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 0.72rem; }
 .thumb-tile.has-metadata .thumb-name { color: var(--text); font-size: 0.76rem; font-weight: 650; }
-.thumb-tile.has-story .thumb-name { font-size: 0.8rem; }
+/* A description or sidecar summary: two lines at most, so every tile keeps
+   one column and a row grows by two lines, never by a paragraph. */
 .thumb-summary {
-  display: -webkit-box; overflow: hidden; color: var(--muted); font-size: 0.72rem; line-height: 1.45;
-  -webkit-box-orient: vertical; -webkit-line-clamp: 3;
+  display: -webkit-box; overflow: hidden; color: var(--muted); font-size: 0.68rem; line-height: 1.4;
+  overflow-wrap: anywhere; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2;
 }
 .thumb-facts { display: flex; flex-wrap: wrap; gap: 5px; }
 .metadata-chip {

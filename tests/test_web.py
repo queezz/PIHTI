@@ -877,8 +877,11 @@ def test_catalog_promotes_sidecar_prose_status_material_and_tags(tmp_path: Path)
 
     html = client.get("/catalog/BoronProbe/parts").get_data(as_text=True)
 
-    assert 'class="thumb-tile has-metadata has-story"' in html
-    assert "Carries the rotating probe through the vacuum boundary." in html
+    assert 'class="thumb-tile has-metadata"' in html
+    assert (
+        '<span class="thumb-summary" title="Carries the rotating probe through the vacuum boundary.">'
+        in html
+    )
     assert 'class="metadata-chip status-manufactured">manufactured</b>' in html
     assert 'class="metadata-chip">PAEK resin</span>' in html
     assert 'class="metadata-chip">PN BRG-17</span>' in html
@@ -902,11 +905,40 @@ def test_catalog_uses_useful_iproperties_when_no_sidecar_exists(
 
     html = client.get("/catalog/BoronProbe/parts").get_data(as_text=True)
 
-    assert 'class="thumb-tile has-metadata has-story"' in html
+    assert 'class="thumb-tile has-metadata"' in html
     assert "Radial bearing carrier for the probe head." in html
     assert "Stainless Steel" in html
     assert "PN BRG-17" in html
     assert "documented" not in html
+
+
+def test_a_described_file_tile_keeps_one_column_and_clamps_its_story(
+    tmp_path: Path, monkeypatch
+) -> None:
+    # Owner, 2026-09-24: a two-column story tile stretched its whole grid row
+    # to its own height. A description now takes two clamped lines inside the
+    # ordinary tile; the whole text is its tooltip and the inspector's row.
+    description = "Nut mounting bracket, tabbed, for the 20x20 profile. " * 4
+    monkeypatch.setattr(
+        web,
+        "read_inventor_document",
+        lambda _path: make_document(description=description.strip()),
+    )
+    client = create_app(make_workspace(tmp_path)).test_client()
+
+    html = client.get("/catalog/BoronProbe/parts").get_data(as_text=True)
+    style = client.get("/static/dedup.css").get_data(as_text=True)
+
+    assert "has-story" not in html
+    assert f'<span class="thumb-summary" title="{description.strip()}">' in html
+    assert f"<dt>Description</dt><dd>{description.strip()}</dd>" in html
+    assert "has-story" not in style
+    summary_rule = style.split(".thumb-summary {", 1)[1].split("}", 1)[0]
+    assert "-webkit-line-clamp: 2" in summary_rule
+    for block in style.split("}"):
+        selector, _, body = block.rpartition("{")
+        if "thumb-tile" in selector or "thumb-grid" in selector:
+            assert "grid-column: span" not in body, selector.strip()
 
 
 def test_catalog_iproperties_are_cached_until_the_cad_file_changes(
@@ -2244,8 +2276,6 @@ def test_styles_indent_the_folder_tree_and_scroll_only_the_tree_inside_its_pinne
     assert ".note-dialog::backdrop" in style
     assert ".dialog-close-x" in style
     assert ".thumb-tile.has-metadata" in style
-    assert ".thumb-tile.has-story" in style
-    assert "grid-column: span 2" in style
     assert ".folder-card.has-summary" in style
     assert ".note-rail { height: clamp(5rem, calc(100vh - 42rem), 11rem);" in style
     assert "grid-template-columns: minmax(0, 1.08fr) minmax(0, 0.92fr)" in style

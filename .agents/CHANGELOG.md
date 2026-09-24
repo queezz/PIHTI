@@ -6,6 +6,13 @@ remains authoritative for exact file changes.
 
 ## 2026-09-24
 
+- Shipped `pihti-dedup` 0.20.1: every file tile is one grid column wide. A
+  file with a description or sidecar prose no longer becomes a two-column
+  image-and-story card, which stretched its whole grid row to its own height;
+  the text takes at most two clamped lines under the name, with the whole text
+  in its tooltip (a Description also fills the inspector's Description row).
+  The tallest row on `ContentCenter/Aluminium-profiles` measures 251px at
+  1920 wide.
 - Shipped `pihti-dedup` 0.20.0: sourcing notes. A folder's bought parts and
   the options for them live in `<folder>/sourcing/`, one Markdown note per
   option (title, vendor, part number, link, price, status, the folder's CAD

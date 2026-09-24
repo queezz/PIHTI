@@ -31,14 +31,17 @@
    size lines of one grid row stay level when one tile's badges wrap. #}
 {% macro tile_badges(item) %}<span class="tile-badges">{% for mark in item.signals %}{{ badge(mark.kind, mark.word, mark.text) }}{% endfor %}</span>{% endmacro %}
 
+{# Every file tile is one grid column wide with the same rows: preview,
+   name, at most two lines of the description or sidecar summary (the whole
+   text in its tooltip and in the inspector), chips, size line, badges. #}
 {% macro file_tile(item, query=false) %}
 {% set record = item.record %}
 {% set folder = record.path.rsplit('/', 1)[0]|winpath if '/' in record.path else '.' %}
-<a class="thumb-tile{% if item.has_metadata %} has-metadata{% endif %}{% if item.has_story %} has-story{% endif %}{% if item.hero %} is-hero{% endif %}"{{ tile_attributes(item) }}>
+<a class="thumb-tile{% if item.has_metadata %} has-metadata{% endif %}{% if item.hero %} is-hero{% endif %}"{{ tile_attributes(item) }}>
   <img src="{{ preview_url(record) }}" alt="" loading="lazy" decoding="async" width="160" height="120">
   <span class="thumb-content">
     <span class="thumb-name">{{ record.name }}</span>
-    {% if item.summary %}<span class="thumb-summary">{{ item.summary }}</span>{% endif %}
+    {% if item.summary %}<span class="thumb-summary" title="{{ item.summary }}">{{ item.summary }}</span>{% endif %}
     {% if item.status or item.material or item.part_number or item.tags %}
     <span class="thumb-facts" aria-label="File metadata">
       {% if item.status %}<b class="metadata-chip status-{{ item.status }}">{{ item.status }}</b>{% endif %}
