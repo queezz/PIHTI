@@ -111,6 +111,15 @@ Look at: `inventor: 2027.1` (or whatever is installed), then
 renamed or saved`. A warning that `rail.ipt` still exists under `staging\`
 is expected. Do not run it without `--dry`.
 
+On a box running Inventor 2026 the line is instead
+`bellows\bellows.iam: cannot open: (-2147352567, 'Exception occurred.')`,
+and Inventor shows its "saved in a newer version" prompt (press Close).
+`bellows.iam` was saved by Inventor 2027.1 on 2026-09-24, and a 2026 without
+its latest update cannot open it. That is a version finding, not an
+automation failure: the plan step reached Inventor and Inventor refused the
+file. Observed 2026-09-25 on the 2026 box; see the directions item on
+Inventor versions across machines.
+
 ## 7. Stop
 
 Close the viewer window's PowerShell with Ctrl+C. Close Inventor. The
