@@ -72,6 +72,9 @@ handoffs. They remain in place to avoid path churn; new handoffs go in `log/`.
 - `staging/` — ignored local intake, reviewed before integration.
 - `_site/` — generated MkDocs output.
 - `.git/`, caches, and lock files — tooling state.
+- `../PIHTI-step/` — the STEP mirror beside the workspace (or the folder named
+  by `PIHTI_DEDUP_STEP_MIRROR`): regenerable STEP copies of every part and
+  assembly, outside git, carried by Dropbox.
 
 No sibling folder under the parent `Drawings/` directory is part of PIHTI unless
 it is deliberately imported into this repository.

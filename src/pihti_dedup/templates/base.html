@@ -23,6 +23,8 @@
       <a href="{{ url_for('removed') }}" {% if request.endpoint == 'removed' %}class="is-current" aria-current="page"{% endif %}>Removed</a>
     </nav>
     <div class="topbar-meta">
+      {% set mirror_line = step_mirror_line() %}
+      {% if mirror_line %}<a class="mirror-status{% if request.endpoint == 'step_mirror_page' %} is-current{% endif %}" href="{{ url_for('step_mirror_page') }}" title="Current STEP copies in the mirror, of every Inventor part and assembly">STEP mirror {{ mirror_line.current }} / {{ mirror_line.total }}</a>{% endif %}
       <span class="version">v{{ version }}</span>
     </div>
   </header>

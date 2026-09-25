@@ -2964,7 +2964,14 @@ def test_the_inspector_carries_both_toggles_at_its_foot_for_the_file_it_names(
         assert "<button" not in head and "<form" not in head
         assert inspector.index("data-inspector-image") < inspector.index("data-inspector-facts")
         assert inspector.index("data-inspector-facts") < inspector.index("data-inspector-flags")
-        assert inspector.index("data-inspector-flags") < inspector.index("<form")
+        # The toggles' forms sit at the foot; the only other form is the STEP
+        # export line, in the mesh note's place under the preview.
+        assert inspector.index("data-inspector-flags") < inspector.index(
+            '<form method="post" data-inspector-flag'
+        )
+        assert inspector.index("<form") == inspector.index("data-inspector-step-export") - len(
+            '<form class="mesh-note step-export" method="post" '
+        )
         forms = re.findall(
             r'<form method="post" data-inspector-flag="([a-z]+)">(.*?)</form>', inspector, re.S
         )
@@ -3538,8 +3545,12 @@ def test_the_mesh_route_refuses_traversal_and_every_other_extension(tmp_path: Pa
         assert response.status_code == 404, url
         assert response.get_json()["reason"], url
         assert response.headers["Cache-Control"] == "no-store", url
-    assert client.get("/mesh/BoronProbe/exports/head.ipt").get_json() == {
+    assert client.get("/mesh/BoronProbe/exports/notes.txt").get_json() == {
         "reason": "not a mesh format"
+    }
+    # An Inventor file turns only from its STEP in the mirror, and has none here.
+    assert client.get("/mesh/BoronProbe/exports/head.ipt").get_json() == {
+        "reason": "no current STEP in the mirror"
     }
 
 
@@ -3652,7 +3663,12 @@ def test_tiles_the_inspector_and_the_part_page_carry_what_the_3d_view_needs(
         assert tile, name
         assert re.search(rf'data-mesh="/mesh/BoronProbe/exports/{re.escape(name)}\?v=[0-9a-f]+-[0-9a-f]+-m\d+"', tile.group(0)), name
     ipt_tile = re.search(r'<a class="thumb-tile[^"]*" id="[^"]*" href="/part/BoronProbe/exports/head.ipt"[^>]*>', catalog)
-    assert ipt_tile and "data-mesh" not in ipt_tile.group(0)  # Inventor keeps its still image
+    # An Inventor tile asks the STEP mirror (`s0`: no STEP yet); it keeps its
+    # still image until the mirror has a current STEP.
+    assert ipt_tile and re.search(
+        r'data-mesh="/mesh/BoronProbe/exports/head.ipt\?v=[0-9a-f]+-[0-9a-f]+-s0-m\d+"',
+        ipt_tile.group(0),
+    )
 
     inspector = catalog.split("data-inspector ", 1)[1].split("</section>", 1)[0]
     assert "<img data-inspector-image" in inspector

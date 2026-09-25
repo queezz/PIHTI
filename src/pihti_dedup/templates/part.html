@@ -10,7 +10,7 @@
       {{ catalog_bar(breadcrumbs, filter=false) }}
 
       <section class="part-sheet">
-        {% set mesh = mesh_url(path) %}
+        {% set mesh = part_mesh %}
         <div class="part-preview"{% if mesh %} data-mesh-viewer data-mesh="{{ mesh }}"{% endif %}>
           <img src="{{ preview_url(path) }}" alt="Preview of {{ name }}"{% if preview_size %} width="{{ preview_size[0] }}" height="{{ preview_size[1] }}"{% endif %}>
           {% if mesh %}<canvas class="mesh-canvas" hidden title="Drag to turn · wheel to zoom · right-drag or Shift-drag to pan · double-click for the starting view"></canvas>
@@ -166,7 +166,17 @@
           <div><dt>Type</dt><dd>{{ suffix[1:]|upper or 'FILE' }}</dd></div>
           <div><dt>Size</dt><dd>{{ size|filesize }}</dd></div>
           <div><dt>Modified</dt><dd>{{ mtime_ns|filetime }}</dd></div>
+          {% if step %}<div><dt>STEP</dt><dd>{% if step.state == 'missing' %}none{% else %}{{ step.step_mtime_ns|minutetime }}{% if step.state == 'stale' %}, older than the file{% endif %}{% endif %}</dd></div>{% endif %}
         </dl>
+        {% if step and step.state != 'current' %}
+        {% if step.available %}
+        <form class="step-export-card" method="post" action="{{ url_for('part_step_export', relative_path=path) }}">
+          <input type="hidden" name="token" value="{{ form_token }}">
+          <input type="hidden" name="origin" value="part">
+          <button class="copy-path" type="submit">Export STEP now</button>
+        </form>
+        {% else %}<p class="part-note muted step-export-card">Open Inventor to export</p>{% endif %}
+        {% endif %}
         {% if signals %}
         <ul class="file-marks" aria-label="What the catalog knows about this file">
           {% for mark in signals %}<li>{{ badge(mark.kind, mark.word, mark.text) }}{% if mark.kind == 'sourced' and sourcing_url %}<a href="{{ sourcing_url }}">{{ mark.text }}</a>{% else %}<span>{{ mark.text }}</span>{% endif %}</li>{% endfor %}

@@ -154,6 +154,36 @@ def build_parser() -> argparse.ArgumentParser:
         help="Proceed although another file still carries the old name",
     )
 
+    mirror = subparsers.add_parser(
+        "step-mirror",
+        help="STEP copies of every Inventor part and assembly, in a folder beside the workspace",
+    )
+    mirror_commands = mirror.add_subparsers(dest="mirror_command", required=True)
+    mirror_status = mirror_commands.add_parser(
+        "status", help="Count current, stale, and missing STEP copies"
+    )
+    mirror_status.add_argument("workspace", nargs="?", default=".")
+    mirror_sync = mirror_commands.add_parser(
+        "sync", help="Export every stale or missing STEP copy through the running Inventor"
+    )
+    mirror_sync.add_argument("workspace", nargs="?", default=".")
+    mirror_sync.add_argument(
+        "--budget-seconds",
+        type=float,
+        default=None,
+        help="Start no new export after this many seconds",
+    )
+    mirror_sync.add_argument(
+        "--launch",
+        action="store_true",
+        help="When Inventor is not running, start it hidden and quit it afterwards",
+    )
+    mirror_export = mirror_commands.add_parser(
+        "export", help="Export one file's STEP copy through the running Inventor"
+    )
+    mirror_export.add_argument("workspace")
+    mirror_export.add_argument("relative_path", help="Workspace-relative .ipt or .iam path")
+
     notes = subparsers.add_parser("notes", help="Lint folder notes, sidecars, and sourcing notes")
     notes_commands = notes.add_subparsers(dest="notes_command", required=True)
     notes_check = notes_commands.add_parser(
@@ -500,6 +530,109 @@ def _rename(
     return 0 if result.repair is None or result.repair.complete else 1
 
 
+MIRROR_LIST_LIMIT = 20
+
+
+def _mirror_list(title: str, items) -> None:
+    print(f"{title}: {len(items)}")
+    for item in items[:MIRROR_LIST_LIMIT]:
+        print(f"  {_windows_path(item.path)}")
+    if len(items) > MIRROR_LIST_LIMIT:
+        print(f"  ... and {len(items) - MIRROR_LIST_LIMIT} more")
+
+
+def _mirror_result_line(workspace: Path, result) -> str:
+    relative = _relative(workspace, result.source)
+    return f"{result.outcome:<9} {result.seconds:5.2f}s  {relative}"
+
+
+def _step_mirror(workspace: Path, args) -> int:
+    from pihti_dedup import step_mirror
+
+    mirror = step_mirror.StepMirror(workspace)
+    print(f"step mirror: {mirror.root}")
+
+    if args.mirror_command == "export":
+        relative = args.relative_path.replace("\\", "/").strip("/")
+        source = (workspace / relative).resolve()
+        try:
+            relative = source.relative_to(workspace).as_posix()
+        except ValueError:
+            print(f"error: {args.relative_path} is outside the workspace", file=sys.stderr)
+            return 2
+        if not source.is_file():
+            print(f"error: no such workspace file: {args.relative_path}", file=sys.stderr)
+            return 2
+        if not step_mirror.in_scope(relative):
+            print(
+                "error: only .ipt and .iam files in the default scan scope are mirrored",
+                file=sys.stderr,
+            )
+            return 2
+        session = inventor_session.connect()
+        if session is None:
+            print("error: Inventor is not running or not answering; nothing exported", file=sys.stderr)
+            return 2
+        print(f"inventor: {session.version}")
+        result = mirror.export(session, relative)
+        print(_mirror_result_line(workspace, result))
+        return 0 if result.exported else 1
+
+    inventory = scan_workspace(workspace, include_vendor=False, hash_files=False)
+    status = mirror.status(inventory)
+    if args.mirror_command == "status":
+        print(f"Inventor files: {status.total}")
+        print(f"current: {len(status.current)}")
+        _mirror_list("stale", status.stale)
+        _mirror_list("missing", status.missing)
+        for line in mirror.recent()[:5]:
+            print(f"last: {line.get('at', '')} {line.get('outcome', '')} {_windows_path(line.get('path', ''))}")
+        return 0
+
+    session = inventor_session.connect()
+    quit_inventor = None
+    if session is None and args.launch:
+        launched = inventor_session.launch()
+        if launched is not None:
+            session, quit_inventor = launched
+            print("inventor: started hidden for this sync; it quits when the sync ends")
+    if session is None:
+        hint = "" if args.launch else "; pass --launch to start it hidden"
+        print(
+            f"error: Inventor is not running or not answering{hint}. Nothing exported.",
+            file=sys.stderr,
+        )
+        return 2
+    try:
+        print(f"inventor: {session.version}")
+        queue = status.queue
+        print(f"to export: {len(queue)} of {status.total}")
+        try:
+            open_paths = session.open_documents()
+        except inventor_session.SessionTimeout as exc:
+            print(f"error: {exc}", file=sys.stderr)
+            return 1
+        waiting: list[str] = []
+        for item in queue:
+            if inventor_session.path_key(workspace / item.path) in open_paths:
+                print(f"skipped   {'':>6}  {_windows_path(item.path)} (open in Inventor)")
+            else:
+                waiting.append(item.path)
+        results = mirror.sync(
+            session,
+            waiting,
+            budget_seconds=args.budget_seconds,
+            on_result=lambda result: print(_mirror_result_line(workspace, result), flush=True),
+        )
+    finally:
+        if quit_inventor is not None:
+            quit_inventor()
+    exported = sum(result.exported for result in results)
+    left = len(waiting) - len(results)
+    print(f"exported {exported} · not exported {len(results) - exported} · not started {left}")
+    return 0 if all(result.exported for result in results) else 1
+
+
 def _print_notes_check(result: CheckResult) -> None:
     """Plain-text report, workspace-relative POSIX paths, no colours."""
 
@@ -585,6 +718,9 @@ def main(argv: Sequence[str] | None = None) -> int:
             dry=args.dry,
             confirm_collision=args.confirm_collision,
         )
+
+    if args.command == "step-mirror":
+        return _step_mirror(workspace, args)
 
     if args.command == "notes":
         result = check_notes(workspace)

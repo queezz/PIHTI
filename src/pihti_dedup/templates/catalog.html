@@ -193,6 +193,14 @@
             <canvas class="mesh-canvas" data-inspector-canvas hidden title="Drag to turn · wheel to zoom · right-drag or Shift-drag to pan · double-click for the starting view"></canvas>
           </div>
           <p class="mesh-note" data-inspector-mesh-note hidden></p>
+          {# An Inventor file turns from its STEP in the mirror; without a
+             current one the script shows this line in the note's place. #}
+          <form class="mesh-note step-export" method="post" data-inspector-step-export data-reason="{{ step_reason }}" hidden>
+            <input type="hidden" name="token" value="{{ form_token }}">
+            <input type="hidden" name="origin" value="{{ path }}"{% if query %} data-origin-from-file{% endif %}>
+            {% if include_vendor %}<input type="hidden" name="include_vendor" value="1">{% endif %}
+            3D needs the STEP mirror · {% if step_export_available %}<button class="copy-path" type="submit">export now</button>{% else %}Open Inventor to export{% endif %}
+          </form>
           <strong class="inspector-title" data-inspector-title></strong>
           <div class="inspector-facts" data-inspector-facts></div>
           {# Quiet toggles at the foot of the card for the file named above.

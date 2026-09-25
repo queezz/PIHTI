@@ -788,6 +788,7 @@
   var flagForms = inspector ? Array.from(inspector.querySelectorAll("form[data-inspector-flag]")) : [];
   var canvas = inspector && inspector.querySelector("[data-inspector-canvas]");
   var meshNote = inspector && inspector.querySelector("[data-inspector-mesh-note]");
+  var stepForm = inspector && inspector.querySelector("form[data-inspector-step-export]");
   var shown = null;
   var hoverTimer = null;
 
@@ -856,6 +857,7 @@
     if (viewer) viewer.clear();  // the GPU buffers of the file shown before
     stillImage();
     meshNote.hidden = true;
+    if (stepForm) stepForm.hidden = true;
     if (url && V3 && V3.supported()) meshTimer = window.setTimeout(loadMesh, MESH_DELAY);
   }
   function showLoadingSize(bytes) {
@@ -883,10 +885,35 @@
     }, function (error) {
       if (meshWanted !== url || error.name === "AbortError") return;
       meshAbort = null;
-      if (error.reason) {
+      if (stepForm && shown && error.reason === stepForm.dataset.reason) {
+        pointStepExport(shown);
+        stepForm.hidden = false;
+        fitImage();
+      } else if (error.reason) {
         meshNote.textContent = "Still image: " + error.reason + ".";
         meshNote.hidden = false;
         fitImage();  // the note takes its line from the card, never the toggles'
+      }
+    });
+  }
+
+  // An Inventor file turns from its STEP in the mirror. Without a current
+  // one the note's line offers "export now" for the file the inspector
+  // names, and for nothing else: a submit for any other file is refused.
+  function pointStepExport(tile) {
+    var part = tile.getAttribute("href") || "";
+    stepForm.action = part + "/step-export";
+    stepForm.dataset.file = part;
+    var origin = stepForm.querySelector("input[data-origin-from-file]");
+    if (origin) {
+      var relative = decodeURIComponent(part.replace(/^\/part\//, ""));
+      origin.value = relative.indexOf("/") > 0 ? relative.slice(0, relative.lastIndexOf("/")) : ".";
+    }
+  }
+  if (stepForm) {
+    stepForm.addEventListener("submit", function (event) {
+      if (!shown || !stepForm.dataset.file || stepForm.dataset.file !== shown.getAttribute("href")) {
+        event.preventDefault();
       }
     });
   }
@@ -964,7 +991,8 @@
     var padding = parseFloat(window.getComputedStyle(inspector).paddingBottom) || 0;
     var limit = inspector.getBoundingClientRect().bottom - padding;
     // The flags' own top margin is `auto`, so only their box counts.
-    var below = outerHeight(meshNote) + outerHeight(title) + (flagBox ? flagBox.offsetHeight : 0);
+    var below = outerHeight(meshNote) + outerHeight(stepForm) + outerHeight(title) +
+      (flagBox ? flagBox.offsetHeight : 0);
     var preview = image.parentElement;
     preview.hidden = false;
     var room = Math.floor(limit - preview.getBoundingClientRect().top - below);
@@ -998,6 +1026,7 @@
     image.removeAttribute("src");
     facts.replaceChildren();
     flagForms.forEach(function (form) { form.removeAttribute("action"); delete form.dataset.file; });
+    if (stepForm) { stepForm.hidden = true; stepForm.removeAttribute("action"); delete stepForm.dataset.file; }
     shown = null;
   }
 

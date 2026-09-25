@@ -3,7 +3,9 @@
 It mirrors exactly the calls the repair recipe makes: `SoftwareVersion`,
 `Documents.Count/Item/Open`, `doc.File.ReferencedFileDescriptors` with
 `FullFileName`, `ReferenceMissing`, `ReplaceReference`, `doc.Save2`, and
-`doc.Close`. The "disk" is a dict of referring document -> referenced full
+`doc.Close`, plus the STEP export's `doc.SaveAs(path, True)`, which writes a
+small stand-in file (`fail_export` makes it raise, `hang` on "saveas" makes it
+stall). The "disk" is a dict of referring document -> referenced full
 paths; `Save2` writes it back and, when the document exists as a real file,
 rewrites that file's bytes the way Inventor would: the new name added, the old
 one left behind as a fossil string.
@@ -96,6 +98,16 @@ class FakeDocument:
             # Inventor keeps stale strings around: the old name survives as a fossil.
             target.write_bytes(reference_bytes(*self.references, *before))
 
+    def SaveAs(self, full_name: str, save_copy_as: bool) -> None:  # noqa: N802
+        app = self.app
+        app.log.append(("saveas", self.name, ntpath.basename(full_name), save_copy_as))
+        if self.owner:
+            app.violations.append(("saveas", self.name))
+        app.maybe_hang("saveas", self.FullFileName)
+        if key(self.FullFileName) in app.fail_export:
+            raise RuntimeError("the translator failed")
+        Path(full_name).write_bytes(b"ISO-10303-21; /* " + self.name.encode() + b" */")
+
     def Close(self, skip_save: bool) -> None:  # noqa: N802
         app = self.app
         app.log.append(("close", self.name, skip_save))
@@ -142,6 +154,7 @@ class FakeInventor:
         self.violations: list[tuple] = []
         self.fail_save: set[str] = set()
         self.lose_save: set[str] = set()
+        self.fail_export: set[str] = set()
         self.hang: tuple[str, str] | None = None
         self.release = threading.Event()
         self.loaded: list[FakeDocument] = [

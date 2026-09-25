@@ -21,7 +21,7 @@ from urllib.parse import unquote
 from flask import Flask, Response, jsonify, redirect, render_template, request, send_file, url_for
 from markupsafe import escape
 
-from pihti_dedup import __version__, geometry_preview, inventor_session, mesh_cache
+from pihti_dedup import __version__, geometry_preview, inventor_session, mesh_cache, step_mirror
 from pihti_dedup.cache_root import cache_root
 from pihti_dedup.cleanup import (
     execute_cleanup,
@@ -471,6 +471,12 @@ class InventoryCache:
                 return current  # type: ignore[return-value]
             return self._validate(include_vendor, hash_files=hash_files, force=False)
 
+    def peek(self, include_vendor: bool) -> Inventory | None:
+        """The inventory already held for a scope, or None; never walks the disk."""
+
+        with self._lock:
+            return self._entries.get(include_vendor)
+
     def serial(self, include_vendor: bool) -> int:
         """How many disk validations this scope has had in this process.
 
@@ -637,10 +643,16 @@ def preview_version(mtime_ns: int, size: int) -> str:
     return f"{mtime_ns:x}-{size:x}-r{geometry_preview.RENDERER_VERSION}"
 
 
-def mesh_version(mtime_ns: int, size: int) -> str:
-    """The `v` key a mesh URL carries: the file's stat plus the mesh format."""
+def mesh_version(mtime_ns: int, size: int, step_mtime_ns: int | None = None) -> str:
+    """The `v` key a mesh URL carries: the file's stat plus the mesh format.
 
-    return f"{mtime_ns:x}-{size:x}-m{mesh_cache.MESH_FORMAT_VERSION}"
+    An Inventor document's mesh comes from its STEP in the mirror, so its key
+    also names that STEP's modification time (`s0` while there is none): a
+    fresh export is a new URL.
+    """
+
+    step = "" if step_mtime_ns is None else f"-s{step_mtime_ns:x}"
+    return f"{mtime_ns:x}-{size:x}{step}-m{mesh_cache.MESH_FORMAT_VERSION}"
 
 
 def _mesh_etag(path: Path, stat: os.stat_result, *, include_normals: bool = False) -> str:
@@ -1065,6 +1077,26 @@ INVENTOR_ABSENT = "Inventor is not running; the rename will be recorded for manu
 INVENTOR_SILENT = f"{NO_ANSWER}; the rename will be recorded for manual repointing."
 
 
+#: The toast after "export now", by the short code the redirect carries.
+STEP_TOASTS = {
+    "exported": "STEP exported: {name}",
+    "open": "STEP not exported: {name} is open in Inventor; close it first",
+    "timeout": "STEP not exported: Inventor did not answer",
+    "failed": "STEP not exported: {name}; the STEP mirror page has the reason",
+    "absent": "STEP not exported: Inventor is not running",
+}
+
+
+def _step_code(outcome: str) -> str:
+    if outcome == inventor_session.EXPORTED:
+        return "exported"
+    if outcome == inventor_session.SKIPPED_OPEN:
+        return "open"
+    if outcome == inventor_session.TIMED_OUT:
+        return "timeout"
+    return "failed"
+
+
 def _is_loopback(address: str | None) -> bool:
     try:
         return ipaddress.ip_address(address or "").is_loopback
@@ -1133,6 +1165,9 @@ def create_app(
     app.extensions["pihti_inventory_cache"] = cache
     app.extensions["pihti_preview_cache"] = previews
     app.extensions["pihti_reference_cache"] = references
+    # The STEP mirror beside the workspace; nothing is created until an export.
+    mirror = step_mirror.StepMirror(root)
+    app.extensions["pihti_step_mirror"] = mirror
 
     session_probe: dict[str, object] = {"at": None, "value": None, "open_at": None, "open": None}
     session_lock = threading.Lock()
@@ -1284,7 +1319,12 @@ def create_app(
                 snapshot.invalidate()
 
         cache.on_clear = invalidate_derived
-        ticker = Ticker([cache, *derived], period=refresh_seconds)
+        # One STEP export per tick while Inventor answers; nothing otherwise.
+        mirror_job = step_mirror.MirrorJob(
+            mirror, inventory=lambda: cache.peek(False), session=lambda: _session()
+        )
+        app.extensions["pihti_step_mirror_job"] = mirror_job
+        ticker = Ticker([cache, *derived, mirror_job], period=refresh_seconds)
         app.extensions["pihti_snapshots"] = {
             snapshot.name: snapshot for snapshot in derived
         }
@@ -1313,6 +1353,7 @@ def create_app(
     app.jinja_env.filters["filesize"] = _filesize
     app.jinja_env.filters["winpath"] = _windows_path
     app.jinja_env.filters["filetime"] = _filetime
+    app.jinja_env.filters["minutetime"] = lambda value: _filetime(value)[:16]
     app.jinja_env.tests["newver_name"] = _is_newver_name
     app.jinja_env.tests["generic_cad_name"] = _is_generic_cad_name
     app.jinja_env.globals["RENAMEABLE_EXTENSIONS"] = RENAMEABLE_EXTENSIONS
@@ -1350,14 +1391,17 @@ def create_app(
     app.jinja_env.globals["preview_url"] = preview_url
 
     def mesh_url(item) -> str:
-        """`/mesh/<path>?v=<key>` for an STL, 3MF, or STEP file; "" for anything else.
+        """`/mesh/<path>?v=<key>` for an STL, 3MF, STEP, or mirrored Inventor file.
 
-        Takes what `preview_url` takes. The inspector and the part page turn
-        the file in 3D from this URL and keep the still preview otherwise.
+        Takes what `preview_url` takes; "" for anything else. The inspector and
+        the part page turn the file in 3D from this URL and keep the still
+        preview otherwise. An `.ipt` or `.iam` is turned from its STEP in the
+        mirror, so its key names that STEP too.
         """
 
         path = item if isinstance(item, str) else getattr(item, "path", "")
-        if not path or not mesh_cache.eligible(Path(path).suffix):
+        inventor = bool(path) and step_mirror.in_scope(path)
+        if not path or not (inventor or mesh_cache.eligible(Path(path).suffix)):
             return ""
         mtime_ns = getattr(item, "mtime_ns", None)
         size = getattr(item, "size", None)
@@ -1370,7 +1414,13 @@ def create_app(
             if stat is None:
                 return ""
             mtime_ns, size = stat.st_mtime_ns, stat.st_size
-        return url_for("mesh_file", relative_path=path, v=mesh_version(mtime_ns, size))
+        step_mtime = None
+        if inventor:
+            state = mirror.state(path, mtime_ns, size)
+            step_mtime = state.step_mtime_ns if state.state == step_mirror.CURRENT else 0
+        return url_for(
+            "mesh_file", relative_path=path, v=mesh_version(mtime_ns, size, step_mtime)
+        )
 
     app.jinja_env.globals["mesh_url"] = mesh_url
 
@@ -1391,6 +1441,19 @@ def create_app(
         return url_for("static", filename=filename, v=_asset_version(filename))
 
     app.jinja_env.globals["asset_url"] = asset_url
+
+    def step_mirror_line() -> dict | None:
+        """The top bar's mirror count, from the inventory already held; never walks."""
+
+        inventory = cache.peek(False)
+        if inventory is None:
+            return None
+        status = mirror.status(inventory)
+        if not status.total:
+            return None
+        return {"current": len(status.current), "total": status.total}
+
+    app.jinja_env.globals["step_mirror_line"] = step_mirror_line
 
     @app.after_request
     def no_store(response):
@@ -1419,6 +1482,7 @@ def create_app(
             and "saved" not in request.args
             and "hero" not in request.args
             and "featured" not in request.args
+            and "step" not in request.args
         ):
             response.headers["Cache-Control"] = "private, max-age=5"
             return response
@@ -2438,12 +2502,29 @@ def create_app(
         target = workspace_file(root, relative_path)
         if target is None:
             return refuse("no such workspace file")
-        if not mesh_cache.eligible(target.suffix):
+        relative = target.relative_to(root).as_posix()
+        inventor = step_mirror.in_scope(relative)
+        if not inventor and not mesh_cache.eligible(target.suffix):
             return refuse("not a mesh format")
         try:
             stat = target.stat()
         except OSError:
             return refuse("no such workspace file")
+        current_version = mesh_version(stat.st_mtime_ns, stat.st_size)
+        if inventor:
+            # An Inventor document turns from its current STEP in the mirror.
+            step = mirror.current_step(relative, stat.st_mtime_ns, stat.st_size)
+            if step is None:
+                return refuse(step_mirror.NO_CURRENT_STEP)
+            source_stat = stat
+            try:
+                stat = step.stat()
+            except OSError:
+                return refuse(step_mirror.NO_CURRENT_STEP)
+            current_version = mesh_version(
+                source_stat.st_mtime_ns, source_stat.st_size, stat.st_mtime_ns
+            )
+            target = step
         # A browser without OES_standard_derivatives asks for the heavier,
         # normals-included payload; every other request gets positions only.
         include_normals = _flag(request.args.get("normals"))
@@ -2471,7 +2552,7 @@ def create_app(
         response = Response(result.data, mimetype="application/octet-stream")
         response.last_modified = stat.st_mtime
         response.set_etag(_mesh_etag(target, stat, include_normals=include_normals))
-        if request.args.get("v", "") == mesh_version(stat.st_mtime_ns, stat.st_size):
+        if request.args.get("v", "") == current_version:
             response.headers["Cache-Control"] = "private, max-age=31536000, immutable"
         else:
             response.cache_control.private = True
@@ -3061,6 +3142,8 @@ def create_app(
             "include_vendor": inventory.include_vendor,
             "toast": _hero_toast(),
             "sourcing_line": sourcing_line,
+            "step_reason": step_mirror.NO_CURRENT_STEP,
+            "step_export_available": _session() is not None,
         }
 
     def _hero_toast() -> str:
@@ -3069,6 +3152,9 @@ def create_app(
             state = request.args.get(key, "")
             if name and state in {"set", "cleared"}:
                 return f"{label} {state}: {name}"
+        step = STEP_TOASTS.get(request.args.get("step", ""))
+        if name and step:
+            return step.format(name=name)
         return ""
 
     def _catalog_note_error(target: Path, draft: str, error: str, status: int):
@@ -3364,7 +3450,20 @@ def create_app(
         referrers = _current_index().referring(target.name)
         renameable = target.suffix.casefold() in RENAMEABLE_EXTENSIONS
         inventor = _inventor_state(referrers) if renameable and referrers else None
+        step = None
+        part_mesh = mesh_url(relative)
+        if step_mirror.in_scope(relative):
+            state = mirror.state(relative, stat.st_mtime_ns, stat.st_size)
+            step = {
+                "state": state.state,
+                "step_mtime_ns": state.step_mtime_ns,
+                "available": _session() is not None,
+            }
+            if state.state != step_mirror.CURRENT:
+                part_mesh = ""  # the File card names the state and the action
         return {
+            "step": step,
+            "part_mesh": part_mesh,
             "sourcing_url": (
                 url_for("sourcing_folder", relative_folder=folder) if sourced_titles else ""
             ),
@@ -3833,6 +3932,63 @@ def create_app(
         else:
             response.headers["Cache-Control"] = "private, no-cache"
         return response
+
+    @app.post("/part/<path:relative_path>/step-export")
+    def part_step_export(relative_path: str):
+        """Export one document's STEP through the running Inventor, then go back."""
+
+        guard = _guard(request)
+        if guard is not None:
+            return guard
+        target = workspace_file(root, relative_path)
+        if target is None:
+            return render_template("_not_found.html", version=__version__, path=relative_path), 404
+        relative = target.relative_to(root).as_posix()
+        if not step_mirror.in_scope(relative):
+            return Response("only Inventor parts and assemblies are mirrored", status=400)
+        session = _session()
+        if session is None:
+            code = "absent"
+        else:
+            result = mirror.export(session, relative)
+            code = _step_code(result.outcome)
+        state = {"step": code}
+        origin = request.form.get("origin", "")
+        if origin == "part":
+            return redirect(url_for("part_page", relative_path=relative, **state, file=relative))
+        folder = "."
+        if origin and origin != ".":
+            origin_folder = workspace_folder(root, origin)
+            if origin_folder is not None:
+                folder = origin_folder.relative_to(root).as_posix()
+        return redirect(
+            url_for(
+                "catalog",
+                relative_folder=None if folder == "." else folder,
+                **state,
+                file=relative,
+                include_vendor="1" if _flag(request.form.get("include_vendor")) else None,
+                _anchor=tile_anchor(relative),
+            )
+        )
+
+    @app.get("/step-mirror")
+    def step_mirror_page():
+        inventory = cache.get(include_vendor=False, hash_files=False)
+        status = mirror.status(inventory)
+        session = _session()
+        job = app.extensions.get("pihti_step_mirror_job")
+        return render_template(
+            "step_mirror.html",
+            version=__version__,
+            status=status,
+            location=str(mirror.root),
+            created=mirror.root.is_dir(),
+            recent=mirror.recent(),
+            inventor_version=session.version if session is not None else None,
+            background=refresh_seconds > 0,
+            deferred=job.deferred() if job is not None else {},
+        )
 
     @app.get("/duplicates/data")
     def duplicates_data():

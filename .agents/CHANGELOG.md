@@ -6,6 +6,21 @@ remains authoritative for exact file changes.
 
 ## 2026-09-25
 
+- Shipped `pihti-dedup` 0.24.0: the STEP mirror. Every Inventor part and
+  assembly in the default scan scope gets a STEP copy, exported by Inventor
+  itself into the sibling folder `PIHTI-step` beside the workspace (override:
+  `PIHTI_DEDUP_STEP_MIRROR`), outside the workspace and outside git, carried by
+  Dropbox, regenerable. Each copy is the source's name plus `.step`
+  (`lp-box.iam.step`), because seven folders hold a part and an assembly with
+  one stem. `mirror-index.json` records the source state each copy came from.
+  While the viewer runs with Inventor open, a background job exports one stale
+  or missing file per refresh, oldest first, skipping files open in Inventor
+  and backing off a minute after a failure; nothing runs without Inventor. The
+  3D view now turns `.ipt` and `.iam` files from their current STEP copy; the
+  inspector offers "export now" when there is none, the part page's File card
+  names the copy's time, and a quiet "STEP mirror N / M" in the top bar opens
+  a page listing missing and stale copies and the last exports. The CLI has
+  `step-mirror status`, `sync [--budget-seconds N] [--launch]`, and `export`.
 - Shipped `pihti-dedup` 0.23.2: the inspector's still-to-3D swap no longer
   visibly jumps. The WebGL viewport reads its clear colour from the preview
   box's own CSS background instead of Inventor's light-blue (which never

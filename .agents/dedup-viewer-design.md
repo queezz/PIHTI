@@ -477,6 +477,59 @@ read; the first visits after upgrading draw previews afresh unless
 `warm-previews` is run again. The test suite points the cache base at a
 per-test temporary folder, so no test writes the owner's machine cache.
 
+Version 0.24.0 adds the STEP mirror, approved by the owner on 2026-09-25 as
+"a local STEP backup, maybe only Dropbox carries it, lives in the background
+and is called upon if needed". Nothing outside Autodesk reads `.ipt` or
+`.iam` geometry, so the mirror holds a STEP copy of every Inventor part and
+assembly in the default scan scope (not `OldVersions/`, vendor trees,
+`staging/`, or a `.newVer` save leftover), exported by Inventor itself. It lives in the sibling folder
+`PIHTI-step` beside the workspace, or wherever `PIHTI_DEDUP_STEP_MIRROR`
+names. It is outside the workspace so the catalog, the unique-filename search,
+and git never see it (inside, some 900 regenerable files would crowd the
+catalog and the filename checks and churn git history), and inside
+Dropbox so a copy exported on one machine serves every machine. It is
+regenerable, never curated source, and is created on the first export only,
+with a `README.md` saying so. The tree mirrors the workspace one to one and
+each copy is the source's full name plus `.step` (`Body.ipt.step`): seven
+workspace folders hold a part and an assembly with the same stem
+(`lp-box.ipt` and `lp-box.iam`), so the stem alone would collide.
+`mirror-index.json` at the mirror root records, per source, the size and
+modification time it was exported from, plus the last 20 attempts; a copy is
+current when the index matches the source (the time to within two seconds, the
+rounding a sync or copy can introduce) and the file exists, or, without an
+entry, when the copy is at least as new as the source. The export recipe runs
+on the session worker the rename repair uses: skip the document if the session
+already holds it (open, or loaded under an open assembly), otherwise
+`Documents.Open(path, False)`, `SaveAs(<name>.tmp.step, True)` (a copy save;
+Inventor picks the translator from the extension, `.step` with its AP214
+defaults; the temporary name keeps that extension), `Close(True)`, then move
+the file into place. `SilentOperation` is never set and translator option
+maps are not used: they are not writable through this bridge. Measured on a
+116 KB part: STEP 0.41 s, open 3.8 s for the first document, faster after.
+In the viewer, with `--refresh-seconds` above zero, a job on the snapshot
+ticker exports at most one stale or missing file per tick, oldest source
+first, on its own thread so the other snapshots never wait. It runs only while
+a session answers (the probe is the rename forms' five-second cached one and
+never launches Inventor), passes over files open in Inventor, gives Inventor
+10 seconds without progress per export, rests a minute after each export so
+the owner's Inventor is borrowed only briefly while he designs, and after a timeout or a failure waits
+60 seconds and passes that file over until its source changes; the command
+line still tries it. Each export is logged at INFO. The mesh route turns an
+`.ipt` or `.iam` from its current STEP (the mesh URL's key names the copy's
+time, so a fresh export is a new URL) and otherwise answers 404 "no current
+STEP in the mirror"; the inspector then shows "3D needs the STEP mirror ·
+export now", a token-guarded POST exporting that one file (or "Open Inventor
+to export" without a session). The part page's File card names the copy's
+time, "older than the file", or none, with the same action; a quiet "STEP
+mirror N / M" in the top bar, drawn from the inventory already held, opens
+`/step-mirror`: missing and stale files by folder, the last exports, and the
+mirror location. `pihti-dedup step-mirror status .`, `sync . [--budget-seconds
+N] [--launch]`, and `export . <path>` are the command-line twins. `--launch`
+is the only path that starts Inventor: hidden (`CreateObject`, then
+`Visible = False`), only when no session exists, and always `Quit()` in
+`finally`; it is untested against a real Inventor. While an export runs
+Inventor is busy for its owner as well, for the few seconds an open costs.
+
 ## Purpose
 
 Provide a local, human-in-the-loop view of filename collisions and byte-level

@@ -28,9 +28,15 @@ hung request, and the worker is told to stop at its next step: once cancelled
 it renames nothing and saves nothing more, and it closes whatever it opened
 when Inventor answers again.
 
-`connect()` is the only function that reaches a real Inventor. Everything else
-takes a `Session`, which wraps a callable returning an object with Inventor's
-automation surface; tests hand it a fake one.
+The same session also exports STEP copies for the mirror (`export_copy`):
+open the document invisibly, `SaveAs(path, True)` (a copy save; Inventor picks
+the translator from the extension, `.step` with its AP214 defaults), close it
+without saving. A document already open in the session is skipped, never
+opened or closed here.
+
+`connect()` and `launch()` are the only functions that reach a real Inventor.
+Everything else takes a `Session`, which wraps a callable returning an object
+with Inventor's automation surface; tests hand it a fake one.
 """
 
 from __future__ import annotations
@@ -38,8 +44,10 @@ from __future__ import annotations
 import contextlib
 import gc
 import ntpath
+import os
 import sys
 import threading
+import time
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable, ContextManager, Iterable, Iterator
@@ -49,6 +57,8 @@ SKIPPED_OPEN = "skipped-open-in-inventor"
 NO_DESCRIPTOR = "no-descriptor"
 NO_ANSWER = "Inventor did not answer (a dialog may be open)"
 CLOSE_FIRST = "open in Inventor: close it first"
+EXPORTED = "exported"
+TIMED_OUT = "timeout"
 
 #: Seconds without progress before a call sequence is given up on.
 DEFAULT_TIMEOUT = 60.0
@@ -561,3 +571,168 @@ def repair_references(
         timed_out=timed_out,
         elsewhere=elsewhere_paths,
     )
+
+
+# ---- STEP export for the mirror -------------------------------------------
+
+
+@dataclass(frozen=True)
+class ExportResult:
+    """One export: `exported`, `skipped-open-in-inventor`, `timeout`, or `failed: <reason>`."""
+
+    source: Path
+    target: Path
+    outcome: str
+    seconds: float = 0.0
+
+    @property
+    def exported(self) -> bool:
+        return self.outcome == EXPORTED
+
+
+def export_temporary(target: Path) -> Path:
+    """Where Inventor writes before the file is moved into place.
+
+    The name keeps the target's extension: Inventor picks the translator from
+    it, so a plain `<target>.tmp` would not be written as STEP at all.
+    """
+
+    target = Path(target)
+    return target.with_name(f"{target.stem}.tmp{target.suffix}")
+
+
+def export_copy(
+    session: Session, source: Path, target: Path, *, timeout: float = DEFAULT_TIMEOUT
+) -> ExportResult:
+    """Export `source` to `target` through Inventor; never raises.
+
+    Writes to `export_temporary(target)`, then replaces `target`, so a reader
+    never sees a half-written file. The target's folder must exist. A source
+    open in the session is `skipped-open-in-inventor`; no answer within
+    `timeout` seconds without progress is `timeout`.
+    """
+
+    source, target = Path(source), Path(target)
+    temporary = export_temporary(target)
+    started = time.perf_counter()
+
+    def done(outcome: str) -> ExportResult:
+        return ExportResult(source, target, outcome, time.perf_counter() - started)
+
+    def work(application: Any, run: _Run) -> str:
+        if path_key(source) in _open_paths(application, run):
+            return SKIPPED_OPEN
+        document = application.Documents.Open(str(source), False)
+        try:
+            run.tick()
+            document.SaveAs(str(temporary), True)
+            run.tick()
+        finally:
+            _close(document)
+            run.touch()
+        return EXPORTED
+
+    try:
+        temporary.unlink(missing_ok=True)
+        outcome = session.run(work, timeout=timeout)
+    except SessionTimeout:
+        return done(TIMED_OUT)
+    except Exception as exc:  # noqa: BLE001 - reported as the outcome
+        _discard(temporary)
+        return done(f"failed: {_reason(exc)}")
+    if outcome != EXPORTED:
+        return done(outcome)
+    try:
+        if not temporary.is_file() or temporary.stat().st_size == 0:
+            _discard(temporary)
+            return done("failed: Inventor wrote no file")
+        os.replace(temporary, target)
+    except OSError as exc:
+        _discard(temporary)
+        return done(f"failed: {_reason(exc)}")
+    return done(EXPORTED)
+
+
+def _discard(path: Path) -> None:
+    try:
+        path.unlink(missing_ok=True)
+    except OSError:
+        pass
+
+
+def export_many(
+    session: Session,
+    pairs: Iterable[tuple[Path, Path]],
+    *,
+    budget_seconds: float | None = None,
+    per_file_timeout: float = DEFAULT_TIMEOUT,
+    on_result: Callable[[ExportResult], None] | None = None,
+    clock: Callable[[], float] = time.monotonic,
+    export: Callable[..., ExportResult] | None = None,
+) -> list[ExportResult]:
+    """Export each (source, target) pair in order until the budget is spent.
+
+    A pair is started only while less than `budget_seconds` has passed (None:
+    no budget). A timeout stops the batch: the session is still waiting on
+    Inventor and would refuse the next call. `export` replaces `export_copy`
+    (same arguments), so a caller can record each result as it lands.
+    """
+
+    export = export or export_copy
+
+    started = clock()
+    results: list[ExportResult] = []
+    for source, target in pairs:
+        if budget_seconds is not None and clock() - started >= budget_seconds:
+            break
+        result = export(session, source, target, timeout=per_file_timeout)
+        results.append(result)
+        if on_result is not None:
+            on_result(result)
+        if result.outcome == TIMED_OUT:
+            break
+    return results
+
+
+def launch(*, timeout: float = PROBE_TIMEOUT) -> tuple[Session, Callable[[], None]] | None:
+    """Start a hidden Inventor for a command-line export, or return None.
+
+    Only for `step-mirror sync --launch`, and only after `connect()` found no
+    session; the viewer never launches Inventor. Returns the session and a
+    `quit` callable the caller must call in `finally`. Untested against a real
+    Inventor: `CreateObject` then `Visible = False`, and `Quit()` when done.
+    """
+
+    if sys.platform != "win32":
+        return None
+    try:
+        import comtypes
+        import comtypes.automation
+        import comtypes.client
+        import comtypes.client.dynamic
+    except Exception:  # noqa: BLE001 - an absent optional extra is just "cannot launch"
+        return None
+    try:
+        comtypes.CoInitialize()
+    except OSError:
+        pass
+    try:
+        raw = comtypes.client.CreateObject("Inventor.Application")
+        application = comtypes.client.dynamic.Dispatch(
+            raw.QueryInterface(comtypes.automation.IDispatch)
+        )
+        application.Visible = False
+    except Exception:  # noqa: BLE001 - not installed or refused to start
+        return None
+
+    def quit_inventor() -> None:
+        try:
+            application.Quit()
+        except Exception:  # noqa: BLE001 - it may already be gone
+            pass
+
+    session = connect(timeout=max(timeout, 30.0))
+    if session is None:
+        quit_inventor()
+        return None
+    return session, quit_inventor

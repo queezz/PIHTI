@@ -331,9 +331,43 @@ number, material, valid mass, modification date, and the documents that use it,
 when those exist. Enter opens the part page; Escape clears the inspector.
 An STL, 3MF, or STEP file turns in 3D in the inspector and on its part page:
 drag to turn, use the wheel to zoom, right-drag or Shift-drag to pan, and
-double-click to return to the starting view. Inventor documents keep their
-still preview, and a mesh too large to send (over 2,000,000 triangles) keeps
-the still image with a one-line note.
+double-click to return to the starting view. An Inventor part or assembly
+turns in 3D from its copy in the STEP mirror (below) and keeps its still
+preview until that copy exists. A mesh too large to send (over 2,000,000
+triangles) keeps the still image with a one-line note.
+
+#### STEP mirror
+
+The STEP mirror is a STEP copy of every Inventor part and assembly, exported
+by Inventor itself into the sibling folder `PIHTI-step` beside the workspace
+(set `PIHTI_DEDUP_STEP_MIRROR` to put it elsewhere). It sits outside the
+workspace and outside git on purpose; Dropbox carries it to every machine, and
+it can be deleted and exported again at any time. The folder tree matches the
+workspace, and each copy is named after its source with `.step` added
+(`lp-box.iam.step`), because a part and an assembly may share a name in one
+folder. `OldVersions/`, vendor trees, `staging/`, and `.newVer` save leftovers
+are not mirrored.
+
+While the viewer runs and Inventor is open, the viewer exports one missing or
+out-of-date copy about once a minute in the background, oldest file first, so
+Inventor is borrowed only briefly while you work; `step-mirror sync` fills
+the mirror as fast as Inventor allows. A
+file you have open in Inventor waits until it is closed, and nothing happens
+while Inventor is closed. In the inspector, an Inventor file without a current
+copy shows "3D needs the STEP mirror · export now"; the part page's File card
+shows the copy's time, or none, with the same action. **STEP mirror N / M** in
+the top bar counts the current copies and opens a page listing what is
+missing, what is out of date, and the last exports. From the command line:
+
+```powershell
+& "$HOME\.venvs\pihti-dedup\Scripts\python.exe" -m pihti_dedup step-mirror status .
+& "$HOME\.venvs\pihti-dedup\Scripts\python.exe" -m pihti_dedup step-mirror sync . --budget-seconds 600
+& "$HOME\.venvs\pihti-dedup\Scripts\python.exe" -m pihti_dedup step-mirror export . "BoronProbe\BoronHead.iam"
+```
+
+`sync` works through the running Inventor; `--launch` starts a hidden
+Inventor when none is running and quits it when the sync ends. The viewer
+never starts Inventor.
 
 Badges on file tiles flag what the inventory already knows, each a short word
 in a small coloured box in a row under the tile's size line: `clash` (same
