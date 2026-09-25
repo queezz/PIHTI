@@ -372,7 +372,12 @@ a window is closed at the next export. In the inspector, an Inventor file withou
 copy shows "3D needs the STEP mirror · export now"; the part page's File card
 shows the copy's time, or none, with the same action. **STEP mirror N / M** in
 the top bar counts the current copies and opens a page listing what is
-missing, what is out of date, and the last exports. From the command line:
+missing, what is out of date, and the last exports. With Inventor open, that
+page's **Export fresh STEPs** runs the same batch as `step-mirror sync` in the
+viewer (everything missing or out of date, oldest first, with the same skips)
+while the background export waits; a status line follows it every few seconds
+and **Stop after this file** ends it early. Without Inventor the page says
+"Start Inventor, open PIHTI.ipj, then come back" instead. From the command line:
 
 ```powershell
 & "$HOME\.venvs\pihti-dedup\Scripts\python.exe" -m pihti_dedup step-mirror status .

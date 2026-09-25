@@ -9,6 +9,7 @@ at a fresh temp folder for every test.
 import json
 import os
 import re
+import time
 from pathlib import Path
 
 import pytest
@@ -1349,3 +1350,305 @@ def test_the_job_closes_leftovers_on_its_tick(tmp_path: Path) -> None:
 
     assert job.step().source.name == "old.ipt"  # closed first, so not "open in Inventor"
     assert mirror.pending_close() == [] and app.ours() == []
+
+
+# ---- "Export fresh STEPs": the on-demand batch ------------------------------
+
+
+def batch_for(root: Path, *, mirror: StepMirror | None = None, threaded: bool = False):
+    mirror = mirror or StepMirror(root)
+    batch = step_mirror.MirrorBatch(
+        mirror, inventory=lambda: inventory_of(root), threaded=threaded, per_file_timeout=5.0
+    )
+    return batch, mirror
+
+
+def wait_for(condition, seconds: float = 5.0) -> None:
+    deadline = time.monotonic() + seconds
+    while not condition():
+        assert time.monotonic() < deadline, "timed out waiting"
+        time.sleep(0.01)
+
+
+def hang_on(app: FakeInventor, root: Path, relative: str) -> None:
+    app.hang = ("saveas", str(root / relative).casefold())
+
+
+def hanging(app: FakeInventor, name: str) -> bool:
+    return ("hang", name) in list(app.log)
+
+
+def test_export_many_stops_between_files_when_asked(tmp_path: Path) -> None:
+    root = make_workspace(tmp_path / "PIHTI")
+    names = ("old", "mid", "new")
+    pairs = [(root / f"Frame/parts/{name}.ipt", tmp_path / f"{name}.ipt.step") for name in names]
+    asked: list[int] = []
+
+    def should_stop() -> bool:
+        asked.append(1)
+        return len(asked) > 1  # after the first file
+
+    results = inventor_session.export_many(
+        fake_session(fake_for(root)), pairs, should_stop=should_stop
+    )
+    assert [result.source.stem for result in results] == ["old"]
+    assert results.stopped_because == inventor_session.STOP_REQUESTED
+
+
+def test_the_batch_exports_every_stale_and_missing_file_oldest_first(tmp_path: Path) -> None:
+    root = make_workspace(tmp_path / "PIHTI")
+    app = fake_for(root, owner_open=["Frame/parts/mid.ipt"])
+    batch, mirror = batch_for(root)
+    assert batch.status()["state"] == "idle" and batch.status()["line"] == ""
+    mirror.ensure_root()  # a skip is logged only into an existing mirror, as in `sync`
+
+    assert batch.start(fake_session(app)) is True
+
+    assert app.violations == []
+    opened = [entry[1] for entry in app.log if entry[0] == "open"]
+    assert opened == ["old.ipt", "frame.iam", "new.ipt"]
+    status = batch.status()
+    assert status["state"] == "finished" and not status["running"]
+    assert (status["total"], status["done"], status["exported"]) == (3, 3, 3)
+    assert status["open_in_inventor"] == 1
+    assert status["line"] == "Finished · exported 3 of 3 · 1 open in Inventor"
+    # One export.log line per file, the open one included.
+    kinds = {line[3]: line[1] for line in log_lines(mirror)}
+    assert kinds == {
+        "Frame/parts/mid.ipt": SKIPPED_OPEN,
+        "Frame/parts/old.ipt": EXPORTED,
+        "Frame/frame.iam": EXPORTED,
+        "Frame/parts/new.ipt": EXPORTED,
+    }
+    assert len(mirror.status(inventory_of(root)).current) == 3
+
+
+def test_the_batch_closes_leftovers_first_and_skips_needs_doctor(
+    tmp_path: Path, monkeypatch
+) -> None:
+    root = make_blocked_workspace(tmp_path / "PIHTI")
+    mirror = checked_mirror(root)
+    app = fake_for(root)
+    record_timeout(mirror, "Frame/parts/old.ipt")
+    leave_open(app, root, "Frame/parts/old.ipt")
+    opened = spy_on_export_copy(monkeypatch)
+    batch, _mirror = batch_for(root, mirror=mirror)
+
+    batch.start(fake_session(app))
+
+    assert ("close", "old.ipt", True) in app.log and mirror.pending_close() == []
+    assert "frame.iam" not in opened and "old.ipt" in opened
+    status = batch.status()
+    assert status["needs_doctor"] == 1 and status["exported"] == status["total"] - 1
+    assert "1 needs Doctor" in status["line"]
+    doctor = [line for line in log_lines(mirror) if line[1] == step_mirror.NEEDS_DOCTOR]
+    assert [line[3] for line in doctor] == ["Frame/frame.iam"]
+
+
+def test_a_second_start_while_the_batch_runs_does_nothing(tmp_path: Path) -> None:
+    root = make_workspace(tmp_path / "PIHTI")
+    app = fake_for(root)
+    hang_on(app, root, "Frame/parts/old.ipt")
+    batch, _mirror = batch_for(root, threaded=True)
+    try:
+        assert batch.start(fake_session(app)) is True
+        wait_for(lambda: hanging(app, "old.ipt"))
+        assert batch.active()
+        running = batch.status()
+        assert running["state"] == "running" and running["line"] == "Exporting 1 of 4 · old.ipt"
+        assert batch.start(fake_session(app)) is False
+    finally:
+        app.release.set()
+    assert batch.wait(10)
+    assert batch.status()["exported"] == 4
+    assert [entry[1] for entry in app.log if entry[0] == "open"].count("old.ipt") == 1
+
+
+def test_stop_ends_the_batch_after_the_file_in_progress(tmp_path: Path) -> None:
+    root = make_workspace(tmp_path / "PIHTI")
+    app = fake_for(root)
+    hang_on(app, root, "Frame/parts/old.ipt")
+    batch, mirror = batch_for(root, threaded=True)
+    assert batch.stop() is False  # nothing runs yet
+    try:
+        batch.start(fake_session(app))
+        wait_for(lambda: hanging(app, "old.ipt"))
+        assert batch.stop() is True
+        stopping = batch.status()
+        assert stopping["state"] == "stopping" and stopping["running"]
+        assert stopping["line"] == "Stopping after this file · 0 of 4 done"
+    finally:
+        app.release.set()
+    assert batch.wait(10)
+    status = batch.status()
+    assert status["state"] == "stopped" and status["reason"] == inventor_session.STOP_REQUESTED
+    assert status["line"] == "Stopped · exported 1 of 4"
+    assert mirror.target("Frame/parts/old.ipt").is_file()
+    assert not mirror.target("Frame/parts/mid.ipt").exists()
+    # A new start begins afresh.
+    assert batch.start(fake_session(app)) is True and batch.wait(10)
+    assert batch.status()["line"] == "Finished · exported 3 of 3"
+
+
+def test_the_batch_stops_with_the_reason_when_inventor_stops_answering(tmp_path: Path) -> None:
+    root = make_workspace(tmp_path / "PIHTI")
+    app = fake_for(root)
+    hang_on(app, root, "Frame/parts/old.ipt")
+    batch, _mirror = batch_for(root)
+    batch.per_file_timeout = 0.2
+    try:
+        batch.start(fake_session(app))
+    finally:
+        app.release.set()
+    status = batch.status()
+    assert status["state"] == "stopped" and status["reason"] == inventor_session.NOT_ANSWERING
+    assert status["line"] == (
+        f"Stopped: {inventor_session.NOT_ANSWERING} · exported 0 of 4 · 1 not exported"
+    )
+    assert status["last"] == "old.ipt: timeout"
+
+
+def test_the_job_yields_while_a_batch_runs(tmp_path: Path) -> None:
+    root = make_workspace(tmp_path / "PIHTI")
+    app = fake_for(root)
+    job, mirror = job_for(root, app, Clock())
+    busy = [True]
+    job.yield_to = lambda: busy[0]
+
+    assert job.step() is None
+    assert app.log == [] and not mirror.root.exists()
+    busy[0] = False
+    assert job.step().exported
+
+
+# ---- the batch in the viewer ------------------------------------------------
+
+
+def mirror_card(html: str) -> str:
+    return html.split('id="mirror-batch"', 1)[1].split("</section>", 1)[0]
+
+
+def test_without_inventor_the_page_asks_for_it_and_starts_nothing(
+    tmp_path: Path, step_mirror_folder: Path
+) -> None:
+    root = make_workspace(tmp_path / "PIHTI")
+    viewer = create_app(root)
+    client = viewer.test_client()
+
+    card = mirror_card(client.get("/step-mirror").get_data(as_text=True))
+    assert "Start Inventor, open PIHTI.ipj, then come back" in card
+    assert "Export fresh STEPs" not in card and "step-mirror/export" not in card
+
+    token = viewer.config["FORM_TOKEN"]
+    assert client.post("/step-mirror/export", data={}).status_code == 403
+    done = client.post("/step-mirror/export", data={"token": token})
+    assert done.status_code == 302
+    assert done.headers["Location"] == "/step-mirror?batch=absent#mirror-batch"
+    page = client.get("/step-mirror?batch=absent").get_data(as_text=True)
+    assert "Inventor is not running; nothing started." in mirror_card(page)
+    assert viewer.extensions["pihti_step_mirror_batch"].status()["state"] == "idle"
+    assert not step_mirror_folder.exists()
+
+
+def test_the_page_starts_a_batch_and_reports_it_as_json(tmp_path: Path) -> None:
+    root = make_workspace(tmp_path / "PIHTI")
+    app = fake_for(root)
+    viewer = create_app(root, session_factory=lambda: fake_session(app))
+    client = viewer.test_client()
+    token = viewer.config["FORM_TOKEN"]
+    batch = viewer.extensions["pihti_step_mirror_batch"]
+
+    card = mirror_card(client.get("/step-mirror").get_data(as_text=True))
+    assert 'action="/step-mirror/export"' in card and f'name="token" value="{token}"' in card
+    assert '<button class="copy-path" type="submit">Export fresh STEPs</button>' in card
+    assert "4 waiting" in card and 'data-batch-status="/step-mirror/status"' in card
+    assert "Start Inventor" not in card
+
+    idle = client.get("/step-mirror/status").get_json()
+    assert idle["state"] == "idle" and idle["running"] is False
+    assert idle["counts"] == {"current": 0, "stale": 0, "missing": 4, "total": 4}
+
+    done = client.post("/step-mirror/export", data={"token": token})
+    assert done.status_code == 302 and done.headers["Location"] == "/step-mirror#mirror-batch"
+    assert batch.wait(10)
+
+    status = client.get("/step-mirror/status").get_json()
+    assert set(status) == {
+        "state", "running", "total", "done", "exported", "not_exported", "needs_doctor",
+        "open_in_inventor", "current", "reason", "last", "line", "counts",
+    }
+    assert status["state"] == "finished" and status["running"] is False
+    assert (status["total"], status["exported"], status["line"]) == (
+        4, 4, "Finished · exported 4 of 4"
+    )
+    assert status["counts"] == {"current": 4, "stale": 0, "missing": 0, "total": 4}
+    page = client.get("/step-mirror").get_data(as_text=True)
+    assert "Finished · exported 4 of 4" in mirror_card(page)
+    assert "Nothing to export." in mirror_card(page)
+
+    script = client.get("/static/dedup.js").get_data(as_text=True)
+    assert "[data-mirror-batch]" in script and "var POLL_MS = 3000;" in script
+
+
+def test_the_page_answers_a_second_start_and_a_stop_with_a_notice(tmp_path: Path) -> None:
+    root = make_workspace(tmp_path / "PIHTI")
+    app = fake_for(root)
+    hang_on(app, root, "Frame/parts/old.ipt")
+    viewer = create_app(root, session_factory=lambda: fake_session(app))
+    client = viewer.test_client()
+    token = viewer.config["FORM_TOKEN"]
+    batch = viewer.extensions["pihti_step_mirror_batch"]
+    batch.per_file_timeout = 5.0
+
+    assert client.post("/step-mirror/stop", data={"token": token}).headers["Location"] == (
+        "/step-mirror?batch=idle#mirror-batch"
+    )
+    try:
+        client.post("/step-mirror/export", data={"token": token})
+        wait_for(lambda: hanging(app, "old.ipt"))
+        page = mirror_card(client.get("/step-mirror").get_data(as_text=True))
+        assert 'data-batch-state="running"' in page and "Exporting 1 of 4 · old.ipt" in page
+        assert re.search(r'<form[^>]*data-batch-start hidden>', page)
+        assert 'action="/step-mirror/stop"' in page and "Stop after this file" in page
+
+        again = client.post("/step-mirror/export", data={"token": token})
+        assert again.headers["Location"] == "/step-mirror?batch=running#mirror-batch"
+        assert "A batch is already running." in client.get("/step-mirror?batch=running").get_data(
+            as_text=True
+        )
+
+        # Export now on a file page waits for the batch instead of timing out.
+        busy = client.post(
+            "/part/Frame/frame.iam/step-export", data={"token": token, "origin": "part"},
+            follow_redirects=True,
+        )
+        assert "STEP not exported: the batch export is running" in busy.get_data(as_text=True)
+
+        stop = client.post("/step-mirror/stop", data={"token": token})
+        assert stop.headers["Location"] == "/step-mirror#mirror-batch"
+        assert client.get("/step-mirror/status").get_json()["state"] == "stopping"
+    finally:
+        app.release.set()
+    assert batch.wait(10)
+    assert client.get("/step-mirror/status").get_json()["line"] == "Stopped · exported 1 of 4"
+
+
+def test_the_viewer_job_yields_to_the_page_batch(tmp_path: Path) -> None:
+    root = make_workspace(tmp_path / "PIHTI")
+    app = fake_for(root)
+    hang_on(app, root, "Frame/parts/old.ipt")
+    viewer = create_app(root, refresh_seconds=5, session_factory=lambda: fake_session(app))
+    job = viewer.extensions["pihti_step_mirror_job"]
+    batch = viewer.extensions["pihti_step_mirror_batch"]
+    assert batch.job is job
+    try:
+        # Started directly: a request would also start the snapshot ticker.
+        batch.start(fake_session(app))
+        wait_for(lambda: hanging(app, "old.ipt"))
+        assert job.step() is None
+    finally:
+        app.release.set()
+    assert batch.wait(10)
+    assert [entry[1] for entry in app.log if entry[0] == "open"] == [
+        "old.ipt", "mid.ipt", "frame.iam", "new.ipt"
+    ]

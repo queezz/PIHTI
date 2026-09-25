@@ -1085,7 +1085,16 @@ STEP_TOASTS = {
     "failed": "STEP not exported: {name}; the STEP mirror page has the reason",
     "doctor": "STEP not exported: {name} names a missing or repeated file; see Doctor",
     "absent": "STEP not exported: Inventor is not running",
+    "busy": "STEP not exported: the batch export is running",
 }
+
+#: The STEP mirror page's notice after its batch buttons, by the redirect's code.
+BATCH_NOTICES = {
+    "absent": "Inventor is not running; nothing started.",
+    "running": "A batch is already running.",
+    "idle": "No batch is running.",
+}
+START_INVENTOR = "Start Inventor, open PIHTI.ipj, then come back"
 
 
 def _step_code(outcome: str) -> str:
@@ -1339,8 +1348,12 @@ def create_app(
 
         cache.on_clear = invalidate_derived
         # One STEP export per tick while Inventor answers; nothing otherwise.
+        # It yields while the page's "Export fresh STEPs" batch runs.
         mirror_job = step_mirror.MirrorJob(
-            mirror, inventory=lambda: cache.peek(False), session=lambda: _session()
+            mirror,
+            inventory=lambda: cache.peek(False),
+            session=lambda: _session(),
+            yield_to=lambda: mirror_batch.active(),
         )
         app.extensions["pihti_step_mirror_job"] = mirror_job
         ticker = Ticker([cache, *derived, mirror_job], period=refresh_seconds)
@@ -1354,6 +1367,15 @@ def create_app(
             if "pihti_ticker" not in app.extensions:
                 app.extensions["pihti_ticker"] = ticker
             ticker.start()
+
+    # "Export fresh STEPs" on the STEP mirror page: a whole batch on its own
+    # thread, through the session the page found; never launched from here.
+    mirror_batch = step_mirror.MirrorBatch(
+        mirror,
+        inventory=lambda: cache.get(include_vendor=False, hash_files=False),
+        job=app.extensions.get("pihti_step_mirror_job"),
+    )
+    app.extensions["pihti_step_mirror_batch"] = mirror_batch
 
     def _current_index():
         if whereused_snapshot is not None:
@@ -3968,6 +3990,8 @@ def create_app(
         session = _session()
         if session is None:
             code = "absent"
+        elif mirror_batch.active():
+            code = "busy"  # the batch holds the session; a second caller would time out
         else:
             mirror.close_leftovers(session)
             result = mirror.export(session, relative)
@@ -3992,17 +4016,26 @@ def create_app(
             )
         )
 
+    def _mirror_counts(status) -> dict[str, int]:
+        return {
+            "current": len(status.current),
+            "stale": len(status.stale),
+            "missing": len(status.missing),
+            "total": status.total,
+        }
+
     @app.get("/step-mirror")
     def step_mirror_page():
         inventory = cache.get(include_vendor=False, hash_files=False)
         status = mirror.status(inventory)
         session = _session()
         job = app.extensions.get("pihti_step_mirror_job")
+        needs_doctor = mirror.needs_doctor(status)
         return render_template(
             "step_mirror.html",
             version=__version__,
             status=status,
-            needs_doctor=mirror.needs_doctor(status),
+            needs_doctor=needs_doctor,
             location=str(mirror.root),
             created=mirror.root.is_dir(),
             recent=mirror.recent(),
@@ -4010,7 +4043,49 @@ def create_app(
             inventor_version=session.version if session is not None else None,
             background=refresh_seconds > 0,
             deferred=job.deferred() if job is not None else {},
+            batch=mirror_batch.status(),
+            exportable=len(status.queue) - len(needs_doctor),
+            batch_notice=BATCH_NOTICES.get(request.args.get("batch", ""), ""),
+            start_inventor=START_INVENTOR,
+            form_token=app.config["FORM_TOKEN"],
         )
+
+    @app.post("/step-mirror/export")
+    def step_mirror_batch_start():
+        """Start "Export fresh STEPs" through the running Inventor, then go back."""
+
+        guard = _guard(request)
+        if guard is not None:
+            return guard
+        if mirror_batch.active():
+            code = "running"
+        else:
+            session = _session()
+            if session is None:
+                code = "absent"
+            else:
+                code = None if mirror_batch.start(session) else "running"
+        return redirect(url_for("step_mirror_page", batch=code, _anchor="mirror-batch"))
+
+    @app.post("/step-mirror/stop")
+    def step_mirror_batch_stop():
+        """Ask the running batch to end after the file in progress."""
+
+        guard = _guard(request)
+        if guard is not None:
+            return guard
+        # A stopping batch says so on its own status line; no notice needed.
+        code = None if mirror_batch.stop() else "idle"
+        return redirect(url_for("step_mirror_page", batch=code, _anchor="mirror-batch"))
+
+    @app.get("/step-mirror/status")
+    def step_mirror_status():
+        """The batch's status line and the mirror's counts, for the page to poll."""
+
+        payload = mirror_batch.status()
+        inventory = cache.peek(False)
+        payload["counts"] = _mirror_counts(mirror.status(inventory)) if inventory is not None else {}
+        return jsonify(payload)
 
     @app.get("/duplicates/data")
     def duplicates_data():

@@ -2209,3 +2209,64 @@ var PihtiEnlarge = (function () {
   window.history.replaceState(null, "", url.pathname + url.search + url.hash);
   window.setTimeout(function () { toast.remove(); }, 8000);
 })();
+
+(function () {
+  "use strict";
+
+  // STEP mirror page: "Export fresh STEPs" runs on the server's own thread;
+  // while it runs, the status line and the Mirror counts follow it in place.
+  var box = document.querySelector("[data-mirror-batch]");
+  if (!box) return;
+  var line = box.querySelector("[data-batch-line]");
+  var last = box.querySelector("[data-batch-last]");
+  var start = box.querySelector("[data-batch-start]");
+  var stop = box.querySelector("[data-batch-stop]");
+  var POLL_MS = 3000;
+  var failures = 0;
+
+  // The notice belongs to the button just pressed, not to the address.
+  if (box.querySelector("[data-batch-notice]")) {
+    var url = new URL(window.location.href);
+    url.searchParams.delete("batch");
+    window.history.replaceState(null, "", url.pathname + url.search + url.hash);
+  }
+
+  function apply(status) {
+    box.dataset.batchState = status.state;
+    var notice = box.querySelector("[data-batch-notice]");
+    if (notice && !status.running) notice.hidden = true;
+    line.textContent = status.line || "";
+    line.hidden = !status.line;
+    last.textContent = status.last ? "Not exported: " + status.last : "";
+    last.hidden = !status.last;
+    if (stop) stop.hidden = status.state !== "running";
+    if (start) start.hidden = Boolean(status.running);
+    // The waiting count was read before the batch; the next load recounts.
+    var count = start && start.querySelector("[data-batch-count]");
+    if (count && !status.running) count.hidden = true;
+    Object.keys(status.counts || {}).forEach(function (name) {
+      var cell = document.querySelector('[data-mirror-count="' + name + '"]');
+      if (cell) cell.textContent = status.counts[name];
+    });
+  }
+
+  function poll() {
+    fetch(box.dataset.batchStatus, { credentials: "same-origin", cache: "no-store" })
+      .then(function (response) {
+        if (!response.ok) throw new Error(response.statusText);
+        return response.json();
+      })
+      .then(function (status) {
+        failures = 0;
+        apply(status);
+        if (status.running) window.setTimeout(poll, POLL_MS);
+      })
+      .catch(function () {
+        failures += 1;
+        if (failures < 3) window.setTimeout(poll, POLL_MS);
+      });
+  }
+
+  var state = box.dataset.batchState;
+  if (state === "running" || state === "stopping") window.setTimeout(poll, POLL_MS);
+})();

@@ -421,6 +421,11 @@ button, select, input[type="checkbox"] { cursor: pointer; }
 .mirror-log.is-failed small { color: #d6ad63; }
 .mirror-doctor b { color: #d6ad63; font-weight: 500; }
 .mirror-inventor { color: var(--muted); }
+.mirror-batch-form { display: flex; align-items: center; gap: 8px; margin: 0 0 9px; }
+.mirror-batch-count { color: var(--dim); font-size: 0.64rem; font-variant-numeric: tabular-nums; }
+.mirror-batch-line { font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.rail-note.mirror-batch-last { margin: 0 0 9px; overflow-wrap: anywhere; }
+.mirror-notice { color: var(--muted); }
 .inspector-title { flex: none; margin: 6px 0 2px; font-size: 0.8rem; overflow-wrap: anywhere; }
 .inspector-facts { min-height: 0; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; }
 .inspector-plain { margin: 0; color: var(--dim); font-size: 0.7rem; }

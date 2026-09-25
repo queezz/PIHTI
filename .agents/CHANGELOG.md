@@ -6,6 +6,17 @@ remains authoritative for exact file changes.
 
 ## 2026-09-25
 
+- Shipped `pihti-dedup` 0.26.0: **Export fresh STEPs** on the STEP mirror
+  page. With Inventor open, one button runs the `step-mirror sync` batch from
+  the viewer: every missing and out-of-date copy, oldest first, leftovers
+  closed first, files open in Inventor and needs-Doctor assemblies passed
+  over, past a timeout while Inventor still answers, one `export.log` line per
+  file. It runs on its own thread; the background export waits meanwhile, a
+  second press does nothing, and **Stop after this file** ends it early. A
+  status line (exporting n of m and the file, stopped with the reason, or
+  finished with the counts) and the Mirror counts update every 3 s while it
+  runs. Without Inventor the button is replaced by "Start Inventor, open
+  PIHTI.ipj, then come back"; the viewer never starts Inventor.
 - Shipped `pihti-dedup` 0.25.0: one quiet mesh-tools line under every 3D
   preview (inspector, part page, Enlarge). Still | 3D, remembered for every
   file: Still shows the source image (Inventor's own thumbnail for `.ipt` and

@@ -61,6 +61,8 @@ NO_ANSWER = "Inventor did not answer (a dialog may be open)"
 #: single call's own failure, not a batch's) because it is user-facing text on
 #: the CLI's `stopped:` line.
 NOT_ANSWERING = "Inventor is not answering (a dialog may be open)"
+#: Why `export_many` ended early when its caller asked it to stop between files.
+STOP_REQUESTED = "stopped on request"
 CLOSE_FIRST = "open in Inventor: close it first"
 EXPORTED = "exported"
 TIMED_OUT = "timeout"
@@ -757,6 +759,7 @@ def export_many(
     on_result: Callable[[ExportResult], None] | None = None,
     clock: Callable[[], float] = time.monotonic,
     export: Callable[..., ExportResult] | None = None,
+    should_stop: Callable[[], bool] | None = None,
 ) -> BatchOutcome:
     """Export each (source, target) pair in order until the budget is spent.
 
@@ -774,6 +777,10 @@ def export_many(
     on whatever call timed out and would refuse the next call anyway, so the
     batch stops; `stopped_because` on the returned `BatchOutcome` then holds
     `NOT_ANSWERING`, otherwise it is `None`.
+
+    `should_stop`, when given, is asked before each pair; when it answers
+    True the batch ends there with `stopped_because` set to `STOP_REQUESTED`.
+    The export in progress is never interrupted.
     """
 
     export = export or export_copy
@@ -783,6 +790,9 @@ def export_many(
     stopped_because: str | None = None
     for source, target in pairs:
         if budget_seconds is not None and clock() - started >= budget_seconds:
+            break
+        if should_stop is not None and should_stop():
+            stopped_because = STOP_REQUESTED
             break
         result = export(session, source, target, timeout=per_file_timeout)
         results.append(result)

@@ -68,21 +68,41 @@
           <button class="copy-path" type="button" data-copy-text="{{ location|winpath }}">Copy path</button>
         </div>
         <dl class="scope-list">
-          <div><dt>Current</dt><dd>{{ status.current|length }}</dd></div>
-          <div><dt>Stale</dt><dd>{{ status.stale|length }}</dd></div>
-          <div><dt>Missing</dt><dd>{{ status.missing|length }}</dd></div>
+          <div><dt>Current</dt><dd data-mirror-count="current">{{ status.current|length }}</dd></div>
+          <div><dt>Stale</dt><dd data-mirror-count="stale">{{ status.stale|length }}</dd></div>
+          <div><dt>Missing</dt><dd data-mirror-count="missing">{{ status.missing|length }}</dd></div>
           <div><dt>Need Doctor</dt><dd>{{ needs_doctor|length }}</dd></div>
-          <div><dt>Inventor files</dt><dd>{{ status.total }}</dd></div>
+          <div><dt>Inventor files</dt><dd data-mirror-count="total">{{ status.total }}</dd></div>
         </dl>
         {% if not created %}<p class="rail-note muted">The folder is created with the first export.</p>{% endif %}
       </section>
-      <section class="rail-card">
+      <section class="rail-card mirror-batch" id="mirror-batch" data-mirror-batch data-batch-status="{{ url_for('step_mirror_status') }}" data-batch-state="{{ batch.state }}">
         <h2>Inventor</h2>
         {% if inventor_version %}
         <p class="rail-note mirror-inventor">Inventor {{ inventor_version }} is running.{% if background %} One file is exported per refresh, oldest first; files open in Inventor wait.{% else %} Background export is off in this viewer.{% endif %}</p>
         {% else %}
         <p class="rail-note mirror-inventor">Inventor is not running; nothing is exported.</p>
         {% endif %}
+        {% if batch_notice %}<p class="rail-note mirror-notice" role="status" data-batch-notice>{{ batch_notice }}</p>{% endif %}
+        <p class="rail-note mirror-batch-line" role="status" data-batch-line{% if not batch.line %} hidden{% endif %}>{{ batch.line }}</p>
+        <p class="rail-note muted mirror-batch-last" data-batch-last{% if not batch.last %} hidden{% endif %}>{% if batch.last %}Not exported: {{ batch.last }}{% endif %}</p>
+        {% if inventor_version %}
+        {% if exportable %}
+        <form class="mirror-batch-form" method="post" action="{{ url_for('step_mirror_batch_start') }}" data-batch-start{% if batch.running %} hidden{% endif %}>
+          <input type="hidden" name="token" value="{{ form_token }}">
+          <button class="copy-path" type="submit">Export fresh STEPs</button>
+          <span class="mirror-batch-count" data-batch-count>{{ exportable }} waiting</span>
+        </form>
+        {% elif not batch.running %}
+        <p class="rail-note muted">Nothing to export.</p>
+        {% endif %}
+        {% elif not batch.running %}
+        <p class="rail-note muted" data-batch-absent>{{ start_inventor }}</p>
+        {% endif %}
+        <form class="mirror-batch-form" method="post" action="{{ url_for('step_mirror_batch_stop') }}" data-batch-stop{% if batch.state != 'running' %} hidden{% endif %}>
+          <input type="hidden" name="token" value="{{ form_token }}">
+          <button class="copy-path" type="submit">Stop after this file</button>
+        </form>
         {% if leftovers %}<p class="rail-note muted">{{ leftovers|length }} document{{ '' if leftovers|length == 1 else 's' }} left open by a timeout, closed at the next export if {{ 'it has' if leftovers|length == 1 else 'they have' }} no window.</p>{% endif %}
         {% if deferred %}<p class="rail-note muted">{{ deferred|length }} file{{ '' if deferred|length == 1 else 's' }} passed over after a failure, until {{ 'it changes' if deferred|length == 1 else 'they change' }}.</p>{% endif %}
       </section>

@@ -605,6 +605,28 @@ mirror-relative STEP or the reason. At 5 MB it becomes `export.log.1`, one
 kept. The page's Last exports reads the end of that log instead of the
 index's `recent` list, which is still written and serves only a mirror that
 has no log yet.
+0.26.0: the owner asked for "a button to run conversion" once Inventor is
+open. The `/step-mirror` page's Inventor card offers **Export fresh STEPs**
+(a token-guarded POST to `/step-mirror/export`) while a session answers, and
+"Start Inventor, open PIHTI.ipj, then come back" when none does; a POST
+without a session redirects back with a notice and starts nothing. The batch
+is `MirrorBatch`, one per app, on its own thread: it waits for a background
+tick already exporting, closes leftovers, takes the mirror's own queue
+(oldest source first), logs and passes over files open in Inventor, reads
+the pre-check's reference context once and hands it to every export (so
+needs-doctor assemblies never reach Inventor), and runs `StepMirror.sync`
+with the command line's 60-second per-file timeout and its probe-and-continue
+rule; `NOT_ANSWERING` ends it with that reason. **Stop after this file**
+(`/step-mirror/stop`) sets a flag `export_many` checks between files
+(`should_stop`, ending with `STOP_REQUESTED`). A second start while one runs
+is a no-op with a notice. While it runs the background `MirrorJob` yields
+(`yield_to`), and export-now on a file answers "the batch export is running"
+instead of timing out on the shared session. `/step-mirror/status` returns
+the state, counts, current file, last reason, the status line, and the
+mirror's current / stale / missing / total; the page polls it every 3 s only
+while a batch runs and updates the line and the Mirror card counts in place;
+the lists refresh on the next load. The web never launches Inventor and never
+sets `SilentOperation`.
 
 ## Purpose
 

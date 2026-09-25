@@ -50,6 +50,11 @@ Every attempt is appended to `export.log` at the mirror root, one
 tab-separated line each: time, outcome, seconds, workspace-relative source,
 and the mirror-relative STEP or the reason. At 5 MB the log is renamed to
 `export.log.1` (one kept) and a new one is started.
+
+Three callers export: `step-mirror sync` on the command line, the viewer's
+background `MirrorJob` (one file now and then), and the viewer's on-demand
+`MirrorBatch` behind the STEP mirror page's "Export fresh STEPs" (the whole
+queue, the command line's rules, on its own thread; the job yields to it).
 """
 
 from __future__ import annotations
@@ -751,11 +756,14 @@ class StepMirror:
         *,
         timeout: float = inventor_session.DEFAULT_TIMEOUT,
         force: bool = False,
+        context=None,
     ) -> ExportResult:
         """Export one workspace document to its mirror STEP and record the attempt.
 
         An assembly the pre-check blocks is `needs-doctor` and never reaches
-        Inventor, unless `force` is set.
+        Inventor, unless `force` is set. `context` is a `reference_context()`
+        a batch read once for all its files; without it the pre-check reads
+        its own.
         """
 
         source = self.workspace / relative
@@ -766,7 +774,7 @@ class StepMirror:
             stat = source.stat()
         except OSError:
             return ExportResult(source, target, "failed: no such workspace file")
-        blocked = None if force else self.blocker(relative)
+        blocked = None if force else self.blocker(relative, context)
         try:
             self.ensure_root()
             if blocked is None:
@@ -793,6 +801,9 @@ class StepMirror:
         budget_seconds: float | None = None,
         per_file_timeout: float = inventor_session.DEFAULT_TIMEOUT,
         on_result: Callable[[ExportResult], None] | None = None,
+        on_start: Callable[[str], None] | None = None,
+        should_stop: Callable[[], bool] | None = None,
+        context=None,
     ) -> inventor_session.BatchOutcome:
         """Export several documents in order through `export_many`, recording each.
 
@@ -802,6 +813,10 @@ class StepMirror:
         second occurrence is reported as the same `timeout` without opening
         Inventor again. `export_many` may still continue past the timeout to
         later files in the same run; see its docstring.
+
+        `on_start` hears each workspace-relative path just before its export,
+        `should_stop` is asked between files (`export_many`), and `context` is
+        handed to every `export`.
         """
 
         pairs = [(self.workspace / relative, self.target(relative)) for relative in relatives]
@@ -812,7 +827,11 @@ class StepMirror:
             key = relative.casefold()
             if key in timed_out_this_run:
                 return ExportResult(source, self.target(relative), inventor_session.TIMED_OUT)
-            result = self.export(session, relative, timeout=timeout)
+            if on_start is not None:
+                on_start(relative)
+            # `context` only when a batch read one: callers may wrap `export`.
+            extra = {} if context is None else {"context": context}
+            result = self.export(session, relative, timeout=timeout, **extra)
             if result.outcome == inventor_session.TIMED_OUT:
                 timed_out_this_run.add(key)
             return result
@@ -824,6 +843,7 @@ class StepMirror:
             per_file_timeout=per_file_timeout,
             on_result=on_result,
             export=export,
+            should_stop=should_stop,
         )
 
     def _record(self, relative: str, stat: os.stat_result, result: ExportResult) -> None:
@@ -903,7 +923,9 @@ class MirrorJob:
     is not used, because it moves on every validation and would log the same
     skip again each tick.
     The export runs on its own thread, so a slow Inventor never holds up the
-    other snapshots.
+    other snapshots. While `yield_to()` answers True (the viewer's on-demand
+    `MirrorBatch` is running) the job attempts nothing: the two would share
+    one Inventor session.
     """
 
     def __init__(
@@ -917,10 +939,12 @@ class MirrorJob:
         spacing_seconds: float = SPACING_SECONDS,
         clock: Callable[[], float] = time.monotonic,
         threaded: bool = True,
+        yield_to: Callable[[], bool] | None = None,
     ) -> None:
         self.mirror = mirror
         self.inventory = inventory
         self.session = session
+        self.yield_to = yield_to
         self.budget_seconds = budget_seconds
         self.backoff_seconds = backoff_seconds
         self.spacing_seconds = spacing_seconds
@@ -965,6 +989,16 @@ class MirrorJob:
         except Exception:
             log.exception("step mirror tick failed")
 
+    def wait_idle(self, timeout: float | None = None) -> bool:
+        """Wait for a tick already exporting to finish; True when none runs."""
+
+        with self._lock:
+            thread = self._thread
+        if thread is None or thread is threading.current_thread():
+            return True
+        thread.join(timeout)
+        return not thread.is_alive()
+
     def _passed_over(self, item: MirrorItem, context=None) -> bool:
         key = item.path.casefold()
         state = (item.source_mtime_ns, item.source_size)
@@ -984,6 +1018,8 @@ class MirrorJob:
     def step(self) -> ExportResult | None:
         """One tick: export at most one document. None when nothing was attempted."""
 
+        if self.yield_to is not None and self.yield_to():
+            return None
         if self.clock() < self._resume_at:
             return None
         session = self.session()
@@ -1035,3 +1071,238 @@ class MirrorJob:
                 self._resume_at = self.clock() + self.spacing_seconds
             return result
         return skipped
+
+
+#: `MirrorBatch` states.
+BATCH_IDLE = "idle"
+BATCH_RUNNING = "running"
+BATCH_STOPPING = "stopping"
+BATCH_STOPPED = "stopped"
+BATCH_FINISHED = "finished"
+#: How long a starting batch waits for a background export already under way.
+BATCH_WAIT_FOR_JOB_SECONDS = 30.0
+
+
+def _short(relative: str) -> str:
+    return relative.rsplit("/", 1)[-1]
+
+
+class MirrorBatch:
+    """The viewer's "Export fresh STEPs": every stale and missing file, on demand.
+
+    The same rules as `step-mirror sync`: leftovers of earlier timeouts are
+    closed first, files open in Inventor are passed over (and logged), an
+    assembly the pre-check blocks is `needs-doctor` without reaching
+    Inventor, and after a timeout the session is probed and the batch goes on
+    unless Inventor no longer answers (`NOT_ANSWERING` then ends it). Every
+    file gets one `export.log` line. The order is the mirror's own queue,
+    oldest source first.
+
+    `start(session)` runs the batch on its own thread and returns at once;
+    starting while one runs does nothing. `stop()` asks it to end after the
+    file in progress. The session is the caller's: the batch never launches
+    Inventor. While it runs, `active()` is True and the background
+    `MirrorJob` yields to it (`yield_to`); a tick already exporting when the
+    batch starts is waited for first (`job.wait_idle`).
+    """
+
+    def __init__(
+        self,
+        mirror: StepMirror,
+        inventory: Callable[[], object | None],
+        *,
+        job: MirrorJob | None = None,
+        per_file_timeout: float = inventor_session.DEFAULT_TIMEOUT,
+        threaded: bool = True,
+    ) -> None:
+        self.mirror = mirror
+        self.inventory = inventory
+        self.job = job
+        self.per_file_timeout = per_file_timeout
+        self.threaded = threaded
+        self._lock = threading.Lock()
+        self._thread: threading.Thread | None = None
+        self._stop = threading.Event()
+        self._reset(BATCH_IDLE)
+
+    def __repr__(self) -> str:
+        return "MirrorBatch()"
+
+    def _reset(self, state: str) -> None:
+        self._state = state
+        self._total = 0
+        self._done = 0
+        self._exported = 0
+        self._doctor = 0
+        self._failed = 0
+        self._held_open = 0
+        self._current = ""
+        self._reason = ""
+        self._last = ""
+
+    # ---- control ------------------------------------------------------------
+
+    def active(self) -> bool:
+        """True from `start` until the batch has ended."""
+
+        with self._lock:
+            return self._state in (BATCH_RUNNING, BATCH_STOPPING)
+
+    def start(self, session: Session) -> bool:
+        """Start a batch through `session`; False when one is already running."""
+
+        with self._lock:
+            if self._state in (BATCH_RUNNING, BATCH_STOPPING):
+                return False
+            self._stop.clear()
+            self._reset(BATCH_RUNNING)
+            if self.threaded:
+                self._thread = threading.Thread(
+                    target=self._run, args=(session,), name="pihti-step-batch", daemon=True
+                )
+                self._thread.start()
+        if not self.threaded:
+            self._run(session)
+        return True
+
+    def stop(self) -> bool:
+        """Ask a running batch to end after the file in progress; False when none runs."""
+
+        with self._lock:
+            if self._state == BATCH_STOPPING:
+                return True
+            if self._state != BATCH_RUNNING:
+                return False
+            self._state = BATCH_STOPPING
+            self._stop.set()
+            return True
+
+    def wait(self, timeout: float | None = None) -> bool:
+        """Wait for the batch thread; True when no batch runs any more."""
+
+        thread = self._thread
+        if thread is not None:
+            thread.join(timeout)
+        return not self.active()
+
+    # ---- the run ------------------------------------------------------------
+
+    def _run(self, session: Session) -> None:
+        try:
+            self._export_all(session)
+        except Exception as exc:  # noqa: BLE001 - the page reports it; the viewer lives on
+            log.exception("step mirror batch failed")
+            reason = " ".join(str(exc).split()) or type(exc).__name__
+            self._end(BATCH_STOPPED, f"failed: {reason[:200]}")
+
+    def _end(self, state: str, reason: str = "") -> None:
+        with self._lock:
+            self._state = state
+            self._reason = reason
+            self._current = ""
+
+    def _started_file(self, relative: str) -> None:
+        with self._lock:
+            self._current = relative
+
+    def _landed(self, result: ExportResult) -> None:
+        with self._lock:
+            self._done += 1
+            if result.exported:
+                self._exported += 1
+            elif result.outcome == NEEDS_DOCTOR:
+                self._doctor += 1
+            else:
+                self._failed += 1
+                self._last = f"{Path(result.source).name}: {result.outcome}"
+
+    def _export_all(self, session: Session) -> None:
+        if self.job is not None:
+            self.job.wait_idle(BATCH_WAIT_FOR_JOB_SECONDS)
+        if self._stop.is_set():
+            self._end(BATCH_STOPPED, inventor_session.STOP_REQUESTED)
+            return
+        self.mirror.close_leftovers(session)
+        inventory = self.inventory()
+        if inventory is None:
+            self._end(BATCH_STOPPED, "the workspace scan is not ready")
+            return
+        queue = self.mirror.status(inventory).queue
+        try:
+            open_paths = session.open_documents()
+        except Exception:  # noqa: BLE001 - a silent or vanished Inventor
+            self._end(BATCH_STOPPED, inventor_session.NOT_ANSWERING)
+            return
+        waiting: list[str] = []
+        held_open = 0
+        for item in queue:
+            if path_key(self.mirror.workspace / item.path) in open_paths:
+                held_open += 1
+                self.mirror.log_attempt(item.path, inventor_session.SKIPPED_OPEN)
+            else:
+                waiting.append(item.path)
+        with self._lock:
+            self._total = len(waiting)
+            self._held_open = held_open
+        outcome = self.mirror.sync(
+            session,
+            waiting,
+            per_file_timeout=self.per_file_timeout,
+            on_result=self._landed,
+            on_start=self._started_file,
+            should_stop=self._stop.is_set,
+            context=self.mirror.reference_context(),
+        )
+        if outcome.stopped_because:
+            self._end(BATCH_STOPPED, outcome.stopped_because)
+        else:
+            self._end(BATCH_FINISHED)
+
+    # ---- what the page shows ------------------------------------------------
+
+    def status(self) -> dict:
+        """The batch as the page's status line and its JSON route show it.
+
+        `line` is the one sentence the page prints; `last` names the last file
+        that was not exported and why ("" when none).
+        """
+
+        with self._lock:
+            state = self._state
+            total, done, exported = self._total, self._done, self._exported
+            doctor, failed, held_open = self._doctor, self._failed, self._held_open
+            current, reason, last = self._current, self._reason, self._last
+        tally = [f"exported {exported} of {total}"]
+        if failed:
+            tally.append(f"{failed} not exported")
+        if doctor:
+            tally.append(f"{doctor} {'needs' if doctor == 1 else 'need'} Doctor")
+        if held_open:
+            tally.append(f"{held_open} open in Inventor")
+        if state == BATCH_IDLE:
+            line = ""
+        elif state == BATCH_RUNNING:
+            line = f"Exporting {min(done + 1, total)} of {total}" if total else "Starting"
+            if current:
+                line += f" · {_short(current)}"
+        elif state == BATCH_STOPPING:
+            line = f"Stopping after this file · {done} of {total} done"
+        elif state == BATCH_STOPPED:
+            head = "Stopped" if reason in ("", inventor_session.STOP_REQUESTED) else f"Stopped: {reason}"
+            line = " · ".join([head, *tally])
+        else:
+            line = " · ".join(["Finished", *tally])
+        return {
+            "state": state,
+            "running": state in (BATCH_RUNNING, BATCH_STOPPING),
+            "total": total,
+            "done": done,
+            "exported": exported,
+            "not_exported": failed,
+            "needs_doctor": doctor,
+            "open_in_inventor": held_open,
+            "current": current,
+            "reason": reason,
+            "last": last,
+            "line": line,
+        }
