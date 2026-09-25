@@ -13,6 +13,15 @@ session evidence in `log/`.
   Recommendation: `TempController-v2` is the newer tree (fan, LRS-150 supply,
   thermocouple socket) and looks like the one that was built; keep it.
   Safe default: nothing is removed; both trees stay as they are.
+- **Delete the dead cache files in Dropbox.** Since 0.27.2 nothing writes to
+  `.pihti-dedup/` except old quarantine listings; the persisted inventory and
+  git-history previews live in the machine-local cache root. Once every
+  machine's viewer has restarted on 0.27.2 or later (until then an old
+  process recreates them), delete from the workspace:
+  `.pihti-dedup/inventory-default-v1.json`, `.pihti-dedup/inventory-vendor-v1.json`,
+  any `(… conflicted copy …)` beside them, `.pihti-dedup/git-previews/` and
+  `.pihti-dedup/previews/`. Keep `.pihti-dedup/quarantine/` (old runs are
+  still restorable from it). Any agent may do this; it is cache, not source.
 - **Collapse vendor import bundles.** The 49 generic names live in 11 STEP
   import folders. Doctor should show each bundle as one item with the
   re-import instruction (import the vendor STEP as a single named part) and a
