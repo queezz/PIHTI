@@ -214,13 +214,13 @@ or collapses visible sessions; restoration remains scoped to one exact event.
 
 Use **Doctor** when the right operation is renaming rather than consolidation.
 Its queue is one line per item (thumbnail, name, how many assemblies name it,
-one chip), in sections: **Interrupted saves**, **Missing file** (the old name
-of a rename still open, which an assembly still names and no file carries),
+one chip), in sections: **Interrupted saves**, **Missing file** (a name an
+assembly still names and no file carries, apart from Inventor's template
+names and Content Center parts, which Inventor finds outside the workspace),
 **Ambiguous filenames** (a name carried by two or more files), **Generic
 names** (`Body.ipt`, `Body001.ipt`, `Part.ipt`, singletons included),
-**Assemblies** (only those naming a missing, repeated, or generic file; names
-the byte scan finds but no open rename left behind stay on the assembly's own
-page), and **Standard parts**. The chip opens the item's page; a
+**Assemblies** (only those naming a missing, repeated, or generic file; the
+names the STEP mirror's check exempts stay on the assembly's own page), and **Standard parts**. The chip opens the item's page; a
 missing file with one assembly and one obvious file is fixed in place.
 
 With Inventor running, Doctor does the fix itself. On a missing file's page
@@ -380,8 +380,9 @@ the mirror as fast as Inventor allows, printing one line per folder
 path to `export.log` in the mirror folder. A
 file you have open in Inventor waits until it is closed, and nothing happens
 while Inventor is closed. An assembly that would make Inventor stop and ask
-(it names a file that exists more than once, or the old name of a rename not
-yet settled) is not opened: it is listed as **Needs Doctor** with a link to
+(it names a file that exists more than once, or a file no workspace folder
+outside `OldVersions` carries and Inventor would not find as a template or a
+Content Center part) is not opened: it is listed as **Needs Doctor** with a link to
 that name's Doctor page. The check reads names from the assembly's bytes, so
 a name it no longer uses can skip it by mistake; `step-mirror export --force`
 exports one such file anyway. A document a timed-out export left open without

@@ -940,7 +940,7 @@ def test_blocking_reference_names_a_missing_or_repeated_file_and_nothing_else() 
     assert blocking_reference(["board.ipt"], locations, renamed=()) == "board.ipt exists twice"
 
 
-def test_a_missing_name_blocks_only_while_its_rename_is_open(tmp_path: Path) -> None:
+def test_a_missing_name_blocks_until_its_rename_is_settled(tmp_path: Path) -> None:
     from pihti_dedup.renames import RenameEntry, append_entry, read_ledger, set_settled
 
     root = make_workspace(tmp_path / "PIHTI")
@@ -955,8 +955,11 @@ def test_a_missing_name_blocks_only_while_its_rename_is_open(tmp_path: Path) -> 
         where_used=lambda: build_index(root),
         locations=lambda: filename_locations(root),
         renamed=lambda: step_mirror.renamed_names(read_ledger(root)),
+        retired=lambda: step_mirror.retired_names(read_ledger(root)),
     )
-    assert mirror.blocker("Frame/frame.iam") is None  # fossils only: exported as before
+    # The template name is exempt; a part no file carries is missing even
+    # when no rename is recorded for it.
+    assert mirror.blocker("Frame/frame.iam") == ("Wide Din Clip.ipt", "Wide Din Clip.ipt is missing")
 
     entry = append_entry(
         root,
@@ -973,7 +976,214 @@ def test_a_missing_name_blocks_only_while_its_rename_is_open(tmp_path: Path) -> 
     assert mirror.blocker("Frame/frame.iam") == ("Wide Din Clip.ipt", "Wide Din Clip.ipt is missing")
 
     set_settled(root, entry.id, True)  # the owner repointed it in Inventor
+    assert step_mirror.retired_names(read_ledger(root)) == frozenset({"wide din clip.ipt"})
     assert mirror.blocker("Frame/frame.iam") is None
+
+
+def test_a_plainly_missing_part_blocks_and_names_itself() -> None:
+    locations = {"plate.ipt": ("A/plate.ipt",)}
+
+    # No rename is recorded for it: it lived on someone else's disk.
+    assert blocking_reference(["plate.ipt", "ICF70FLMG4MBA.ipt"], locations, renamed=()) == (
+        "ICF70FLMG4MBA.ipt is missing"
+    )
+    # URL-encoded and case variants are one name, reported once, decoded.
+    problems = step_mirror.reference_problems(
+        ["ICF70F%201%E5%80%8B.ipt", "icf70f 1個.IPT", "plate.ipt"], locations
+    )
+    assert [kind for _name, _reason, kind in problems] == ["missing"]
+    assert problems[0][1].casefold() == "icf70f 1個.ipt is missing"
+    # A copy only under OldVersions/ is not where Inventor resolves the name.
+    assert blocking_reference(
+        ["gone.ipt"], {"gone.ipt": ("Frame/OldVersions/gone.ipt",)}
+    ) == "gone.ipt is missing"
+    # The byte scan cuts a name that crosses a storage sector; the tail of a
+    # longer name the same assembly embeds is not a reference of its own.
+    assert blocking_reference(["Standard (mm).iam", "rd (mm).iam"], locations) is None
+    assert blocking_reference(["Rotary_handle.ipt", "ary_handle.ipt"], {
+        "rotary_handle.ipt": ("A/Rotary_handle.ipt",)
+    }) is None
+    # A whole word is not a fragment: "Clip.ipt" is its own missing part.
+    assert blocking_reference(["Wide Din Clip.ipt", "Clip.ipt"], {
+        "wide din clip.ipt": ("A/Wide Din Clip.ipt",)
+    }) == "Clip.ipt is missing"
+
+
+def test_template_names_resolve_outside_the_workspace(
+    tmp_path: Path, no_machine_inventor_folders: Path
+) -> None:
+    # Built in, whatever the machine holds.
+    for name in ("Standard (mm).iam", "standard (IN).iam", "Standard.ipt", "Sheet Metal (mm).ipt"):
+        assert step_mirror.resolves_outside(name)
+    assert not step_mirror.resolves_outside("Bracket.ipt")
+    # And whatever Inventor's own Templates folder holds, language folders too.
+    metric = no_machine_inventor_folders / "Templates" / "en-US" / "Metric"
+    metric.mkdir(parents=True)
+    (metric / "Lab Frame (mm).iam").write_bytes(b"template")
+    step_mirror._template_names.clear()
+    assert step_mirror.resolves_outside("lab frame (MM).iam")
+
+    locations = {"plate.ipt": ("A/plate.ipt",)}
+    outside = step_mirror.OutsideNames(tmp_path)
+    assert blocking_reference(
+        ["Lab Frame (mm).iam", "Standard (in).iam", "plate.ipt"], locations, outside=outside
+    ) is None
+    # The old name of a rename still open is never exempt.
+    assert blocking_reference(
+        ["Standard (mm).iam"], locations, renamed={"standard (mm).iam"}, outside=outside
+    ) == "Standard (mm).iam is missing"
+
+
+def test_content_center_parts_resolve_outside_the_workspace(
+    tmp_path: Path, no_machine_inventor_folders: Path
+) -> None:
+    library = no_machine_inventor_folders / "Content Center Files" / "R2027" / "en-US"
+    family = library / "ISO 4762"
+    family.mkdir(parents=True)
+    (family / "ISO 4762 M4 x 12.ipt").write_bytes(b"screw")
+    (family / "OldVersions").mkdir()
+    (family / "OldVersions" / "ISO 4762 M4 x 99.ipt").write_bytes(b"old")
+
+    root = make_workspace(tmp_path / "PIHTI")
+    frame = root / "Frame" / "frame.iam"
+    frame.write_bytes(
+        reference_bytes(
+            "C:\\Templates\\Standard (mm).iam",
+            "C:\\CC\\ISO 4762\\ISO 4762 M4 x 12.ipt",
+            "C:\\Frame\\parts\\old.ipt",
+        )
+    )
+    mirror = checked_mirror(root)
+    assert mirror.blocker("Frame/frame.iam") is None
+
+    frame.write_bytes(reference_bytes("C:\\CC\\ISO 4762\\ISO 4762 M4 x 99.ipt"))
+    assert mirror.blocker("Frame/frame.iam") == (
+        "ISO 4762 M4 x 99.ipt",
+        "ISO 4762 M4 x 99.ipt is missing",
+    )
+    # A size placed later is seen once the folder's times change.
+    newer = library / "JIS B 1176"
+    newer.mkdir()
+    (newer / "JIS B 1176 - M3 x 16 - 0.5.ipt").write_bytes(b"screw")
+    frame.write_bytes(reference_bytes("C:\\CC\\JIS B 1176 - M3 x 16 - 0.5.ipt"))
+    assert mirror.blocker("Frame/frame.iam") is None
+
+
+def test_the_folder_name_cache_walks_again_only_when_the_folder_changes(
+    tmp_path: Path, monkeypatch
+) -> None:
+    folder = tmp_path / "Content Center Files"
+    (folder / "R2027" / "en-US" / "ISO 4762").mkdir(parents=True)
+    walks: list[Path] = []
+    real = step_mirror._names_under
+    monkeypatch.setattr(
+        step_mirror, "_names_under", lambda path: walks.append(path) or real(path)
+    )
+    now = [0.0]
+    assert step_mirror.folder_names(folder, clock=lambda: now[0]) == frozenset()
+    assert step_mirror.folder_names(folder, clock=lambda: now[0]) == frozenset()
+    assert len(walks) == 1
+
+    deep = folder / "R2027" / "en-US" / "ISO 4762" / "ISO 4762 M4 x 12.ipt"
+    deep.write_bytes(b"screw")  # the family folder is below the stamped levels
+    assert step_mirror.folder_names(folder, clock=lambda: now[0]) == frozenset()
+    now[0] = step_mirror.OUTSIDE_RECHECK_SECONDS + 1
+    assert step_mirror.folder_names(folder, clock=lambda: now[0]) == {"iso 4762 m4 x 12.ipt"}
+    assert len(walks) == 2
+
+
+PROJECT_XML = """<?xml version="1.0" encoding="utf-16" standalone="no" ?>
+<InventorProject schemarevid="14">
+  <ProjectPaths>
+    <ProjectPath pathtype="Workspace"><PathName>Workspace</PathName><Path>.</Path></ProjectPath>
+    <ProjectPath pathtype="Library"><PathName>Vendor</PathName><Path>..\\Vendor Library</Path></ProjectPath>
+  </ProjectPaths>
+  <FolderOptions>
+    <ContentCenterFolder>
+      <Path>%PIHTI_TEST_SHARE%\\Content Center Files</Path>
+      <ContentCenterConfig><ConfiguredLibraries>
+        <Library DisplayName="Inventor ISO" ServerName="localhost"/>
+      </ConfiguredLibraries></ContentCenterConfig>
+    </ContentCenterFolder>
+  </FolderOptions>
+</InventorProject>
+"""
+
+
+def test_the_project_file_names_its_content_center_and_library_folders(
+    tmp_path: Path, monkeypatch
+) -> None:
+    workspace = tmp_path / "PIHTI"
+    workspace.mkdir()
+    project = workspace / "PIHTI.ipj"
+    project.write_bytes(b"\xff\xfe" + PROJECT_XML.encode("utf-16-le"))  # as Inventor writes it
+    monkeypatch.setenv("PIHTI_TEST_SHARE", str(tmp_path / "share"))
+
+    content_center, libraries = step_mirror.project_folders(project)
+    assert content_center == tmp_path / "share" / "Content Center Files"
+    assert libraries == (workspace / ".." / "Vendor Library",)
+    assert step_mirror.project_file(workspace) == project
+
+    # The live PIHTI.ipj names libraries only, no folder: nothing is invented.
+    bare = tmp_path / "bare.ipj"
+    bare.write_bytes(
+        "<?xml version=\"1.0\"?><InventorProject><FolderOptions><ContentCenterFolder>"
+        "<ContentCenterConfig/></ContentCenterFolder></FolderOptions></InventorProject>".encode()
+    )
+    assert step_mirror.project_folders(bare) == (None, ())
+    empty = tmp_path / "empty.ipj"
+    empty.write_bytes(b"")
+    assert step_mirror.project_folders(empty) == (None, ())
+    assert step_mirror.project_folders(tmp_path / "absent.ipj") == (None, ())
+
+
+def test_the_content_center_folder_is_found_in_order(tmp_path: Path) -> None:
+    workspace = tmp_path / "PIHTI"
+    workspace.mkdir()
+    profile = tmp_path / "profile"
+    public = tmp_path / "public"
+    per_user = profile / "Documents" / "Inventor" / "Content Center Files"
+    shared = {
+        version: public / "Documents" / "Autodesk" / f"Inventor {version}" / "Content Center Files"
+        for version in ("2026", "2027")
+    }
+    environ = {"USERPROFILE": str(profile), "PUBLIC": str(public)}
+
+    assert step_mirror.content_center_folder(workspace, environ) is None
+    for folder in shared.values():
+        folder.mkdir(parents=True)
+    assert step_mirror.content_center_folder(workspace, environ) == shared["2027"]
+    per_user.mkdir(parents=True)
+    assert step_mirror.content_center_folder(workspace, environ) == per_user
+
+    named = tmp_path / "share" / "CC"
+    named.mkdir(parents=True)
+    (workspace / "PIHTI.ipj").write_text(
+        f"<InventorProject><FolderOptions><ContentCenterFolder><Path>{named}</Path>"
+        "</ContentCenterFolder></FolderOptions></InventorProject>",
+        encoding="utf-8",
+    )
+    assert step_mirror.content_center_folder(workspace, environ) == named
+
+    override = {**environ, step_mirror.CONTENT_CENTER_ENV: str(tmp_path / "elsewhere")}
+    assert step_mirror.content_center_folder(workspace, override) == tmp_path / "elsewhere"
+
+
+def test_cli_status_names_a_plainly_missing_part(tmp_path: Path, capsys) -> None:
+    root = make_workspace(tmp_path / "PIHTI")
+    frame = root / "Frame" / "frame.iam"
+    frame.write_bytes(
+        reference_bytes(
+            "C:\\Templates\\Standard (mm).iam",
+            "C:\\Users\\student\\OneDrive\\ICF70FLMG4MBA.ipt",
+            "C:\\old\\Frame\\parts\\old.ipt",
+        )
+    )
+
+    assert cli.main(["step-mirror", "status", str(root)]) == 0
+
+    out = capsys.readouterr().out
+    assert "need Doctor: 1\n  frame.iam: ICF70FLMG4MBA.ipt is missing  (Frame)\n" in out
 
 
 def make_blocked_workspace(root: Path) -> Path:

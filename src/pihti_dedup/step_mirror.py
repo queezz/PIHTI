@@ -29,17 +29,20 @@ import or when the viewer starts.
 An assembly is never opened when Inventor would stop to ask about it. Before
 an `.iam` is exported, every part, assembly, or presentation name the
 where-used byte scan finds in it is looked up in the workspace's filename map:
-a name with two or more files raises Non-Unique Project File Names, the old
-name of a rename the ledger still holds open raises Resolve Link, and either
-blocks Inventor until someone clicks. Such an assembly is `needs-doctor`
-instead of opened (`blocking_reference`). Names the rename ledger records as
-repaired or indirect for that assembly are fossil strings and are not looked
-up, and a missing name the ledger does not know is not a skip: the scan finds
-such names in every assembly (the template it was started from, the source
-name of an imported STEP). Other fossils are a known limitation: a repeated
-name the scan still finds but Inventor no longer references skips the
-assembly falsely, and `step-mirror export --force` exports one named file
-anyway.
+a name with two or more files raises Non-Unique Project File Names, and a name
+with no file outside `OldVersions/` raises Resolve Link; either blocks
+Inventor until someone clicks. Such an assembly is `needs-doctor` instead of
+opened (`blocking_reference`). A missing name is exempt when Inventor finds it
+outside the workspace (`resolves_outside`: its own template names, such as
+`Standard (mm).iam`, and files under the Content Center Files folder or a
+project library folder), when it is a fragment of a longer name the same
+assembly embeds (the byte scan cuts a name that crosses a storage sector,
+`rd (mm).iam` out of `Standard (mm).iam`), or when it is the old name of a
+rename the owner marked settled; the old name of a rename still open always
+counts. Names the rename ledger records as repaired or indirect for that
+assembly are fossil strings and are not looked up. A fossil the scan still
+finds but Inventor no longer needs skips the assembly falsely;
+`step-mirror export --force` exports one named file anyway.
 
 A timed-out export may leave its document open in Inventor without a window.
 Each timeout is recorded in `pending-close.json`, and `close_leftovers` closes
@@ -64,6 +67,7 @@ import logging
 import os
 import threading
 import time
+import xml.etree.ElementTree as ElementTree
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import datetime
@@ -74,6 +78,7 @@ from typing import Callable
 from pihti_dedup import inventor_session
 from pihti_dedup.inventor_session import ExportResult, Session, path_key
 from pihti_dedup.inventory import DEFAULT_SKIP_DIRS, VENDOR_PREFIXES
+from pihti_dedup.whereused import decoded_name
 
 log = logging.getLogger(__name__)
 
@@ -143,6 +148,264 @@ def renamed_names(entries) -> frozenset[str]:
     return frozenset(entry.old_name.casefold() for entry in entries if not entry.settled)
 
 
+def retired_names(entries) -> frozenset[str]:
+    """Old names of renames the owner marked settled and none still open, casefolded.
+
+    Nothing asks for such a name any more; the byte scan may still find it as
+    a fossil string, so it is not a missing file.
+    """
+
+    return frozenset(
+        entry.old_name.casefold() for entry in entries if entry.settled
+    ) - renamed_names(entries)
+
+
+# ---- names Inventor finds outside the workspace ------------------------------
+
+#: Overrides for another machine: the Content Center Files folder, and the
+#: template folders (separated by `os.pathsep`).
+CONTENT_CENTER_ENV = "PIHTI_DEDUP_CONTENT_CENTER"
+TEMPLATES_ENV = "PIHTI_DEDUP_INVENTOR_TEMPLATES"
+#: Inventor's standard template documents, used with whatever the installed
+#: Templates folders hold. An assembly started from one keeps its name.
+BUILTIN_TEMPLATE_NAMES = frozenset(
+    f"{stem}{suffix}".casefold()
+    for stem in ("Standard", "Standard (mm)", "Standard (in)", "Standard (DIN)")
+    for suffix in (".ipt", ".iam", ".ipn", ".idw")
+) | frozenset(
+    name.casefold()
+    for name in (
+        "Sheet Metal.ipt", "Sheet Metal (mm).ipt", "Sheet Metal (in).ipt",
+        "Sheet Metal (DIN).ipt", "Weldment.iam", "Weldment (ANSI).iam",
+        "Weldment (ANSI - mm).iam", "Weldment (BSI).iam", "Weldment (DIN).iam",
+        "Weldment (GB).iam", "Weldment (ISO).iam", "Weldment (JIS).iam",
+        "Mold Design.iam", "Mold Design (mm).iam", "Mold Design (in).iam",
+        "Mold Design (DIN).iam", "ANSI (in).idw", "ANSI (mm).idw", "BSI.idw",
+        "DIN.idw", "GB.idw", "GOST.idw", "ISO.idw", "JIS.idw",
+    )
+)
+#: How long a folder's name set is trusted without walking it again.
+OUTSIDE_RECHECK_SECONDS = 300.0
+
+
+def _inventor_public_folders(environ: Mapping[str, str], leaf: str) -> list[Path]:
+    """`%PUBLIC%/Documents/Autodesk/Inventor <version>/<leaf>`, newest version first."""
+
+    public = environ.get("PUBLIC", "").strip()
+    if not public:
+        return []
+    base = Path(public) / "Documents" / "Autodesk"
+    try:
+        found = [path / leaf for path in base.glob("Inventor 20*") if (path / leaf).is_dir()]
+    except OSError:
+        return []
+    return sorted(found, key=lambda path: path.parent.name, reverse=True)
+
+
+def template_folders(environ: Mapping[str, str] | None = None) -> list[Path]:
+    """Inventor's Templates folders: the override variable, else every installed version's."""
+
+    env = os.environ if environ is None else environ
+    override = env.get(TEMPLATES_ENV, "").strip()
+    if override:
+        return [Path(part.strip()) for part in override.split(os.pathsep) if part.strip()]
+    return _inventor_public_folders(env, "Templates")
+
+
+def project_file(workspace: Path | str) -> Path | None:
+    """The workspace's Inventor project file (`*.ipj` at its root), or None."""
+
+    try:
+        found = sorted(Path(workspace).glob("*.ipj"), key=lambda path: path.name.casefold())
+    except OSError:
+        return None
+    return found[0] if found else None
+
+
+def project_folders(project: Path | str) -> tuple[Path | None, tuple[Path, ...]]:
+    """(Content Center Files folder, library folders) an Inventor project file names.
+
+    The project file is XML (UTF-16, as Inventor writes it). The Content
+    Center folder is a `Path` or `ContentCenterPath` inside
+    `ContentCenterFolder` when the project sets one; library folders are
+    `ProjectPath` entries of type `Library` and `LibraryPath` elements.
+    Relative paths are taken from the project file's folder and environment
+    variables are expanded. An unreadable or malformed file names nothing.
+    """
+
+    project = Path(project)
+    try:
+        tree = ElementTree.fromstring(project.read_bytes())
+    except (OSError, ElementTree.ParseError):
+        return None, ()
+
+    def folder(text: str | None) -> Path | None:
+        value = os.path.expandvars((text or "").strip())
+        if not value:
+            return None
+        path = Path(value)
+        return path if path.is_absolute() else project.parent / path
+
+    content_center = None
+    for element in tree.iter("ContentCenterFolder"):
+        for child in element.iter():
+            if child.tag in {"Path", "ContentCenterPath"} and content_center is None:
+                content_center = folder(child.text)
+    libraries: list[Path] = []
+    for element in tree.iter("ProjectPath"):
+        if (element.get("pathtype") or "").casefold() == "library":
+            path = folder(element.findtext("Path"))
+            if path is not None:
+                libraries.append(path)
+    for element in tree.iter("LibraryPath"):
+        path = folder(element.text)
+        if path is not None:
+            libraries.append(path)
+    return content_center, tuple(libraries)
+
+
+def content_center_folder(
+    workspace: Path | str | None = None, environ: Mapping[str, str] | None = None
+) -> Path | None:
+    """The Content Center Files folder Inventor places library parts in, or None.
+
+    In order: the override variable; the folder the workspace's project file
+    names; Inventor's per-user default `%USERPROFILE%/Documents/Inventor/
+    Content Center Files`; `%PUBLIC%/Documents/Autodesk/Inventor <version>/
+    Content Center Files` for any installed version, newest first. The first
+    that exists wins; the override is taken as given.
+    """
+
+    env = os.environ if environ is None else environ
+    override = env.get(CONTENT_CENTER_ENV, "").strip()
+    if override:
+        return Path(override)
+    candidates: list[Path] = []
+    project = project_file(workspace) if workspace is not None else None
+    if project is not None:
+        named, _libraries = project_folders(project)
+        if named is not None:
+            candidates.append(named)
+    profile = env.get("USERPROFILE", "").strip()
+    if profile:
+        candidates.append(Path(profile) / "Documents" / "Inventor" / "Content Center Files")
+    candidates.extend(_inventor_public_folders(env, "Content Center Files"))
+    return next((path for path in candidates if path.is_dir()), None)
+
+
+def _folder_stamp(folder: Path) -> tuple:
+    """Modification times of a folder and its first two levels of subfolders."""
+
+    stamp: list[tuple[str, int]] = []
+    level = [folder]
+    for depth in range(3):
+        following: list[Path] = []
+        for path in level:
+            try:
+                stamp.append((str(path), path.stat().st_mtime_ns))
+                if depth < 2:
+                    with os.scandir(path) as entries:
+                        following.extend(Path(entry.path) for entry in entries if entry.is_dir())
+            except OSError:
+                continue
+        level = following
+    return tuple(sorted(stamp))
+
+
+def _names_under(folder: Path) -> frozenset[str]:
+    names: set[str] = set()
+    for _parent, folders, files in os.walk(folder):
+        folders[:] = [name for name in folders if name.casefold() != "oldversions"]
+        names.update(name.casefold() for name in files)
+    return frozenset(names)
+
+
+_outside_lock = threading.Lock()
+_folder_names: dict[str, tuple[tuple, float, frozenset[str]]] = {}
+_template_names: dict[tuple[str, ...], frozenset[str]] = {}
+
+
+def folder_names(
+    folder: Path | str, *, clock: Callable[[], float] = time.monotonic
+) -> frozenset[str]:
+    """Casefolded filenames under `folder`, not `OldVersions/`, cached per process.
+
+    The folder is walked again when its own or its first two levels'
+    modification times change (a new standard family), or after
+    `OUTSIDE_RECHECK_SECONDS` (a new size in a family already there).
+    """
+
+    folder = Path(folder)
+    key = os.path.normcase(str(folder))
+    stamp = _folder_stamp(folder)
+    now = clock()
+    with _outside_lock:
+        cached = _folder_names.get(key)
+        if cached is not None and cached[0] == stamp and now - cached[1] < OUTSIDE_RECHECK_SECONDS:
+            return cached[2]
+    names = _names_under(folder) if stamp else frozenset()
+    with _outside_lock:
+        _folder_names[key] = (stamp, now, names)
+    return names
+
+
+def template_names(environ: Mapping[str, str] | None = None) -> frozenset[str]:
+    """Casefolded Inventor template names: the built-in list and the Templates folders."""
+
+    folders = tuple(str(path) for path in template_folders(environ))
+    with _outside_lock:
+        cached = _template_names.get(folders)
+    if cached is not None:
+        return cached
+    names = set(BUILTIN_TEMPLATE_NAMES)
+    for folder in folders:
+        if Path(folder).is_dir():
+            names.update(_names_under(Path(folder)))
+    found = frozenset(names)
+    with _outside_lock:
+        _template_names[folders] = found
+    return found
+
+
+class OutsideNames:
+    """Which document names Inventor resolves outside the workspace.
+
+    Inventor's template names, and files under the Content Center Files
+    folder (`content_center_folder`) or a library folder the project file
+    names. The folders are found once, when this is made; their name sets
+    are cached per process (`folder_names`).
+    """
+
+    def __init__(
+        self, workspace: Path | str | None = None, environ: Mapping[str, str] | None = None
+    ) -> None:
+        self.environ = os.environ if environ is None else environ
+        self.content_center = content_center_folder(workspace, self.environ)
+        project = project_file(workspace) if workspace is not None else None
+        libraries = project_folders(project)[1] if project is not None else ()
+        self.folders = tuple(
+            folder for folder in (self.content_center, *libraries) if folder is not None
+        )
+        self._answers: dict[str, bool] = {}
+
+    def __call__(self, name: str) -> bool:
+        key = decoded_name(name).casefold()
+        known = self._answers.get(key)
+        if known is None:
+            known = self._answers[key] = key in template_names(self.environ) or any(
+                key in folder_names(folder) for folder in self.folders
+            )
+        return known
+
+
+def resolves_outside(
+    name: str, workspace: Path | str | None = None, environ: Mapping[str, str] | None = None
+) -> bool:
+    """True when Inventor finds `name` outside the workspace; see `OutsideNames`."""
+
+    return OutsideNames(workspace, environ)(name)
+
+
 def step_mirror_root(workspace: Path | str, environ: Mapping[str, str] | None = None) -> Path:
     """The mirror folder: the override variable, else `<workspace>-step` beside it."""
 
@@ -194,40 +457,96 @@ def _times(count: int) -> str:
     return "twice" if count == 2 else f"{count} times"
 
 
+def _in_live_tree(paths: Sequence[str]) -> bool:
+    """True when a path lies outside `OldVersions/`, where Inventor resolves names."""
+
+    return any(
+        "oldversions" not in (part.casefold() for part in path.replace("\\", "/").split("/")[:-1])
+        for path in paths
+    )
+
+
+def _fragment_of(key: str, others: Iterable[str]) -> bool:
+    """True when `key` is the tail of a longer name, cut in the middle of a word."""
+
+    return any(
+        len(other) > len(key) and other.endswith(key) and other[-len(key) - 1].isalnum()
+        for other in others
+    )
+
+
+def reference_problems(
+    names: Iterable[str],
+    locations: Mapping[str, Sequence[str]],
+    settled: Iterable[str] = (),
+    renamed: Iterable[str] | None = None,
+    retired: Iterable[str] = (),
+    outside: Callable[[str], bool] | None = None,
+) -> list[tuple[str, str, str]]:
+    """Every name that would make Inventor ask, as (name, reason, kind), in name order.
+
+    `names` are the filenames the where-used scan lists for one assembly;
+    URL-encoded and case variants are one name. `locations` maps a
+    casefolded filename to every workspace path carrying it
+    (`whereused.filename_locations`), and `settled` holds the names the
+    rename ledger records as repaired or indirect for that assembly. Only
+    part, assembly, and presentation names count: an assembly never opens a
+    drawing.
+
+    A name with two or more files is kind "duplicate" ("board.ipt exists
+    twice"). A name with no file outside `OldVersions/` is kind "missing"
+    ("Wide Din Clip.ipt is missing"), unless it is exempt: in `retired`
+    (the old name of a settled rename), `outside(name)` (Inventor finds it
+    outside the workspace, `resolves_outside`; without `outside`, the
+    built-in template names), or a fragment of a longer name the same
+    assembly embeds. A name in `renamed` (the old name of a rename still
+    open) is never exempt.
+    """
+
+    skipped = {decoded_name(name).casefold() for name in settled}
+    known = frozenset() if renamed is None else {name.casefold() for name in renamed}
+    gone = {name.casefold() for name in retired}
+    distinct: dict[str, str] = {}
+    for raw in sorted(names, key=lambda value: (value.casefold(), value)):
+        name = decoded_name(raw)
+        distinct.setdefault(name.casefold(), name)
+    found: list[tuple[str, str, str]] = []
+    for key, name in sorted(distinct.items()):
+        if Path(name).suffix.casefold() not in CHECKED_EXTENSIONS or key in skipped:
+            continue
+        paths = locations.get(key, ())
+        if len(paths) > 1:
+            found.append((name, f"{name} exists {_times(len(paths))}", "duplicate"))
+            continue
+        if paths and _in_live_tree(paths):
+            continue
+        if key not in known and (
+            key in gone
+            or (key in BUILTIN_TEMPLATE_NAMES if outside is None else outside(name))
+            or _fragment_of(key, distinct)
+        ):
+            continue
+        found.append((name, f"{name} is missing", "missing"))
+    return found
+
+
 def first_blocking(
     names: Iterable[str],
     locations: Mapping[str, Sequence[str]],
     settled: Iterable[str] = (),
     renamed: Iterable[str] | None = None,
+    retired: Iterable[str] = (),
+    outside: Callable[[str], bool] | None = None,
 ) -> tuple[str, str] | None:
     """The first name that would make Inventor ask, and why; None when none would.
 
-    `names` are the filenames the where-used scan lists for one assembly,
-    `locations` maps a casefolded filename to every workspace path carrying
-    it (`whereused.filename_locations`), and `settled` holds the names the
-    rename ledger records as repaired or indirect for that assembly. Only
-    part, assembly, and presentation names count; names are taken in
-    case-insensitive order so the answer is stable.
-
-    `renamed`, when given, limits "missing" to those names (the rename
-    ledger's old names): the byte scan also finds names no reference uses
-    any more, such as the template an assembly was started from
-    (`Standard (mm).iam`) or the source name of an imported STEP, and on the
-    PIHTI workspace those alone would stop every assembly. A repeated name is
-    always reported.
+    See `reference_problems` for the arguments and the rule.
     """
 
-    skipped = {name.casefold() for name in settled}
-    known = None if renamed is None else {name.casefold() for name in renamed}
-    for name in sorted(set(names), key=lambda value: (value.casefold(), value)):
-        key = name.casefold()
-        if Path(name).suffix.casefold() not in CHECKED_EXTENSIONS or key in skipped:
-            continue
-        count = len(locations.get(key, ()))
-        if count == 0 and (known is None or key in known):
-            return name, f"{name} is missing"
-        if count > 1:
-            return name, f"{name} exists {_times(count)}"
+    for name, reason, _kind in reference_problems(
+        names, locations, settled, renamed, retired, outside
+    ):
+        return name, reason
     return None
 
 
@@ -236,16 +555,18 @@ def blocking_reference(
     locations: Mapping[str, Sequence[str]],
     settled: Iterable[str] = (),
     renamed: Iterable[str] | None = None,
+    retired: Iterable[str] = (),
+    outside: Callable[[str], bool] | None = None,
 ) -> str | None:
     """Why opening an assembly with these embedded names would stop Inventor, or None.
 
     A name with no file in the workspace raises Resolve Link; a name carried
     by two or more files raises Non-Unique Project File Names. The reason
     names the first such file: "board.ipt exists twice",
-    "Wide Din Clip.ipt is missing". See `first_blocking` for the arguments.
+    "Wide Din Clip.ipt is missing". See `reference_problems`.
     """
 
-    found = first_blocking(names, locations, settled, renamed)
+    found = first_blocking(names, locations, settled, renamed, retired, outside)
     return found[1] if found is not None else None
 
 
@@ -361,16 +682,21 @@ class StepMirror:
         locations: Callable[[], Mapping[str, Sequence[str]] | None] | None = None,
         settled: Callable[[], Iterable[tuple[str, str]]] | None = None,
         renamed: Callable[[], Iterable[str]] | None = None,
+        retired: Callable[[], Iterable[str]] | None = None,
+        outside: Callable[[str], bool] | None = None,
     ) -> None:
-        """`where_used`, `locations`, `settled`, and `renamed` feed the pre-check.
+        """`where_used`, `locations`, `settled`, `renamed`, and `retired` feed the pre-check.
 
         `where_used` returns a `whereused.WhereUsed`, `locations` the
         `filename_locations` map, `settled` the rename ledger's
-        `(referrer, old name)` pairs, and `renamed` the ledger's old names
-        (`renamed_names`), which limit "missing" to names a recorded rename
-        left behind; without it every missing name counts. Without the first
-        two no assembly is checked, and every export opens its document as
-        before.
+        `(referrer, old name)` pairs, `renamed` the ledger's open old names
+        (`renamed_names`, always missing when no file carries them), and
+        `retired` its settled old names (`retired_names`, never missing).
+        `outside` answers whether Inventor finds a name outside the
+        workspace; by default an `OutsideNames` for this workspace, made
+        afresh for each `reference_context`. Without `where_used` and
+        `locations` no assembly is checked, and every export opens its
+        document as before.
         """
 
         self.workspace = Path(workspace).resolve()
@@ -379,6 +705,8 @@ class StepMirror:
         self.locations = locations
         self.settled = settled
         self.renamed = renamed
+        self.retired = retired
+        self.outside = outside
         self._lock = threading.RLock()
         self._index_stamp: tuple[int, int] | None = None
         self._index: dict = {}
@@ -626,7 +954,11 @@ class StepMirror:
         return names
 
     def reference_context(self):
-        """(names by document, locations, settled names by document, renamed), or None."""
+        """Everything the pre-check reads, once: `blocker` takes it; None without data.
+
+        (names by document, locations, settled names by document, renamed,
+        retired, outside).
+        """
 
         if self.where_used is None or self.locations is None:
             return None
@@ -642,7 +974,11 @@ class StepMirror:
         renamed = None if self.renamed is None else frozenset(
             str(name).casefold() for name in self.renamed()
         )
-        return self._names_by_document(index), locations, settled, renamed
+        retired = frozenset() if self.retired is None else frozenset(
+            str(name).casefold() for name in self.retired()
+        )
+        outside = self.outside if self.outside is not None else OutsideNames(self.workspace)
+        return self._names_by_document(index), locations, settled, renamed, retired, outside
 
     def blocker(self, relative: str, context=None) -> tuple[str, str] | None:
         """(name, reason) when opening this assembly would make Inventor ask.
@@ -657,9 +993,11 @@ class StepMirror:
             context = self.reference_context()
             if context is None:
                 return None
-        names, locations, settled, renamed = context
+        names, locations, settled, renamed, retired, outside = context
         key = relative.casefold()
-        return first_blocking(names.get(key, ()), locations, settled.get(key, ()), renamed)
+        return first_blocking(
+            names.get(key, ()), locations, settled.get(key, ()), renamed, retired, outside
+        )
 
     def needs_doctor(self, status: MirrorStatus) -> tuple[DoctorItem, ...]:
         """The stale or missing assemblies the pre-check would not open, oldest first."""

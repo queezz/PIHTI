@@ -6,6 +6,25 @@ remains authoritative for exact file changes.
 
 ## 2026-09-25
 
+- Shipped `pihti-dedup` 0.27.1: the STEP mirror no longer opens an assembly
+  that names a part nobody has. `BoronProbe_2026/parts/C25K22A4CU.iam`
+  names vendor parts that lived on a student's OneDrive, so Inventor raised
+  Resolve Link and the batch hung on the dialog; the 0.24.4 rule caught only
+  names carried twice and old names of open ledger renames, because treating
+  every missing name as a skip stopped all 239 assemblies. Now any part,
+  assembly, or presentation name an assembly embeds that no workspace file
+  outside `OldVersions` carries is "needs Doctor" ("<name> is missing"),
+  unless Inventor finds it outside the workspace (its template names such as
+  `Standard (mm).iam`, from a built-in list and the installed Templates
+  folders; files under the Content Center Files folder the project file or
+  Inventor's default names; project library folders), it is the tail of a
+  longer name the same assembly embeds (the byte scan cutting a name at a
+  storage sector), or it is the old name of a settled rename. On this tree
+  32 of 239 assemblies are skips: the 27 from before and five whose parts
+  are gone (`C25K22A4CU.iam`, `C70TCK2MBGA.iam`,
+  `BoronProbe_2026_exploded.iam`, `BoronProbe_2026_non-bellows.iam`,
+  `OLED 2.42 12864.iam`). Doctor's **Missing file** section and Assemblies
+  counts use the same classification, so the two pages agree.
 - Shipped `pihti-dedup` 0.27.0: one layout on every page, and Doctor rows
   that fix through Inventor. Renames, Duplicates, Doctor and its three
   sub-pages, Removed, the STEP mirror (now a top-bar tab), Sourcing, the part

@@ -7,7 +7,7 @@ import pytest
 from markupsafe import escape
 
 import pihti_dedup.web as web
-from pihti_dedup import geometry_preview
+from pihti_dedup import geometry_preview, step_mirror
 from pihti_dedup.cache_root import cache_root
 from pihti_dedup.cleanup import plan_member_cleanup
 from pihti_dedup.git_filename_history import FilenameHistory, FilenameOccurrence
@@ -17,6 +17,7 @@ from pihti_dedup.inventory import scan_workspace
 from pihti_dedup.renames import read_ledger
 from pihti_dedup.sidecar import read_sidecar
 from pihti_dedup.web import create_app
+from pihti_dedup.whereused import build_index, filename_locations
 
 
 def make_workspace(root: Path) -> Path:
@@ -2259,6 +2260,41 @@ def test_doctor_previews_referring_assemblies(tmp_path: Path) -> None:
     assert '/preview/Assembly/Fixture.iam' in referrers
 
 
+def test_doctor_missing_file_agrees_with_the_step_mirror_rule(
+    tmp_path: Path, no_machine_inventor_folders: Path
+) -> None:
+    family = no_machine_inventor_folders / "Content Center Files" / "R2027" / "ISO 4762"
+    family.mkdir(parents=True)
+    (family / "ISO 4762 M4 x 12.ipt").write_bytes(b"screw")
+    assembly = tmp_path / "Assembly" / "Probe.iam"
+    assembly.parent.mkdir()
+    payload = bytearray(b"\xde\xad" * 4)
+    for name in (
+        "Standard (mm).iam", "rd (mm).iam", "ISO 4762 M4 x 12.ipt", "ICF70FLMG4MBA.ipt", "Plate.ipt"
+    ):
+        payload += b"\x00\x00" + name.encode("utf-16-le") + b"\x00\x00"
+    assembly.write_bytes(payload)
+    (tmp_path / "Assembly" / "Plate.ipt").write_bytes(b"plate")
+
+    queue = create_app(tmp_path).test_client().get("/doctor").get_data(as_text=True)
+
+    missing = queue.split('id="missing"', 1)[1].split("</section>", 1)[0]
+    assert "ICF70FLMG4MBA.ipt" in missing
+    for exempt in ("Standard (mm).iam", "rd (mm).iam", "ISO 4762 M4 x 12.ipt", "Plate.ipt"):
+        assert exempt not in missing
+    row = queue.split('href="/doctor/assembly/Assembly/Probe.iam"', 2)[2].split("</div>", 1)[0]
+    assert '<span class="queue-count">1 missing</span>' in row
+    mirror = step_mirror.StepMirror(
+        tmp_path,
+        where_used=lambda: build_index(tmp_path),
+        locations=lambda: filename_locations(tmp_path),
+    )
+    assert mirror.blocker("Assembly/Probe.iam") == (
+        "ICF70FLMG4MBA.ipt",
+        "ICF70FLMG4MBA.ipt is missing",
+    )
+
+
 def test_doctor_starts_from_assembly_and_lists_direct_name_problems(
     monkeypatch, tmp_path: Path
 ) -> None:
@@ -2286,10 +2322,13 @@ def test_doctor_starts_from_assembly_and_lists_direct_name_problems(
     queue = client.get("/doctor").get_data(as_text=True)
     assert "<h2>Assemblies</h2>" in queue
     assert 'href="/doctor/assembly/Assembly/Fixture.iam"' in queue
-    # Body.ipt counts once (generic); Missing.ipt is a fossil no rename left
-    # behind, so it is not a queue problem.
+    # Body.ipt counts once (generic); Missing.ipt is carried by no file and
+    # Inventor would not find it outside the workspace, so it is missing, as
+    # the STEP mirror's needs-Doctor rule has it.
     row = queue.split('href="/doctor/assembly/Assembly/Fixture.iam"', 2)[2].split("</div>", 1)[0]
-    assert '<span class="queue-count">1 generic</span>' in row
+    assert '<span class="queue-count">1 missing · 1 generic</span>' in row
+    missing = queue.split('id="missing"', 1)[1].split("</section>", 1)[0]
+    assert "Missing.ipt" in missing and "Body.ipt" not in missing
     detail = client.get("/doctor/assembly/Assembly/Fixture.iam")
     html = detail.get_data(as_text=True)
 

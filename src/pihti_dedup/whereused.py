@@ -25,6 +25,7 @@ from collections import OrderedDict, defaultdict
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Iterable, Iterator
+from urllib.parse import unquote
 
 #: Documents that can refer to another document.
 REFERRING_EXTENSIONS = frozenset({".iam", ".idw", ".ipn"})
@@ -53,6 +54,23 @@ _EXTENSION_RE = re.compile(
 _NAME_STOP_CHARS = frozenset('\\/:*?"<>|')
 _MAX_NAME_LENGTH = 240
 _REPLACEMENT = "�"
+
+
+def decoded_name(value: str) -> str:
+    """A scanned name with Inventor's URL encoding undone (`Wide%20Din.ipt`).
+
+    Inventor stores some filenames twice, once URL-encoded; both spell the
+    same file. A value that does not decode cleanly to a bare filename is
+    returned as it is.
+    """
+
+    try:
+        decoded = unquote(value, errors="strict")
+    except UnicodeDecodeError:
+        return value
+    if not decoded or "/" in decoded or "\\" in decoded:
+        return value
+    return decoded
 
 
 def _is_name_char(char: str) -> bool:

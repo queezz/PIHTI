@@ -16,7 +16,6 @@ from dataclasses import asdict, replace
 from datetime import datetime
 from pathlib import Path
 from typing import Callable
-from urllib.parse import unquote
 
 from flask import Flask, Response, jsonify, redirect, render_template, request, send_file, url_for
 from markupsafe import escape
@@ -139,6 +138,7 @@ from pihti_dedup.whereused import (
     REFERRING_EXTENSIONS,
     ReferenceCache,
     build_index,
+    decoded_name,
     filename_locations,
 )
 
@@ -1018,13 +1018,7 @@ def _is_generic_cad_name(value: str) -> bool:
 def _display_reference_name(value: str) -> str:
     """Decode Inventor's duplicate URL-encoded filename strings for display."""
 
-    try:
-        decoded = unquote(value, errors="strict")
-    except UnicodeDecodeError:
-        return value
-    if not decoded or "/" in decoded or "\\" in decoded:
-        return value
-    return decoded
+    return decoded_name(value)
 
 
 def _anchor(name: str) -> str:
@@ -1215,6 +1209,7 @@ def create_app(
         locations=lambda: _current_locations(),
         settled=lambda: _settled_pairs(),
         renamed=lambda: _renamed_names(),
+        retired=lambda: _retired_names(),
     )
     app.extensions["pihti_step_mirror"] = mirror
 
@@ -1259,10 +1254,17 @@ def create_app(
         return settled_pairs(ledger)
 
     def _renamed_names() -> frozenset[str]:
-        # A missing name blocks a mirror export only when a recorded rename
-        # left it behind; the byte scan's other missing names are fossils.
+        # The old name of a rename still open always blocks a mirror export
+        # when no file carries it.
         try:
             return step_mirror.renamed_names(read_ledger(root))
+        except OSError:
+            return frozenset()
+
+    def _retired_names() -> frozenset[str]:
+        # The old name of a settled rename never does: only a fossil is left.
+        try:
+            return step_mirror.retired_names(read_ledger(root))
         except OSError:
             return frozenset()
 
@@ -1673,9 +1675,21 @@ def create_app(
         ledger = read_ledger(root)
         session = _session_card()
 
+        # Every assembly classified once by the STEP mirror's needs-Doctor
+        # rule (`step_mirror.reference_problems`), so the two pages agree.
+        renamed = step_mirror.renamed_names(ledger)
+        retired = step_mirror.retired_names(ledger)
+        outside = step_mirror.OutsideNames(root)
+        assembly_problems = {
+            path: step_mirror.reference_problems(names, locations, (), renamed, retired, outside)
+            for path, names in index.document_names.items()
+            if Path(path).suffix.casefold() == ".iam"
+        }
+
         # Missing file: the old name of a rename still open, carried by no
-        # file, still named by an assembly. The same rule keeps an assembly
-        # out of the STEP mirror, so the byte scan's fossils stay off the list.
+        # file, still named by an assembly; and any other name an assembly
+        # embeds that no workspace file carries and Inventor does not find
+        # outside the workspace (a template, a Content Center part).
         missing: dict[str, dict] = {}
         for entry in ledger:
             key = entry.old_name.casefold()
@@ -1684,6 +1698,17 @@ def create_app(
             referrers = index.referring(entry.old_name)
             if referrers:
                 missing[key] = {"name": entry.old_name, "referrers": referrers}
+        plain: dict[str, dict] = {}
+        for path, problems in assembly_problems.items():
+            for name, _reason, kind in problems:
+                key = name.casefold()
+                if kind == "missing" and key not in missing:
+                    plain.setdefault(key, {"name": name, "referrers": []})["referrers"].append(path)
+        for key, item in plain.items():
+            missing[key] = {
+                "name": item["name"],
+                "referrers": tuple(sorted(item["referrers"], key=str.casefold)),
+            }
         missing_items = []
         for item in missing.values():
             candidates = _repoint_candidates(item["name"], locations, ledger)
@@ -1733,15 +1758,19 @@ def create_app(
         generic_views.sort(key=lambda item: (-len(item["records"]), item["name"].casefold()))
 
         # Only assemblies with an actual problem are queue items: a generic
-        # name, a name carried twice, or a missing name an open rename left
-        # behind. The byte scan's other missing names are fossils (a template
-        # an assembly started from, an import's source name) and stay on the
-        # assembly's own page only, as the mirror's needs-Doctor rule has it.
-        renamed = step_mirror.renamed_names(ledger)
+        # name, a name carried twice, or a name the mirror's rule counts as
+        # missing. The names it exempts (a template an assembly started from,
+        # a Content Center part, a fragment of a longer name) stay on the
+        # assembly's own page only.
         assembly_views = []
         for path, names in index.document_names.items():
             if Path(path).suffix.casefold() != ".iam":
                 continue
+            missing_keys = {
+                name.casefold()
+                for name, _reason, kind in assembly_problems[path]
+                if kind == "missing"
+            }
             distinct_names = {
                 _display_reference_name(name).casefold(): _display_reference_name(name)
                 for name in names
@@ -1753,7 +1782,7 @@ def create_app(
                     generic_count += 1
                 elif found > 1:
                     ambiguous_count += 1
-                elif not found and key in renamed:
+                elif key in missing_keys:
                     missing_count += 1
             problem_count = generic_count + missing_count + ambiguous_count
             if not problem_count:

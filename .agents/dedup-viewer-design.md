@@ -576,8 +576,21 @@ not know, from a rename done outside the tool, can still raise Resolve Link;
 the 0.24.2 timeout handling covers it. Fossils remain a known limitation the
 other way too: a repeated name the scan still finds but Inventor no longer
 references skips the assembly falsely, and `step-mirror export --force`
-exports one named file anyway. The check is the pure function
-`blocking_reference`; the viewer feeds it its where-used and locations
+exports one named file anyway. 0.27.1: a plainly missing part is a skip as
+well — `C25K22A4CU.iam` names vendor parts that lived on a student's
+OneDrive and raised Resolve Link mid-batch. Any other missing name blocks
+unless `resolves_outside` exempts it: Inventor's template names (a built-in
+list plus the files under `%PUBLIC%\Documents\Autodesk\Inventor
+<version>\Templates`), and files under the Content Center Files folder (the
+project file's own entry, else Inventor's per-user default under
+`%USERPROFILE%\Documents\Inventor`, else the Public one per version;
+`PIHTI_DEDUP_CONTENT_CENTER` overrides) or a project library folder. A name
+cut at a storage sector (`rd (mm).iam` inside `Standard (mm).iam`) is a
+fragment when the same assembly embeds a longer name ending in it mid-word,
+a settled rename's old name is a fossil, and a copy only under `OldVersions/`
+does not count as present. Across the tree 32 of 239 assemblies are skips:
+the 27 of 0.24.4 and 5 new plain-missing ones. The check is the pure
+function `blocking_reference`; the viewer feeds it its where-used and locations
 snapshots, the command line builds them once per run. A skipped assembly is
 `needs-doctor` with a reason naming the first such file ("board.ipt exists
 twice", "Wide Din Clip.ipt is missing"); the page lists it under Needs Doctor
@@ -666,12 +679,13 @@ it was never a finding; the Part number fact row stays.
 name, `N assemblies`, one chip) under Interrupted saves, Missing file,
 Ambiguous filenames (`#name-clashes`, Duplicates' pointer), Generic names,
 Assemblies, and Standard parts. Assemblies lists only those with an actual
-problem: a generic name, a name carried twice, or a missing name that an open
-ledger rename left behind (each name counted once, generic first); the byte
-scan's other missing names are fossils and stay on the assembly's own page
-(258 rows became 37 on this tree). A **missing file** is the old name of an open
-ledger rename that no file carries and an assembly still names (the same rule
-as the mirror's needs-Doctor check, so byte-scan fossils stay off the list).
+problem: a generic name, a name carried twice, or a missing name by the
+mirror's needs-Doctor rule (each name counted once, generic first); the
+names that rule exempts stay on the assembly's own page (258 rows became 37
+on this tree). A **missing file** is the old name of an open ledger rename
+that no file carries and an assembly still names, or since 0.27.1 any name
+an assembly embeds that the same rule counts as missing
+(`step_mirror.reference_problems`), so the two pages agree.
 Its page (`/doctor/name/<name>`) has one row per referring assembly: a select
 of candidates (`_repoint_candidates`: the ledger's successors for that name
 that still exist, then every same-type file whose stem starts with the old

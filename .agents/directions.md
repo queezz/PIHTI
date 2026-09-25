@@ -13,17 +13,6 @@ session evidence in `log/`.
   Recommendation: `TempController-v2` is the newer tree (fan, LRS-150 supply,
   thermocouple socket) and looks like the one that was built; keep it.
   Safe default: nothing is removed; both trees stay as they are.
-- **Needs-Doctor misses plain missing parts.** `BoronProbe_2026/parts/C25K22A4CU.iam`
-  embeds `ICF70FLMG4MBA.ipt`, which exists only on a student's OneDrive, so
-  Inventor raises Resolve Link on open; the 0.24.4 rule skips only duplicate
-  names and old names of open ledger renames, so the STEP mirror batch would
-  open it and hang on the dialog. A literal "any missing name" rule skipped
-  239 assemblies because Content Center library parts and the `Standard
-  (mm).iam` template names live outside the workspace. Next: exempt the
-  template names and names found under Inventor's Content Center Files
-  folder (path from the ipj's library section or the 2027 default), then
-  treat the rest as needs-Doctor. Until then the batch runs only with the
-  owner at the desk.
 - **Collapse vendor import bundles.** The 49 generic names live in 11 STEP
   import folders. Doctor should show each bundle as one item with the
   re-import instruction (import the vendor STEP as a single named part) and a

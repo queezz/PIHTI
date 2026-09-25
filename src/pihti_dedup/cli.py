@@ -613,7 +613,7 @@ def _attach_references(mirror, workspace: Path) -> None:
     """Build the pre-check's where-used and filename data once for this run."""
 
     from pihti_dedup.renames import read_ledger, settled_pairs
-    from pihti_dedup.step_mirror import renamed_names
+    from pihti_dedup.step_mirror import renamed_names, retired_names
     from pihti_dedup.whereused import build_index, filename_locations
 
     try:
@@ -622,12 +622,14 @@ def _attach_references(mirror, workspace: Path) -> None:
         ledger = ()
     pairs = settled_pairs(ledger)
     renamed = renamed_names(ledger)
+    retired = retired_names(ledger)
     index = build_index(workspace, settled=pairs)
     locations = filename_locations(workspace)
     mirror.where_used = lambda: index
     mirror.locations = lambda: locations
     mirror.settled = lambda: pairs
     mirror.renamed = lambda: renamed
+    mirror.retired = lambda: retired
 
 
 def _print_leftovers(workspace: Path, closed) -> None:

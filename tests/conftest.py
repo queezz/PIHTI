@@ -13,6 +13,10 @@ that means to read the real default removes the variable itself.
 
 No test ever writes a STEP mirror beside a real workspace: every test gets its
 own not-yet-created mirror folder through `PIHTI_DEDUP_STEP_MIRROR`.
+
+No test ever reads the machine's Inventor Templates or Content Center Files
+folders: both overrides point at empty folders of the test's own, so only the
+built-in template names resolve outside a test workspace.
 """
 
 import pytest
@@ -38,3 +42,13 @@ def step_mirror_folder(monkeypatch, tmp_path_factory):
     folder = tmp_path_factory.mktemp("step-mirror") / "mirror"
     monkeypatch.setenv(step_mirror.ENV_VAR, str(folder))
     return folder
+
+
+@pytest.fixture(autouse=True)
+def no_machine_inventor_folders(monkeypatch, tmp_path_factory):
+    folders = tmp_path_factory.mktemp("inventor-folders")
+    (folders / "Templates").mkdir()
+    (folders / "Content Center Files").mkdir()
+    monkeypatch.setenv(step_mirror.TEMPLATES_ENV, str(folders / "Templates"))
+    monkeypatch.setenv(step_mirror.CONTENT_CENTER_ENV, str(folders / "Content Center Files"))
+    return folders
