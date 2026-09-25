@@ -354,9 +354,17 @@ are not mirrored.
 While the viewer runs and Inventor is open, the viewer exports one missing or
 out-of-date copy about once a minute in the background, oldest file first, so
 Inventor is borrowed only briefly while you work; `step-mirror sync` fills
-the mirror as fast as Inventor allows. A
+the mirror as fast as Inventor allows, printing one line per folder
+(`--verbose` prints one per file), and every attempt is written with its full
+path to `export.log` in the mirror folder. A
 file you have open in Inventor waits until it is closed, and nothing happens
-while Inventor is closed. In the inspector, an Inventor file without a current
+while Inventor is closed. An assembly that would make Inventor stop and ask
+(it names a file that exists more than once, or the old name of a rename not
+yet settled) is not opened: it is listed as **Needs Doctor** with a link to
+that name's Doctor page. The check reads names from the assembly's bytes, so
+a name it no longer uses can skip it by mistake; `step-mirror export --force`
+exports one such file anyway. A document a timed-out export left open without
+a window is closed at the next export. In the inspector, an Inventor file without a current
 copy shows "3D needs the STEP mirror · export now"; the part page's File card
 shows the copy's time, or none, with the same action. **STEP mirror N / M** in
 the top bar counts the current copies and opens a page listing what is
@@ -365,6 +373,7 @@ missing, what is out of date, and the last exports. From the command line:
 ```powershell
 & "$HOME\.venvs\pihti-dedup\Scripts\python.exe" -m pihti_dedup step-mirror status .
 & "$HOME\.venvs\pihti-dedup\Scripts\python.exe" -m pihti_dedup step-mirror sync . --budget-seconds 600
+& "$HOME\.venvs\pihti-dedup\Scripts\python.exe" -m pihti_dedup step-mirror sync . --verbose
 & "$HOME\.venvs\pihti-dedup\Scripts\python.exe" -m pihti_dedup step-mirror export . "BoronProbe\BoronHead.iam"
 ```
 

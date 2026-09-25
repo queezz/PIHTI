@@ -12,7 +12,7 @@ import re
 from pathlib import Path
 
 import pytest
-from inventor_fake import FakeInventor, fake_session
+from inventor_fake import FakeInventor, fake_session, reference_bytes
 
 from pihti_dedup import cli, geometry_preview, inventor_session, step_mirror
 from pihti_dedup.inventor_session import EXPORTED, SKIPPED_OPEN, TIMED_OUT
@@ -24,10 +24,12 @@ from pihti_dedup.step_mirror import (
     STALE,
     MirrorJob,
     StepMirror,
+    blocking_reference,
     in_scope,
     step_mirror_root,
 )
 from pihti_dedup.web import create_app, tile_anchor
+from pihti_dedup.whereused import build_index, filename_locations
 
 SECOND = 1_000_000_000
 BASE = 1_700_000_000 * SECOND
@@ -523,8 +525,10 @@ def test_cli_sync_exports_everything_through_the_running_inventor(
 
     out = capsys.readouterr().out
     assert code == 0
-    assert out.count("exported ") >= 3 and "Frame\\frame.iam (open in Inventor)" in out
-    assert "exported 3 · not exported 0 · not started 0" in out
+    # One line per folder, the open file listed by short name with its folder.
+    assert re.search(r"^Frame/parts  3 exported  \d+\.\d s$", out, re.M)
+    assert "  frame.iam: open in Inventor  (Frame)" in out
+    assert "exported 3 · not exported 0 · not started 0 · 0 need Doctor" in out
     status = StepMirror(root).status(inventory_of(root))
     assert len(status.current) == 3 and [item.path for item in status.missing] == ["Frame/frame.iam"]
 
@@ -612,8 +616,10 @@ def test_cli_sync_reports_when_inventor_stops_answering_after_a_timeout(
 
     out = capsys.readouterr().out
     assert code == 1
-    assert "exported 1 · not exported 1 · not started 2" in out
-    assert f"stopped: {inventor_session.NOT_ANSWERING} · 2 not started" in out
+    # The sync runs folder by folder: frame.iam, old.ipt, then mid.ipt times
+    # out and the silent probe stops the batch before new.ipt.
+    assert "exported 2 · not exported 1 · not started 1" in out
+    assert f"stopped: {inventor_session.NOT_ANSWERING} · 1 not started" in out
 
 
 def test_cli_sync_lists_failures_by_path_and_outcome_when_it_runs_to_the_end(
@@ -641,8 +647,8 @@ def test_cli_sync_lists_failures_by_path_and_outcome_when_it_runs_to_the_end(
     assert code == 1
     assert "exported 2 · not exported 2 · not started 0" in out
     assert "stopped:" not in out
-    assert "Frame\\parts\\mid.ipt: timeout" in out
-    assert "Frame\\parts\\new.ipt: failed: the translator failed" in out
+    assert "  mid.ipt: timeout  (Frame/parts)" in out
+    assert "  new.ipt: failed: the translator failed  (Frame/parts)" in out
 
 
 def test_cli_export_one_file(tmp_path: Path, monkeypatch, capsys, step_mirror_folder: Path) -> None:
@@ -891,3 +897,455 @@ def test_the_index_write_gives_up_after_the_last_attempt(tmp_path: Path, monkeyp
     monkeypatch.setattr(module.time, "sleep", lambda _s: None)
     with pytest.raises(PermissionError):
         module._replace_with_retry(source, tmp_path / "mirror-index.json", attempts=3)
+
+
+# ---- the assembly pre-check -------------------------------------------------
+
+
+def test_blocking_reference_names_a_missing_or_repeated_file_and_nothing_else() -> None:
+    locations = {
+        "board.ipt": ("A/board.ipt", "B/board.ipt"),
+        "plate.ipt": ("A/plate.ipt",),
+        "nut.ipt": ("A/nut.ipt", "B/nut.ipt", "C/nut.ipt"),
+        "sub.iam": ("A/sub.iam",),
+    }
+
+    assert blocking_reference(["plate.ipt", "sub.iam"], locations) is None
+    assert blocking_reference(["plate.ipt", "Wide Din Clip.ipt"], locations) == (
+        "Wide Din Clip.ipt is missing"
+    )
+    assert blocking_reference(["Board.ipt", "plate.ipt"], locations) == "Board.ipt exists twice"
+    assert blocking_reference(["nut.ipt"], locations) == "nut.ipt exists 3 times"
+    # Drawings and exports never make an assembly ask; only parts,
+    # assemblies, and presentations are looked up.
+    assert blocking_reference(["gone.idw", "gone.stp", "plate.ipt"], locations) is None
+    assert blocking_reference(["gone.ipn"], locations) == "gone.ipn is missing"
+    # A name the ledger settled for this assembly is a fossil, not a reference.
+    assert blocking_reference(["Wide Din Clip.ipt"], locations, ["wide din clip.IPT"]) is None
+    assert blocking_reference(
+        ["board.ipt", "Wide Din Clip.ipt"], locations, ["Wide Din Clip.ipt"]
+    ) == "board.ipt exists twice"
+    # Stable: the first name in case-insensitive order is the one reported.
+    assert blocking_reference(["zeta.ipt", "Alpha.ipt"], {}) == "Alpha.ipt is missing"
+    # With the ledger's open old names, "missing" is only a name a rename left
+    # behind; a template fossil is not. A repeated name always counts.
+    open_renames = {"wide din clip.ipt"}
+    assert blocking_reference(["Standard (mm).iam", "plate.ipt"], locations, renamed=open_renames) is None
+    assert blocking_reference(
+        ["Standard (mm).iam", "Wide Din Clip.ipt"], locations, renamed=open_renames
+    ) == "Wide Din Clip.ipt is missing"
+    assert blocking_reference(["board.ipt"], locations, renamed=()) == "board.ipt exists twice"
+
+
+def test_a_missing_name_blocks_only_while_its_rename_is_open(tmp_path: Path) -> None:
+    from pihti_dedup.renames import RenameEntry, append_entry, read_ledger, set_settled
+
+    root = make_workspace(tmp_path / "PIHTI")
+    frame = root / "Frame" / "frame.iam"
+    frame.write_bytes(
+        reference_bytes(
+            "C:\\Templates\\Standard (mm).iam", "C:\\old\\Frame\\parts\\Wide Din Clip.ipt"
+        )
+    )
+    mirror = StepMirror(
+        root,
+        where_used=lambda: build_index(root),
+        locations=lambda: filename_locations(root),
+        renamed=lambda: step_mirror.renamed_names(read_ledger(root)),
+    )
+    assert mirror.blocker("Frame/frame.iam") is None  # fossils only: exported as before
+
+    entry = append_entry(
+        root,
+        RenameEntry(
+            id="",
+            timestamp="2026-08-06T13:36:40+00:00",
+            old_path="Frame/parts/Wide Din Clip.ipt",
+            new_path="Frame/parts/Wide Din Clip V1.ipt",
+            old_name="Wide Din Clip.ipt",
+            new_name="Wide Din Clip V1.ipt",
+            where_used=("Frame/frame.iam",),
+        ),
+    )
+    assert mirror.blocker("Frame/frame.iam") == ("Wide Din Clip.ipt", "Wide Din Clip.ipt is missing")
+
+    set_settled(root, entry.id, True)  # the owner repointed it in Inventor
+    assert mirror.blocker("Frame/frame.iam") is None
+
+
+def make_blocked_workspace(root: Path) -> Path:
+    """`make_workspace`, with frame.iam naming a board.ipt that exists twice."""
+
+    root = make_workspace(root)
+    frame = root / "Frame" / "frame.iam"
+    frame.write_bytes(
+        reference_bytes("C:\\old\\Frame\\parts\\old.ipt", "C:\\old\\Frame\\board.ipt")
+    )
+    stamp(frame, BASE + 300 * SECOND)
+    for folder in ("Boards/a", "Boards/b"):
+        board = root / folder / "board.ipt"
+        board.parent.mkdir(parents=True)
+        board.write_bytes(b"board")
+        stamp(board, BASE + 500 * SECOND)
+    return root
+
+
+def checked_mirror(root: Path) -> StepMirror:
+    return StepMirror(
+        root,
+        where_used=lambda: build_index(root),
+        locations=lambda: filename_locations(root),
+        settled=lambda: (),
+    )
+
+
+def log_lines(mirror: StepMirror) -> list[list[str]]:
+    return [line.split("\t") for line in mirror.log_path.read_text(encoding="utf-8").splitlines()]
+
+
+def spy_on_export_copy(monkeypatch) -> list[str]:
+    opened: list[str] = []
+    real = inventor_session.export_copy
+
+    def spy(session, source, target, **kwargs):
+        opened.append(Path(source).name)
+        return real(session, source, target, **kwargs)
+
+    monkeypatch.setattr(inventor_session, "export_copy", spy)
+    return opened
+
+
+def test_export_never_opens_an_assembly_that_would_make_inventor_ask(
+    tmp_path: Path, monkeypatch
+) -> None:
+    root = make_blocked_workspace(tmp_path / "PIHTI")
+    mirror = checked_mirror(root)
+    app = fake_for(root)
+    opened = spy_on_export_copy(monkeypatch)
+
+    result = mirror.export(fake_session(app), "Frame/frame.iam")
+
+    assert result.outcome == step_mirror.NEEDS_DOCTOR
+    assert result.reason == "board.ipt exists twice"
+    assert opened == [] and not any(entry[0] == "open" for entry in app.log)
+    assert not mirror.target("Frame/frame.iam").exists()
+    assert mirror.blocker("Frame/frame.iam") == ("board.ipt", "board.ipt exists twice")
+    assert mirror.blocker("Frame/parts/old.ipt") is None  # parts never ask
+
+    forced = mirror.export(fake_session(app), "Frame/frame.iam", force=True)
+    assert forced.exported and opened == ["frame.iam"]
+
+    # Without where-used data nothing is checked, as before the pre-check.
+    assert StepMirror(root).blocker("Frame/frame.iam") is None
+
+
+def test_cli_sync_skips_a_needs_doctor_assembly_and_lists_it_at_the_end(
+    tmp_path: Path, monkeypatch, capsys
+) -> None:
+    root = make_blocked_workspace(tmp_path / "PIHTI")
+    app = fake_for(root)
+    monkeypatch.setattr(inventor_session, "connect", lambda **_: fake_session(app))
+    opened = spy_on_export_copy(monkeypatch)
+
+    code = cli.main(["step-mirror", "sync", str(root)])
+
+    out = capsys.readouterr().out
+    assert code == 0  # a skip is not a failure, like a file open in Inventor
+    assert "frame.iam" not in opened and len(opened) == 5
+    assert re.search(r"^Frame  1 needs Doctor  \d+\.\d s$", out, re.M)
+    assert re.search(r"^Boards/a  1 exported  \d+\.\d s$", out, re.M)
+    assert "exported 5 · not exported 0 · not started 0 · 1 needs Doctor" in out
+    assert "need Doctor: 1\n  frame.iam: board.ipt exists twice  (Frame)\n" in out
+    assert "--force" in out
+    doctor = [line for line in log_lines(StepMirror(root)) if line[1] == step_mirror.NEEDS_DOCTOR]
+    assert doctor and doctor[0][3:] == ["Frame/frame.iam", "board.ipt exists twice"]
+
+    status = StepMirror(root).status(inventory_of(root))
+    assert [item.path for item in status.queue] == ["Frame/frame.iam"]
+
+    assert cli.main(["step-mirror", "status", str(root)]) == 0
+    out = capsys.readouterr().out
+    assert "need Doctor: 1\n  frame.iam: board.ipt exists twice  (Frame)\n" in out
+
+
+def test_cli_export_refuses_a_needs_doctor_assembly_unless_forced(
+    tmp_path: Path, monkeypatch, capsys, step_mirror_folder: Path
+) -> None:
+    root = make_blocked_workspace(tmp_path / "PIHTI")
+    monkeypatch.setattr(inventor_session, "connect", lambda **_: fake_session(fake_for(root)))
+
+    assert cli.main(["step-mirror", "export", str(root), "Frame/frame.iam"]) == 1
+    out = capsys.readouterr().out
+    assert "needs-doctor" in out and "board.ipt exists twice" in out and "--force" in out
+    assert not (step_mirror_folder / "Frame" / "frame.iam.step").exists()
+
+    assert cli.main(["step-mirror", "export", str(root), "Frame/frame.iam", "--force"]) == 0
+    assert (step_mirror_folder / "Frame" / "frame.iam.step").is_file()
+
+
+def test_the_job_passes_a_needs_doctor_assembly_over_until_the_name_is_settled(
+    tmp_path: Path,
+) -> None:
+    root = make_blocked_workspace(tmp_path / "PIHTI")
+    app = fake_for(root)
+    session = fake_session(app)
+    mirror = checked_mirror(root)
+    job = MirrorJob(
+        mirror,
+        inventory=lambda: inventory_of(root),
+        session=lambda: session,
+        clock=Clock(),
+        spacing_seconds=0.0,
+        threaded=False,
+    )
+
+    order = [job.step().source.name for _ in range(4)]
+    # frame.iam costs no tick: recorded, then the same tick moves on to new.ipt.
+    assert order == ["old.ipt", "mid.ipt", "new.ipt", "board.ipt"]
+    assert job.needs_doctor() == {"frame/frame.iam": "board.ipt exists twice"}
+    assert job.deferred() == {}
+
+    assert job.step().source.name == "board.ipt"  # the second copy
+    assert job.step() is None
+    assert job.step() is None
+    doctor = [line for line in log_lines(mirror) if line[1] == step_mirror.NEEDS_DOCTOR]
+    assert len(doctor) == 1, "a passed-over assembly is logged once, not every tick"
+    assert not any(entry[:2] == ("open", "frame.iam") for entry in app.log)
+
+    # Doctor removes the second copy: the reason is gone and the job exports it.
+    (root / "Boards" / "b" / "board.ipt").unlink()
+    assert job.step().source.name == "frame.iam"
+    assert mirror.status(inventory_of(root)).queue == ()
+
+
+def test_the_mirror_page_lists_needs_doctor_with_a_doctor_link(tmp_path: Path) -> None:
+    root = make_blocked_workspace(tmp_path / "PIHTI")
+    client = create_app(root).test_client()
+
+    page = client.get("/step-mirror").get_data(as_text=True)
+    section = page.split('id="sec-doctor"', 1)[1].split("</section>", 1)[0]
+    assert "<h2>Needs Doctor</h2>" in section and "<strong>1</strong>" in section
+    assert 'href="/doctor/name/board.ipt?assembly=Frame/frame.iam"' in section
+    assert "<strong>frame.iam</strong>" in section and "board.ipt exists twice" in section
+    assert "<dt>Need Doctor</dt><dd>1</dd>" in page
+    assert 'href="#sec-doctor"' in page
+    assert client.get("/doctor/name/board.ipt?assembly=Frame/frame.iam").status_code == 200
+
+    clean = create_app(make_workspace(tmp_path / "Clean")).test_client()
+    assert "Every waiting assembly names files that exist exactly once." in clean.get(
+        "/step-mirror"
+    ).get_data(as_text=True)
+
+
+def test_export_now_on_a_needs_doctor_assembly_says_so(tmp_path: Path) -> None:
+    root = make_blocked_workspace(tmp_path / "PIHTI")
+    app = fake_for(root)
+    viewer = create_app(root, session_factory=lambda: fake_session(app))
+    done = viewer.test_client().post(
+        "/part/Frame/frame.iam/step-export",
+        data={"token": viewer.config["FORM_TOKEN"], "origin": "part"},
+        follow_redirects=True,
+    )
+    html = done.get_data(as_text=True)
+    assert "STEP not exported: frame.iam names a missing or repeated file; see Doctor" in html
+    assert not any(entry[:2] == ("open", "frame.iam") for entry in app.log)
+
+
+# ---- the printout and the log -----------------------------------------------
+
+
+def test_cli_sync_verbose_prints_one_line_per_file(tmp_path: Path, monkeypatch, capsys) -> None:
+    root = make_workspace(tmp_path / "PIHTI")
+    monkeypatch.setattr(inventor_session, "connect", lambda **_: fake_session(fake_for(root)))
+
+    assert cli.main(["step-mirror", "sync", str(root), "--verbose"]) == 0
+    out = capsys.readouterr().out
+    for relative in ("Frame\\frame.iam", "Frame\\parts\\old.ipt", "Frame\\parts\\new.ipt"):
+        assert re.search(rf"^exported\s+\d+\.\d\ds  {re.escape(relative)}$", out, re.M)
+    assert not re.search(r"^Frame/parts  ", out, re.M)
+    assert "exported 4 · not exported 0 · not started 0 · 0 need Doctor" in out
+
+
+def test_every_attempt_is_logged_with_its_full_path(tmp_path: Path) -> None:
+    root = make_workspace(tmp_path / "PIHTI")
+    app = fake_for(root)
+    app.fail_export.add(str(root / "Frame/parts/mid.ipt").casefold())
+    mirror = StepMirror(root)
+    session = fake_session(app)
+
+    mirror.export(session, "Frame/parts/old.ipt")
+    mirror.export(session, "Frame/parts/mid.ipt")
+    mirror.log_attempt("Frame/frame.iam", SKIPPED_OPEN)
+
+    lines = log_lines(mirror)
+    assert [line[1:2] + line[3:] for line in lines] == [
+        ["exported", "Frame/parts/old.ipt", "Frame/parts/old.ipt.step"],
+        ["failed", "Frame/parts/mid.ipt", "the translator failed"],
+        [SKIPPED_OPEN, "Frame/frame.iam", "open in Inventor"],
+    ]
+    assert all(
+        re.fullmatch(r"\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d[+-]\d\d:\d\d", line[0]) for line in lines
+    )
+    assert all(re.fullmatch(r"\d+\.\d\d", line[2]) for line in lines)
+    assert str(root).casefold() not in mirror.log_path.read_text(encoding="utf-8").casefold()
+
+    # The page's "Last exports" reads the end of the log, newest first.
+    recent = mirror.recent()
+    assert [line["path"] for line in recent] == [
+        "Frame/frame.iam",
+        "Frame/parts/mid.ipt",
+        "Frame/parts/old.ipt",
+    ]
+    assert recent[1]["outcome"] == "failed: the translator failed"
+    assert recent[0]["kind"] == SKIPPED_OPEN
+
+
+def test_the_log_rotates_at_five_megabytes_and_keeps_one(
+    tmp_path: Path, step_mirror_folder: Path
+) -> None:
+    root = make_workspace(tmp_path / "PIHTI")
+    mirror = StepMirror(root)
+    mirror.ensure_root()
+    old = step_mirror_folder / "export.log.1"
+    old.write_text("older\n", encoding="utf-8")
+    mirror.log_path.write_bytes((b"x" * 99 + b"\n") * (step_mirror.LOG_ROTATE_BYTES // 100 + 1))
+
+    mirror.log_attempt("Frame/parts/old.ipt", TIMED_OUT, 10.0)
+
+    assert old.stat().st_size >= step_mirror.LOG_ROTATE_BYTES  # the full log, not "older"
+    lines = log_lines(mirror)
+    assert len(lines) == 1 and lines[0][1] == TIMED_OUT
+    assert sorted(path.name for path in step_mirror_folder.glob("export.log*")) == [
+        "export.log",
+        "export.log.1",
+    ]
+
+    # Below the limit nothing rotates.
+    mirror.log_attempt("Frame/parts/mid.ipt", EXPORTED)
+    assert len(log_lines(mirror)) == 2
+
+
+def test_the_log_is_never_written_before_the_mirror_exists(
+    tmp_path: Path, step_mirror_folder: Path
+) -> None:
+    mirror = StepMirror(make_workspace(tmp_path / "PIHTI"))
+    mirror.log_attempt("Frame/parts/old.ipt", EXPORTED)
+    assert not step_mirror_folder.exists()
+    assert mirror.recent() == []
+
+
+# ---- leftovers from a timeout -----------------------------------------------
+
+
+def leave_open(app: FakeInventor, root: Path, relative: str) -> None:
+    """What a timed-out export leaves: the document loaded, without a window."""
+
+    app.Documents.Open(str(root / relative), False)
+
+
+def record_timeout(mirror: StepMirror, relative: str) -> None:
+    mirror.ensure_root()
+    source = mirror.workspace / relative
+    mirror._record(
+        relative,
+        source.stat(),
+        inventor_session.ExportResult(source, mirror.target(relative), TIMED_OUT, 10.0),
+    )
+
+
+def test_a_timeout_records_the_document_it_may_have_left_open(tmp_path: Path) -> None:
+    root = make_workspace(tmp_path / "PIHTI")
+    app = fake_for(root)
+    app.hang = ("saveas", str(root / "Frame/parts/old.ipt").casefold())
+    mirror = StepMirror(root)
+    try:
+        result = mirror.export(fake_session(app), "Frame/parts/old.ipt", timeout=0.2)
+    finally:
+        app.release.set()
+    assert result.outcome == TIMED_OUT
+    assert mirror.pending_close() == ["Frame/parts/old.ipt"]
+    raw = mirror.pending_close_path.read_text(encoding="utf-8")
+    assert str(root).casefold() not in raw.casefold()
+
+
+def test_sync_closes_a_leftover_without_a_window_first(
+    tmp_path: Path, monkeypatch, capsys
+) -> None:
+    root = make_workspace(tmp_path / "PIHTI")
+    app = fake_for(root, owner_open=["Frame/parts/new.ipt"])
+    mirror = StepMirror(root)
+    record_timeout(mirror, "Frame/frame.iam")
+    leave_open(app, root, "Frame/frame.iam")
+    monkeypatch.setattr(inventor_session, "connect", lambda **_: fake_session(app))
+
+    assert cli.main(["step-mirror", "sync", str(root)]) == 0
+
+    out = capsys.readouterr().out
+    assert "closed a leftover from an earlier timeout: Frame\\frame.iam" in out
+    assert "frame.iam: open in Inventor" not in out  # closed, then exported
+    assert ("close", "frame.iam", True) in app.log
+    assert app.violations == []  # the owner's new.ipt was never touched
+    assert mirror.pending_close() == [] and not mirror.pending_close_path.exists()
+    closed = [line for line in log_lines(mirror) if line[1] == step_mirror.CLOSED_LEFTOVER]
+    assert [line[3] for line in closed] == ["Frame/frame.iam"]
+    assert mirror.target("Frame/frame.iam").is_file()
+
+
+def test_a_leftover_with_a_window_is_the_owners_and_stays_recorded(tmp_path: Path) -> None:
+    root = make_workspace(tmp_path / "PIHTI")
+    app = fake_for(root)
+    mirror = StepMirror(root)
+    record_timeout(mirror, "Frame/frame.iam")
+    record_timeout(mirror, "Frame/parts/old.ipt")
+    leave_open(app, root, "Frame/frame.iam")
+    app.windows.append(str(root / "Frame" / "FRAME.iam"))  # the owner opened it since
+
+    assert mirror.close_leftovers(fake_session(app)) == []
+    assert not any(entry[0] == "close" for entry in app.log)
+    # old.ipt is no longer held, so there is nothing to close and its record goes.
+    assert mirror.pending_close() == ["Frame/frame.iam"]
+
+    app.windows.clear()
+    assert mirror.close_leftovers(fake_session(app)) == ["Frame/frame.iam"]
+    assert mirror.pending_close() == []
+
+
+def test_a_leftover_stays_recorded_until_its_close_succeeds(tmp_path: Path) -> None:
+    root = make_workspace(tmp_path / "PIHTI")
+    app = fake_for(root)
+    mirror = StepMirror(root)
+    record_timeout(mirror, "Frame/frame.iam")
+    leave_open(app, root, "Frame/frame.iam")
+    app.fail_close.add(str(root / "Frame/frame.iam").casefold())
+
+    assert mirror.close_leftovers(fake_session(app)) == []
+    assert mirror.pending_close() == ["Frame/frame.iam"]
+
+    app.fail_close.clear()
+    assert mirror.close_leftovers(fake_session(app)) == ["Frame/frame.iam"]
+    assert mirror.pending_close() == [] and app.ours() == []
+
+
+def test_a_leftover_another_open_document_uses_is_left_alone(tmp_path: Path) -> None:
+    root = make_workspace(tmp_path / "PIHTI")
+    app = fake_for(root)
+    part = str(root / "Frame" / "parts" / "old.ipt")
+    app.disk[str(root / "Frame" / "frame.iam").casefold()] = [part]
+    mirror = StepMirror(root)
+    record_timeout(mirror, "Frame/parts/old.ipt")
+    leave_open(app, root, "Frame/parts/old.ipt")
+    leave_open(app, root, "Frame/frame.iam")  # an assembly holding the part
+
+    assert mirror.close_leftovers(fake_session(app)) == []
+    assert mirror.pending_close() == ["Frame/parts/old.ipt"]
+
+
+def test_the_job_closes_leftovers_on_its_tick(tmp_path: Path) -> None:
+    root = make_workspace(tmp_path / "PIHTI")
+    app = fake_for(root)
+    job, mirror = job_for(root, app, Clock())
+    record_timeout(mirror, "Frame/parts/old.ipt")
+    leave_open(app, root, "Frame/parts/old.ipt")
+
+    assert job.step().source.name == "old.ipt"  # closed first, so not "open in Inventor"
+    assert mirror.pending_close() == [] and app.ours() == []

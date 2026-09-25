@@ -33,13 +33,26 @@
         {{ mirror_rows(status.stale, 'No STEP copy is older than its file.') }}
       </section>
 
+      <section class="doctor-panel standard-group" id="sec-doctor">
+        <header><div><p class="micro-heading">Not opened: Inventor would ask</p><h2>Needs Doctor</h2></div><strong>{{ needs_doctor|length }}</strong></header>
+        <div class="doctor-list">
+          {% for entry in needs_doctor %}
+          <a class="doctor-row mirror-row mirror-doctor" href="{{ url_for('doctor_name', filename=entry.name, assembly=entry.path) }}">
+            <span class="doctor-preview-stack" aria-hidden="true"><img src="{{ preview_url(entry.path) }}" alt="" loading="lazy" decoding="async" width="64" height="48"></span>
+            <span><strong>{{ entry.item.name }}</strong><small>{{ entry.item.folder|winpath }}</small></span>
+            <b>{{ entry.reason }}</b>
+          </a>
+          {% else %}<p class="doctor-empty">Every waiting assembly names files that exist exactly once.</p>{% endfor %}
+        </div>
+      </section>
+
       <section class="doctor-panel standard-group" id="sec-recent">
-        <header><div><p class="micro-heading">Newest first</p><h2>Last exports</h2></div><strong>{{ recent|length }}</strong></header>
+        <header><div><p class="micro-heading">Newest first, from export.log</p><h2>Last exports</h2></div><strong>{{ recent|length }}</strong></header>
         <div class="doctor-list">
           {% for line in recent %}
-          <div class="doctor-row mirror-log{% if line.outcome != 'exported' %} is-failed{% endif %}">
+          <div class="doctor-row mirror-log{% if line.kind not in ('exported', 'closed-leftover') %} is-failed{% endif %}">
             <span><time datetime="{{ line.at }}">{{ line.at[:16]|replace('T', ' ') }}</time></span>
-            <span><strong>{{ line.path|winpath }}</strong><small>{{ line.outcome }}</small></span>
+            <span><strong>{{ line.path|winpath }}</strong><small>{{ line.outcome }}{% if line.kind in ('needs-doctor', 'closed-leftover') and line.detail %}: {{ line.detail }}{% endif %}</small></span>
             <b>{{ '%.1f'|format(line.seconds or 0) }} s</b>
           </div>
           {% else %}<p class="doctor-empty">Nothing exported yet.</p>{% endfor %}
@@ -58,6 +71,7 @@
           <div><dt>Current</dt><dd>{{ status.current|length }}</dd></div>
           <div><dt>Stale</dt><dd>{{ status.stale|length }}</dd></div>
           <div><dt>Missing</dt><dd>{{ status.missing|length }}</dd></div>
+          <div><dt>Need Doctor</dt><dd>{{ needs_doctor|length }}</dd></div>
           <div><dt>Inventor files</dt><dd>{{ status.total }}</dd></div>
         </dl>
         {% if not created %}<p class="rail-note muted">The folder is created with the first export.</p>{% endif %}
@@ -69,6 +83,7 @@
         {% else %}
         <p class="rail-note mirror-inventor">Inventor is not running; nothing is exported.</p>
         {% endif %}
+        {% if leftovers %}<p class="rail-note muted">{{ leftovers|length }} document{{ '' if leftovers|length == 1 else 's' }} left open by a timeout, closed at the next export if {{ 'it has' if leftovers|length == 1 else 'they have' }} no window.</p>{% endif %}
         {% if deferred %}<p class="rail-note muted">{{ deferred|length }} file{{ '' if deferred|length == 1 else 's' }} passed over after a failure, until {{ 'it changes' if deferred|length == 1 else 'they change' }}.</p>{% endif %}
       </section>
       <section class="rail-card">
@@ -76,6 +91,7 @@
         <nav class="rail-nav" aria-label="Mirror sections">
           <a class="rail-navrow" href="#sec-missing"><span>Missing</span><strong>{{ status.missing|length }}</strong></a>
           <a class="rail-navrow" href="#sec-stale"><span>Stale</span><strong>{{ status.stale|length }}</strong></a>
+          <a class="rail-navrow" href="#sec-doctor"><span>Needs Doctor</span><strong>{{ needs_doctor|length }}</strong></a>
           <a class="rail-navrow" href="#sec-recent"><span>Last exports</span><strong>{{ recent|length }}</strong></a>
         </nav>
       </section>

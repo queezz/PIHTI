@@ -5,7 +5,9 @@ It mirrors exactly the calls the repair recipe makes: `SoftwareVersion`,
 `FullFileName`, `ReferenceMissing`, `ReplaceReference`, `doc.Save2`, and
 `doc.Close`, plus the STEP export's `doc.SaveAs(path, True)`, which writes a
 small stand-in file (`fail_export` makes it raise, `hang` on "saveas" makes it
-stall). The "disk" is a dict of referring document -> referenced full
+stall), and the leftover close's `Application.Views` (`windows` lists the
+full paths shown in a window), `View.Document`, and
+`doc.ReferencingDocuments` (the loaded documents whose references name it). The "disk" is a dict of referring document -> referenced full
 paths; `Save2` writes it back and, when the document exists as a real file,
 rewrites that file's bytes the way Inventor would: the new name added, the old
 one left behind as a fossil string.
@@ -81,6 +83,15 @@ class FakeDocument:
             )
         )
 
+    @property
+    def ReferencingDocuments(self):  # noqa: N802
+        return FakeCollection(
+            document
+            for document in self.app.loaded
+            if document is not self
+            and any(key(item) == key(self.FullFileName) for item in document.references)
+        )
+
     def Save2(self, save_dependents: bool) -> None:  # noqa: N802
         app = self.app
         app.log.append(("save", self.name, save_dependents))
@@ -113,6 +124,8 @@ class FakeDocument:
         app.log.append(("close", self.name, skip_save))
         if self.owner:
             app.violations.append(("close", self.name))
+        if key(self.FullFileName) in app.fail_close:
+            raise RuntimeError("the document is busy")
         app.loaded = [document for document in app.loaded if document is not self]
 
 
@@ -155,11 +168,21 @@ class FakeInventor:
         self.fail_save: set[str] = set()
         self.lose_save: set[str] = set()
         self.fail_export: set[str] = set()
+        self.fail_close: set[str] = set()
+        #: Full paths shown in a window; `Views` answers from this.
+        self.windows: list[str] = []
         self.hang: tuple[str, str] | None = None
         self.release = threading.Event()
         self.loaded: list[FakeDocument] = [
             FakeDocument(self, path, owner=True) for path in owner_open
         ]
+
+    @property
+    def Views(self):  # noqa: N802
+        return FakeCollection(
+            SimpleNamespace(Document=SimpleNamespace(FullFileName=str(path)))
+            for path in self.windows
+        )
 
     def maybe_hang(self, action: str, full_name: str) -> None:
         if self.hang and self.hang[0] == action and self.hang[1] == key(full_name):

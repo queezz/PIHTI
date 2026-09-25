@@ -178,11 +178,21 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="When Inventor is not running, start it hidden and quit it afterwards",
     )
+    mirror_sync.add_argument(
+        "--verbose",
+        action="store_true",
+        help="Print one line per file instead of one line per folder",
+    )
     mirror_export = mirror_commands.add_parser(
         "export", help="Export one file's STEP copy through the running Inventor"
     )
     mirror_export.add_argument("workspace")
     mirror_export.add_argument("relative_path", help="Workspace-relative .ipt or .iam path")
+    mirror_export.add_argument(
+        "--force",
+        action="store_true",
+        help="Open an assembly even when a name it embeds is missing or not unique",
+    )
 
     notes = subparsers.add_parser("notes", help="Lint folder notes, sidecars, and sourcing notes")
     notes_commands = notes.add_subparsers(dest="notes_command", required=True)
@@ -543,7 +553,86 @@ def _mirror_list(title: str, items) -> None:
 
 def _mirror_result_line(workspace: Path, result) -> str:
     relative = _relative(workspace, result.source)
-    return f"{result.outcome:<9} {result.seconds:5.2f}s  {relative}"
+    line = f"{result.outcome:<9} {result.seconds:5.2f}s  {relative}"
+    return f"{line}  ({result.reason})" if result.reason else line
+
+
+def _mirror_folder(relative: str) -> str:
+    return relative.rsplit("/", 1)[0] if "/" in relative else "."
+
+
+def _mirror_short(relative: str, detail: str) -> str:
+    """`name: detail  (folder)`: the short name first, the folder after it."""
+
+    name = relative.rsplit("/", 1)[-1]
+    return f"  {name}: {detail}  ({_mirror_folder(relative)})"
+
+
+def _need_doctor(count: int) -> str:
+    return f"{count} {'needs' if count == 1 else 'need'} Doctor"
+
+
+class _FolderLines:
+    """`step-mirror sync` progress: one line per folder, printed when the folder ends."""
+
+    ORDER = ("exported", "needs-doctor", "timeout", "failed")
+
+    def __init__(self, workspace: Path) -> None:
+        self.workspace = workspace
+        self.folder: str | None = None
+        self.counts: dict[str, int] = {}
+        self.seconds = 0.0
+
+    def add(self, result) -> None:
+        relative = Path(result.source).relative_to(self.workspace).as_posix()
+        folder = _mirror_folder(relative)
+        if folder != self.folder:
+            self.flush()
+            self.folder = folder
+        kind = result.outcome.partition(":")[0]
+        self.counts[kind] = self.counts.get(kind, 0) + 1
+        self.seconds += result.seconds
+
+    def flush(self) -> None:
+        if self.folder is not None and self.counts:
+            kinds = sorted(
+                self.counts,
+                key=lambda kind: self.ORDER.index(kind) if kind in self.ORDER else len(self.ORDER),
+            )
+            parts = [
+                _need_doctor(self.counts[kind])
+                if kind == "needs-doctor"
+                else f"{self.counts[kind]} {kind}"
+                for kind in kinds
+            ]
+            print(f"{self.folder}  {' · '.join(parts)}  {self.seconds:.1f} s", flush=True)
+        self.folder, self.counts, self.seconds = None, {}, 0.0
+
+
+def _attach_references(mirror, workspace: Path) -> None:
+    """Build the pre-check's where-used and filename data once for this run."""
+
+    from pihti_dedup.renames import read_ledger, settled_pairs
+    from pihti_dedup.step_mirror import renamed_names
+    from pihti_dedup.whereused import build_index, filename_locations
+
+    try:
+        ledger = read_ledger(workspace)
+    except OSError:
+        ledger = ()
+    pairs = settled_pairs(ledger)
+    renamed = renamed_names(ledger)
+    index = build_index(workspace, settled=pairs)
+    locations = filename_locations(workspace)
+    mirror.where_used = lambda: index
+    mirror.locations = lambda: locations
+    mirror.settled = lambda: pairs
+    mirror.renamed = lambda: renamed
+
+
+def _print_leftovers(workspace: Path, closed) -> None:
+    for path in closed:
+        print(f"closed a leftover from an earlier timeout: {_windows_path(path)}")
 
 
 def _step_mirror(workspace: Path, args) -> int:
@@ -574,17 +663,29 @@ def _step_mirror(workspace: Path, args) -> int:
             print("error: Inventor is not running or not answering; nothing exported", file=sys.stderr)
             return 2
         print(f"inventor: {session.version}")
-        result = mirror.export(session, relative)
+        _print_leftovers(workspace, mirror.close_leftovers(session))
+        if not args.force and relative.casefold().endswith(".iam"):
+            _attach_references(mirror, workspace)
+        result = mirror.export(session, relative, force=args.force)
         print(_mirror_result_line(workspace, result))
+        if result.outcome == step_mirror.NEEDS_DOCTOR:
+            print("Settle the name in the viewer's Doctor, or pass --force to open it anyway.")
         return 0 if result.exported else 1
 
     inventory = scan_workspace(workspace, include_vendor=False, hash_files=False)
     status = mirror.status(inventory)
     if args.mirror_command == "status":
+        _attach_references(mirror, workspace)
+        blocked = mirror.needs_doctor(status)
         print(f"Inventor files: {status.total}")
         print(f"current: {len(status.current)}")
         _mirror_list("stale", status.stale)
         _mirror_list("missing", status.missing)
+        print(f"need Doctor: {len(blocked)}")
+        for entry in blocked[:MIRROR_LIST_LIMIT]:
+            print(_mirror_short(entry.path, entry.reason))
+        if len(blocked) > MIRROR_LIST_LIMIT:
+            print(f"  ... and {len(blocked) - MIRROR_LIST_LIMIT} more")
         for line in mirror.recent()[:5]:
             print(f"last: {line.get('at', '')} {line.get('outcome', '')} {_windows_path(line.get('path', ''))}")
         return 0
@@ -603,39 +704,77 @@ def _step_mirror(workspace: Path, args) -> int:
             file=sys.stderr,
         )
         return 2
+    verbose = args.verbose
+    lines = _FolderLines(workspace)
     try:
         print(f"inventor: {session.version}")
-        queue = status.queue
+        _print_leftovers(workspace, mirror.close_leftovers(session))
+        # Folder by folder, oldest first within each, so the progress reads as
+        # one line per folder; the background job keeps the global oldest-first.
+        queue = sorted(status.queue, key=lambda item: item.folder.casefold())
         print(f"to export: {len(queue)} of {status.total}")
         try:
             open_paths = session.open_documents()
         except inventor_session.SessionTimeout as exc:
             print(f"error: {exc}", file=sys.stderr)
             return 1
+        _attach_references(mirror, workspace)
         waiting: list[str] = []
+        held_open: list[str] = []
         for item in queue:
             if inventor_session.path_key(workspace / item.path) in open_paths:
-                print(f"skipped   {'':>6}  {_windows_path(item.path)} (open in Inventor)")
+                held_open.append(item.path)
+                mirror.log_attempt(item.path, inventor_session.SKIPPED_OPEN)
+                if verbose:
+                    print(f"skipped   {'':>6}  {_windows_path(item.path)} (open in Inventor)")
             else:
                 waiting.append(item.path)
+        if held_open and not verbose:
+            print(f"open in Inventor, not exported: {len(held_open)}")
+            for relative in held_open:
+                print(_mirror_short(relative, "open in Inventor"))
+
+        def report(result) -> None:
+            if verbose:
+                print(_mirror_result_line(workspace, result), flush=True)
+            else:
+                lines.add(result)
+
         results = mirror.sync(
             session,
             waiting,
             budget_seconds=args.budget_seconds,
-            on_result=lambda result: print(_mirror_result_line(workspace, result), flush=True),
+            on_result=report,
         )
     finally:
+        lines.flush()
         if quit_inventor is not None:
             quit_inventor()
     exported = sum(result.exported for result in results)
+    blocked = [result for result in results if result.outcome == step_mirror.NEEDS_DOCTOR]
+    failed = [
+        result
+        for result in results
+        if not result.exported and result.outcome != step_mirror.NEEDS_DOCTOR
+    ]
     left = len(waiting) - len(results)
-    print(f"exported {exported} · not exported {len(results) - exported} · not started {left}")
+    print(
+        f"exported {exported} · not exported {len(failed)} · not started {left}"
+        f" · {_need_doctor(len(blocked))}"
+    )
+    if failed:
+        print(f"not exported: {len(failed)}")
+        for result in failed:
+            print(_mirror_short(Path(result.source).relative_to(workspace).as_posix(), result.outcome))
+    if blocked:
+        print(f"need Doctor: {len(blocked)}")
+        for result in blocked:
+            print(_mirror_short(Path(result.source).relative_to(workspace).as_posix(), result.reason))
+        print("Settle these names in the viewer's Doctor, or `step-mirror export --force` one file.")
+    print(f"full paths: {mirror.log_path}")
     if results.stopped_because:
         print(f"stopped: {results.stopped_because} · {left} not started")
         return 1
-    failed = [result for result in results if not result.exported]
-    for result in failed:
-        print(f"  {_relative(workspace, result.source)}: {result.outcome}")
     return 1 if failed else 0
 
 

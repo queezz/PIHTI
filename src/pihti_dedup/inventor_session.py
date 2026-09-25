@@ -583,12 +583,17 @@ def repair_references(
 
 @dataclass(frozen=True)
 class ExportResult:
-    """One export: `exported`, `skipped-open-in-inventor`, `timeout`, or `failed: <reason>`."""
+    """One export: `exported`, `skipped-open-in-inventor`, `timeout`, or `failed: <reason>`.
+
+    `reason` is free text for an outcome that carries its reason separately
+    (the STEP mirror's `needs-doctor`); empty otherwise.
+    """
 
     source: Path
     target: Path
     outcome: str
     seconds: float = 0.0
+    reason: str = ""
 
     @property
     def exported(self) -> bool:
@@ -663,6 +668,69 @@ def _discard(path: Path) -> None:
         path.unlink(missing_ok=True)
     except OSError:
         pass
+
+
+#: `close_leftovers` outcomes, per document.
+CLOSED = "closed"
+NOT_OPEN = "not-open"
+HAS_WINDOW = "has-window"
+IN_USE = "in-use"
+
+
+def close_leftovers(
+    session: Session, paths: Iterable[Path], *, timeout: float = PROBE_TIMEOUT
+) -> dict[str, str]:
+    """Close documents an earlier timed-out export left open without a window.
+
+    Keyed by `path_key`. A document is closed without saving only when
+    Inventor holds it, no view in `Application.Views` shows it, and no other
+    document in memory references it (an assembly the owner opened may have
+    loaded it as a component). Otherwise it is `has-window` or `in-use` and
+    left alone; a document Inventor no longer holds is `not-open`. Raises
+    `SessionTimeout` when Inventor does not answer.
+    """
+
+    wanted = {path_key(path) for path in paths}
+
+    def work(application: Any, run: _Run) -> dict[str, str]:
+        outcomes = {key: NOT_OPEN for key in wanted}
+        shown: set[str] = set()
+        views = application.Views
+        for position in range(1, int(views.Count) + 1):
+            shown.add(path_key(views.Item(position).Document.FullFileName))
+            run.tick()
+        documents = application.Documents
+        found = []
+        for position in range(1, int(documents.Count) + 1):
+            document = documents.Item(position)
+            if path_key(document.FullFileName) in wanted:
+                found.append(document)
+            run.tick()
+        for document in found:
+            key = path_key(document.FullFileName)
+            if key in shown:
+                outcomes[key] = HAS_WINDOW
+                continue
+            try:
+                referenced = int(document.ReferencingDocuments.Count) > 0
+            except Exception:  # noqa: BLE001 - unknown means leave it alone
+                referenced = True
+            if referenced:
+                outcomes[key] = IN_USE
+                continue
+            run.tick()
+            try:
+                document.Close(True)
+            except Exception as exc:  # noqa: BLE001 - reported, the record is kept
+                outcomes[key] = f"failed: {_reason(exc)}"
+            else:
+                outcomes[key] = CLOSED
+            run.touch()
+        return outcomes
+
+    if not wanted:
+        return {}
+    return session.run(work, timeout=timeout)
 
 
 class BatchOutcome(list):

@@ -6,6 +6,20 @@ remains authoritative for exact file changes.
 
 ## 2026-09-25
 
+- Shipped `pihti-dedup` 0.24.4: the STEP mirror no longer opens an assembly
+  that would make Inventor stop and ask. Before an `.iam` is exported, the
+  names it embeds are looked up in the workspace: a name carried by two or
+  more files (Non-Unique Project File Names) or a name an open rename left
+  behind (Resolve Link) makes the assembly `needs-doctor` instead; it is
+  listed at the end of `sync`, under Needs Doctor on the STEP mirror page with
+  a link to that name's Doctor page, and counted on the `sync` and `status`
+  lines. `step-mirror export --force` opens one anyway. Documents a timed-out
+  export left open without a window are recorded and closed at the next
+  `sync`, `export`, or background tick, never one with a window or one
+  another open document uses. `sync` prints one line per folder
+  (`--verbose` for one per file) and names failures by short name; every
+  attempt, with its full path, goes to `export.log` at the mirror root
+  (rotated at 5 MB, one old log kept), which the page's Last exports reads.
 - Shipped `pihti-dedup` 0.24.3: a shown 3D view can be enlarged. A quiet
   Enlarge button at the inspector's foot (and under the part page's view), or
   F on the shown tile, opens a window-sized dialog with the same mesh, no

@@ -398,6 +398,7 @@ button, select, input[type="checkbox"] { cursor: pointer; }
 .mirror-log { grid-template-columns: 110px minmax(0, 1fr) auto; }
 .mirror-log time { color: var(--dim); font-size: 0.66rem; font-variant-numeric: tabular-nums; }
 .mirror-log.is-failed small { color: #d6ad63; }
+.mirror-doctor b { color: #d6ad63; font-weight: 500; }
 .mirror-inventor { color: var(--muted); }
 .inspector-title { flex: none; margin: 6px 0 2px; font-size: 0.8rem; overflow-wrap: anywhere; }
 .inspector-facts { min-height: 0; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; }

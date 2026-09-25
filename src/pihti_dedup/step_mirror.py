@@ -25,6 +25,31 @@ sync or a copy can introduce) for it and the STEP exists; without an index
 entry, when the STEP's modification time is at or after the source's. The
 mirror folder and its `README.md` are created on the first export, never on
 import or when the viewer starts.
+
+An assembly is never opened when Inventor would stop to ask about it. Before
+an `.iam` is exported, every part, assembly, or presentation name the
+where-used byte scan finds in it is looked up in the workspace's filename map:
+a name with two or more files raises Non-Unique Project File Names, the old
+name of a rename the ledger still holds open raises Resolve Link, and either
+blocks Inventor until someone clicks. Such an assembly is `needs-doctor`
+instead of opened (`blocking_reference`). Names the rename ledger records as
+repaired or indirect for that assembly are fossil strings and are not looked
+up, and a missing name the ledger does not know is not a skip: the scan finds
+such names in every assembly (the template it was started from, the source
+name of an imported STEP). Other fossils are a known limitation: a repeated
+name the scan still finds but Inventor no longer references skips the
+assembly falsely, and `step-mirror export --force` exports one named file
+anyway.
+
+A timed-out export may leave its document open in Inventor without a window.
+Each timeout is recorded in `pending-close.json`, and `close_leftovers` closes
+those documents before the next export when no window shows them and no
+other open document uses them.
+
+Every attempt is appended to `export.log` at the mirror root, one
+tab-separated line each: time, outcome, seconds, workspace-relative source,
+and the mirror-relative STEP or the reason. At 5 MB the log is renamed to
+`export.log.1` (one kept) and a new one is started.
 """
 
 from __future__ import annotations
@@ -34,7 +59,7 @@ import logging
 import os
 import threading
 import time
-from collections.abc import Mapping
+from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import datetime
 from functools import cached_property
@@ -63,6 +88,18 @@ CURRENT = "current"
 STALE = "stale"
 MISSING = "missing"
 
+#: The outcome of an assembly that would make Inventor ask; see `blocking_reference`.
+NEEDS_DOCTOR = "needs-doctor"
+#: Names that can make Inventor ask when an assembly opens.
+CHECKED_EXTENSIONS = frozenset({".ipt", ".iam", ".ipn"})
+LOG_NAME = "export.log"
+#: Documents a timed-out export may have left open in Inventor without a window.
+PENDING_CLOSE_NAME = "pending-close.json"
+CLOSED_LEFTOVER = "closed-leftover"
+LOG_ROTATE_BYTES = 5 * 1024 * 1024
+#: How much of the log's end is read for the status page.
+LOG_TAIL_BYTES = 64 * 1024
+
 NO_CURRENT_STEP = "no current STEP in the mirror"
 NOT_MIRRORED = "failed: only parts and assemblies in the default scan scope are mirrored"
 
@@ -89,6 +126,16 @@ Delete any file, or the whole folder, and `pihti-dedup step-mirror sync .` (or
 the viewer, while Inventor is open) exports it again. `mirror-index.json`
 records which state of each source a STEP was exported from.
 """
+
+
+def renamed_names(entries) -> frozenset[str]:
+    """The rename ledger's old names still open, casefolded.
+
+    A rename the owner marked settled on the Renames page no longer makes
+    any assembly ask; its old name may survive only as a fossil string.
+    """
+
+    return frozenset(entry.old_name.casefold() for entry in entries if not entry.settled)
 
 
 def step_mirror_root(workspace: Path | str, environ: Mapping[str, str] | None = None) -> Path:
@@ -136,6 +183,78 @@ def _matches(entry: Mapping, mtime_ns: int, size: int) -> bool:
     except (KeyError, TypeError, ValueError):
         return False
     return recorded_size == size and abs(recorded_mtime - mtime_ns) < MTIME_TOLERANCE_NS
+
+
+def _times(count: int) -> str:
+    return "twice" if count == 2 else f"{count} times"
+
+
+def first_blocking(
+    names: Iterable[str],
+    locations: Mapping[str, Sequence[str]],
+    settled: Iterable[str] = (),
+    renamed: Iterable[str] | None = None,
+) -> tuple[str, str] | None:
+    """The first name that would make Inventor ask, and why; None when none would.
+
+    `names` are the filenames the where-used scan lists for one assembly,
+    `locations` maps a casefolded filename to every workspace path carrying
+    it (`whereused.filename_locations`), and `settled` holds the names the
+    rename ledger records as repaired or indirect for that assembly. Only
+    part, assembly, and presentation names count; names are taken in
+    case-insensitive order so the answer is stable.
+
+    `renamed`, when given, limits "missing" to those names (the rename
+    ledger's old names): the byte scan also finds names no reference uses
+    any more, such as the template an assembly was started from
+    (`Standard (mm).iam`) or the source name of an imported STEP, and on the
+    PIHTI workspace those alone would stop every assembly. A repeated name is
+    always reported.
+    """
+
+    skipped = {name.casefold() for name in settled}
+    known = None if renamed is None else {name.casefold() for name in renamed}
+    for name in sorted(set(names), key=lambda value: (value.casefold(), value)):
+        key = name.casefold()
+        if Path(name).suffix.casefold() not in CHECKED_EXTENSIONS or key in skipped:
+            continue
+        count = len(locations.get(key, ()))
+        if count == 0 and (known is None or key in known):
+            return name, f"{name} is missing"
+        if count > 1:
+            return name, f"{name} exists {_times(count)}"
+    return None
+
+
+def blocking_reference(
+    names: Iterable[str],
+    locations: Mapping[str, Sequence[str]],
+    settled: Iterable[str] = (),
+    renamed: Iterable[str] | None = None,
+) -> str | None:
+    """Why opening an assembly with these embedded names would stop Inventor, or None.
+
+    A name with no file in the workspace raises Resolve Link; a name carried
+    by two or more files raises Non-Unique Project File Names. The reason
+    names the first such file: "board.ipt exists twice",
+    "Wide Din Clip.ipt is missing". See `first_blocking` for the arguments.
+    """
+
+    found = first_blocking(names, locations, settled, renamed)
+    return found[1] if found is not None else None
+
+
+@dataclass(frozen=True)
+class DoctorItem:
+    """A stale or missing assembly the mirror will not open until Doctor settles a name."""
+
+    item: MirrorItem
+    name: str
+    reason: str
+
+    @property
+    def path(self) -> str:
+        return self.item.path
 
 
 @dataclass(frozen=True)
@@ -228,14 +347,39 @@ def _replace_with_retry(temporary: Path, target: Path, *, attempts: int = 8, wai
 class StepMirror:
     """The mirror of one workspace: where each STEP goes, which are current, exports."""
 
-    def __init__(self, workspace: Path | str, root: Path | str | None = None) -> None:
+    def __init__(
+        self,
+        workspace: Path | str,
+        root: Path | str | None = None,
+        *,
+        where_used: Callable[[], object | None] | None = None,
+        locations: Callable[[], Mapping[str, Sequence[str]] | None] | None = None,
+        settled: Callable[[], Iterable[tuple[str, str]]] | None = None,
+        renamed: Callable[[], Iterable[str]] | None = None,
+    ) -> None:
+        """`where_used`, `locations`, `settled`, and `renamed` feed the pre-check.
+
+        `where_used` returns a `whereused.WhereUsed`, `locations` the
+        `filename_locations` map, `settled` the rename ledger's
+        `(referrer, old name)` pairs, and `renamed` the ledger's old names
+        (`renamed_names`), which limit "missing" to names a recorded rename
+        left behind; without it every missing name counts. Without the first
+        two no assembly is checked, and every export opens its document as
+        before.
+        """
+
         self.workspace = Path(workspace).resolve()
         self.root = Path(root) if root is not None else step_mirror_root(self.workspace)
+        self.where_used = where_used
+        self.locations = locations
+        self.settled = settled
+        self.renamed = renamed
         self._lock = threading.RLock()
         self._index_stamp: tuple[int, int] | None = None
         self._index: dict = {}
         self._generation = 0
         self._memo: tuple[object, object, MirrorStatus] | None = None
+        self._names_memo: tuple[object, dict[str, tuple[str, ...]]] | None = None
 
     # ---- the index ----------------------------------------------------------
 
@@ -292,9 +436,238 @@ class StepMirror:
                 pass
 
     def recent(self) -> list[dict]:
-        """The last recorded export attempts, newest first."""
+        """The last recorded export attempts, newest first.
 
-        return list(reversed(self.index().get("recent", [])))[:RECENT_LIMIT]
+        Read from the end of `export.log`; a mirror written before the log
+        existed falls back to the index's own short `recent` list. Each line is
+        a dict with `at`, `path`, `outcome` (as `ExportResult` reports it),
+        `kind` (the outcome without its reason), `seconds`, and `detail` (the
+        STEP or the reason).
+        """
+
+        lines = self._log_tail()
+        if lines is not None:
+            return lines
+        recent = []
+        for line in reversed(self.index().get("recent", [])[-RECENT_LIMIT:]):
+            outcome = str(line.get("outcome", ""))
+            kind, _, detail = outcome.partition(": ")
+            recent.append({**line, "outcome": outcome, "kind": kind, "detail": detail})
+        return recent
+
+    # ---- the export log -----------------------------------------------------
+
+    @property
+    def log_path(self) -> Path:
+        return self.root / LOG_NAME
+
+    def log_attempt(self, relative: str, outcome: str, seconds: float = 0.0, reason: str = "") -> None:
+        """Append one attempt to `export.log`, rotating it at `LOG_ROTATE_BYTES`.
+
+        Written only into an existing mirror folder; never raises.
+        """
+
+        kind, _, detail = outcome.partition(": ")
+        if kind == inventor_session.EXPORTED:
+            detail = step_relative(relative)
+        elif kind == inventor_session.SKIPPED_OPEN:
+            detail = detail or "open in Inventor"
+        elif kind == inventor_session.TIMED_OUT:
+            detail = detail or "Inventor did not answer in time"
+        detail = reason or detail
+        when = datetime.now().astimezone().isoformat(timespec="seconds")
+        fields = (when, kind, f"{seconds:.2f}", relative, detail)
+        line = "\t".join(" ".join(str(field).split()) for field in fields) + "\n"
+        path = self.log_path
+        with self._lock:
+            try:
+                if not self.root.is_dir():
+                    return
+                try:
+                    if path.stat().st_size >= LOG_ROTATE_BYTES:
+                        os.replace(path, path.with_name(f"{LOG_NAME}.1"))
+                except FileNotFoundError:
+                    pass
+                with path.open("a", encoding="utf-8", newline="\n") as handle:
+                    handle.write(line)
+            except OSError:
+                log.warning("could not append to the STEP mirror log at %s", path, exc_info=True)
+
+    def _log_tail(self) -> list[dict] | None:
+        try:
+            with self.log_path.open("rb") as handle:
+                size = handle.seek(0, os.SEEK_END)
+                handle.seek(max(0, size - LOG_TAIL_BYTES))
+                data = handle.read()
+        except OSError:
+            return None
+        lines = data.decode("utf-8", "replace").splitlines()
+        if len(data) >= LOG_TAIL_BYTES and lines:
+            lines = lines[1:]  # the first line was cut by the seek
+        recent: list[dict] = []
+        for text in reversed(lines):
+            fields = text.split("\t")
+            if len(fields) != 5:
+                continue
+            when, kind, seconds, path, detail = fields
+            try:
+                spent = float(seconds)
+            except ValueError:
+                spent = 0.0
+            outcome = f"{kind}: {detail}" if kind == "failed" else kind
+            recent.append(
+                {
+                    "at": when,
+                    "path": path,
+                    "outcome": outcome,
+                    "kind": kind,
+                    "seconds": spent,
+                    "detail": detail,
+                }
+            )
+            if len(recent) >= RECENT_LIMIT:
+                break
+        return recent
+
+    # ---- leftovers from a timeout -------------------------------------------
+
+    @property
+    def pending_close_path(self) -> Path:
+        return self.root / PENDING_CLOSE_NAME
+
+    def pending_close(self) -> list[str]:
+        """Workspace-relative documents a timed-out export may have left open."""
+
+        try:
+            payload = json.loads(self.pending_close_path.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            return []
+        paths = payload.get("paths") if isinstance(payload, dict) else None
+        if not isinstance(paths, list):
+            return []
+        return [path for path in paths if isinstance(path, str)]
+
+    def _write_pending_close(self, paths: list[str]) -> None:
+        path = self.pending_close_path
+        try:
+            if not paths:
+                path.unlink(missing_ok=True)
+                return
+            temporary = path.with_name(f"{PENDING_CLOSE_NAME}.{os.getpid():x}.tmp")
+            temporary.write_text(
+                json.dumps({"version": 1, "paths": paths}, ensure_ascii=False, indent=1) + "\n",
+                encoding="utf-8",
+            )
+            _replace_with_retry(temporary, path)
+        except OSError:
+            log.warning("could not write %s", path, exc_info=True)
+
+    def _remember_leftover(self, relative: str) -> None:
+        with self._lock:
+            pending = self.pending_close()
+            if relative.casefold() not in {path.casefold() for path in pending}:
+                self._write_pending_close([*pending, relative])
+
+    def close_leftovers(self, session: Session) -> list[str]:
+        """Close what earlier timed-out exports left open without a window; never raises.
+
+        Only documents recorded in `pending-close.json` are considered, so
+        nothing the mirror did not open is ever closed. A record is forgotten
+        after its document closed, or when Inventor no longer holds it; a
+        document with a window, one another open document references, or one
+        whose close failed stays recorded for the next attempt. Returns the
+        closed documents, each also logged as `closed-leftover`.
+        """
+
+        with self._lock:
+            pending = self.pending_close()
+            if not pending:
+                return []
+            try:
+                outcomes = inventor_session.close_leftovers(
+                    session, [self.workspace / relative for relative in pending]
+                )
+            except Exception:  # noqa: BLE001 - a silent Inventor: try again next time
+                log.info("step mirror: could not close leftovers; Inventor did not answer")
+                return []
+            closed: list[str] = []
+            keep: list[str] = []
+            for relative in pending:
+                outcome = outcomes.get(
+                    path_key(self.workspace / relative), inventor_session.NOT_OPEN
+                )
+                if outcome == inventor_session.CLOSED:
+                    closed.append(relative)
+                    self.log_attempt(
+                        relative, CLOSED_LEFTOVER, reason="left open without a window by a timeout"
+                    )
+                elif outcome != inventor_session.NOT_OPEN:
+                    keep.append(relative)
+            if keep != pending:
+                self._write_pending_close(keep)
+            return closed
+
+    # ---- the assembly pre-check ---------------------------------------------
+
+    def _names_by_document(self, index) -> dict[str, tuple[str, ...]]:
+        memo = self._names_memo
+        if memo is not None and memo[0] is index:
+            return memo[1]
+        names = {
+            path.casefold(): tuple(found)
+            for path, found in getattr(index, "document_names", {}).items()
+        }
+        self._names_memo = (index, names)
+        return names
+
+    def reference_context(self):
+        """(names by document, locations, settled names by document, renamed), or None."""
+
+        if self.where_used is None or self.locations is None:
+            return None
+        index = self.where_used()
+        locations = self.locations()
+        if index is None or locations is None:
+            return None
+        settled: dict[str, set[str]] = {}
+        if self.settled is not None:
+            for referrer, name in self.settled():
+                key = str(referrer).replace("\\", "/").strip("/").casefold()
+                settled.setdefault(key, set()).add(str(name))
+        renamed = None if self.renamed is None else frozenset(
+            str(name).casefold() for name in self.renamed()
+        )
+        return self._names_by_document(index), locations, settled, renamed
+
+    def blocker(self, relative: str, context=None) -> tuple[str, str] | None:
+        """(name, reason) when opening this assembly would make Inventor ask.
+
+        None for a part, when the pre-check has no where-used data, or when
+        every embedded name resolves to exactly one workspace file.
+        """
+
+        if Path(relative).suffix.casefold() != ".iam":
+            return None
+        if context is None:
+            context = self.reference_context()
+            if context is None:
+                return None
+        names, locations, settled, renamed = context
+        key = relative.casefold()
+        return first_blocking(names.get(key, ()), locations, settled.get(key, ()), renamed)
+
+    def needs_doctor(self, status: MirrorStatus) -> tuple[DoctorItem, ...]:
+        """The stale or missing assemblies the pre-check would not open, oldest first."""
+
+        context = self.reference_context()
+        if context is None:
+            return ()
+        found = []
+        for item in status.queue:
+            blocked = self.blocker(item.path, context)
+            if blocked is not None:
+                found.append(DoctorItem(item=item, name=blocked[0], reason=blocked[1]))
+        return tuple(found)
 
     # ---- where and whether --------------------------------------------------
 
@@ -377,8 +750,13 @@ class StepMirror:
         relative: str,
         *,
         timeout: float = inventor_session.DEFAULT_TIMEOUT,
+        force: bool = False,
     ) -> ExportResult:
-        """Export one workspace document to its mirror STEP and record the attempt."""
+        """Export one workspace document to its mirror STEP and record the attempt.
+
+        An assembly the pre-check blocks is `needs-doctor` and never reaches
+        Inventor, unless `force` is set.
+        """
 
         source = self.workspace / relative
         target = self.target(relative)
@@ -388,11 +766,18 @@ class StepMirror:
             stat = source.stat()
         except OSError:
             return ExportResult(source, target, "failed: no such workspace file")
+        blocked = None if force else self.blocker(relative)
         try:
             self.ensure_root()
-            target.parent.mkdir(parents=True, exist_ok=True)
+            if blocked is None:
+                target.parent.mkdir(parents=True, exist_ok=True)
         except OSError as exc:
             return ExportResult(source, target, f"failed: cannot create the mirror folder ({exc})")
+        if blocked is not None:
+            result = ExportResult(source, target, NEEDS_DOCTOR, reason=blocked[1])
+            self._record(relative, stat, result)
+            log.info("step mirror: %s %s (%s)", NEEDS_DOCTOR, relative, blocked[1])
+            return result
         result = inventor_session.export_copy(session, source, target, timeout=timeout)
         self._record(relative, stat, result)
         log.info(
@@ -442,6 +827,10 @@ class StepMirror:
         )
 
     def _record(self, relative: str, stat: os.stat_result, result: ExportResult) -> None:
+        self.log_attempt(relative, result.outcome, result.seconds, result.reason)
+        if result.outcome == inventor_session.TIMED_OUT:
+            # Inventor may still hold the document, open and without a window.
+            self._remember_leftover(relative)
         if result.outcome == inventor_session.SKIPPED_OPEN:
             return  # nothing changed; no churn in a synced folder
         when = datetime.now().astimezone().isoformat(timespec="seconds")
@@ -506,6 +895,13 @@ class MirrorJob:
     borrowed more than about once a minute. After a
     timeout or a failure the job waits `backoff_seconds`, and that document is
     passed over until its source changes (the command line still tries it).
+    An assembly the pre-check blocks costs Inventor nothing: it is recorded
+    once as `needs-doctor`, the tick moves on to the next document, and it is
+    passed over until its source changes or the where-used and filename data
+    no longer give the same reason (a Doctor fix, a settled rename). The
+    reason is re-read from those snapshots every tick; the inventory serial
+    is not used, because it moves on every validation and would log the same
+    skip again each tick.
     The export runs on its own thread, so a slow Inventor never holds up the
     other snapshots.
     """
@@ -532,6 +928,7 @@ class MirrorJob:
         self.threaded = threaded
         self._resume_at = 0.0
         self._deferred: dict[str, tuple[int, int, str]] = {}
+        self._doctor: dict[str, tuple[int, int, str]] = {}
         self._lock = threading.Lock()
         self._thread: threading.Thread | None = None
 
@@ -543,6 +940,12 @@ class MirrorJob:
 
         with self._lock:
             return {path: reason for path, (_m, _s, reason) in self._deferred.items()}
+
+    def needs_doctor(self) -> dict[str, str]:
+        """Assemblies passed over by the pre-check: path -> reason."""
+
+        with self._lock:
+            return {path: reason for path, (_m, _s, reason) in self._doctor.items()}
 
     def refresh_due(self) -> None:
         if not self.threaded:
@@ -562,10 +965,18 @@ class MirrorJob:
         except Exception:
             log.exception("step mirror tick failed")
 
-    def _passed_over(self, item: MirrorItem) -> bool:
+    def _passed_over(self, item: MirrorItem, context=None) -> bool:
+        key = item.path.casefold()
+        state = (item.source_mtime_ns, item.source_size)
         with self._lock:
-            known = self._deferred.get(item.path.casefold())
-        return known is not None and known[:2] == (item.source_mtime_ns, item.source_size)
+            known = self._deferred.get(key)
+            doctor = self._doctor.get(key)
+        if known is not None and known[:2] == state:
+            return True
+        if doctor is None or doctor[:2] != state:
+            return False
+        blocked = self.mirror.blocker(item.path, context) if context is not None else None
+        return blocked is not None and blocked[1] == doctor[2]
 
     def _back_off(self) -> None:
         self._resume_at = self.clock() + self.backoff_seconds
@@ -578,10 +989,16 @@ class MirrorJob:
         session = self.session()
         if session is None:
             return None
+        self.mirror.close_leftovers(session)
         inventory = self.inventory()
         if inventory is None:
             return None
-        queue = [item for item in self.mirror.status(inventory).queue if not self._passed_over(item)]
+        context = self.mirror.reference_context() if self._doctor else None
+        queue = [
+            item
+            for item in self.mirror.status(inventory).queue
+            if not self._passed_over(item, context)
+        ]
         if not queue:
             return None
         try:
@@ -589,10 +1006,23 @@ class MirrorJob:
         except Exception:  # noqa: BLE001 - a silent or vanished Inventor
             self._back_off()
             return None
+        skipped: ExportResult | None = None
         for item in queue:
             if path_key(self.mirror.workspace / item.path) in open_paths:
                 continue
             result = self.mirror.export(session, item.path, timeout=self.budget_seconds)
+            if result.outcome == NEEDS_DOCTOR:
+                # Inventor was never asked; record it and try the next document.
+                with self._lock:
+                    self._doctor[item.path.casefold()] = (
+                        item.source_mtime_ns,
+                        item.source_size,
+                        result.reason,
+                    )
+                skipped = result
+                continue
+            with self._lock:
+                self._doctor.pop(item.path.casefold(), None)
             if not result.exported and result.outcome != inventor_session.SKIPPED_OPEN:
                 with self._lock:
                     self._deferred[item.path.casefold()] = (
@@ -604,4 +1034,4 @@ class MirrorJob:
             elif result.exported:
                 self._resume_at = self.clock() + self.spacing_seconds
             return result
-        return None
+        return skipped

@@ -1083,6 +1083,7 @@ STEP_TOASTS = {
     "open": "STEP not exported: {name} is open in Inventor; close it first",
     "timeout": "STEP not exported: Inventor did not answer",
     "failed": "STEP not exported: {name}; the STEP mirror page has the reason",
+    "doctor": "STEP not exported: {name} names a missing or repeated file; see Doctor",
     "absent": "STEP not exported: Inventor is not running",
 }
 
@@ -1094,6 +1095,8 @@ def _step_code(outcome: str) -> str:
         return "open"
     if outcome == inventor_session.TIMED_OUT:
         return "timeout"
+    if outcome == step_mirror.NEEDS_DOCTOR:
+        return "doctor"
     return "failed"
 
 
@@ -1166,7 +1169,15 @@ def create_app(
     app.extensions["pihti_preview_cache"] = previews
     app.extensions["pihti_reference_cache"] = references
     # The STEP mirror beside the workspace; nothing is created until an export.
-    mirror = step_mirror.StepMirror(root)
+    # Its assembly pre-check reads the same where-used and filename snapshots
+    # as the Doctor pages (the closures resolve once they are defined below).
+    mirror = step_mirror.StepMirror(
+        root,
+        where_used=lambda: _current_index(),
+        locations=lambda: _current_locations(),
+        settled=lambda: _settled_pairs(),
+        renamed=lambda: _renamed_names(),
+    )
     app.extensions["pihti_step_mirror"] = mirror
 
     session_probe: dict[str, object] = {"at": None, "value": None, "open_at": None, "open": None}
@@ -1208,6 +1219,14 @@ def create_app(
         except OSError:
             return frozenset()
         return settled_pairs(ledger)
+
+    def _renamed_names() -> frozenset[str]:
+        # A missing name blocks a mirror export only when a recorded rename
+        # left it behind; the byte scan's other missing names are fossils.
+        try:
+            return step_mirror.renamed_names(read_ledger(root))
+        except OSError:
+            return frozenset()
 
     def _fresh_index():
         return build_index(root, cache=references, settled=_settled_pairs())
@@ -3950,6 +3969,7 @@ def create_app(
         if session is None:
             code = "absent"
         else:
+            mirror.close_leftovers(session)
             result = mirror.export(session, relative)
             code = _step_code(result.outcome)
         state = {"step": code}
@@ -3982,9 +4002,11 @@ def create_app(
             "step_mirror.html",
             version=__version__,
             status=status,
+            needs_doctor=mirror.needs_doctor(status),
             location=str(mirror.root),
             created=mirror.root.is_dir(),
             recent=mirror.recent(),
+            leftovers=mirror.pending_close(),
             inventor_version=session.version if session is not None else None,
             background=refresh_seconds > 0,
             deferred=job.deferred() if job is not None else {},

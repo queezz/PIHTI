@@ -540,6 +540,53 @@ Inventor is busy for its owner as well, for the few seconds an open costs.
 the session once and keeps going through the rest of the queue if Inventor
 still answers, stopping only when the probe itself gets no answer, which the
 CLI then reports on its own `stopped:` line.
+0.24.4: an assembly is never opened for export when Inventor would stop to
+ask about it; the owner's first full runs hit Resolve Link for
+`Wide Din Clip.ipt` (renamed in August, rename still open) and Non-Unique
+Project File Names for `board.ipt` (two copies), each blocking Inventor until
+he clicked. Before an `.iam` is exported, the part, assembly, and
+presentation names the where-used byte scan lists for it (minus the ledger's
+repaired and indirect pairs for that assembly) are looked up in
+`filename_locations`. A name with two or more files is always a skip. A name
+with no file is a skip only when it is the old name of a rename the ledger
+still holds open: on this workspace the scan also finds, in every assembly,
+names no reference uses any more (the `Standard (mm).iam` template an
+assembly was started from, the source names of imported STEP files, a
+truncated name), and treating every missing name as a skip stopped all 239
+assemblies; the ledger-limited rule stops 27. A missing name the ledger does
+not know, from a rename done outside the tool, can still raise Resolve Link;
+the 0.24.2 timeout handling covers it. Fossils remain a known limitation the
+other way too: a repeated name the scan still finds but Inventor no longer
+references skips the assembly falsely, and `step-mirror export --force`
+exports one named file anyway. The check is the pure function
+`blocking_reference`; the viewer feeds it its where-used and locations
+snapshots, the command line builds them once per run. A skipped assembly is
+`needs-doctor` with a reason naming the first such file ("board.ipt exists
+twice", "Wide Din Clip.ipt is missing"); the page lists it under Needs Doctor
+with a link to `/doctor/name/<file>?assembly=<path>`, `sync` lists it at the
+end and counts it on its totals line, and it is not a failure for the exit
+code. The background job records it once and moves on in the same tick
+without touching Inventor, then passes it over while the source and the
+reason stay the same, re-reading the reason from the snapshots each tick
+(the inventory serial moves on every validation, so keying on it would log
+the same skip every tick). A timed-out export may leave its document open
+in Inventor without a window, which the next `sync` then refused as "open in
+Inventor": every timeout records the source in `pending-close.json` beside
+the index, and each `sync`, `export`, export-now, and background tick with a
+session first closes (`Close(True)`) those recorded documents that
+`Application.Views` does not show and no other loaded document references,
+logging each as `closed-leftover`; a record is forgotten after its close or
+once Inventor no longer holds the document, and nothing unrecorded is ever
+closed. `sync` now runs folder by folder, oldest first within each folder,
+and prints one line per folder (`--verbose` restores one line per file);
+failures and skips are listed by short name with the folder after them.
+Every attempt (exported, skipped open, timeout, failed, needs-doctor,
+closed-leftover) is one tab-separated line in `export.log` at the mirror
+root: time, outcome, seconds, workspace-relative source, and the
+mirror-relative STEP or the reason. At 5 MB it becomes `export.log.1`, one
+kept. The page's Last exports reads the end of that log instead of the
+index's `recent` list, which is still written and serves only a mirror that
+has no log yet.
 
 ## Purpose
 
