@@ -60,9 +60,6 @@ Implemented architecture and baseline: `dedup-viewer-design.md` and
 
 - Open the three `bellows/*.iam` assemblies in Inventor and identify the primary
   assembly before pruning the PR #2 package.
-- Verify that the bellows assemblies do not depend on the bundled `Design Data/`
-  or `Templates/`, then plan removal of vendor/package baggage and the path-bearing
-  `packngo.log` as a separate reviewed change.
 - Decide whether `_2026` assemblies are intentionally self-contained snapshots or
   should consume canonical shared parts from `ContentCenter/` and established
   system folders.
