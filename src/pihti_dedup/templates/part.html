@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 {% from "_folder_tree.html" import tree_rail, catalog_bar %}
-{% from "_file_tile.html" import badge, legend_card %}
+{% from "_file_tile.html" import badge, legend_card, mesh_dialog %}
 {% block title %}{{ name }} · PIHTI{% endblock %}
 {% block body %}
 {% if toast %}<div class="operation-toast" role="status" data-operation-toast data-hero-toast>{{ toast }}</div>{% endif %}
@@ -11,10 +11,11 @@
 
       <section class="part-sheet">
         {% set mesh = part_mesh %}
-        <div class="part-preview"{% if mesh %} data-mesh-viewer data-mesh="{{ mesh }}"{% endif %}>
+        <div class="part-preview"{% if mesh %} data-mesh-viewer data-mesh="{{ mesh }}" data-mesh-name="{{ name }}" data-mesh-folder="{{ folder|winpath if folder != '.' else '' }}"{% endif %}>
           <img src="{{ preview_url(path) }}" alt="Preview of {{ name }}"{% if preview_size %} width="{{ preview_size[0] }}" height="{{ preview_size[1] }}"{% endif %}>
           {% if mesh %}<canvas class="mesh-canvas" hidden title="Drag to turn · wheel to zoom · right-drag or Shift-drag to pan · double-click for the starting view"></canvas>
-          <p class="mesh-note" hidden></p>{% endif %}
+          <p class="mesh-note" hidden></p>
+          <p class="mesh-enlarge-line" hidden><button class="copy-path inspector-flag" type="button" data-mesh-enlarge aria-haspopup="dialog" aria-controls="mesh-dialog" title="See this 3D view large">Enlarge</button></p>{% endif %}
           {% if preview_source %}<p class="preview-source muted">{{ preview_source }}</p>{% endif %}
         </div>
         <div class="part-identity">
@@ -193,5 +194,6 @@
 
     {{ tree_rail(tree, false, 'location') }}
   </div>
+  {% if part_mesh %}{{ mesh_dialog() }}{% endif %}
 </main>
 {% endblock %}

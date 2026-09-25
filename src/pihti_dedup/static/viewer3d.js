@@ -435,7 +435,21 @@
         draw();
       },
       clear: release,
-      home: home
+      home: home,
+      // For a canvas that is thrown away (the enlarged view's, on close):
+      // frees its buffers and program and gives the context back at once.
+      dispose: function () {
+        options.onLost = null;
+        release();
+        window.cancelAnimationFrame(frame);
+        frame = 0;
+        if (!lost) {
+          gl.deleteProgram(program);
+          var lose = gl.getExtension("WEBGL_lose_context");
+          if (lose) lose.loseContext();
+        }
+        lost = true;
+      }
     };
   }
 

@@ -378,6 +378,11 @@ button, select, input[type="checkbox"] { cursor: pointer; }
    card, the size and colour of Copy path, never above the preview. */
 .inspector-flags { flex: none; display: flex; flex-wrap: wrap; gap: 6px; margin-top: auto; padding-top: 6px; }
 .inspector-flag { padding: 3px 8px; }
+/* Enlarge ends the same foot row and keeps its place while no 3D view is
+   shown, so the preview above never changes height when a mesh arrives. */
+.inspector-enlarge { align-self: flex-end; margin-left: auto; }
+.inspector-enlarge.is-idle { visibility: hidden; }
+.mesh-enlarge-line { margin: 6px 0 0; }
 .inspector-preview { flex: none; display: flex; align-items: center; justify-content: center; overflow: hidden; border-radius: 6px; background: var(--mesh-backdrop); }
 .inspector-preview img { display: block; width: 100%; height: auto; object-fit: contain; }
 /* The preview area has one height for every file the inspector shows, set by
@@ -408,7 +413,27 @@ button, select, input[type="checkbox"] { cursor: pointer; }
   resize: both; overflow: hidden; min-width: min(42rem, calc(100vw - 2rem)); min-height: 32rem;
   box-shadow: 0 24px 80px rgba(0, 0, 0, 0.55);
 }
-.note-dialog::backdrop { background: rgba(3, 8, 13, 0.76); backdrop-filter: blur(3px); }
+.note-dialog::backdrop, .mesh-dialog::backdrop { background: rgba(3, 8, 13, 0.76); backdrop-filter: blur(3px); }
+/* The enlarged 3D view: opened and closed by the reader, it fills the window
+   but a small margin, one large canvas on the preview's --mesh-backdrop under
+   a one-line head. The page behind it does not scroll while it is open. */
+.mesh-dialog {
+  width: calc(100vw - 24px); height: calc(100dvh - 24px); max-width: none; max-height: none;
+  margin: auto; padding: 0; overflow: hidden; border: 1px solid #40566c; border-radius: 11px;
+  color: var(--text); background: var(--page); box-shadow: 0 24px 80px rgba(0, 0, 0, 0.55);
+}
+html:has(.mesh-dialog[open]) { overflow: hidden; }
+.mesh-dialog-shell { display: flex; flex-direction: column; height: 100%; min-height: 0; }
+.mesh-dialog-head {
+  flex: none; display: flex; align-items: center; gap: 12px; padding: 6px 8px 6px 16px;
+  border-bottom: 1px solid var(--line); background: var(--panel); white-space: nowrap;
+}
+.mesh-dialog-head strong { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; font-size: 0.86rem; }
+.mesh-dialog-folder { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; color: var(--dim); font: 0.68rem ui-monospace, SFMono-Regular, Consolas, monospace; }
+.mesh-dialog-head .dialog-close-x { flex: none; }
+.mesh-dialog-stage { position: relative; flex: 1 1 auto; min-height: 0; display: grid; place-items: center; overflow: hidden; background: var(--mesh-backdrop); }
+.mesh-dialog-stage .mesh-canvas { position: absolute; inset: 0; border-radius: 0; }
+.mesh-dialog-stage img { display: block; max-width: 100%; }
 .note-dialog-shell { display: flex; flex-direction: column; height: 100%; min-height: 0; }
 .note-dialog-header {
   display: flex; align-items: flex-start; justify-content: space-between; gap: 18px;

@@ -3700,3 +3700,97 @@ def test_the_packaged_viewer_is_plain_webgl_and_fetches_only_the_shown_file(
     assert "var MESH_DELAY = 150;" in script
     assert "meshAbort.abort()" in script
     assert "viewer.clear()" in script
+
+
+def test_the_inspector_and_the_part_page_offer_enlarge_and_carry_its_dialog(
+    tmp_path: Path,
+) -> None:
+    client = create_app(make_export_workspace(tmp_path)).test_client()
+
+    catalog = client.get("/catalog/BoronProbe/exports").get_data(as_text=True)
+    stl_part = client.get("/part/BoronProbe/exports/head.stl").get_data(as_text=True)
+    ipt_part = client.get("/part/BoronProbe/exports/head.ipt").get_data(as_text=True)
+
+    # A quiet text button at the foot of the inspector, idle (keeping its place,
+    # so the preview never changes height) until a 3D view is shown.
+    inspector = catalog.split("data-inspector ", 1)[1].split("</section>", 1)[0]
+    enlarge = re.search(r"<button [^>]*data-inspector-enlarge[^>]*>([^<]*)</button>", inspector)
+    assert enlarge and enlarge.group(1) == "Enlarge"
+    assert 'class="copy-path inspector-flag inspector-enlarge is-idle"' in enlarge.group(0)
+    assert 'type="button"' in enlarge.group(0) and 'aria-controls="mesh-dialog"' in enlarge.group(0)
+    assert "primary" not in enlarge.group(0)
+    flags = inspector.split("data-inspector-flags", 1)[1]
+    assert "data-inspector-enlarge" in flags
+    assert inspector.index("inspector-preview") < inspector.index("data-inspector-enlarge")
+
+    # One dialog, outside the rails and the grid, closed until the reader opens it.
+    for page in (catalog, stl_part):
+        assert page.count("<dialog") == page.count("</dialog>")
+        dialog = re.search(r'<dialog class="mesh-dialog" id="mesh-dialog"[^>]*>', page)
+        assert dialog, "mesh dialog"
+        assert "data-mesh-dialog" in dialog.group(0)
+        assert " open" not in dialog.group(0) and "data-auto-open" not in dialog.group(0)
+        body = page.split(dialog.group(0), 1)[1].split("</dialog>", 1)[0]
+        for hook in (
+            "data-mesh-dialog-name", "data-mesh-dialog-folder", "data-mesh-dialog-stage",
+            'aria-label="Close enlarged view">×</button>',
+        ):
+            assert hook in body, hook
+        assert '<canvas class="mesh-canvas" data-mesh-dialog-canvas hidden' in body
+        assert "<img data-mesh-dialog-image" in body  # the still-image fallback
+        assert page.index(dialog.group(0)) > page.index("</aside>")
+    assert catalog.index('id="mesh-dialog"') > catalog.index("data-thumb-grid")
+
+    # The part page names the file and its folder for the dialog's head.
+    assert re.search(
+        r'data-mesh-viewer data-mesh="[^"]+" data-mesh-name="head.stl" '
+        r'data-mesh-folder="BoronProbe\\exports"',
+        stl_part,
+    )
+    line = stl_part.split('<p class="mesh-enlarge-line" hidden>', 1)[1].split("</p>", 1)[0]
+    assert 'class="copy-path inspector-flag"' in line and "data-mesh-enlarge" in line
+    assert ">Enlarge</button>" in line
+    assert "mesh-dialog" not in ipt_part and "data-mesh-enlarge" not in ipt_part
+
+
+def test_the_enlarged_view_fills_the_window_and_holds_the_page_still(tmp_path: Path) -> None:
+    style = create_app(tmp_path).test_client().get("/static/dedup.css").get_data(as_text=True)
+
+    dialog = style.split(".mesh-dialog {", 1)[1].split("}", 1)[0]
+    assert "width: calc(100vw - 24px);" in dialog
+    assert "height: calc(100dvh - 24px);" in dialog
+    assert "max-width: none;" in dialog and "max-height: none;" in dialog
+    assert "resize:" not in dialog
+    assert "html:has(.mesh-dialog[open]) { overflow: hidden; }" in style
+    assert ".note-dialog::backdrop, .mesh-dialog::backdrop {" in style
+    stage = style.split(".mesh-dialog-stage {", 1)[1].split("}", 1)[0]
+    assert "flex: 1 1 auto;" in stage and "background: var(--mesh-backdrop);" in stage
+    idle = style.split(".inspector-enlarge.is-idle {", 1)[1].split("}", 1)[0]
+    assert "visibility: hidden;" in idle and "display" not in idle
+
+
+def test_the_enlarged_view_opens_only_on_request_and_reuses_the_fetched_mesh(
+    tmp_path: Path,
+) -> None:
+    client = create_app(make_workspace(tmp_path)).test_client()
+    viewer = client.get("/static/viewer3d.js").get_data(as_text=True)
+    script = client.get("/static/dedup.js").get_data(as_text=True)
+
+    block = script.split("var PihtiEnlarge = (function () {", 1)[1].split("\n})();", 1)[0]
+    # One modal call, inside `open`; no fetch of its own; closed three ways.
+    assert block.count("showModal()") == 1
+    assert "fetchMesh" not in block and "fetch(" not in block
+    assert "data-mesh-dialog-close" in block and "event.target === dialog" in block
+    assert "viewer.dispose()" in block and "returnTo.focus(" in block
+    assert 'addEventListener("resize"' in block
+    # Opened only from a press: the Enlarge buttons and the F key, never hover.
+    assert script.count("PihtiEnlarge.open(") == 2
+    hover = script.split('grid.addEventListener("mouseover"', 1)[1].split("});", 1)[0]
+    assert "enlarge" not in hover.lower()
+    assert 'enlargeButton.addEventListener("click"' in script
+    assert 'event.key === "f"' in script
+    # Escape inside a dialog leaves the inspector's file shown.
+    assert 'event.target.closest("dialog")' in script
+    assert "thumb-peek" not in script  # still nothing floats over the grid
+    # The large canvas gives its GL context back on close.
+    assert "dispose: function" in viewer and "loseContext()" in viewer

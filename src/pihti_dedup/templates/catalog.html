@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% from "_file_tile.html" import file_tile, hero_tile, legend_card %}
+{% from "_file_tile.html" import file_tile, hero_tile, legend_card, mesh_dialog %}
 {% from "_folder_tree.html" import tree_rail, catalog_bar %}
 {% block title %}{% if query %}Search{% elif path != '.' %}{{ name }}{% else %}Catalog{% endif %} · PIHTI{% endblock %}
 
@@ -217,6 +217,9 @@
               <button class="copy-path inspector-flag" type="submit" aria-pressed="false"></button>
             </form>
             {% endfor %}
+            {# Keeps its place and shows only while a 3D view is shown, so
+               the preview above never changes height at the swap. #}
+            <button class="copy-path inspector-flag inspector-enlarge is-idle" type="button" data-inspector-enlarge aria-haspopup="dialog" aria-controls="mesh-dialog" title="See this 3D view large (F)">Enlarge</button>
           </div>
         </div>
       </section>
@@ -226,5 +229,6 @@
 
     {{ tree_rail(tree, include_vendor) }}
   </div>
+  {% if files or hero_files %}{{ mesh_dialog() }}{% endif %}
 </main>
 {% endblock %}

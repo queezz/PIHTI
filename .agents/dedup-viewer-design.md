@@ -439,7 +439,14 @@ projected outline rather than the bounding box's corners, and the canvas is
 revealed only once its first frame has actually rendered, so a swap no longer
 visibly changes background or scale. Above about 5 MB in flight the inspector
 names the download ("Loading 3D · N MB") beside the still image while it
-waits.
+waits. Since 0.24.3 a shown 3D view offers Enlarge (a quiet button that keeps
+its place at the inspector's foot, idle and invisible until a mesh is on the
+canvas, so the preview never changes height; on the part page a line under
+the view; F on the shown tile), a native `<dialog>` the reader opens and
+closes that fills the window but 12px and draws the already-fetched mesh on
+its own canvas and camera, refits on resize, closes on Escape, × or a press
+that starts on the backdrop, returns focus to its opener, and gives its GL
+context back on close.
 
 Version 0.23.1 gives the inspector's preview real room and moves the
 rebuildable caches off Dropbox. At 1920×900, the common docked-laptop and

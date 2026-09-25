@@ -331,10 +331,13 @@ number, material, valid mass, modification date, and the documents that use it,
 when those exist. Enter opens the part page; Escape clears the inspector.
 An STL, 3MF, or STEP file turns in 3D in the inspector and on its part page:
 drag to turn, use the wheel to zoom, right-drag or Shift-drag to pan, and
-double-click to return to the starting view. An Inventor part or assembly
-turns in 3D from its copy in the STEP mirror (below) and keeps its still
-preview until that copy exists. A mesh too large to send (over 2,000,000
-triangles) keeps the still image with a one-line note.
+double-click to return to the starting view. Enlarge (at the inspector's
+foot, under the view on the part page, or F on the shown tile) opens the same
+view large in a window-sized dialog with its own camera; Escape, ×, or a click
+outside closes it. An Inventor part or assembly turns in 3D from its copy in
+the STEP mirror (below) and keeps its still preview until that copy exists.
+A mesh too large to send (over 2,000,000 triangles) keeps the still image with
+a one-line note.
 
 #### STEP mirror
 

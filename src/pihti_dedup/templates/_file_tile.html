@@ -87,3 +87,22 @@
   {{ tile_badges(item, skip='hero') }}
 </div>
 {% endmacro %}
+
+{# Enlarge: a deliberate modal the reader opens from a shown 3D view and
+   closes with Escape, × or the backdrop. One large canvas holds the same
+   mesh (already fetched) with its own camera; the still is its fallback. #}
+{% macro mesh_dialog() %}
+<dialog class="mesh-dialog" id="mesh-dialog" aria-labelledby="mesh-dialog-name" data-mesh-dialog>
+  <div class="mesh-dialog-shell">
+    <header class="mesh-dialog-head">
+      <strong id="mesh-dialog-name" data-mesh-dialog-name></strong>
+      <span class="mesh-dialog-folder" data-mesh-dialog-folder></span>
+      <button class="dialog-close-x" type="button" data-mesh-dialog-close aria-label="Close enlarged view">×</button>
+    </header>
+    <div class="mesh-dialog-stage" data-mesh-dialog-stage>
+      <canvas class="mesh-canvas" data-mesh-dialog-canvas hidden title="Drag to turn · wheel to zoom · right-drag or Shift-drag to pan · double-click for the starting view"></canvas>
+      <img data-mesh-dialog-image alt="" hidden>
+    </div>
+  </div>
+</dialog>
+{% endmacro %}

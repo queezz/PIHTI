@@ -6,6 +6,13 @@ remains authoritative for exact file changes.
 
 ## 2026-09-25
 
+- Shipped `pihti-dedup` 0.24.3: a shown 3D view can be enlarged. A quiet
+  Enlarge button at the inspector's foot (and under the part page's view), or
+  F on the shown tile, opens a window-sized dialog with the same mesh, no
+  second download, on its own camera: drag turns, the wheel zooms to the
+  pointer, right- or Shift-drag pans, double-click refits, and a window resize
+  refits. Escape, ×, or a click outside closes it and returns focus to where
+  it was opened; the small view keeps its own camera.
 - Shipped `pihti-dedup` 0.24.2: `step-mirror sync` no longer stops the whole
   batch on the first file Inventor is slow to answer for. After a timeout it
   probes the session once; if Inventor answers, the batch continues past that

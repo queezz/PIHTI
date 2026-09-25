@@ -765,6 +765,92 @@
   if (rename && window.location.hash === "#rename") rename.open = true;
 })();
 
+// Enlarge: one deliberate modal the reader opens from a shown 3D view (the
+// inspector's or the part page's) and closes with Escape, × or the backdrop.
+// It holds one large canvas with the mesh the small view already fetched (no
+// second request) under its own camera, so the small view keeps its own. The
+// large canvas's GL resources go on close, and focus returns to the opener.
+var PihtiEnlarge = (function () {
+  "use strict";
+
+  var V3 = window.PihtiViewer3D;
+  var dialog = document.querySelector("dialog[data-mesh-dialog]");
+  if (!dialog || !V3) return null;
+  var nameLine = dialog.querySelector("[data-mesh-dialog-name]");
+  var folderLine = dialog.querySelector("[data-mesh-dialog-folder]");
+  var stage = dialog.querySelector("[data-mesh-dialog-stage]");
+  var still = dialog.querySelector("[data-mesh-dialog-image]");
+  var viewer = null;
+  var returnTo = null;
+  var sizing = 0;
+  var pressedBackdrop = false;
+
+  function canvas() { return stage.querySelector("canvas"); }
+  function showStill(source) {
+    canvas().hidden = true;
+    if (source) still.src = source;
+    still.hidden = !source;
+  }
+  // The stage is laid out before the first frame, so the mesh is framed for
+  // the size it is shown at; a window resize frames it again, no refetch.
+  function fit() {
+    sizing = 0;
+    if (!viewer || !dialog.open) return;
+    viewer.resize(stage.clientWidth, stage.clientHeight);
+    viewer.home(true);
+  }
+  window.addEventListener("resize", function () {
+    if (dialog.open && viewer && !sizing) sizing = window.requestAnimationFrame(fit);
+  });
+
+  function open(mesh, info, opener) {
+    if (dialog.open || !mesh) return;
+    returnTo = opener || document.activeElement;
+    nameLine.textContent = info.name || "";
+    folderLine.textContent = info.folder || "";
+    dialog.showModal();
+    var surface = canvas();
+    viewer = V3.create(surface, { onLost: function () { showStill(info.still); } });
+    if (viewer) {
+      viewer.resize(stage.clientWidth, stage.clientHeight);
+      if (viewer.show(mesh)) {  // synchronous: real pixels exist once this returns
+        still.hidden = true;
+        surface.hidden = false;
+        return;
+      }
+    }
+    showStill(info.still);
+  }
+
+  dialog.addEventListener("close", function () {
+    window.cancelAnimationFrame(sizing);
+    sizing = 0;
+    if (viewer) viewer.dispose();
+    viewer = null;
+    // A canvas keeps its (now released) context; the next open gets a fresh one.
+    var old = canvas();
+    var fresh = old.cloneNode(false);
+    ["style", "width", "height"].forEach(function (name) { fresh.removeAttribute(name); });
+    fresh.hidden = true;
+    old.replaceWith(fresh);
+    still.hidden = true;
+    still.removeAttribute("src");
+    if (returnTo && returnTo.isConnected) returnTo.focus({ preventScroll: true });
+    returnTo = null;
+  });
+  dialog.querySelectorAll("[data-mesh-dialog-close]").forEach(function (closer) {
+    closer.addEventListener("click", function () { dialog.close(); });
+  });
+  // The backdrop closes it only when the press began there too: a drag that
+  // starts on the canvas and ends outside it is still a turn, not a close.
+  dialog.addEventListener("pointerdown", function (event) { pressedBackdrop = event.target === dialog; });
+  dialog.addEventListener("click", function (event) {
+    if (event.target === dialog && pressedBackdrop) dialog.close();
+  });
+
+  return { open: open };
+})();
+
 (function () {
   "use strict";
 
@@ -789,6 +875,7 @@
   var canvas = inspector && inspector.querySelector("[data-inspector-canvas]");
   var meshNote = inspector && inspector.querySelector("[data-inspector-mesh-note]");
   var stepForm = inspector && inspector.querySelector("form[data-inspector-step-export]");
+  var enlargeButton = inspector && inspector.querySelector("[data-inspector-enlarge]");
   var shown = null;
   var hoverTimer = null;
 
@@ -842,9 +929,15 @@
   var meshStarted = "";
   var meshTimer = null;
   var meshAbort = null;
+  var shownMesh = null;  // the mesh on the canvas now, for Enlarge
   function stillImage() {
     if (canvas) canvas.hidden = true;
     image.hidden = false;
+    setEnlarge(null);
+  }
+  function setEnlarge(mesh) {
+    shownMesh = mesh;
+    if (enlargeButton) enlargeButton.classList.toggle("is-idle", !mesh);
   }
   function wantMesh(url) {
     if (!canvas || url === meshWanted) return;
@@ -881,7 +974,7 @@
       fitImage();  // sizes the still-hidden canvas before the first paint
       var ok = viewer.show(mesh);  // synchronous: real pixels exist once this returns
       meshNote.hidden = true;
-      if (ok) { canvas.hidden = false; image.hidden = true; } else { stillImage(); }
+      if (ok) { canvas.hidden = false; image.hidden = true; setEnlarge(mesh); } else { stillImage(); }
     }, function (error) {
       if (meshWanted !== url || error.name === "AbortError") return;
       meshAbort = null;
@@ -894,6 +987,31 @@
         meshNote.hidden = false;
         fitImage();  // the note takes its line from the card, never the toggles'
       }
+    });
+  }
+
+  // Enlarge (or F while a tile or the inspector has focus) shows the mesh on
+  // the canvas large, named with its folder; closing returns to the opener.
+  function enlarge(opener) {
+    if (!shownMesh || !shown || canvas.hidden || !PihtiEnlarge) return false;
+    window.clearTimeout(hoverTimer);
+    var relative = decodeURIComponent((shown.getAttribute("href") || "").replace(/^\/part\//, ""));
+    var cut = relative.lastIndexOf("/");
+    PihtiEnlarge.open(shownMesh, {
+      name: title.textContent,
+      folder: cut > 0 ? relative.slice(0, cut).replace(/\//g, "\\") : "",
+      still: image.currentSrc || image.src
+    }, opener);
+    return true;
+  }
+  function isEnlargeKey(event) {
+    return (event.key === "f" || event.key === "F") &&
+      !(event.altKey || event.ctrlKey || event.metaKey || event.shiftKey);
+  }
+  if (enlargeButton) {
+    enlargeButton.addEventListener("click", function () { enlarge(enlargeButton); });
+    inspector.addEventListener("keydown", function (event) {
+      if (isEnlargeKey(event) && enlarge(event.target)) event.preventDefault();
     });
   }
 
@@ -1076,6 +1194,10 @@
     if (event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return;
     var tile = event.target.closest(TILE);
     if (!tile) return;
+    if (isEnlargeKey(event) && tile === shown) {
+      if (enlarge(tile)) event.preventDefault();
+      return;
+    }
     if (event.key === "Escape") {
       if (shown) {
         event.preventDefault();
@@ -1105,6 +1227,8 @@
   });
 
   document.addEventListener("keydown", function (event) {
+    // Escape inside a dialog closes that dialog and leaves the inspector be.
+    if (event.target.closest && event.target.closest("dialog")) return;
     if (event.key === "Escape" && shown) clear();
   });
 
@@ -1128,6 +1252,8 @@
   var image = box.querySelector("img");
   var canvas = box.querySelector("canvas");
   var note = box.querySelector(".mesh-note");
+  var enlargeLine = box.querySelector(".mesh-enlarge-line");
+  var enlargeButton = box.querySelector("[data-mesh-enlarge]");
   function showLoadingSize(bytes) {
     if (!note || bytes < 5 * 1024 * 1024) return;
     note.textContent = "Loading 3D · " + Math.round(bytes / (1024 * 1024)) + " MB";
@@ -1138,7 +1264,11 @@
       var width = image.offsetWidth || 512;
       var height = image.offsetHeight || width;
       var viewer = V3.create(canvas, {
-        onLost: function () { canvas.hidden = true; image.hidden = false; }
+        onLost: function () {
+          canvas.hidden = true;
+          image.hidden = false;
+          if (enlargeLine) enlargeLine.hidden = true;
+        }
       });
       if (!viewer) return;
       viewer.resize(width, height);
@@ -1146,6 +1276,17 @@
       if (note) note.hidden = true;
       if (ok) { canvas.hidden = false; image.hidden = true; }
       else { canvas.hidden = true; image.hidden = false; }
+      if (ok && enlargeLine && enlargeButton && PihtiEnlarge) {
+        enlargeButton.addEventListener("click", function () {
+          if (canvas.hidden) return;
+          PihtiEnlarge.open(mesh, {
+            name: box.dataset.meshName,
+            folder: box.dataset.meshFolder,
+            still: image.currentSrc || image.src
+          }, enlargeButton);
+        });
+        enlargeLine.hidden = false;
+      }
     }
     if (image.complete) swap();
     else image.addEventListener("load", swap, { once: true });
