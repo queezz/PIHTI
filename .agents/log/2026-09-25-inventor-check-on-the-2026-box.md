@@ -65,3 +65,35 @@ open on files this box can read (`TempController.iam` and
   machine only.
 - The handout's step 5 line can be reproduced on this box by queezz himself
   from a PowerShell prompt; nothing in the tool blocked it.
+
+## Second run, Inventor 2027.1 (same evening)
+
+queezz started Inventor 2027.1 on this box, then uninstalled the older
+Inventors (owner decision 2026-09-25: this box runs 2027 only, so the
+directions item on Inventor versions across machines is withdrawn as settled).
+He had `bellows.iam` and its parts open, `rail.ipt` among them.
+
+| Check | Result |
+|---|---|
+| detection | `connect()` 2027.1 (Build 311270010, 270A), `PIHTI.ipj` active, unique filenames on, 11 owner documents open |
+| step 6 on rail.ipt | refused, as designed: `blocked: rail.ipt is open in Inventor: close it first`; `DRY RUN: nothing renamed or saved` |
+| step 6 on an unopened part | `BoronProbe/flange-adapter.ipt` -> `BoronProbe/BoronHead.iam: will repoint 1 reference`; dry run, file untouched |
+| export, 2027-saved file | `UFC-152.ipt` -> `exported` in 0.36 s to a short temp folder |
+| export, 2026-saved file | `CF-70-Tee.ipt` -> 370 kB STEP, also `.stp`; `SaveAs` copies to every length up to 259 characters wrote a file |
+| open documents after | still the owner's 11, nothing of ours left open |
+
+One false alarm on the way: `export_copy` into this session's scratch folder
+reported `failed: Inventor wrote no file` with no `ErrorManager` message. The
+scratch folder is 245 characters deep, so the temporary name pushed the
+target past the Windows 260-character path limit (259 wrote, 262 did not).
+The mirror's longest temporary path is 228 characters, so the tool is not
+affected; a target beyond 260 fails silently in Inventor, which is worth
+knowing if the mirror ever moves somewhere deeper. The STEP translator
+add-in is registered and active on 2027.
+
+Seen and left alone: the worktree carried the owner's own `bellows/bellows_1.iam`
+modification and an untracked `bellows/sourcing/` folder from his live
+session. Temp folders made for the length test were removed.
+
+Still not run, both save real files: the batch export and Stop from the STEP
+mirror page, and Fix in Inventor on the Wide Din Clip referrers.

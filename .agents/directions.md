@@ -3,29 +3,6 @@
 Forward-looking work only. Move completed outcomes to `CHANGELOG.md` and keep
 session evidence in `log/`.
 
-## Inventor versions across machines
-
-- Install the latest Inventor 2026 update on the second box, move that box to 2027, or keep every Inventor save on the 2027 machine — the owner's call.
-  The main workstation saves with Inventor 2027.1; the second box runs 2026
-  with no update installed, and a 2026 cannot open a file that 2027 saved.
-  Stakes: every part or assembly saved on the 2027 machine can no longer be
-  opened on the 2026 box, neither in Inventor nor through the tool, so the
-  mirror export, the Doctor fixes and the rename repair for those files run
-  only on the 2027 machine, and the list grows with every save there. Six
-  files were in that state on 2026-09-25: `bellows/bellows.iam`,
-  `ContentCenter/Electrics/gx12-aviation-connectors/GX12-2 Jack/GX12-2 Jack.iam`,
-  `ElectronicsBox/esp32-ambient-logger/STEPs/OLED 2.42 12864 v7/pcb.iam`,
-  `Plasma Vessel/Oring-probe-flange-with-GV.iam`,
-  `Plasma Vessel/Plasma-vacuum-cross/UFC-152.ipt`,
-  `Plasma Vessel_2026/contents/ICF114-through.ipt`.
-  Recommendation: install the current Inventor 2026 update on the 2026 box
-  first; Inventor's own refusal says a 2026 with the latest updates opens
-  parts and assemblies one year newer. If bellows.iam still refuses, move that
-  box to 2027.
-  Safe default: nothing changes on disk. The 2026 box keeps exporting and
-  repairing files saved by 2026 or older; the six 2027 files fail to open there
-  until they are handled on the 2027 machine.
-
 ## Dedup viewer — next review slice
 
 - Which of the two temperature-controller folders is the live one,

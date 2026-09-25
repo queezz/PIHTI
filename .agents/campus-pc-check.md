@@ -117,8 +117,9 @@ and Inventor shows its "saved in a newer version" prompt (press Close).
 `bellows.iam` was saved by Inventor 2027.1 on 2026-09-24, and a 2026 without
 its latest update cannot open it. That is a version finding, not an
 automation failure: the plan step reached Inventor and Inventor refused the
-file. Observed 2026-09-25 on the 2026 box; see the directions item on
-Inventor versions across machines.
+file. Observed 2026-09-25 on the second box before its older Inventors
+were removed; the log `2026-09-25-inventor-check-on-the-2026-box.md`
+has both runs.
 
 ## 7. Stop
 
