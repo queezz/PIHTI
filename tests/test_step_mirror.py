@@ -231,9 +231,7 @@ def test_export_copy_reports_a_failure_and_a_timeout(tmp_path: Path) -> None:
     assert timed_out.outcome == TIMED_OUT and not target.exists()
 
 
-def test_export_many_stops_when_the_budget_is_spent_or_inventor_stops_answering(
-    tmp_path: Path,
-) -> None:
+def test_export_many_stops_at_the_budget(tmp_path: Path) -> None:
     root = make_workspace(tmp_path / "PIHTI")
     names = ("old", "mid", "new")
     pairs = [(root / f"Frame/parts/{name}.ipt", tmp_path / f"{name}.ipt.step") for name in names]
@@ -243,8 +241,19 @@ def test_export_many_stops_when_the_budget_is_spent_or_inventor_stops_answering(
         fake_session(fake_for(root)), pairs, budget_seconds=10, clock=lambda: next(ticks)
     )
     assert [result.source.stem for result in results] == ["old", "mid"]
-    assert inventor_session.export_many(fake_session(fake_for(root)), pairs, budget_seconds=0) == []
+    assert results.stopped_because is None
+    empty = inventor_session.export_many(fake_session(fake_for(root)), pairs, budget_seconds=0)
+    assert empty == [] and empty.stopped_because is None
 
+
+def test_export_many_stops_when_a_timeout_leaves_inventor_not_answering(tmp_path: Path) -> None:
+    root = make_workspace(tmp_path / "PIHTI")
+    names = ("old", "mid", "new")
+    pairs = [(root / f"Frame/parts/{name}.ipt", tmp_path / f"{name}.ipt.step") for name in names]
+
+    # The worker that timed out is still stuck on Inventor's own call, so the
+    # probe that follows the timeout fails at once too (it needs the same
+    # session, which `_busy` still marks as taken).
     stuck = fake_for(root)
     stuck.hang = ("saveas", str(pairs[0][0]).casefold())
     seen: list = []
@@ -255,6 +264,53 @@ def test_export_many_stops_when_the_budget_is_spent_or_inventor_stops_answering(
     finally:
         stuck.release.set()
     assert [result.outcome for result in results] == [TIMED_OUT] and seen == results
+    assert results.stopped_because == inventor_session.NOT_ANSWERING
+
+
+def test_export_many_continues_past_a_timeout_when_inventor_still_answers(
+    tmp_path: Path, monkeypatch
+) -> None:
+    root = make_workspace(tmp_path / "PIHTI")
+    names = ("old", "mid", "new")
+    pairs = [(root / f"Frame/parts/{name}.ipt", tmp_path / f"{name}.ipt.step") for name in names]
+    session = fake_session(fake_for(root))
+    monkeypatch.setattr(session, "open_documents", lambda **_: set())
+
+    attempted: list = []
+
+    def export(session, source, target, *, timeout):
+        attempted.append(source.stem)
+        outcome = TIMED_OUT if source.stem == "mid" else EXPORTED
+        return inventor_session.ExportResult(source, target, outcome)
+
+    results = inventor_session.export_many(session, pairs, export=export)
+
+    assert attempted == ["old", "mid", "new"]
+    assert [result.outcome for result in results] == [EXPORTED, TIMED_OUT, EXPORTED]
+    assert results.stopped_because is None
+
+
+def test_export_many_stops_when_the_post_timeout_probe_itself_fails(
+    tmp_path: Path, monkeypatch
+) -> None:
+    root = make_workspace(tmp_path / "PIHTI")
+    names = ("old", "mid", "new")
+    pairs = [(root / f"Frame/parts/{name}.ipt", tmp_path / f"{name}.ipt.step") for name in names]
+    session = fake_session(fake_for(root))
+
+    def refuses(**_kwargs):
+        raise inventor_session.SessionTimeout()
+
+    monkeypatch.setattr(session, "open_documents", refuses)
+
+    def export(session, source, target, *, timeout):
+        outcome = TIMED_OUT if source.stem == "mid" else EXPORTED
+        return inventor_session.ExportResult(source, target, outcome)
+
+    results = inventor_session.export_many(session, pairs, export=export)
+
+    assert [result.source.stem for result in results] == ["old", "mid"]
+    assert results.stopped_because == inventor_session.NOT_ANSWERING
 
 
 def test_the_first_export_creates_the_mirror_its_readme_and_the_index(
@@ -279,6 +335,44 @@ def test_the_first_export_creates_the_mirror_its_readme_and_the_index(
 
     refused = mirror.export(fake_session(fake_for(root)), "Frame/OldVersions/frame.iam")
     assert refused.outcome == step_mirror.NOT_MIRRORED
+
+
+def test_sync_does_not_retry_a_file_that_already_timed_out_this_run(
+    tmp_path: Path, monkeypatch, step_mirror_folder: Path
+) -> None:
+    """A file that timed out once this run is not opened in Inventor again.
+
+    `export_many` may continue past a timeout to later files (see its own
+    tests); this checks the guarantee at the `StepMirror.sync` level, where a
+    repeat of the same relative path in the queue must not knock on Inventor's
+    door a second time for it.
+    """
+
+    root = make_workspace(tmp_path / "PIHTI")
+    mirror = StepMirror(root)
+    session = fake_session(fake_for(root))
+    monkeypatch.setattr(session, "open_documents", lambda **_: set())
+
+    calls: list[str] = []
+
+    def export(session, relative, *, timeout=inventor_session.DEFAULT_TIMEOUT):
+        calls.append(relative)
+        outcome = TIMED_OUT if relative.casefold() == "frame/parts/mid.ipt" else EXPORTED
+        return inventor_session.ExportResult(root / relative, mirror.target(relative), outcome)
+
+    monkeypatch.setattr(mirror, "export", export)
+
+    relatives = [
+        "Frame/parts/old.ipt",
+        "Frame/parts/mid.ipt",
+        "Frame/parts/mid.ipt",  # a repeat in the queue
+        "Frame/parts/new.ipt",
+    ]
+    results = mirror.sync(session, relatives)
+
+    assert [result.outcome for result in results] == [EXPORTED, TIMED_OUT, TIMED_OUT, EXPORTED]
+    assert results.stopped_because is None
+    assert calls == ["Frame/parts/old.ipt", "Frame/parts/mid.ipt", "Frame/parts/new.ipt"]
 
 
 # ---- the background job -----------------------------------------------------
@@ -489,6 +583,66 @@ def test_cli_sync_launch_uses_a_running_inventor_instead(
     monkeypatch.setattr(inventor_session, "launch", never)
     assert cli.main(["step-mirror", "sync", str(root), "--launch"]) == 0
     assert "started hidden" not in capsys.readouterr().out
+
+
+def test_cli_sync_reports_when_inventor_stops_answering_after_a_timeout(
+    tmp_path: Path, monkeypatch, capsys
+) -> None:
+    root = make_workspace(tmp_path / "PIHTI")
+    session = fake_session(fake_for(root))
+    monkeypatch.setattr(inventor_session, "connect", lambda **_: session)
+
+    probe_calls = {"n": 0}
+
+    def open_documents(**_kwargs):
+        probe_calls["n"] += 1
+        if probe_calls["n"] == 1:
+            return set()  # the CLI's own open-in-Inventor check, before sync starts
+        raise inventor_session.SessionTimeout()  # the post-timeout probe finds no one home
+
+    monkeypatch.setattr(session, "open_documents", open_documents)
+
+    def export(self, session, relative, *, timeout=inventor_session.DEFAULT_TIMEOUT):
+        outcome = TIMED_OUT if relative == "Frame/parts/mid.ipt" else EXPORTED
+        return inventor_session.ExportResult(self.workspace / relative, self.target(relative), outcome)
+
+    monkeypatch.setattr(step_mirror.StepMirror, "export", export)
+
+    code = cli.main(["step-mirror", "sync", str(root)])
+
+    out = capsys.readouterr().out
+    assert code == 1
+    assert "exported 1 · not exported 1 · not started 2" in out
+    assert f"stopped: {inventor_session.NOT_ANSWERING} · 2 not started" in out
+
+
+def test_cli_sync_lists_failures_by_path_and_outcome_when_it_runs_to_the_end(
+    tmp_path: Path, monkeypatch, capsys
+) -> None:
+    root = make_workspace(tmp_path / "PIHTI")
+    session = fake_session(fake_for(root))
+    monkeypatch.setattr(inventor_session, "connect", lambda **_: session)
+    monkeypatch.setattr(session, "open_documents", lambda **_: set())
+
+    def export(self, session, relative, *, timeout=inventor_session.DEFAULT_TIMEOUT):
+        if relative == "Frame/parts/mid.ipt":
+            outcome = TIMED_OUT
+        elif relative == "Frame/parts/new.ipt":
+            outcome = "failed: the translator failed"
+        else:
+            outcome = EXPORTED
+        return inventor_session.ExportResult(self.workspace / relative, self.target(relative), outcome)
+
+    monkeypatch.setattr(step_mirror.StepMirror, "export", export)
+
+    code = cli.main(["step-mirror", "sync", str(root)])
+
+    out = capsys.readouterr().out
+    assert code == 1
+    assert "exported 2 · not exported 2 · not started 0" in out
+    assert "stopped:" not in out
+    assert "Frame\\parts\\mid.ipt: timeout" in out
+    assert "Frame\\parts\\new.ipt: failed: the translator failed" in out
 
 
 def test_cli_export_one_file(tmp_path: Path, monkeypatch, capsys, step_mirror_folder: Path) -> None:

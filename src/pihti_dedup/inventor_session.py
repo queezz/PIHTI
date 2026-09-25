@@ -56,6 +56,11 @@ REPAIRED = "repaired"
 SKIPPED_OPEN = "skipped-open-in-inventor"
 NO_DESCRIPTOR = "no-descriptor"
 NO_ANSWER = "Inventor did not answer (a dialog may be open)"
+#: Why `export_many` gave up on the rest of a batch: the post-timeout probe
+#: itself got no answer. Worded separately from `NO_ANSWER` above (which is a
+#: single call's own failure, not a batch's) because it is user-facing text on
+#: the CLI's `stopped:` line.
+NOT_ANSWERING = "Inventor is not answering (a dialog may be open)"
 CLOSE_FIRST = "open in Inventor: close it first"
 EXPORTED = "exported"
 TIMED_OUT = "timeout"
@@ -660,6 +665,21 @@ def _discard(path: Path) -> None:
         pass
 
 
+class BatchOutcome(list):
+    """The `ExportResult` list `export_many` returns, plus why it stopped early.
+
+    A plain `list` subclass, so every existing caller that iterates it,
+    indexes it, or compares it to a list keeps working unchanged; only a
+    caller that reads `.stopped_because` sees the new information.
+    """
+
+    def __init__(
+        self, results: Iterable[ExportResult] = (), *, stopped_because: str | None = None
+    ) -> None:
+        super().__init__(results)
+        self.stopped_because = stopped_because
+
+
 def export_many(
     session: Session,
     pairs: Iterable[tuple[Path, Path]],
@@ -669,19 +689,30 @@ def export_many(
     on_result: Callable[[ExportResult], None] | None = None,
     clock: Callable[[], float] = time.monotonic,
     export: Callable[..., ExportResult] | None = None,
-) -> list[ExportResult]:
+) -> BatchOutcome:
     """Export each (source, target) pair in order until the budget is spent.
 
     A pair is started only while less than `budget_seconds` has passed (None:
-    no budget). A timeout stops the batch: the session is still waiting on
-    Inventor and would refuse the next call. `export` replaces `export_copy`
-    (same arguments), so a caller can record each result as it lands.
+    no budget). `export` replaces `export_copy` (same arguments), so a caller
+    can record each result as it lands.
+
+    A timeout no longer stops the batch outright: one file being slow, or one
+    modal dialog that a later `ReplaceReference`/`Save2` never triggers, does
+    not have to cost every file still queued. After a `timeout` result, the
+    session is probed once with `open_documents` (bounded by `PROBE_TIMEOUT`,
+    any exception counts as "did not answer"). If it answers, Inventor is free
+    again and the batch continues with the next pair, leaving the timed-out
+    file as `timeout` in the results. If it does not, Inventor is still stuck
+    on whatever call timed out and would refuse the next call anyway, so the
+    batch stops; `stopped_because` on the returned `BatchOutcome` then holds
+    `NOT_ANSWERING`, otherwise it is `None`.
     """
 
     export = export or export_copy
 
     started = clock()
     results: list[ExportResult] = []
+    stopped_because: str | None = None
     for source, target in pairs:
         if budget_seconds is not None and clock() - started >= budget_seconds:
             break
@@ -690,8 +721,12 @@ def export_many(
         if on_result is not None:
             on_result(result)
         if result.outcome == TIMED_OUT:
-            break
-    return results
+            try:
+                session.open_documents(timeout=PROBE_TIMEOUT)
+            except Exception:  # noqa: BLE001 - the probe's whole job is to answer or not
+                stopped_because = NOT_ANSWERING
+                break
+    return BatchOutcome(results, stopped_because=stopped_because)
 
 
 def launch(*, timeout: float = PROBE_TIMEOUT) -> tuple[Session, Callable[[], None]] | None:

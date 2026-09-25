@@ -194,11 +194,12 @@ def cache_path(store: Path | str, key: str) -> Path:
     return Path(store) / key[:2] / f"{key}.png"
 
 
-def load_triangles(path: Path | str):
+def load_triangles(path: Path | str, *, fine: bool = False):
     """The (N, 3, 3) float32 triangles of an STL, 3MF, or STEP file, or None.
 
     The one loader behind both the still preview and the inspector's 3D mesh,
-    so the two always show the same geometry. None means the format is not a
+    so the two always show the same geometry (`fine` only tightens the STEP
+    tessellation for the viewport). None means the format is not a
     mesh or its extra is not installed; a parse failure raises.
     """
 
@@ -211,7 +212,7 @@ def load_triangles(path: Path | str):
     if suffix in MESH_EXTENSIONS:
         return mesh_render.load_stl(target)
     if suffix in STEP_EXTENSIONS:
-        return mesh_render.load_step(target)
+        return mesh_render.load_step(target, fine=fine)
     if suffix in TRIMESH_EXTENSIONS:
         return mesh_render.load_trimesh(target)
     return None

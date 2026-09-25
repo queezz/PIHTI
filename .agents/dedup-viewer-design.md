@@ -529,6 +529,10 @@ is the only path that starts Inventor: hidden (`CreateObject`, then
 `Visible = False`), only when no session exists, and always `Quit()` in
 `finally`; it is untested against a real Inventor. While an export runs
 Inventor is busy for its owner as well, for the few seconds an open costs.
+0.24.2: a `sync` timeout no longer ends the whole batch by itself — it probes
+the session once and keeps going through the rest of the queue if Inventor
+still answers, stopping only when the probe itself gets no answer, which the
+CLI then reports on its own `stopped:` line.
 
 ## Purpose
 

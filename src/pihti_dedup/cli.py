@@ -630,7 +630,13 @@ def _step_mirror(workspace: Path, args) -> int:
     exported = sum(result.exported for result in results)
     left = len(waiting) - len(results)
     print(f"exported {exported} · not exported {len(results) - exported} · not started {left}")
-    return 0 if all(result.exported for result in results) else 1
+    if results.stopped_because:
+        print(f"stopped: {results.stopped_because} · {left} not started")
+        return 1
+    failed = [result for result in results if not result.exported]
+    for result in failed:
+        print(f"  {_relative(workspace, result.source)}: {result.outcome}")
+    return 1 if failed else 0
 
 
 def _print_notes_check(result: CheckResult) -> None:

@@ -61,7 +61,7 @@ from pihti_dedup.cache_root import cache_root
 log = logging.getLogger(__name__)
 
 #: Bump when the binary layout or the geometry it carries changes.
-MESH_FORMAT_VERSION = 2
+MESH_FORMAT_VERSION = 3  # 3: STEP tessellated at viewport tolerance
 MAGIC = b"PIHTIMESH\0\0\0"
 HEADER = struct.Struct("<12sII6f")
 
@@ -184,7 +184,7 @@ def build(path: Path | str, *, include_normals: bool = False) -> MeshResult:
     if reason:
         return MeshResult(reason=reason)
     try:
-        triangles = geometry_preview.load_triangles(target)
+        triangles = geometry_preview.load_triangles(target, fine=True)
         if triangles is None:
             return MeshResult(reason=unavailable_reason(target.suffix) or "not a mesh format")
         if len(triangles) > MAX_TRIANGLES:

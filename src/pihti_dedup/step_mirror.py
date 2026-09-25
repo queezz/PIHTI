@@ -408,13 +408,29 @@ class StepMirror:
         budget_seconds: float | None = None,
         per_file_timeout: float = inventor_session.DEFAULT_TIMEOUT,
         on_result: Callable[[ExportResult], None] | None = None,
-    ) -> list[ExportResult]:
-        """Export several documents in order through `export_many`, recording each."""
+    ) -> inventor_session.BatchOutcome:
+        """Export several documents in order through `export_many`, recording each.
+
+        A file that times out is not tried again within this call: if it
+        appears more than once in `relatives` (a caller's queue is not
+        expected to repeat one, but this run does not depend on that), the
+        second occurrence is reported as the same `timeout` without opening
+        Inventor again. `export_many` may still continue past the timeout to
+        later files in the same run; see its docstring.
+        """
 
         pairs = [(self.workspace / relative, self.target(relative)) for relative in relatives]
+        timed_out_this_run: set[str] = set()
 
         def export(session: Session, source: Path, _target: Path, *, timeout: float):
-            return self.export(session, source.relative_to(self.workspace).as_posix(), timeout=timeout)
+            relative = source.relative_to(self.workspace).as_posix()
+            key = relative.casefold()
+            if key in timed_out_this_run:
+                return ExportResult(source, self.target(relative), inventor_session.TIMED_OUT)
+            result = self.export(session, relative, timeout=timeout)
+            if result.outcome == inventor_session.TIMED_OUT:
+                timed_out_this_run.add(key)
+            return result
 
         return inventor_session.export_many(
             session,

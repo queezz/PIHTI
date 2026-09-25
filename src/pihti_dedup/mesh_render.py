@@ -121,8 +121,13 @@ def load_trimesh(path: Path | str) -> np.ndarray:
     return np.ascontiguousarray(np.concatenate(parts, axis=0))
 
 
-def load_step(path: Path | str) -> np.ndarray:
+def load_step(path: Path | str, *, fine: bool = False) -> np.ndarray:
     """Tessellate a STEP file through cascadio (OpenCascade) and return triangles.
+
+    `fine` is for the interactive viewport: a STEP holds exact surfaces and the
+    facets only appear at tessellation, so a bolt thread coarsened at preview
+    tolerance looked like a student's low-polygon export. The still preview
+    keeps the coarse setting; it is 128 px and the cost is the parser anyway.
 
     OpenCascade's file IO cannot open a non-ASCII path on Windows, and this
     workspace has STEP files with Japanese names, so a non-ASCII source is
@@ -143,7 +148,10 @@ def load_step(path: Path | str) -> np.ndarray:
             stage = work / ("input" + source.suffix.lower())
             shutil.copyfile(source, stage)
         glb = work / "out.glb"
-        cascadio.step_to_glb(str(stage), str(glb), tol_linear=0.1, tol_angular=0.5)
+        if fine:
+            cascadio.step_to_glb(str(stage), str(glb), tol_linear=0.01, tol_angular=0.15)
+        else:
+            cascadio.step_to_glb(str(stage), str(glb), tol_linear=0.1, tol_angular=0.5)
         if not glb.exists():
             raise RuntimeError("cascadio produced no output")
         return load_trimesh(glb)

@@ -6,6 +6,19 @@ remains authoritative for exact file changes.
 
 ## 2026-09-25
 
+- Shipped `pihti-dedup` 0.24.2: `step-mirror sync` no longer stops the whole
+  batch on the first file Inventor is slow to answer for. After a timeout it
+  probes the session once; if Inventor answers, the batch continues past that
+  one file (left as `timeout`) instead of abandoning everything still queued.
+  Only a session that genuinely stops answering (a modal dialog left open)
+  still stops the batch, and the CLI now says so on its own line
+  (`stopped: Inventor is not answering (a dialog may be open) · N not
+  started`, exit 1); a batch that runs to the end with some failures lists
+  them by path and outcome after the counts.
+  The viewport also tessellates STEP finely now (a bolt thread that looked
+  like a low-polygon export was the viewer's own coarse setting; the stills
+  stay coarse), and cached meshes rebuild on next view.
+
 - Shipped `pihti-dedup` 0.24.1: the STEP mirror index is swapped into place
   with a short retry, because Dropbox holds a freshly written file for a
   moment and the first real `step-mirror sync` lost one index write to that
