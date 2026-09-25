@@ -446,7 +446,25 @@ the view; F on the shown tile), a native `<dialog>` the reader opens and
 closes that fills the window but 12px and draws the already-fetched mesh on
 its own canvas and camera, refits on resize, closes on Escape, × or a press
 that starts on the backdrop, returns focus to its opener, and gives its GL
-context back on close.
+context back on close. Since 0.25.0 one slim mesh-tools line sits under every
+preview that can turn in 3D (the inspector's, where it always takes its line
+and is only made invisible for a file without 3D so the preview never changes
+height; the part page's; the dialog's head): Still | 3D (kept for every file
+in `localStorage`; Still shows the source image, Inventor's own thumbnail for
+`.ipt`/`.iam`, and fetches nothing; Enlarge then shows that still large), Y
+up | Z up, and a section plane Off / X / Y / Z with its place 0–100 % across
+the mesh's box. The up axis defaults from the mesh URL's extension: an Inventor
+file's STEP comes out of Inventor Y up, so `.ipt`/`.iam` open Y up at
+Inventor's Home view (eye (1, 1, 1): front-right-top, elevation
+atan(1/√2)); STL, 3MF and STEP keep the stills' Z-up home. A flip is kept per
+file path. The section is a `uClip` plane in mesh space: the fragment shader
+discards what lies beyond it (the half toward the eye when the axis was
+chosen) and, while it is set, shades back faces (`gl_FrontFacing`) at 0.55 so
+the exposed inside reads as a cut; no caps. It applies to the shown file only,
+and the dialog starts from the small view's up axis and section with its own
+copy of the controls. A lost WebGL context no longer leaves the view on the
+still for good: the viewer is disposed, its canvas replaced by a fresh clone,
+and the next load builds a new viewer.
 
 Version 0.23.1 gives the inspector's preview real room and moves the
 rebuildable caches off Dropbox. At 1920×900, the common docked-laptop and

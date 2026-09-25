@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% from "_file_tile.html" import file_tile, hero_tile, legend_card, mesh_dialog %}
+{% from "_file_tile.html" import file_tile, hero_tile, legend_card, mesh_dialog, mesh_tools %}
 {% from "_folder_tree.html" import tree_rail, catalog_bar %}
 {% block title %}{% if query %}Search{% elif path != '.' %}{{ name }}{% else %}Catalog{% endif %} · PIHTI{% endblock %}
 
@@ -192,6 +192,9 @@
             <img data-inspector-image alt="">
             <canvas class="mesh-canvas" data-inspector-canvas hidden title="Drag to turn · wheel to zoom · right-drag or Shift-drag to pan · double-click for the starting view"></canvas>
           </div>
+          {# Always takes its line, idle (invisible) for a file with no 3D,
+             so the preview above never changes height. #}
+          {{ mesh_tools(idle=true) }}
           <p class="mesh-note" data-inspector-mesh-note hidden></p>
           {# An Inventor file turns from its STEP in the mirror; without a
              current one the script shows this line in the note's place. #}

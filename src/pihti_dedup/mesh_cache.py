@@ -36,8 +36,11 @@ Four rules, mirroring `geometry_preview`:
    stored: installing an extra or raising the cap must not be masked by a
    stale marker.
 3. **A cap, not a stream.** A mesh above `MAX_TRIANGLES` is not served; the
-   inspector keeps the still image. At the cap a positions-only mesh is
-   about 72 MB.
+   inspector keeps the still image. A STEP that is over the cap at the fine
+   viewport tolerance falls back to `geometry_preview.load_triangles`'s coarse
+   tessellation and is served if that fits; only a STEP still over the cap at
+   coarse is refused. STL and 3MF have no tolerance to fall back to and are
+   refused directly. At the cap a positions-only mesh is about 72 MB.
 4. **Normals are optional, never required.** `encode` and every caller default
    to leaving them out; `include_normals=True` is only for the derivative-less
    fallback.
@@ -89,6 +92,7 @@ class MeshResult:
     data: bytes | None = None
     reason: str = ""
     triangles: int = 0
+    coarse: bool = False
 
 
 def eligible(suffix: str) -> bool:
@@ -183,10 +187,17 @@ def build(path: Path | str, *, include_normals: bool = False) -> MeshResult:
     reason = unavailable_reason(target.suffix)
     if reason:
         return MeshResult(reason=reason)
+    is_step = target.suffix.casefold() in geometry_preview.STEP_EXTENSIONS
+    coarse = False
     try:
         triangles = geometry_preview.load_triangles(target, fine=True)
         if triangles is None:
             return MeshResult(reason=unavailable_reason(target.suffix) or "not a mesh format")
+        if len(triangles) > MAX_TRIANGLES and is_step:
+            # STL and 3MF have no tolerance to retry at; only a STEP can be
+            # re-tessellated coarser and still be the same file the reader sees.
+            triangles = geometry_preview.load_triangles(target, fine=False)
+            coarse = True
         if len(triangles) > MAX_TRIANGLES:
             return MeshResult(reason=TOO_LARGE, triangles=len(triangles))
         data = encode(triangles, include_normals=include_normals)
@@ -196,7 +207,7 @@ def build(path: Path | str, *, include_normals: bool = False) -> MeshResult:
         log.warning("mesh build failed for %s", target, exc_info=True)
         return MeshResult(reason=UNREADABLE)
     _version, count, _box = read_header(data)
-    return MeshResult(data=data, triangles=count)
+    return MeshResult(data=data, triangles=count, coarse=coarse)
 
 
 def read_cached(store: Path | str, key: str) -> bytes | None:

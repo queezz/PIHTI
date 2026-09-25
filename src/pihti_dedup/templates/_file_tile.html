@@ -88,15 +88,42 @@
 </div>
 {% endmacro %}
 
-{# Enlarge: a deliberate modal the reader opens from a shown 3D view and
+{# The mesh tools: one slim line under every preview that can turn in 3D.
+   Still or 3D (kept for every file; Still downloads nothing), which axis is
+   up (Y for an Inventor file, Z for the rest; a flip is kept per file), and
+   a section plane on one of the mesh's own axes with its place across the
+   part. The script sets every state; the line keeps its height when idle. #}
+{% macro mesh_tools(idle=false) %}
+<div class="mesh-tools{% if idle %} is-idle{% endif %}" data-mesh-tools>
+  <span class="mesh-tools-group" role="group" aria-label="Preview">
+    <button class="copy-path inspector-flag mesh-tool" type="button" data-mesh-view="still" aria-pressed="false" title="Show the still image; nothing is downloaded">Still</button>
+    <button class="copy-path inspector-flag mesh-tool" type="button" data-mesh-view="3d" aria-pressed="true" title="Turn the file in 3D">3D</button>
+  </span>
+  <span class="mesh-tools-group" role="group" aria-label="Up axis">
+    <button class="copy-path inspector-flag mesh-tool" type="button" data-mesh-up="y" aria-pressed="false" title="Y up, as Inventor shows it">Y up</button>
+    <button class="copy-path inspector-flag mesh-tool" type="button" data-mesh-up="z" aria-pressed="false" title="Z up">Z up</button>
+  </span>
+  <span class="mesh-tools-group mesh-tools-section" role="group" aria-label="Section">
+    <button class="copy-path inspector-flag mesh-tool" type="button" data-mesh-cut="off" aria-pressed="false" title="No section">Off</button>
+    <button class="copy-path inspector-flag mesh-tool" type="button" data-mesh-cut="x" aria-pressed="false" title="Section across the part's X axis">X</button>
+    <button class="copy-path inspector-flag mesh-tool" type="button" data-mesh-cut="y" aria-pressed="false" title="Section across the part's Y axis">Y</button>
+    <button class="copy-path inspector-flag mesh-tool" type="button" data-mesh-cut="z" aria-pressed="false" title="Section across the part's Z axis">Z</button>
+    <input class="mesh-cut-at" type="range" min="0" max="100" step="0.5" value="50" data-mesh-cut-at aria-label="Section position" title="Where the section sits across the part" disabled>
+  </span>
+</div>
+{% endmacro %}
+
+{# Enlarge: a deliberate modal the reader opens from a shown preview and
    closes with Escape, × or the backdrop. One large canvas holds the same
-   mesh (already fetched) with its own camera; the still is its fallback. #}
+   mesh (already fetched) with its own camera and its own mesh tools, set
+   from the small view's; the still is its fallback and its Still. #}
 {% macro mesh_dialog() %}
 <dialog class="mesh-dialog" id="mesh-dialog" aria-labelledby="mesh-dialog-name" data-mesh-dialog>
   <div class="mesh-dialog-shell">
     <header class="mesh-dialog-head">
       <strong id="mesh-dialog-name" data-mesh-dialog-name></strong>
       <span class="mesh-dialog-folder" data-mesh-dialog-folder></span>
+      {{ mesh_tools() }}
       <button class="dialog-close-x" type="button" data-mesh-dialog-close aria-label="Close enlarged view">×</button>
     </header>
     <div class="mesh-dialog-stage" data-mesh-dialog-stage>

@@ -6,6 +6,21 @@ remains authoritative for exact file changes.
 
 ## 2026-09-25
 
+- Shipped `pihti-dedup` 0.25.0: one quiet mesh-tools line under every 3D
+  preview (inspector, part page, Enlarge). Still | 3D, remembered for every
+  file: Still shows the source image (Inventor's own thumbnail for `.ipt` and
+  `.iam`) and downloads nothing, and Enlarge then shows that still large. Y up
+  | Z up: Inventor files now open Y up at Inventor's Home view (front, right,
+  top), STL, 3MF and STEP keep the stills' Z-up view, and a flip is remembered
+  per file. Section Off / X / Y / Z with a slider across the part: the half
+  toward you is cut away and the inside shows darker; it resets when another
+  file is shown, and Enlarge opens with the same up axis and section. The
+  inspector's preview keeps its height with the line in place. A lost WebGL
+  context no longer leaves every later file on its still: the next file (or 3D
+  again) gets a new viewer.
+  A STEP too heavy at the viewport tolerance (the three-bellows assembly is
+  3.8 million triangles) now retries at the coarse tessellation before the
+  inspector refuses it as too large.
 - Shipped `pihti-dedup` 0.24.4: the STEP mirror no longer opens an assembly
   that would make Inventor stop and ask. Before an `.iam` is exported, the
   names it embeds are looked up in the workspace: a name carried by two or

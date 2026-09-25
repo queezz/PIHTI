@@ -337,7 +337,11 @@ view large in a window-sized dialog with its own camera; Escape, ×, or a click
 outside closes it. An Inventor part or assembly turns in 3D from its copy in
 the STEP mirror (below) and keeps its still preview until that copy exists.
 A mesh too large to send (over 2,000,000 triangles) keeps the still image with
-a one-line note.
+a one-line note. The line under the view switches between the still image and
+3D (remembered; Still downloads nothing), between Y up (the default for an
+Inventor file, as Inventor shows it) and Z up (the default for STL, 3MF and
+STEP; a flip is remembered per file), and sets a section plane on the part's
+X, Y or Z axis with a slider for where it cuts.
 
 #### STEP mirror
 

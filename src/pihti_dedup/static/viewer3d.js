@@ -3,16 +3,24 @@
 
   // A small WebGL viewport for the meshes `/mesh/<path>` serves: flat-shaded
   // triangles under one key light plus ambient, an orthographic camera fit to
-  // the bounding box, and the isometric home view of the still previews
-  // (front / right / above, Z up). Left-drag turns, the wheel zooms toward the
-  // pointer, right-drag or Shift-drag pans, double-click returns home. No
-  // library: positions and normals go to the GPU as they arrive.
+  // the bounding box, and an isometric home view: the still previews' (front /
+  // right / above, Z up) or Inventor's Home view (front / right / top, Y up).
+  // Left-drag turns, the wheel zooms toward the pointer, right-drag or
+  // Shift-drag pans, double-click returns home. An optional section plane
+  // hides the mesh beyond it. No library: positions go to the GPU as they arrive.
 
   var MAGIC = "PIHTIMESH";
   var HEADER_BYTES = 44;
   var MEMO_LIMIT = 6;
-  var HOME_AZIMUTH = Math.atan2(-1, 1);  // mesh_render.ISO_EYE = (1, -1, 0.72)
-  var HOME_ELEVATION = Math.atan2(0.72, Math.SQRT2);
+  // Per up axis: the two horizontal axes (a x b = up) the azimuth turns
+  // between, and the home eye. Z up is mesh_render.ISO_EYE = (1, -1, 0.72);
+  // Y up is Inventor's Home view, eye (1, 1, 1) with X right, Z toward you.
+  var UPS = {
+    z: { a: [1, 0, 0], b: [0, 1, 0], up: [0, 0, 1], azimuth: Math.atan2(-1, 1), elevation: Math.atan2(0.72, Math.SQRT2) },
+    y: { a: [0, 0, 1], b: [1, 0, 0], up: [0, 1, 0], azimuth: Math.atan2(1, 1), elevation: Math.atan2(1, Math.SQRT2) }
+  };
+  var BACK_SHADE = 0.55;  // the inside of a cut mesh, so the cut reads as one
+  var NO_CLIP = [0, 0, 0, 1];
   var MARGIN = 0.06;  // the still previews' frame padding
   // The stills are transparent PNGs composited onto the preview box's own
   // CSS background (dedup.css --mesh-backdrop); this clear colour is read
@@ -32,11 +40,22 @@
   // position changes across the triangle (`OES_standard_derivatives`), so a
   // heavy mesh's payload can skip the normals a flat-shaded triangle does not
   // need. `create` compiles whichever the browser supports.
-  var LIGHT_UNIFORMS = ["uniform vec3 uKey;", "uniform vec3 uBase;", "uniform float uAmbient;", "uniform float uFill;"];
+  // Both also discard what lies beyond the section plane (`uClip`, in mesh
+  // space; NO_CLIP keeps everything) and, while one is set, darken a back
+  // face: the inside the cut exposes. A derivative normal always faces the
+  // viewer, so the pre-flip sign is the rasterizer's `gl_FrontFacing` (the
+  // payload's normals follow the same winding).
+  var PRECISION = "#ifdef GL_FRAGMENT_PRECISION_HIGH\nprecision highp float;\n#else\nprecision mediump float;\n#endif";
+  var LIGHT_UNIFORMS = [
+    "uniform vec3 uKey;", "uniform vec3 uBase;", "uniform float uAmbient;", "uniform float uFill;",
+    "uniform vec4 uClip;", "uniform float uBack;", "varying vec3 vMesh;"
+  ];
+  var CLIP_BODY = ["  if (dot(vMesh, uClip.xyz) > uClip.w) discard;"];
   var LIGHT_BODY = [
+    "  float shade = gl_FrontFacing ? 1.0 : uBack;",
     "  if (n.z < 0.0) n = -n;",  // two-sided, as the still renderer is
     "  float light = uAmbient + (1.0 - uAmbient) * max(dot(n, uKey), 0.0) + uFill * n.z;",
-    "  gl_FragColor = vec4(min(clamp(light, 0.0, 1.15) * uBase, vec3(1.0)), 1.0);"
+    "  gl_FragColor = vec4(min(clamp(light, 0.0, 1.15) * shade * uBase, vec3(1.0)), 1.0);"
   ];
 
   var VERTEX_ATTR = [
@@ -46,14 +65,16 @@
     "uniform mat4 uProjection;",
     "uniform mat3 uNormal;",
     "varying vec3 vNormal;",
+    "varying vec3 vMesh;",
     "void main() {",
     "  vNormal = uNormal * aNormal;",
+    "  vMesh = aPosition;",
     "  gl_Position = uProjection * uView * vec4(aPosition, 1.0);",
     "}"
   ].join("\n");
 
-  var FRAGMENT_ATTR = ["precision mediump float;", "varying vec3 vNormal;"]
-    .concat(LIGHT_UNIFORMS, ["void main() {", "  vec3 n = normalize(vNormal);"], LIGHT_BODY, ["}"])
+  var FRAGMENT_ATTR = [PRECISION, "varying vec3 vNormal;"]
+    .concat(LIGHT_UNIFORMS, ["void main() {"], CLIP_BODY, ["  vec3 n = normalize(vNormal);"], LIGHT_BODY, ["}"])
     .join("\n");
 
   var VERTEX_FLAT = [
@@ -61,15 +82,18 @@
     "uniform mat4 uView;",
     "uniform mat4 uProjection;",
     "varying vec3 vViewPos;",
+    "varying vec3 vMesh;",
     "void main() {",
+    "  vMesh = aPosition;",
     "  vec4 p = uView * vec4(aPosition, 1.0);",
     "  vViewPos = p.xyz;",
     "  gl_Position = uProjection * p;",
     "}"
   ].join("\n");
 
-  var FRAGMENT_FLAT = ["#extension GL_OES_standard_derivatives : enable", "precision mediump float;", "varying vec3 vViewPos;"]
-    .concat(LIGHT_UNIFORMS, ["void main() {", "  vec3 n = normalize(cross(dFdx(vViewPos), dFdy(vViewPos)));"], LIGHT_BODY, ["}"])
+  var FRAGMENT_FLAT = ["#extension GL_OES_standard_derivatives : enable", PRECISION, "varying vec3 vViewPos;"]
+    .concat(LIGHT_UNIFORMS, ["void main() {"], CLIP_BODY,
+      ["  vec3 n = normalize(cross(dFdx(vViewPos), dFdy(vViewPos)));"], LIGHT_BODY, ["}"])
     .join("\n");
 
   function normalize(v) {
@@ -203,7 +227,9 @@
       normal: gl.getAttribLocation(program, "aNormal"),
       view: gl.getUniformLocation(program, "uView"),
       projection: gl.getUniformLocation(program, "uProjection"),
-      normalMatrix: gl.getUniformLocation(program, "uNormal")
+      normalMatrix: gl.getUniformLocation(program, "uNormal"),
+      clip: gl.getUniformLocation(program, "uClip"),
+      back: gl.getUniformLocation(program, "uBack")
     };
     gl.useProgram(program);
     gl.uniform3fv(gl.getUniformLocation(program, "uKey"), KEY);
@@ -220,14 +246,28 @@
     var spin = 0;
     var width = 0;
     var height = 0;
-    var view = { azimuth: HOME_AZIMUTH, elevation: HOME_ELEVATION, target: [0, 0, 0], halfHeight: 1 };
+    var axis = UPS[options.up] || UPS.z;
+    var section = null;  // { axis: 0-2, at: 0-1 across the box, side: +1 or -1 }
+    var view = { azimuth: axis.azimuth, elevation: axis.elevation, target: [0, 0, 0], halfHeight: 1 };
 
     function basis() {
       var ce = Math.cos(view.elevation);
-      var toEye = [ce * Math.cos(view.azimuth), ce * Math.sin(view.azimuth), Math.sin(view.elevation)];
-      var right = normalize(cross([-toEye[0], -toEye[1], -toEye[2]], [0, 0, 1]));
+      var toEye = add(add(add([0, 0, 0], axis.up, Math.sin(view.elevation)),
+        axis.a, ce * Math.cos(view.azimuth)), axis.b, ce * Math.sin(view.azimuth));
+      var right = normalize(cross([-toEye[0], -toEye[1], -toEye[2]], axis.up));
       var up = cross(right, [-toEye[0], -toEye[1], -toEye[2]]);
       return { right: right, up: up, toEye: toEye };
+    }
+
+    // The plane sits `at` of the way across the box on its mesh axis; `side`
+    // +1 hides what lies above it on that axis, -1 what lies below.
+    function clipPlane() {
+      if (!section || !mesh) return NO_CLIP;
+      var i = section.axis;
+      var plane = [0, 0, 0, 0];
+      plane[i] = section.side;
+      plane[3] = section.side * (mesh.min[i] + section.at * (mesh.max[i] - mesh.min[i]));
+      return plane;
     }
 
     function centre() {
@@ -243,8 +283,8 @@
     // caller can reveal the canvas only once real pixels are in it.
     function home(immediate) {
       if (!mesh) return;
-      view.azimuth = HOME_AZIMUTH;
-      view.elevation = HOME_ELEVATION;
+      view.azimuth = axis.azimuth;
+      view.elevation = axis.elevation;
       var axes = basis();
       var pos = mesh.positions;
       var lowX = Infinity, highX = -Infinity, lowY = Infinity, highY = -Infinity;
@@ -304,6 +344,8 @@
         1 / halfWidth, 0, 0, 0, 0, 1 / view.halfHeight, 0, 0,
         0, 0, -2 / (far - near), 0, 0, 0, -(far + near) / (far - near), 1
       ]);
+      gl.uniform4fv(at.clip, clipPlane());
+      gl.uniform1f(at.back, section ? BACK_SHADE : 1);
       gl.bindBuffer(gl.ARRAY_BUFFER, buffers.position);
       gl.vertexAttribPointer(at.position, 3, gl.FLOAT, false, 0, 0);
       gl.enableVertexAttribArray(at.position);
@@ -324,6 +366,7 @@
       }
       buffers = null;
       mesh = null;
+      section = null;
     }
 
     function upload(data) {
@@ -413,9 +456,13 @@
     });
 
     return {
-      show: function (next) {
+      // `settings` may name the up axis ("y" or "z") and a section to start with.
+      show: function (next, settings) {
         release();
         if (lost) return false;
+        settings = settings || {};
+        axis = UPS[settings.up] || axis;
+        section = settings.section || null;
         mesh = next;
         buffers = { position: upload(next.positions), normal: next.normals ? upload(next.normals) : null };
         // Renders this first frame now, in place, rather than waiting for the
@@ -436,6 +483,19 @@
       },
       clear: release,
       home: home,
+      // A new up axis returns to that axis's home view.
+      setUp: function (name) {
+        if (!UPS[name] || UPS[name] === axis) return;
+        axis = UPS[name];
+        home();
+      },
+      setSection: function (next) {
+        section = next || null;
+        draw();
+      },
+      // +1 when the eye looks from the high side of a mesh axis: a section
+      // chosen now hides the half toward the reader.
+      facing: function (index) { return basis().toEye[index] >= 0 ? 1 : -1; },
       // For a canvas that is thrown away (the enlarged view's, on close):
       // frees its buffers and program and gives the context back at once.
       dispose: function () {

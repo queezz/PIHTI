@@ -3599,6 +3599,79 @@ def test_a_mesh_over_the_cap_is_refused_with_its_reason(tmp_path: Path, monkeypa
     }
 
 
+def test_a_step_over_the_cap_at_fine_tolerance_falls_back_to_coarse(monkeypatch) -> None:
+    # geometry_preview.load_triangles(fine=True) is the viewport tessellation;
+    # a STEP too heavy at that tolerance is retried once at fine=False before
+    # the inspector gives up on it (measured on a real file: 3.8M vs 448k tris).
+    monkeypatch.setattr(
+        geometry_preview, "available_extensions", lambda: geometry_preview.STEP_EXTENSIONS
+    )
+    monkeypatch.setattr(web.mesh_cache, "MAX_TRIANGLES", 3)
+    fine_triangles = [[(0, 0, 0), (1, 0, 0), (0, 1, 0)]] * 5
+    coarse_triangles = [[(0, 0, 0), (1, 0, 0), (0, 1, 0)]] * 2
+    calls: list[bool] = []
+
+    def fake_loader(_path, *, fine=False):
+        calls.append(fine)
+        return fine_triangles if fine else coarse_triangles
+
+    monkeypatch.setattr(geometry_preview, "load_triangles", fake_loader)
+
+    result = web.mesh_cache.build(Path("model.step"))
+
+    assert calls == [True, False]  # fine tried first, coarse only on overflow
+    assert result.reason == ""
+    assert result.triangles == 2
+    assert result.coarse is True
+    assert result.data is not None
+
+
+def test_a_step_over_the_cap_at_both_tolerances_is_refused(monkeypatch) -> None:
+    monkeypatch.setattr(
+        geometry_preview, "available_extensions", lambda: geometry_preview.STEP_EXTENSIONS
+    )
+    monkeypatch.setattr(web.mesh_cache, "MAX_TRIANGLES", 1)
+    fine_triangles = [[(0, 0, 0), (1, 0, 0), (0, 1, 0)]] * 3
+    coarse_triangles = [[(0, 0, 0), (1, 0, 0), (0, 1, 0)]] * 2
+    calls: list[bool] = []
+
+    def fake_loader(_path, *, fine=False):
+        calls.append(fine)
+        return fine_triangles if fine else coarse_triangles
+
+    monkeypatch.setattr(geometry_preview, "load_triangles", fake_loader)
+
+    result = web.mesh_cache.build(Path("model.step"))
+
+    assert calls == [True, False]  # the coarse retry happened but still overflowed
+    assert result.data is None
+    assert result.reason == web.mesh_cache.TOO_LARGE
+    assert result.triangles == 2  # the coarse count, the one actually refused
+
+
+def test_an_stl_over_the_cap_is_refused_without_a_coarse_retry(monkeypatch) -> None:
+    # STL has no tolerance to retry at, unlike STEP; it keeps today's behaviour.
+    monkeypatch.setattr(
+        geometry_preview, "available_extensions", lambda: geometry_preview.MESH_EXTENSIONS
+    )
+    monkeypatch.setattr(web.mesh_cache, "MAX_TRIANGLES", 1)
+    triangles = [[(0, 0, 0), (1, 0, 0), (0, 1, 0)]] * 2
+    calls: list[bool] = []
+
+    def fake_loader(_path, *, fine=False):
+        calls.append(fine)
+        return triangles
+
+    monkeypatch.setattr(geometry_preview, "load_triangles", fake_loader)
+
+    result = web.mesh_cache.build(Path("model.stl"))
+
+    assert calls == [True]  # no second call: STL/3MF are refused outright
+    assert result.data is None
+    assert result.reason == web.mesh_cache.TOO_LARGE
+    assert result.triangles == 2
+
+
 def test_a_missing_loader_is_a_404_with_a_reason_and_writes_nothing(
     tmp_path: Path, monkeypatch
 ) -> None:
@@ -3696,7 +3769,7 @@ def test_the_packaged_viewer_is_plain_webgl_and_fetches_only_the_shown_file(
     assert 'var MAGIC = "PIHTIMESH";' in viewer
     assert "prefers-reduced-motion: reduce" in viewer
     assert "gl.deleteBuffer" in viewer
-    assert len(viewer.splitlines()) < 480
+    assert len(viewer.splitlines()) < 560  # up axes and the section plane since 0.25.0
     assert "var MESH_DELAY = 150;" in script
     assert "meshAbort.abort()" in script
     assert "viewer.clear()" in script
@@ -3753,6 +3826,37 @@ def test_the_inspector_and_the_part_page_offer_enlarge_and_carry_its_dialog(
     assert "mesh-dialog" not in ipt_part and "data-mesh-enlarge" not in ipt_part
 
 
+def test_every_3d_preview_carries_one_quiet_mesh_tools_line(tmp_path: Path) -> None:
+    client = create_app(make_export_workspace(tmp_path)).test_client()
+
+    catalog = client.get("/catalog/BoronProbe/exports").get_data(as_text=True)
+    stl_part = client.get("/part/BoronProbe/exports/head.stl").get_data(as_text=True)
+    ipt_part = client.get("/part/BoronProbe/exports/head.ipt").get_data(as_text=True)
+
+    # The inspector's line sits under the preview and starts idle: it keeps
+    # its height (visibility, not display), so the preview never jumps.
+    inspector = catalog.split("data-inspector ", 1)[1].split("</section>", 1)[0]
+    assert '<div class="mesh-tools is-idle" data-mesh-tools>' in inspector
+    assert inspector.index("inspector-preview") < inspector.index("data-mesh-tools")
+    assert inspector.index("data-mesh-tools") < inspector.index("data-inspector-mesh-note")
+    style = client.get("/static/dedup.css").get_data(as_text=True)
+    assert ".mesh-tools.is-idle { visibility: hidden; }" in style
+
+    # The same line under the part page's view and in the Enlarge dialog's head.
+    dialog = catalog.split('<dialog class="mesh-dialog"', 1)[1].split("</dialog>", 1)[0]
+    head = dialog.split('<header class="mesh-dialog-head">', 1)[1].split("</header>", 1)[0]
+    preview = stl_part.split('<div class="part-preview"', 1)[1].split("</div>\n        <div", 1)[0]
+    for line in (inspector, head, preview):
+        tools = line.split("data-mesh-tools>", 1)[1].split("</div>", 1)[0]
+        assert re.findall(r'data-mesh-view="([a-z0-9]+)"', tools) == ["still", "3d"]
+        assert re.findall(r'data-mesh-up="([a-z])"', tools) == ["y", "z"]
+        assert re.findall(r'data-mesh-cut="([a-z]+)"', tools) == ["off", "x", "y", "z"]
+        assert '<input class="mesh-cut-at" type="range" min="0" max="100"' in tools
+        assert tools.count('class="copy-path inspector-flag mesh-tool"') == 8
+        assert tools.count("aria-pressed=") == 8 and "<form" not in tools
+    assert "data-mesh-tools" not in ipt_part  # no mesh, no line
+
+
 def test_the_enlarged_view_fills_the_window_and_holds_the_page_still(tmp_path: Path) -> None:
     style = create_app(tmp_path).test_client().get("/static/dedup.css").get_data(as_text=True)
 
@@ -3777,9 +3881,11 @@ def test_the_enlarged_view_opens_only_on_request_and_reuses_the_fetched_mesh(
     script = client.get("/static/dedup.js").get_data(as_text=True)
 
     block = script.split("var PihtiEnlarge = (function () {", 1)[1].split("\n})();", 1)[0]
-    # One modal call, inside `open`; no fetch of its own; closed three ways.
+    # One modal call, inside `open`; closed three ways. Its only fetch goes
+    # through the page memo, for 3D asked for in a dialog opened in Still.
     assert block.count("showModal()") == 1
-    assert "fetchMesh" not in block and "fetch(" not in block
+    assert block.count("fetchMesh(") == 1 and "fetch(" not in block
+    assert "if (current.mesh) { draw3D(); return; }" in block
     assert "data-mesh-dialog-close" in block and "event.target === dialog" in block
     assert "viewer.dispose()" in block and "returnTo.focus(" in block
     assert 'addEventListener("resize"' in block

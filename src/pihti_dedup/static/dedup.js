@@ -765,11 +765,128 @@
   if (rename && window.location.hash === "#rename") rename.open = true;
 })();
 
-// Enlarge: one deliberate modal the reader opens from a shown 3D view (the
+// Mesh tools: the one slim line under every preview that can turn in 3D (the
+// inspector's, the part page's, the Enlarge dialog's). Still or 3D, kept for
+// every file; which axis is up, Y for an Inventor file (its STEP comes out of
+// Inventor Y up) and Z for the rest, a flip kept per file; and a section
+// plane across the mesh's box on one of its own axes, for the file shown now.
+var PihtiMeshTools = (function () {
+  "use strict";
+
+  var VIEW_KEY = "pihti-mesh-view";
+  var UP_KEY = "pihti-mesh-up";
+  var UP_LIMIT = 500;
+  var AXES = { x: 0, y: 1, z: 2 };
+
+  function load(key) {
+    try { return localStorage.getItem(key); } catch (_) { return null; }
+  }
+  function save(key, value) {
+    try { localStorage.setItem(key, value); } catch (_) { /* kept for this page only */ }
+  }
+  // `/mesh/<path>?v=...` names the file; its extension picks the up axis.
+  function pathOf(url) {
+    var path = String(url || "").split("?")[0].replace(/^\/mesh\//, "");
+    try { return decodeURIComponent(path); } catch (_) { return path; }
+  }
+  function defaultUp(url) { return /\.(ipt|iam)$/i.test(pathOf(url)) ? "y" : "z"; }
+  function chosenUps() {
+    try {
+      var saved = JSON.parse(load(UP_KEY) || "{}");
+      return saved && typeof saved === "object" ? saved : {};
+    } catch (_) { return {}; }
+  }
+  function upFor(url) {
+    var chosen = chosenUps()[pathOf(url).toLowerCase()];
+    return chosen === "y" || chosen === "z" ? chosen : defaultUp(url);
+  }
+  // Only a flip away from the default is stored; the oldest go past UP_LIMIT.
+  function rememberUp(url, axis) {
+    if (!url) return;
+    var all = chosenUps();
+    var key = pathOf(url).toLowerCase();
+    delete all[key];
+    if (axis !== defaultUp(url)) all[key] = axis;
+    var keys = Object.keys(all);
+    while (keys.length > UP_LIMIT) delete all[keys.shift()];
+    save(UP_KEY, JSON.stringify(all));
+  }
+  function view() { return load(VIEW_KEY) === "still" ? "still" : "3d"; }
+  function rememberView(value) { save(VIEW_KEY, value === "still" ? "still" : "3d"); }
+
+  // A canvas keeps its context for life, lost or given back, so a new viewer
+  // needs a new canvas in the old one's place.
+  function freshCanvas(old) {
+    var fresh = old.cloneNode(false);
+    ["style", "width", "height"].forEach(function (name) { fresh.removeAttribute(name); });
+    fresh.hidden = true;
+    old.replaceWith(fresh);
+    return fresh;
+  }
+
+  // A section on a mesh axis, hiding the half the eye looks from; the same
+  // axis again keeps its place and asks the eye again.
+  function section(viewer, previous, axis) {
+    if (axis === null || !viewer) return null;
+    return {
+      axis: axis,
+      at: previous && previous.axis === axis ? previous.at : 0.5,
+      side: viewer.facing(axis)
+    };
+  }
+
+  // Wires one tools line to `on.view(value)`, `on.up(axis)`, `on.cut(index or
+  // null)` and `on.at(fraction)`; `set(state)` shows `{ idle, view, up,
+  // ready, section }` on its buttons. Null without the line (an old page).
+  function bind(root, on) {
+    if (!root) return null;
+    var range = root.querySelector("[data-mesh-cut-at]");
+    function each(selector, apply) { Array.prototype.forEach.call(root.querySelectorAll(selector), apply); }
+    root.addEventListener("click", function (event) {
+      var button = event.target.closest("button");
+      if (!button || button.disabled) return;
+      if (button.dataset.meshView) on.view(button.dataset.meshView);
+      else if (button.dataset.meshUp) on.up(button.dataset.meshUp);
+      else if (button.dataset.meshCut) on.cut(button.dataset.meshCut in AXES ? AXES[button.dataset.meshCut] : null);
+    });
+    if (range) range.addEventListener("input", function () { on.at(Number(range.value) / 100); });
+    return {
+      set: function (state) {
+        var three = state.view !== "still";
+        var cut = state.section ? "xyz".charAt(state.section.axis) : "off";
+        root.classList.toggle("is-idle", !!state.idle);
+        each("[data-mesh-view]", function (button) {
+          button.setAttribute("aria-pressed", String(button.dataset.meshView === (three ? "3d" : "still")));
+        });
+        each("[data-mesh-up]", function (button) {
+          button.setAttribute("aria-pressed", String(three && button.dataset.meshUp === state.up));
+          button.disabled = !three;
+        });
+        each("[data-mesh-cut]", function (button) {
+          button.setAttribute("aria-pressed", String(three && !!state.ready && button.dataset.meshCut === cut));
+          button.disabled = !(three && state.ready);
+        });
+        if (range) {
+          range.disabled = !(three && state.ready && state.section);
+          range.value = String((state.section ? state.section.at : 0.5) * 100);
+        }
+      }
+    };
+  }
+
+  return {
+    upFor: upFor, rememberUp: rememberUp, view: view, rememberView: rememberView,
+    freshCanvas: freshCanvas, section: section, bind: bind
+  };
+})();
+
+// Enlarge: one deliberate modal the reader opens from a shown preview (the
 // inspector's or the part page's) and closes with Escape, × or the backdrop.
 // It holds one large canvas with the mesh the small view already fetched (no
-// second request) under its own camera, so the small view keeps its own. The
-// large canvas's GL resources go on close, and focus returns to the opener.
+// second request) under its own camera, up axis and section, starting from
+// the small view's, so the small view keeps its own. In Still the still image
+// fills it. The large canvas's GL resources go on close, and focus returns to
+// the opener.
 var PihtiEnlarge = (function () {
   "use strict";
 
@@ -781,21 +898,95 @@ var PihtiEnlarge = (function () {
   var stage = dialog.querySelector("[data-mesh-dialog-stage]");
   var still = dialog.querySelector("[data-mesh-dialog-image]");
   var viewer = null;
+  var drawn = false;  // the viewer holds this open's mesh
+  var current = null;  // { info, mesh, view, up, section } for this open
+  var fetching = null;
   var returnTo = null;
   var sizing = 0;
   var pressedBackdrop = false;
+  var tools = PihtiMeshTools.bind(dialog.querySelector("[data-mesh-tools]"), {
+    view: function (value) {
+      current.view = value;
+      if (value === "still") showStill(); else show3D();
+    },
+    up: function (axis) {
+      current.up = axis;
+      PihtiMeshTools.rememberUp(current.info.url, axis);
+      if (viewer && drawn) viewer.setUp(axis);
+      if (current.info.onUp) current.info.onUp(axis);
+      sync();
+    },
+    cut: function (axis) {
+      current.section = PihtiMeshTools.section(viewer, current.section, axis);
+      if (viewer) viewer.setSection(current.section);
+      sync();
+    },
+    at: function (fraction) {
+      if (!current.section || !viewer) return;
+      current.section.at = fraction;
+      viewer.setSection(current.section);
+    }
+  });
 
   function canvas() { return stage.querySelector("canvas"); }
-  function showStill(source) {
+  function sync() {
+    if (!tools || !current) return;
+    tools.set({ view: current.view, up: current.up, ready: drawn && !canvas().hidden, section: current.section });
+  }
+  function showStill() {
     canvas().hidden = true;
-    if (source) still.src = source;
-    still.hidden = !source;
+    if (current && current.info.still) still.src = current.info.still;
+    still.hidden = !still.getAttribute("src");
+    sync();
+  }
+  // A lost context: the still until the reader asks for 3D again, then a
+  // new viewer on a fresh canvas.
+  function dropViewer() {
+    if (viewer) viewer.dispose();
+    viewer = null;
+    drawn = false;
+    PihtiMeshTools.freshCanvas(canvas());
+  }
+  function draw3D() {
+    var surface = canvas();
+    if (viewer && drawn) {
+      still.hidden = true;
+      surface.hidden = false;
+      sync();
+      return;
+    }
+    if (!viewer) viewer = V3.create(surface, { up: current.up, onLost: function () { dropViewer(); showStill(); } });
+    if (viewer) {
+      viewer.resize(stage.clientWidth, stage.clientHeight);
+      // Synchronous: real pixels exist once this returns.
+      if (viewer.show(current.mesh, { up: current.up, section: current.section })) {
+        drawn = true;
+        still.hidden = true;
+        surface.hidden = false;
+        sync();
+        return;
+      }
+      dropViewer();
+    }
+    showStill();
+  }
+  function show3D() {
+    if (current.mesh) { draw3D(); return; }
+    showStill();
+    if (!current.info.url || fetching) return;
+    var mine = current;
+    fetching = window.AbortController ? new AbortController() : {};
+    V3.fetchMesh(mine.info.url, fetching.signal).then(function (mesh) {
+      fetching = null;
+      mine.mesh = mesh;
+      if (current === mine && dialog.open && mine.view !== "still") draw3D();
+    }, function () { fetching = null; });
   }
   // The stage is laid out before the first frame, so the mesh is framed for
   // the size it is shown at; a window resize frames it again, no refetch.
   function fit() {
     sizing = 0;
-    if (!viewer || !dialog.open) return;
+    if (!viewer || !drawn || !dialog.open) return;
     viewer.resize(stage.clientWidth, stage.clientHeight);
     viewer.home(true);
   }
@@ -803,36 +994,28 @@ var PihtiEnlarge = (function () {
     if (dialog.open && viewer && !sizing) sizing = window.requestAnimationFrame(fit);
   });
 
+  // `info`: name, folder, still, and the small view's url, view ("still" or
+  // "3d"), up axis and section; `onUp(axis)` hears a flip made here. `mesh`
+  // may be null in Still: 3D then fetches it (from the page memo if it can).
   function open(mesh, info, opener) {
-    if (dialog.open || !mesh) return;
+    if (dialog.open || (!mesh && !info.url)) return;
+    var section = info.section ? { axis: info.section.axis, at: info.section.at, side: info.section.side } : null;
+    current = { info: info, mesh: mesh, view: info.view === "still" ? "still" : "3d", up: info.up || "z", section: section };
     returnTo = opener || document.activeElement;
     nameLine.textContent = info.name || "";
     folderLine.textContent = info.folder || "";
     dialog.showModal();
-    var surface = canvas();
-    viewer = V3.create(surface, { onLost: function () { showStill(info.still); } });
-    if (viewer) {
-      viewer.resize(stage.clientWidth, stage.clientHeight);
-      if (viewer.show(mesh)) {  // synchronous: real pixels exist once this returns
-        still.hidden = true;
-        surface.hidden = false;
-        return;
-      }
-    }
-    showStill(info.still);
+    if (current.view === "still") showStill(); else show3D();
   }
 
   dialog.addEventListener("close", function () {
     window.cancelAnimationFrame(sizing);
     sizing = 0;
-    if (viewer) viewer.dispose();
-    viewer = null;
-    // A canvas keeps its (now released) context; the next open gets a fresh one.
-    var old = canvas();
-    var fresh = old.cloneNode(false);
-    ["style", "width", "height"].forEach(function (name) { fresh.removeAttribute(name); });
-    fresh.hidden = true;
-    old.replaceWith(fresh);
+    if (fetching && fetching.abort) fetching.abort();
+    fetching = null;
+    // Gives the context back; the next open gets a fresh canvas.
+    dropViewer();
+    current = null;
     still.hidden = true;
     still.removeAttribute("src");
     if (returnTo && returnTo.isConnected) returnTo.focus({ preventScroll: true });
@@ -876,6 +1059,7 @@ var PihtiEnlarge = (function () {
   var meshNote = inspector && inspector.querySelector("[data-inspector-mesh-note]");
   var stepForm = inspector && inspector.querySelector("form[data-inspector-step-export]");
   var enlargeButton = inspector && inspector.querySelector("[data-inspector-enlarge]");
+  var tools = inspector && inspector.querySelector("[data-mesh-tools]");
   var shown = null;
   var hoverTimer = null;
 
@@ -920,7 +1104,9 @@ var PihtiEnlarge = (function () {
   // is fetched, once it has been shown for MESH_DELAY and only while the card
   // has room for a preview, so walking or hovering across many tiles never
   // queues requests; the still image stays until the mesh arrives and
-  // whenever it cannot (a refusal names its reason below the preview).
+  // whenever it cannot (a refusal names its reason below the preview). In
+  // Still nothing is fetched. A lost GL context shows the still, and the
+  // next file gets a new viewer on a fresh canvas.
   var V3 = window.PihtiViewer3D;
   var MESH_DELAY = 150;
   var LARGE_MESH_BYTES = 5 * 1024 * 1024;  // above this, name the download; no spinner
@@ -930,28 +1116,93 @@ var PihtiEnlarge = (function () {
   var meshTimer = null;
   var meshAbort = null;
   var shownMesh = null;  // the mesh on the canvas now, for Enlarge
+  var meshView = tools ? PihtiMeshTools.view() : "3d";  // an old page has no Still to go back from
+  var meshUp = "z";
+  var section = null;  // the shown file's only; another file starts without
+  var toolLine = PihtiMeshTools.bind(tools, {
+    view: function (value) {
+      meshView = value === "still" ? "still" : "3d";
+      PihtiMeshTools.rememberView(meshView);
+      if (meshView === "still") {
+        stopMesh();
+        stillImage();
+        meshNote.hidden = true;
+        if (stepForm) stepForm.hidden = true;
+        fitImage();
+      } else {
+        scheduleMesh();
+      }
+      syncTools();
+    },
+    up: setUp,
+    cut: function (axis) {
+      if (!viewer || !shownMesh) return;
+      section = PihtiMeshTools.section(viewer, section, axis);
+      viewer.setSection(section);
+      syncTools();
+    },
+    at: function (fraction) {
+      if (!section || !viewer) return;
+      section.at = fraction;
+      viewer.setSection(section);
+    }
+  });
+  function meshCapable() { return !!(canvas && V3 && V3.supported()); }
+  function syncTools() {
+    // Enlarge keeps its place and shows only while it has something to show.
+    if (enlargeButton) {
+      var ready = shownMesh || (meshView === "still" && meshWanted && meshCapable());
+      enlargeButton.classList.toggle("is-idle", !ready);
+    }
+    if (toolLine) {
+      toolLine.set({
+        idle: !meshWanted || !meshCapable(), view: meshView, up: meshUp,
+        ready: !!shownMesh, section: section
+      });
+    }
+  }
+  function setUp(axis) {
+    meshUp = axis;
+    PihtiMeshTools.rememberUp(meshWanted, axis);
+    if (viewer && shownMesh) viewer.setUp(axis);
+    syncTools();
+  }
   function stillImage() {
     if (canvas) canvas.hidden = true;
     image.hidden = false;
-    setEnlarge(null);
+    shownMesh = null;
+    section = null;
+    syncTools();
   }
-  function setEnlarge(mesh) {
-    shownMesh = mesh;
-    if (enlargeButton) enlargeButton.classList.toggle("is-idle", !mesh);
+  function loseViewer() {
+    if (viewer) viewer.dispose();
+    viewer = null;
+    canvas = PihtiMeshTools.freshCanvas(canvas);
+    meshStarted = "";  // 3D again, a resize or the next file loads anew
+    stillImage();
   }
-  function wantMesh(url) {
-    if (!canvas || url === meshWanted) return;
+  function stopMesh() {
     window.clearTimeout(meshTimer);
     meshTimer = null;
     if (meshAbort) meshAbort.abort();
     meshAbort = null;
-    meshWanted = url;
     meshStarted = "";
     if (viewer) viewer.clear();  // the GPU buffers of the file shown before
+  }
+  function scheduleMesh() {
+    if (meshWanted && meshView === "3d" && !meshStarted && !meshTimer && meshCapable()) {
+      meshTimer = window.setTimeout(loadMesh, MESH_DELAY);
+    }
+  }
+  function wantMesh(url) {
+    if (!canvas || url === meshWanted) return;
+    stopMesh();
+    meshWanted = url;
+    meshUp = url ? PihtiMeshTools.upFor(url) : "z";
     stillImage();
     meshNote.hidden = true;
     if (stepForm) stepForm.hidden = true;
-    if (url && V3 && V3.supported()) meshTimer = window.setTimeout(loadMesh, MESH_DELAY);
+    scheduleMesh();
   }
   function showLoadingSize(bytes) {
     if (bytes < LARGE_MESH_BYTES) return;
@@ -962,19 +1213,26 @@ var PihtiEnlarge = (function () {
   function loadMesh() {
     meshTimer = null;
     var url = meshWanted;
-    if (!url || meshStarted === url || image.parentElement.hidden) return;
+    if (!url || meshView !== "3d" || meshStarted === url || image.parentElement.hidden) return;
     meshStarted = url;
     var controller = window.AbortController ? new AbortController() : null;
     meshAbort = controller;
     V3.fetchMesh(url, controller && controller.signal, showLoadingSize).then(function (mesh) {
-      if (meshWanted !== url) return;
+      if (meshWanted !== url || meshView !== "3d") return;
       meshAbort = null;
-      if (!viewer) viewer = V3.create(canvas, { onLost: stillImage });
-      if (!viewer) return;
-      fitImage();  // sizes the still-hidden canvas before the first paint
-      var ok = viewer.show(mesh);  // synchronous: real pixels exist once this returns
       meshNote.hidden = true;
-      if (ok) { canvas.hidden = false; image.hidden = true; setEnlarge(mesh); } else { stillImage(); }
+      if (!viewer) viewer = V3.create(canvas, { up: meshUp, onLost: loseViewer });
+      fitImage();  // sizes the still-hidden canvas before the first paint
+      if (!viewer) return;
+      // Synchronous: real pixels exist once this returns.
+      if (viewer.show(mesh, { up: meshUp, section: null })) {
+        canvas.hidden = false;
+        image.hidden = true;
+        shownMesh = mesh;
+        syncTools();
+      } else {
+        loseViewer();
+      }
     }, function (error) {
       if (meshWanted !== url || error.name === "AbortError") return;
       meshAbort = null;
@@ -991,16 +1249,25 @@ var PihtiEnlarge = (function () {
   }
 
   // Enlarge (or F while a tile or the inspector has focus) shows the mesh on
-  // the canvas large, named with its folder; closing returns to the opener.
+  // the canvas large, or in Still the still image, named with its folder;
+  // closing returns to the opener.
   function enlarge(opener) {
-    if (!shownMesh || !shown || canvas.hidden || !PihtiEnlarge) return false;
+    if (!shown || !PihtiEnlarge) return false;
+    var still = meshView === "still";
+    if (still ? !(meshWanted && meshCapable()) : (!shownMesh || canvas.hidden)) return false;
     window.clearTimeout(hoverTimer);
     var relative = decodeURIComponent((shown.getAttribute("href") || "").replace(/^\/part\//, ""));
     var cut = relative.lastIndexOf("/");
-    PihtiEnlarge.open(shownMesh, {
+    var url = meshWanted;
+    PihtiEnlarge.open(still ? null : shownMesh, {
       name: title.textContent,
       folder: cut > 0 ? relative.slice(0, cut).replace(/\//g, "\\") : "",
-      still: image.currentSrc || image.src
+      still: image.currentSrc || image.src,
+      url: url,
+      view: meshView,
+      up: meshUp,
+      section: section,
+      onUp: function (axis) { if (meshWanted === url) setUp(axis); }
     }, opener);
     return true;
   }
@@ -1109,7 +1376,7 @@ var PihtiEnlarge = (function () {
     var padding = parseFloat(window.getComputedStyle(inspector).paddingBottom) || 0;
     var limit = inspector.getBoundingClientRect().bottom - padding;
     // The flags' own top margin is `auto`, so only their box counts.
-    var below = outerHeight(meshNote) + outerHeight(stepForm) + outerHeight(title) +
+    var below = outerHeight(tools) + outerHeight(meshNote) + outerHeight(stepForm) + outerHeight(title) +
       (flagBox ? flagBox.offsetHeight : 0);
     var preview = image.parentElement;
     preview.hidden = false;
@@ -1129,9 +1396,7 @@ var PihtiEnlarge = (function () {
       viewer.resize(preview.clientWidth, height);
     }
     // A window made tall enough to show the preview fetches the waiting mesh.
-    if (!preview.hidden && meshWanted && !meshStarted && !meshTimer && V3 && V3.supported()) {
-      meshTimer = window.setTimeout(loadMesh, MESH_DELAY);
-    }
+    if (!preview.hidden) scheduleMesh();
   }
   window.addEventListener("resize", fitImage);
 
@@ -1244,58 +1509,141 @@ var PihtiEnlarge = (function () {
 (function () {
   "use strict";
 
-  // Part page: an STL, 3MF, or STEP file turns in 3D in the still preview's
-  // place, at the size the preview was shown at; the image is the fallback.
+  // Part page: an STL, 3MF, STEP or mirrored Inventor file turns in 3D in the
+  // still preview's place, at the size the preview was shown at; the image is
+  // the fallback, and in Still the only thing shown (no download). A lost GL
+  // context shows the still; 3D again builds a new viewer on a fresh canvas.
   var V3 = window.PihtiViewer3D;
   var box = document.querySelector("[data-mesh-viewer]");
-  if (!box || !V3 || !V3.supported()) return;
+  if (!box) return;
+  var tools = box.querySelector("[data-mesh-tools]");
+  if (!V3 || !V3.supported()) {
+    if (tools) tools.hidden = true;
+    return;
+  }
   var image = box.querySelector("img");
   var canvas = box.querySelector("canvas");
   var note = box.querySelector(".mesh-note");
   var enlargeLine = box.querySelector(".mesh-enlarge-line");
   var enlargeButton = box.querySelector("[data-mesh-enlarge]");
+  var url = box.dataset.mesh;
+  var meshView = tools ? PihtiMeshTools.view() : "3d";
+  var meshUp = PihtiMeshTools.upFor(url);
+  var section = null;
+  var mesh = null;
+  var viewer = null;
+  var drawn = false;  // the viewer holds the mesh
+  var loading = false;
+  var size = null;
+  var toolLine = PihtiMeshTools.bind(tools, {
+    view: function (value) {
+      meshView = value === "still" ? "still" : "3d";
+      PihtiMeshTools.rememberView(meshView);
+      if (meshView === "still") showStill(); else { sync(); start(); }
+    },
+    up: function (axis) { setUp(axis); },
+    cut: function (axis) {
+      if (!viewer || !drawn) return;
+      section = PihtiMeshTools.section(viewer, section, axis);
+      viewer.setSection(section);
+      sync();
+    },
+    at: function (fraction) {
+      if (!section || !viewer) return;
+      section.at = fraction;
+      viewer.setSection(section);
+    }
+  });
+
+  function shows3D() { return drawn && !canvas.hidden; }
+  function sync() {
+    if (toolLine) toolLine.set({ view: meshView, up: meshUp, ready: shows3D(), section: section });
+    if (enlargeLine && enlargeButton && PihtiEnlarge) enlargeLine.hidden = !(shows3D() || meshView === "still");
+  }
+  function setUp(axis) {
+    meshUp = axis;
+    PihtiMeshTools.rememberUp(url, axis);
+    if (viewer && drawn) viewer.setUp(axis);
+    sync();
+  }
+  function showStill() {
+    canvas.hidden = true;
+    image.hidden = false;
+    sync();
+  }
+  function loseViewer() {
+    if (viewer) viewer.dispose();
+    viewer = null;
+    drawn = false;
+    section = null;
+    canvas = PihtiMeshTools.freshCanvas(canvas);
+    showStill();
+  }
+  // Measured while the still is on the page; kept for a return from Still.
+  function measure() {
+    if (!image.hidden && image.offsetWidth) size = [image.offsetWidth, image.offsetHeight || image.offsetWidth];
+    return size || [512, 512];
+  }
+  function swap() {
+    if (meshView !== "3d" || !mesh) return;
+    if (note) note.hidden = true;
+    if (!drawn) {
+      var dims = measure();
+      if (!viewer) viewer = V3.create(canvas, { up: meshUp, onLost: loseViewer });
+      if (!viewer) return;
+      viewer.resize(dims[0], dims[1]);
+      // Synchronous: real pixels exist once this returns.
+      if (!viewer.show(mesh, { up: meshUp, section: section })) { loseViewer(); return; }
+      drawn = true;
+    }
+    canvas.hidden = false;
+    image.hidden = true;
+    sync();
+  }
   function showLoadingSize(bytes) {
     if (!note || bytes < 5 * 1024 * 1024) return;
     note.textContent = "Loading 3D · " + Math.round(bytes / (1024 * 1024)) + " MB";
     note.hidden = false;
   }
-  V3.fetchMesh(box.dataset.mesh, undefined, showLoadingSize).then(function (mesh) {
-    function swap() {
-      var width = image.offsetWidth || 512;
-      var height = image.offsetHeight || width;
-      var viewer = V3.create(canvas, {
-        onLost: function () {
-          canvas.hidden = true;
-          image.hidden = false;
-          if (enlargeLine) enlargeLine.hidden = true;
-        }
-      });
-      if (!viewer) return;
-      viewer.resize(width, height);
-      var ok = viewer.show(mesh);  // synchronous: real pixels exist once this returns
-      if (note) note.hidden = true;
-      if (ok) { canvas.hidden = false; image.hidden = true; }
-      else { canvas.hidden = true; image.hidden = false; }
-      if (ok && enlargeLine && enlargeButton && PihtiEnlarge) {
-        enlargeButton.addEventListener("click", function () {
-          if (canvas.hidden) return;
-          PihtiEnlarge.open(mesh, {
-            name: box.dataset.meshName,
-            folder: box.dataset.meshFolder,
-            still: image.currentSrc || image.src
-          }, enlargeButton);
-        });
-        enlargeLine.hidden = false;
+  function start() {
+    if (meshView !== "3d") return;
+    if (mesh) {
+      if (image.complete) swap(); else image.addEventListener("load", swap, { once: true });
+      return;
+    }
+    if (loading) return;
+    loading = true;
+    V3.fetchMesh(url, undefined, showLoadingSize).then(function (result) {
+      loading = false;
+      mesh = result;
+      start();
+    }, function (error) {
+      loading = false;
+      if (error.reason && note) {
+        note.textContent = "Still image: " + error.reason + ".";
+        note.hidden = false;
       }
-    }
-    if (image.complete) swap();
-    else image.addEventListener("load", swap, { once: true });
-  }, function (error) {
-    if (error.reason && note) {
-      note.textContent = "Still image: " + error.reason + ".";
-      note.hidden = false;
-    }
-  });
+    });
+  }
+
+  if (enlargeButton && PihtiEnlarge) {
+    enlargeButton.addEventListener("click", function () {
+      var still = meshView === "still";
+      if (!still && !shows3D()) return;
+      PihtiEnlarge.open(still ? null : mesh, {
+        name: box.dataset.meshName,
+        folder: box.dataset.meshFolder,
+        still: image.currentSrc || image.src,
+        url: url,
+        view: meshView,
+        up: meshUp,
+        section: section,
+        onUp: setUp
+      }, enlargeButton);
+    });
+  }
+  sync();
+  start();
 })();
 
 (function () {
