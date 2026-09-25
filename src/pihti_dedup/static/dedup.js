@@ -835,6 +835,7 @@
   // whenever it cannot (a refusal names its reason below the preview).
   var V3 = window.PihtiViewer3D;
   var MESH_DELAY = 150;
+  var LARGE_MESH_BYTES = 5 * 1024 * 1024;  // above this, name the download; no spinner
   var viewer = null;
   var meshWanted = "";
   var meshStarted = "";
@@ -857,6 +858,12 @@
     meshNote.hidden = true;
     if (url && V3 && V3.supported()) meshTimer = window.setTimeout(loadMesh, MESH_DELAY);
   }
+  function showLoadingSize(bytes) {
+    if (bytes < LARGE_MESH_BYTES) return;
+    meshNote.textContent = "Loading 3D · " + Math.round(bytes / (1024 * 1024)) + " MB";
+    meshNote.hidden = false;
+    fitImage();
+  }
   function loadMesh() {
     meshTimer = null;
     var url = meshWanted;
@@ -864,15 +871,15 @@
     meshStarted = url;
     var controller = window.AbortController ? new AbortController() : null;
     meshAbort = controller;
-    V3.fetchMesh(url, controller && controller.signal).then(function (mesh) {
+    V3.fetchMesh(url, controller && controller.signal, showLoadingSize).then(function (mesh) {
       if (meshWanted !== url) return;
       meshAbort = null;
       if (!viewer) viewer = V3.create(canvas, { onLost: stillImage });
       if (!viewer) return;
-      canvas.hidden = false;
-      image.hidden = true;
-      fitImage();
-      if (!viewer.show(mesh)) stillImage();
+      fitImage();  // sizes the still-hidden canvas before the first paint
+      var ok = viewer.show(mesh);  // synchronous: real pixels exist once this returns
+      meshNote.hidden = true;
+      if (ok) { canvas.hidden = false; image.hidden = true; } else { stillImage(); }
     }, function (error) {
       if (meshWanted !== url || error.name === "AbortError") return;
       meshAbort = null;
@@ -970,7 +977,9 @@
     preview.style.height = height + "px";
     image.style.maxHeight = height + "px";
     // The 3D view fills the preview area: the card's width, the area's height.
-    if (viewer && canvas && !canvas.hidden && !preview.hidden) {
+    // Sized even while the canvas is still hidden, so the first frame after a
+    // swap already has the right dimensions and nothing visibly resizes.
+    if (viewer && canvas && !preview.hidden) {
       viewer.resize(preview.clientWidth, height);
     }
     // A window made tall enough to show the preview fetches the waiting mesh.
@@ -1090,7 +1099,12 @@
   var image = box.querySelector("img");
   var canvas = box.querySelector("canvas");
   var note = box.querySelector(".mesh-note");
-  V3.fetchMesh(box.dataset.mesh).then(function (mesh) {
+  function showLoadingSize(bytes) {
+    if (!note || bytes < 5 * 1024 * 1024) return;
+    note.textContent = "Loading 3D · " + Math.round(bytes / (1024 * 1024)) + " MB";
+    note.hidden = false;
+  }
+  V3.fetchMesh(box.dataset.mesh, undefined, showLoadingSize).then(function (mesh) {
     function swap() {
       var width = image.offsetWidth || 512;
       var height = image.offsetHeight || width;
@@ -1098,10 +1112,11 @@
         onLost: function () { canvas.hidden = true; image.hidden = false; }
       });
       if (!viewer) return;
-      canvas.hidden = false;
-      image.hidden = true;
       viewer.resize(width, height);
-      if (!viewer.show(mesh)) { canvas.hidden = true; image.hidden = false; }
+      var ok = viewer.show(mesh);  // synchronous: real pixels exist once this returns
+      if (note) note.hidden = true;
+      if (ok) { canvas.hidden = false; image.hidden = true; }
+      else { canvas.hidden = true; image.hidden = false; }
     }
     if (image.complete) swap();
     else image.addEventListener("load", swap, { once: true });

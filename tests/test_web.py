@@ -3460,7 +3460,7 @@ def mesh_header(data: bytes) -> tuple:
     return magic, version, count, box
 
 
-def test_the_mesh_route_serves_a_binary_stl_as_positions_and_flat_normals(tmp_path: Path) -> None:
+def test_the_mesh_route_serves_a_binary_stl_as_positions_only_by_default(tmp_path: Path) -> None:
     needs_mesh_loader()
     root = make_export_workspace(tmp_path)
     client = create_app(root).test_client()
@@ -3475,12 +3475,32 @@ def test_the_mesh_route_serves_a_binary_stl_as_positions_and_flat_normals(tmp_pa
     assert version == web.mesh_cache.MESH_FORMAT_VERSION
     assert count == 4
     assert box == [0, 0, 0, 10, 10, 10]
-    assert len(data) == 44 + count * 9 * 4 * 2
+    # Positions only: no normals block, half the size of the old payload.
+    assert len(data) == 44 + count * 9 * 4
     positions = struct.unpack_from(f"<{count * 9}f", data, 44)
-    normals = struct.unpack_from(f"<{count * 9}f", data, 44 + count * 36)
     assert positions[:9] == (0, 0, 0, 10, 0, 0, 0, 10, 0)
+
+
+def test_the_mesh_route_adds_flat_normals_when_asked(tmp_path: Path) -> None:
+    needs_mesh_loader()
+    root = make_export_workspace(tmp_path)
+    client = create_app(root).test_client()
+
+    plain = client.get("/mesh/BoronProbe/exports/head.stl").get_data()
+    response = client.get("/mesh/BoronProbe/exports/head.stl?normals=1")
+    data = response.get_data()
+
+    assert response.status_code == 200
+    _magic, _version, count, _box = mesh_header(data)
+    assert count == 4
+    assert len(data) == 44 + count * 9 * 4 * 2
+    assert len(data) == len(plain) + count * 9 * 4  # exactly the normals block, appended
+    normals = struct.unpack_from(f"<{count * 9}f", data, 44 + count * 36)
     # One face normal per triangle, repeated for its three vertices.
     assert normals[:9] == (0, 0, 1) * 3
+    # The two payloads are cached and etagged separately.
+    again_plain = client.get("/mesh/BoronProbe/exports/head.stl")
+    assert response.headers["ETag"] != again_plain.headers["ETag"]
 
 
 def test_the_mesh_route_reads_an_ascii_stl_with_the_same_loader(tmp_path: Path) -> None:
@@ -3560,7 +3580,7 @@ def test_a_mesh_over_the_cap_is_refused_with_its_reason(tmp_path: Path, monkeypa
     assert not (root / ".pihti-dedup" / "meshes").exists()
 
     # A mesh cached under a higher cap is refused too once the cap is lower.
-    monkeypatch.setattr(web.mesh_cache, "MAX_TRIANGLES", 400_000)
+    monkeypatch.setattr(web.mesh_cache, "MAX_TRIANGLES", 2_000_000)
     assert client.get("/mesh/BoronProbe/exports/head.stl").status_code == 200
     monkeypatch.setattr(web.mesh_cache, "MAX_TRIANGLES", 3)
     assert client.get("/mesh/BoronProbe/exports/head.stl").get_json() == {
@@ -3660,7 +3680,7 @@ def test_the_packaged_viewer_is_plain_webgl_and_fetches_only_the_shown_file(
     assert 'var MAGIC = "PIHTIMESH";' in viewer
     assert "prefers-reduced-motion: reduce" in viewer
     assert "gl.deleteBuffer" in viewer
-    assert len(viewer.splitlines()) < 400
+    assert len(viewer.splitlines()) < 480
     assert "var MESH_DELAY = 150;" in script
     assert "meshAbort.abort()" in script
     assert "viewer.clear()" in script

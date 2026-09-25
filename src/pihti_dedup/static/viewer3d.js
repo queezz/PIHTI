@@ -14,7 +14,10 @@
   var HOME_AZIMUTH = Math.atan2(-1, 1);  // mesh_render.ISO_EYE = (1, -1, 0.72)
   var HOME_ELEVATION = Math.atan2(0.72, Math.SQRT2);
   var MARGIN = 0.06;  // the still previews' frame padding
-  var BACKDROP = [194 / 255, 220 / 255, 245 / 255];  // Inventor's light blue
+  // The stills are transparent PNGs composited onto the preview box's own
+  // CSS background (dedup.css --mesh-backdrop); this clear colour is read
+  // from that same box below, per canvas, so a swap cannot change the tone.
+  var BACKDROP_FALLBACK = [0x10 / 255, 0x18 / 255, 0x22 / 255];
   var BASE = [203 / 255, 208 / 255, 214 / 255];  // mesh_render.Style.base_color
   var AMBIENT = 0.42;
   var FILL = 0.18;
@@ -24,7 +27,19 @@
   var ELEVATION_LIMIT = 89 * Math.PI / 180;
   var COAST_LIMIT = 24;  // pixels per frame a flick may start coasting at
 
-  var VERTEX = [
+  // Two programs share the same lighting: one lights a normal attribute the
+  // mesh carries, the other derives a flat normal from how the view-space
+  // position changes across the triangle (`OES_standard_derivatives`), so a
+  // heavy mesh's payload can skip the normals a flat-shaded triangle does not
+  // need. `create` compiles whichever the browser supports.
+  var LIGHT_UNIFORMS = ["uniform vec3 uKey;", "uniform vec3 uBase;", "uniform float uAmbient;", "uniform float uFill;"];
+  var LIGHT_BODY = [
+    "  if (n.z < 0.0) n = -n;",  // two-sided, as the still renderer is
+    "  float light = uAmbient + (1.0 - uAmbient) * max(dot(n, uKey), 0.0) + uFill * n.z;",
+    "  gl_FragColor = vec4(min(clamp(light, 0.0, 1.15) * uBase, vec3(1.0)), 1.0);"
+  ];
+
+  var VERTEX_ATTR = [
     "attribute vec3 aPosition;",
     "attribute vec3 aNormal;",
     "uniform mat4 uView;",
@@ -37,20 +52,25 @@
     "}"
   ].join("\n");
 
-  var FRAGMENT = [
-    "precision mediump float;",
-    "varying vec3 vNormal;",
-    "uniform vec3 uKey;",
-    "uniform vec3 uBase;",
-    "uniform float uAmbient;",
-    "uniform float uFill;",
+  var FRAGMENT_ATTR = ["precision mediump float;", "varying vec3 vNormal;"]
+    .concat(LIGHT_UNIFORMS, ["void main() {", "  vec3 n = normalize(vNormal);"], LIGHT_BODY, ["}"])
+    .join("\n");
+
+  var VERTEX_FLAT = [
+    "attribute vec3 aPosition;",
+    "uniform mat4 uView;",
+    "uniform mat4 uProjection;",
+    "varying vec3 vViewPos;",
     "void main() {",
-    "  vec3 n = normalize(vNormal);",
-    "  if (n.z < 0.0) n = -n;",  // two-sided, as the still renderer is
-    "  float light = uAmbient + (1.0 - uAmbient) * max(dot(n, uKey), 0.0) + uFill * n.z;",
-    "  gl_FragColor = vec4(min(clamp(light, 0.0, 1.15) * uBase, vec3(1.0)), 1.0);",
+    "  vec4 p = uView * vec4(aPosition, 1.0);",
+    "  vViewPos = p.xyz;",
+    "  gl_Position = uProjection * p;",
     "}"
   ].join("\n");
+
+  var FRAGMENT_FLAT = ["#extension GL_OES_standard_derivatives : enable", "precision mediump float;", "varying vec3 vViewPos;"]
+    .concat(LIGHT_UNIFORMS, ["void main() {", "  vec3 n = normalize(cross(dFdx(vViewPos), dFdy(vViewPos)));"], LIGHT_BODY, ["}"])
+    .join("\n");
 
   function normalize(v) {
     var length = Math.hypot(v[0], v[1], v[2]) || 1;
@@ -62,13 +82,28 @@
   function dot(a, b) { return a[0] * b[0] + a[1] * b[1] + a[2] * b[2]; }
   function add(a, b, scale) { return [a[0] + b[0] * scale, a[1] + b[1] * scale, a[2] + b[2] * scale]; }
 
+  // The colour actually painted behind the still image in its box, read live
+  // so CSS stays the one place it is set.
+  function readBackdrop(el) {
+    try {
+      var css = window.getComputedStyle(el).backgroundColor;
+      var match = /rgba?\(\s*([\d.]+)[,\s]+([\d.]+)[,\s]+([\d.]+)/.exec(css || "");
+      if (match) return [match[1] / 255, match[2] / 255, match[3] / 255];
+    } catch (error) { /* a detached canvas or an old browser: fall back */ }
+    return BACKDROP_FALLBACK;
+  }
+
+  // The binary omits per-triangle normals unless `?normals=1` asked for them
+  // (needsNormals below decides that); either payload starts with the same
+  // header, so the byte length alone says which one this is.
   function parse(buffer) {
     if (buffer.byteLength < HEADER_BYTES) throw new Error("short mesh");
     var bytes = new Uint8Array(buffer, 0, MAGIC.length);
     if (String.fromCharCode.apply(null, bytes) !== MAGIC) throw new Error("not a mesh");
     var head = new DataView(buffer, 0, HEADER_BYTES);
     var count = head.getUint32(16, true);
-    if (buffer.byteLength !== HEADER_BYTES + count * 72) throw new Error("truncated mesh");
+    var withNormals = buffer.byteLength === HEADER_BYTES + count * 72;
+    if (!withNormals && buffer.byteLength !== HEADER_BYTES + count * 36) throw new Error("truncated mesh");
     var box = [];
     for (var index = 0; index < 6; index++) box.push(head.getFloat32(20 + index * 4, true));
     return {
@@ -76,34 +111,8 @@
       min: box.slice(0, 3),
       max: box.slice(3),
       positions: new Float32Array(buffer, HEADER_BYTES, count * 9),
-      normals: new Float32Array(buffer, HEADER_BYTES + count * 36, count * 9)
+      normals: withNormals ? new Float32Array(buffer, HEADER_BYTES + count * 36, count * 9) : null
     };
-  }
-
-  // One fetch per URL: the last few meshes stay parsed, and a refusal is
-  // remembered with its reason. An aborted or failed request is forgotten.
-  var memo = new Map();
-  function fetchMesh(url, signal) {
-    if (memo.has(url)) {
-      var known = memo.get(url);
-      memo.delete(url);
-      memo.set(url, known);
-      return known;
-    }
-    var pending = fetch(url, { credentials: "same-origin", signal: signal }).then(function (response) {
-      if (response.ok) return response.arrayBuffer().then(parse);
-      return response.json().catch(function () { return {}; }).then(function (body) {
-        var refusal = new Error(body.reason || "no mesh");
-        refusal.reason = body.reason || "";
-        throw refusal;
-      });
-    });
-    memo.set(url, pending);
-    while (memo.size > MEMO_LIMIT) memo.delete(memo.keys().next().value);
-    pending.catch(function (error) {
-      if (!error.reason && memo.get(url) === pending) memo.delete(url);
-    });
-    return pending;
   }
 
   var probe = null;
@@ -119,6 +128,55 @@
     return probe;
   }
 
+  // A browser without derivatives needs the normals attribute instead; this
+  // is what asks the server for the heavier payload that carries it.
+  var normalsProbe = null;
+  function needsNormals() {
+    if (normalsProbe === null) {
+      try {
+        var test = document.createElement("canvas").getContext("webgl");
+        normalsProbe = !(test && test.getExtension("OES_standard_derivatives"));
+      } catch (error) {
+        normalsProbe = true;
+      }
+    }
+    return normalsProbe;
+  }
+
+  // One fetch per URL: the last few meshes stay parsed, and a refusal is
+  // remembered with its reason. An aborted or failed request is forgotten.
+  // `onSize`, given the response's byte length as soon as headers arrive,
+  // lets a caller name a heavy download while it is still in flight; it only
+  // fires for the request that actually reaches the network, not a memo hit.
+  var memo = new Map();
+  function fetchMesh(url, signal, onSize) {
+    if (needsNormals()) url += (url.indexOf("?") >= 0 ? "&" : "?") + "normals=1";
+    if (memo.has(url)) {
+      var known = memo.get(url);
+      memo.delete(url);
+      memo.set(url, known);
+      return known;
+    }
+    var pending = fetch(url, { credentials: "same-origin", signal: signal }).then(function (response) {
+      if (response.ok) {
+        var length = onSize && response.headers.get("content-length");
+        if (length) onSize(parseInt(length, 10));
+        return response.arrayBuffer().then(parse);
+      }
+      return response.json().catch(function () { return {}; }).then(function (body) {
+        var refusal = new Error(body.reason || "no mesh");
+        refusal.reason = body.reason || "";
+        throw refusal;
+      });
+    });
+    memo.set(url, pending);
+    while (memo.size > MEMO_LIMIT) memo.delete(memo.keys().next().value);
+    pending.catch(function (error) {
+      if (!error.reason && memo.get(url) === pending) memo.delete(url);
+    });
+    return pending;
+  }
+
   function compile(gl, type, source) {
     var shader = gl.createShader(type);
     gl.shaderSource(shader, source);
@@ -131,9 +189,13 @@
     options = options || {};
     var gl = canvas.getContext("webgl", { antialias: true, alpha: false });
     if (!gl) return null;
+    // The box's background is fixed for the life of this canvas (it is never
+    // reparented), so one read at creation is enough.
+    var BACKDROP = readBackdrop(canvas.parentElement || canvas);
+    var flat = !!gl.getExtension("OES_standard_derivatives");
     var program = gl.createProgram();
-    gl.attachShader(program, compile(gl, gl.VERTEX_SHADER, VERTEX));
-    gl.attachShader(program, compile(gl, gl.FRAGMENT_SHADER, FRAGMENT));
+    gl.attachShader(program, compile(gl, gl.VERTEX_SHADER, flat ? VERTEX_FLAT : VERTEX_ATTR));
+    gl.attachShader(program, compile(gl, gl.FRAGMENT_SHADER, flat ? FRAGMENT_FLAT : FRAGMENT_ATTR));
     gl.linkProgram(program);
     if (!gl.getProgramParameter(program, gl.LINK_STATUS)) return null;
     var at = {
@@ -172,24 +234,42 @@
       return [0, 1, 2].map(function (axis) { return (mesh.min[axis] + mesh.max[axis]) / 2; });
     }
 
-    function home() {
+    // Tight-fits the mesh's actual projected outline, not its axis-aligned
+    // box's eight corners: mesh_render.py's still frames the true outline of
+    // whatever triangles project outermost, and an arbitrary shape's outline
+    // sits inside its box's, usually well inside. Fitting to the box instead
+    // would leave more margin than the still has and the swap would visibly
+    // shrink the mesh. `immediate` renders this frame synchronously, so a
+    // caller can reveal the canvas only once real pixels are in it.
+    function home(immediate) {
       if (!mesh) return;
       view.azimuth = HOME_AZIMUTH;
       view.elevation = HOME_ELEVATION;
-      view.target = centre();
       var axes = basis();
-      var halfX = 0;
-      var halfY = 0;
-      for (var corner = 0; corner < 8; corner++) {
-        var point = [0, 1, 2].map(function (axis) {
-          return ((corner >> axis) & 1 ? mesh.max[axis] : mesh.min[axis]) - view.target[axis];
-        });
-        halfX = Math.max(halfX, Math.abs(dot(point, axes.right)));
-        halfY = Math.max(halfY, Math.abs(dot(point, axes.up)));
+      var pos = mesh.positions;
+      var lowX = Infinity, highX = -Infinity, lowY = Infinity, highY = -Infinity;
+      for (var i = 0; i < pos.length; i += 3) {
+        var rx = pos[i] * axes.right[0] + pos[i + 1] * axes.right[1] + pos[i + 2] * axes.right[2];
+        var ry = pos[i] * axes.up[0] + pos[i + 1] * axes.up[1] + pos[i + 2] * axes.up[2];
+        if (rx < lowX) lowX = rx;
+        if (rx > highX) highX = rx;
+        if (ry < lowY) lowY = ry;
+        if (ry > highY) highY = ry;
       }
+      // The AABB centre anchors depth (which axis-aligned box this is does
+      // not affect what is on screen); the tight outline's own centre places
+      // it left-right and up-down, exactly as mesh_render.py's `mid` does.
+      var boxCentre = centre();
+      var target = add(
+        add(boxCentre, axes.right, (lowX + highX) / 2 - dot(boxCentre, axes.right)),
+        axes.up, (lowY + highY) / 2 - dot(boxCentre, axes.up)
+      );
+      view.target = target;
+      var halfX = Math.max((highX - lowX) / 2, 1e-6);
+      var halfY = Math.max((highY - lowY) / 2, 1e-6);
       var aspect = width && height ? width / height : 1;
       view.halfHeight = Math.max(halfY, halfX / aspect, 1e-6) / (1 - 2 * MARGIN);
-      draw();
+      if (immediate) render(); else draw();
     }
 
     function draw() {
@@ -197,6 +277,7 @@
     }
 
     function render() {
+      if (frame) { window.cancelAnimationFrame(frame); }
       frame = 0;
       if (lost || !width || !height) return;
       gl.viewport(0, 0, canvas.width, canvas.height);
@@ -226,9 +307,11 @@
       gl.bindBuffer(gl.ARRAY_BUFFER, buffers.position);
       gl.vertexAttribPointer(at.position, 3, gl.FLOAT, false, 0, 0);
       gl.enableVertexAttribArray(at.position);
-      gl.bindBuffer(gl.ARRAY_BUFFER, buffers.normal);
-      gl.vertexAttribPointer(at.normal, 3, gl.FLOAT, false, 0, 0);
-      gl.enableVertexAttribArray(at.normal);
+      if (buffers.normal && at.normal >= 0) {  // the flat program has none
+        gl.bindBuffer(gl.ARRAY_BUFFER, buffers.normal);
+        gl.vertexAttribPointer(at.normal, 3, gl.FLOAT, false, 0, 0);
+        gl.enableVertexAttribArray(at.normal);
+      }
       gl.drawArrays(gl.TRIANGLES, 0, mesh.count * 3);
     }
 
@@ -237,7 +320,7 @@
       spin = 0;
       if (buffers && !lost) {
         gl.deleteBuffer(buffers.position);
-        gl.deleteBuffer(buffers.normal);
+        if (buffers.normal) gl.deleteBuffer(buffers.normal);
       }
       buffers = null;
       mesh = null;
@@ -334,8 +417,11 @@
         release();
         if (lost) return false;
         mesh = next;
-        buffers = { position: upload(next.positions), normal: upload(next.normals) };
-        home();
+        buffers = { position: upload(next.positions), normal: next.normals ? upload(next.normals) : null };
+        // Renders this first frame now, in place, rather than waiting for the
+        // next animation frame: the caller reveals the canvas only after this
+        // returns, so nothing empty or stale is ever shown mid-swap.
+        home(true);
         return true;
       },
       resize: function (cssWidth, cssHeight) {

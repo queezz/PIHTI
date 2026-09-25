@@ -10,12 +10,20 @@ receives is a compact little-endian binary it can hand to WebGL as is:
 - uint32 triangle count N
 - 6 float32: bounding box min x, y, z, then max x, y, z
 - 9N float32 positions, three vertices per triangle
-- 9N float32 normals, the triangle's face normal repeated per vertex
+- 9N float32 normals, the triangle's face normal repeated per vertex, present
+  only when the request asked for them (see `encode`)
 
 The header is 44 bytes, a multiple of four, so both float blocks can be viewed
-as `Float32Array`s without a copy.
+as `Float32Array`s without a copy. A reader tells the two payloads apart by
+byte length alone: `header + 36N` (positions only) or `header + 72N` (both).
 
-Three rules, mirroring `geometry_preview`:
+Normals are omitted by default: a browser that can derive a flat normal from
+screen-space derivatives (`OES_standard_derivatives`, effectively universal)
+does not need them on the wire, and dropping them halves the payload for the
+heaviest meshes. `?normals=1` on `/mesh/<path>` asks for the older, heavier
+payload, for the rare browser without that extension.
+
+Four rules, mirroring `geometry_preview`:
 
 1. **Nothing imports numpy at module scope.** A mesh is built only for an
    extension `geometry_preview.available_extensions()` lists; without the
@@ -23,11 +31,16 @@ Three rules, mirroring `geometry_preview`:
 2. **Disk-cached, successes only.** A STEP parse costs seconds, so a mesh is
    stored in `meshes/` under the machine-local `cache_root.cache_root`
    (outside the workspace and outside Dropbox), sharded like previews,
-   keyed by path, modification time, size, and the format version, and
-   written temp-then-replace. A refusal is not stored: installing an extra or
-   raising the cap must not be masked by a stale marker.
+   keyed by path, modification time, size, whether normals are embedded, and
+   the format version, and written temp-then-replace. A refusal is not
+   stored: installing an extra or raising the cap must not be masked by a
+   stale marker.
 3. **A cap, not a stream.** A mesh above `MAX_TRIANGLES` is not served; the
-   inspector keeps the still image. At the cap a mesh is about 29 MB.
+   inspector keeps the still image. At the cap a positions-only mesh is
+   about 72 MB.
+4. **Normals are optional, never required.** `encode` and every caller default
+   to leaving them out; `include_normals=True` is only for the derivative-less
+   fallback.
 
 Nothing here writes to a CAD file.
 """
@@ -48,7 +61,7 @@ from pihti_dedup.cache_root import cache_root
 log = logging.getLogger(__name__)
 
 #: Bump when the binary layout or the geometry it carries changes.
-MESH_FORMAT_VERSION = 1
+MESH_FORMAT_VERSION = 2
 MAGIC = b"PIHTIMESH\0\0\0"
 HEADER = struct.Struct("<12sII6f")
 
@@ -59,8 +72,9 @@ MESH_EXTENSIONS = (
     | geometry_preview.STEP_EXTENSIONS
 )
 
-#: Above this the browser would receive tens of megabytes for one hover.
-MAX_TRIANGLES = 400_000
+#: Above this the browser would receive tens of megabytes for one hover. A
+#: positions-only payload at the cap is about 72 MB, still fine locally.
+MAX_TRIANGLES = 2_000_000
 
 CACHE_DIRNAME = "meshes"
 
@@ -101,11 +115,20 @@ def mesh_store(workspace: Path | str) -> Path:
     return cache_root(workspace) / CACHE_DIRNAME
 
 
-def cache_key(path: Path, mtime_ns: int, st_size: int) -> str:
-    """Normcased path, modification time, size, and the format version."""
+def cache_key(path: Path, mtime_ns: int, st_size: int, *, include_normals: bool = False) -> str:
+    """Normcased path, modification time, size, the format version, and
+
+    whether normals are embedded: the two payloads are cached separately.
+    """
 
     raw = "\0".join(
-        [os.path.normcase(str(path)), str(mtime_ns), str(st_size), f"mesh{MESH_FORMAT_VERSION}"]
+        [
+            os.path.normcase(str(path)),
+            str(mtime_ns),
+            str(st_size),
+            f"mesh{MESH_FORMAT_VERSION}",
+            "n1" if include_normals else "n0",
+        ]
     )
     return hashlib.sha256(raw.encode("utf-8")).hexdigest()
 
@@ -125,8 +148,12 @@ def read_header(data: bytes) -> tuple[int, int, tuple[float, ...]]:
     return version, count, tuple(box)
 
 
-def encode(triangles) -> bytes:
-    """The binary for an (N, 3, 3) triangle array, degenerate faces dropped."""
+def encode(triangles, *, include_normals: bool = False) -> bytes:
+    """The binary for an (N, 3, 3) triangle array, degenerate faces dropped.
+
+    Normals are left out by default: a browser with derivatives shades flat
+    from the positions alone, and the wire payload is half the size for it.
+    """
 
     import numpy as np
 
@@ -136,17 +163,20 @@ def encode(triangles) -> bytes:
     count = int(tris.shape[0])
     if count == 0:
         raise mesh_render.EmptyMeshError("no renderable triangles")
+    points = tris.reshape(-1, 3)
+    low, high = points.min(axis=0), points.max(axis=0)
+    header = HEADER.pack(MAGIC, MESH_FORMAT_VERSION, count, *low.tolist(), *high.tolist())
+    body = header + tris.astype("<f4").tobytes()
+    if not include_normals:
+        return body
     wide = tris.astype(np.float64)
     normals = np.cross(wide[:, 1] - wide[:, 0], wide[:, 2] - wide[:, 0])
     normals /= np.maximum(np.linalg.norm(normals, axis=1, keepdims=True), 1e-30)
     flat = np.repeat(normals[:, None, :], 3, axis=1).astype("<f4")
-    points = tris.reshape(-1, 3)
-    low, high = points.min(axis=0), points.max(axis=0)
-    header = HEADER.pack(MAGIC, MESH_FORMAT_VERSION, count, *low.tolist(), *high.tolist())
-    return header + tris.astype("<f4").tobytes() + flat.tobytes()
+    return body + flat.tobytes()
 
 
-def build(path: Path | str) -> MeshResult:
+def build(path: Path | str, *, include_normals: bool = False) -> MeshResult:
     """Load and encode one file. Never raises."""
 
     target = Path(path)
@@ -159,7 +189,7 @@ def build(path: Path | str) -> MeshResult:
             return MeshResult(reason=unavailable_reason(target.suffix) or "not a mesh format")
         if len(triangles) > MAX_TRIANGLES:
             return MeshResult(reason=TOO_LARGE, triangles=len(triangles))
-        data = encode(triangles)
+        data = encode(triangles, include_normals=include_normals)
     except FileNotFoundError:
         return MeshResult(reason="no such workspace file")
     except Exception:  # any parse failure keeps the still image
@@ -196,7 +226,12 @@ def write_cached(store: Path | str, key: str, data: bytes) -> bool:
 
 
 def get_or_build(
-    workspace: Path | str, path: Path | str, mtime_ns: int, st_size: int
+    workspace: Path | str,
+    path: Path | str,
+    mtime_ns: int,
+    st_size: int,
+    *,
+    include_normals: bool = False,
 ) -> MeshResult:
     """Disk-cached `build`. The cap is read at call time, so it can be lowered."""
 
@@ -205,7 +240,7 @@ def get_or_build(
     if reason:
         return MeshResult(reason=reason)
     store = mesh_store(workspace)
-    key = cache_key(target, mtime_ns, st_size)
+    key = cache_key(target, mtime_ns, st_size, include_normals=include_normals)
     cached = read_cached(store, key)
     if cached is not None:
         try:
@@ -216,7 +251,7 @@ def get_or_build(
             if count > MAX_TRIANGLES:
                 return MeshResult(reason=TOO_LARGE, triangles=count)
             return MeshResult(data=cached, triangles=count)
-    result = build(target)
+    result = build(target, include_normals=include_normals)
     if result.data is not None:
         write_cached(store, key, result.data)
     return result

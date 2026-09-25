@@ -4,6 +4,22 @@ Shipped archive milestones only. PIHTI does not yet have a formal release/versio
 contract, so entries are dated rather than assigned software versions. Git history
 remains authoritative for exact file changes.
 
+## 2026-09-25
+
+- Shipped `pihti-dedup` 0.23.2: the inspector's still-to-3D swap no longer
+  visibly jumps. The WebGL viewport reads its clear colour from the preview
+  box's own CSS background instead of Inventor's light-blue (which never
+  applied to an STL/3MF/STEP still in the first place), fits its home camera
+  to the mesh's actual projected outline rather than its bounding box's
+  corners so the swap does not change scale, and reveals the canvas only
+  once its first frame has actually rendered. Heavy meshes load faster and
+  further: the binary drops its per-triangle normals by default (a browser
+  derives a flat normal on the GPU from screen-space derivatives instead;
+  `?normals=1` still serves the older payload for one that cannot), which
+  lifts the cap from 400,000 to 2,000,000 triangles, and above about 5 MB in
+  flight the inspector names the download ("Loading 3D · N MB") beside the
+  still image while it waits.
+
 ## 2026-09-24
 
 - Shipped `pihti-dedup` 0.23.1: the inspector's preview gets real room. The

@@ -403,19 +403,23 @@ time; its link carries the first newly revealed tile's anchor, so the reload
 lands there instead of at the top. The 3D view has one server boundary,
 `GET /mesh/<path>?v=<mtime>-<size>-m<format>`: `_contained` resolution, then
 only `.stl`, `.3mf`, `.step`, `.stp`; anything else, a missing extra, a parse
-failure, or a mesh above `mesh_cache.MAX_TRIANGLES` (400,000, about 29 MB) is
-a `no-store` 404 carrying `{"reason": ...}`, which the page prints as one line
-under the still image. The body is little-endian: `PIHTIMESH` padded to 12
-bytes, uint32 format version, uint32 triangle count, six float32 for the
-bounding box, then 9N float32 positions and 9N float32 flat normals, so the
-browser hands both blocks to WebGL without copying. Geometry comes from
+failure, or a mesh above `mesh_cache.MAX_TRIANGLES` (2,000,000, about 72 MB
+positions-only) is a `no-store` 404 carrying `{"reason": ...}`, which the page
+prints as one line under the still image. The body is little-endian:
+`PIHTIMESH` padded to 12 bytes, uint32 format version, uint32 triangle count,
+six float32 for the bounding box, then 9N float32 positions, plus 9N float32
+flat normals only when `?normals=1` asks for them (for a browser without
+`OES_standard_derivatives`, which otherwise derives a flat normal on the GPU
+from how the view-space position changes across a triangle), so the browser
+hands the blocks it gets to WebGL without copying. Geometry comes from
 `geometry_preview.load_triangles`, the loader the still renderer uses, with
 degenerate faces dropped as there. The binary is cached under
 `.pihti-dedup/meshes/`, sharded like previews, keyed by normcased path,
-modification time, size, and `MESH_FORMAT_VERSION`, and written
-temp-then-replace; refusals are not stored on disk (a process memo keyed with
-the cap spares a re-parse), and a cached mesh is still refused if the cap has
-since been lowered. A matching `v` is answered immutable, anything else
+modification time, size, whether normals are embedded, and
+`MESH_FORMAT_VERSION`, and written temp-then-replace; refusals are not stored
+on disk (a process memo keyed with the cap spares a re-parse), and a cached
+mesh is still refused if the cap has since been lowered. A matching `v` is
+answered immutable, anything else
 revalidates by ETag, as previews do. `warm-previews --meshes` builds the whole
 cache: 243 files, 240 built and 3 over the cap, in 71 s; the largest served
 mesh is 212,630 triangles (15.3 MB). The client is `static/viewer3d.js`,
@@ -428,7 +432,14 @@ preview, aborts a superseded request, keeps the last six meshes in a page
 memo, and deletes the previous file's GPU buffers on every switch; a flick
 coasts unless `prefers-reduced-motion` is set. The part page uses the same
 view at the still preview's size. Inventor documents keep their embedded
-image: there is no geometry outside Inventor.
+image: there is no geometry outside Inventor. The still and the 3D view now
+share one backdrop (read from the preview box's own CSS `--mesh-backdrop`,
+never Inventor's light-blue), one tight camera fit matching mesh_render.py's
+projected outline rather than the bounding box's corners, and the canvas is
+revealed only once its first frame has actually rendered, so a swap no longer
+visibly changes background or scale. Above about 5 MB in flight the inspector
+names the download ("Loading 3D · N MB") beside the still image while it
+waits.
 
 Version 0.23.1 gives the inspector's preview real room and moves the
 rebuildable caches off Dropbox. At 1920×900, the common docked-laptop and

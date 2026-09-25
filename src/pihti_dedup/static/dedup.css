@@ -14,6 +14,7 @@
   --hero: #f0d060;
   --featured: #d48fb8;
   --sourced: #5cc8c8;
+  --mesh-backdrop: #101822;
   --bar-height: 62px;
   --content-pad: 22px;
   --page-foot: 72px;
@@ -375,12 +376,13 @@ button, select, input[type="checkbox"] { cursor: pointer; }
    card, the size and colour of Copy path, never above the preview. */
 .inspector-flags { flex: none; display: flex; flex-wrap: wrap; gap: 6px; margin-top: auto; padding-top: 6px; }
 .inspector-flag { padding: 3px 8px; }
-.inspector-preview { flex: none; display: flex; align-items: center; justify-content: center; overflow: hidden; border-radius: 6px; background: #101822; }
+.inspector-preview { flex: none; display: flex; align-items: center; justify-content: center; overflow: hidden; border-radius: 6px; background: var(--mesh-backdrop); }
 .inspector-preview img { display: block; width: 100%; height: auto; object-fit: contain; }
 /* The preview area has one height for every file the inspector shows, set by
    the script from the room the card has: 240px at least on any window 800px
    tall or more, more when the card has it. The 3D view of an STL, 3MF, or
-   STEP file fills that area on Inventor's light-blue backdrop. */
+   STEP file fills that area on the same --mesh-backdrop the still image sits
+   on, read live from this box by viewer3d.js so the two can never drift. */
 .mesh-canvas { display: block; max-width: 100%; border-radius: 6px; cursor: grab; touch-action: none; }
 .mesh-canvas:active { cursor: grabbing; }
 .mesh-note { flex: none; margin: 4px 0 0; color: var(--dim); font-size: 0.66rem; }
@@ -572,7 +574,8 @@ button, select, input[type="checkbox"] { cursor: pointer; }
 .rail-nav a.rail-navrow { text-decoration: none; }
 
 .part-head { display: grid; grid-template-columns: 320px minmax(0, 1fr); gap: 18px; margin: 0 0 14px; padding: 15px; border: 1px solid var(--line); border-radius: 9px; background: var(--panel); }
-.part-preview img { display: block; width: 100%; height: auto; aspect-ratio: 4 / 3; object-fit: contain; border: 1px solid var(--line-soft); border-radius: 7px; background: #101822; }
+.part-preview { background: var(--mesh-backdrop); }
+.part-preview img { display: block; width: 100%; height: auto; aspect-ratio: 4 / 3; object-fit: contain; border: 1px solid var(--line-soft); border-radius: 7px; background: var(--mesh-backdrop); }
 /* Part page: the catalog shell, a dense sheet, two cards side by side. The
    preview renders at its own pixel size (never upscaled) up to 32rem. */
 .part-sheet {

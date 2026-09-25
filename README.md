@@ -332,7 +332,7 @@ when those exist. Enter opens the part page; Escape clears the inspector.
 An STL, 3MF, or STEP file turns in 3D in the inspector and on its part page:
 drag to turn, use the wheel to zoom, right-drag or Shift-drag to pan, and
 double-click to return to the starting view. Inventor documents keep their
-still preview, and a mesh too large to send (over 400,000 triangles) keeps
+still preview, and a mesh too large to send (over 2,000,000 triangles) keeps
 the still image with a one-line note.
 
 Badges on file tiles flag what the inventory already knows, each a short word

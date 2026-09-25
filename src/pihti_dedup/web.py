@@ -643,13 +643,14 @@ def mesh_version(mtime_ns: int, size: int) -> str:
     return f"{mtime_ns:x}-{size:x}-m{mesh_cache.MESH_FORMAT_VERSION}"
 
 
-def _mesh_etag(path: Path, stat: os.stat_result) -> str:
+def _mesh_etag(path: Path, stat: os.stat_result, *, include_normals: bool = False) -> str:
     raw = "\0".join(
         [
             os.path.normcase(str(path)),
             str(stat.st_mtime_ns),
             str(stat.st_size),
             f"mesh{mesh_cache.MESH_FORMAT_VERSION}",
+            "n1" if include_normals else "n0",
         ]
     )
     return hashlib.sha256(raw.encode("utf-8")).hexdigest()[:32]
@@ -2421,7 +2422,7 @@ def create_app(
     # Meshes that were refused for a reason only a change to the file can
     # lift (over the cap, unreadable), so a hover does not re-parse a STEP
     # file for seconds to learn the same answer. Keyed with the cap itself.
-    mesh_refusals: OrderedDict[tuple[str, int, int, int], str] = OrderedDict()
+    mesh_refusals: OrderedDict[tuple[str, int, int, int, bool], str] = OrderedDict()
     mesh_lock = threading.Lock()
 
     @app.get("/mesh/<path:relative_path>")
@@ -2443,17 +2444,23 @@ def create_app(
             stat = target.stat()
         except OSError:
             return refuse("no such workspace file")
+        # A browser without OES_standard_derivatives asks for the heavier,
+        # normals-included payload; every other request gets positions only.
+        include_normals = _flag(request.args.get("normals"))
         key = (
             os.path.normcase(str(target)),
             stat.st_mtime_ns,
             stat.st_size,
             mesh_cache.MAX_TRIANGLES,
+            include_normals,
         )
         with mesh_lock:
             known = mesh_refusals.get(key)
         if known:
             return refuse(known)
-        result = mesh_cache.get_or_build(root, target, stat.st_mtime_ns, stat.st_size)
+        result = mesh_cache.get_or_build(
+            root, target, stat.st_mtime_ns, stat.st_size, include_normals=include_normals
+        )
         if result.data is None:
             if result.reason in {mesh_cache.TOO_LARGE, mesh_cache.UNREADABLE}:
                 with mesh_lock:
@@ -2463,7 +2470,7 @@ def create_app(
             return refuse(result.reason)
         response = Response(result.data, mimetype="application/octet-stream")
         response.last_modified = stat.st_mtime
-        response.set_etag(_mesh_etag(target, stat))
+        response.set_etag(_mesh_etag(target, stat, include_normals=include_normals))
         if request.args.get("v", "") == mesh_version(stat.st_mtime_ns, stat.st_size):
             response.headers["Cache-Control"] = "private, max-age=31536000, immutable"
         else:
