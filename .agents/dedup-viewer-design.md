@@ -414,7 +414,7 @@ from how the view-space position changes across a triangle), so the browser
 hands the blocks it gets to WebGL without copying. Geometry comes from
 `geometry_preview.load_triangles`, the loader the still renderer uses, with
 degenerate faces dropped as there. The binary is cached under
-`.pihti-dedup/meshes/`, sharded like previews, keyed by normcased path,
+`.pihti-dedup/meshes/` (the machine-local cache root since 0.23.1), sharded like previews, keyed by normcased path,
 modification time, size, whether normals are embedded, and
 `MESH_FORMAT_VERSION`, and written temp-then-replace; refusals are not stored
 on disk (a process memo keyed with the cap spares a re-parse), and a cached
@@ -496,7 +496,8 @@ view of AppData) is refused with an error naming it: `serve` and
 `warm-previews` exit 2 rather than fill a cache no other program can see. The
 viewer prints the root once at start; `warm-previews` prints it before the
 first file. The inventory snapshots, the quarantine store, and the Git
-history previews stay in the workspace's `.pihti-dedup/`. A
+history previews stayed in the workspace's `.pihti-dedup/` (0.27.2 moved
+the inventory and Git history previews to the cache root as well). A
 `.pihti-dedup/previews/` left by an earlier release is left alone and never
 read; the first visits after upgrading draw previews afresh unless
 `warm-previews` is run again. The test suite points the cache base at a
@@ -727,6 +728,29 @@ carries or another row suggests, `check_filename` applied, a number last) and
 and `execute_rename(..., session=...)`. Without a session the copy row's chip
 is a plain **Rename** (recorded for manual repointing) and the Inventor card
 says "Start Inventor, open PIHTI.ipj, then come back".
+
+Version 0.27.2 takes the last rebuildable caches off Dropbox. With the viewer
+running on two machines against the one synced workspace, both wrote
+`.pihti-dedup/inventory-default-v1.json` and Dropbox kept a conflicted copy.
+`InventoryCache` now persists every scope (`inventory-default-v1.json`,
+`inventory-vendor-v1.json`; the file name is `inventory-<scope>-v<schema>`)
+in `cache_root(workspace)/inventory/`, and Doctor's Git-history blobs go to
+`cache_root(workspace)/git-previews/`. `create_app` passes both folders from
+the root it already resolved and logs it once as `machine-local cache:`, the
+line `serve` prints too. **Warm start.** When the machine-local file for a
+scope is absent, `_load` reads the workspace's old `.pihti-dedup/` copy once
+per scope and process; it goes through the same schema and scope checks and
+is only a `previous` to merge against, so a digest is reused only where path,
+size, and mtime still match. A scope loaded from the machine-local file is
+marked persisted; any other validated inventory is stored even when it is
+unchanged, so the first validation after a warm start writes the new file
+and the old one is never read again. The old file is never written or
+deleted; the owner removes it. `.pihti-dedup/` is now written by nothing: new
+quarantine runs have gone to the sibling `<workspace>-quarantine/runs/` since
+the Removed page, and old runs under `.pihti-dedup/quarantine/` stay listed
+and restorable. The scanners still skip `.pihti-dedup/`. The CLI `scan`,
+`merge-cleanup`, and `warm-previews` never read or wrote the persisted
+inventory (each walks the disk itself), so only the viewer changed.
 
 ## Purpose
 

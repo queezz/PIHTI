@@ -147,8 +147,8 @@ available for development, but `lab pihti` is the normal operating surface.
 
 Catalog is the landing view; open **Duplicates** in the top navigation when the
 filename-collision inventory needs review. The server builds an in-memory
-snapshot from the metadata-validated inventory under gitignored
-`.pihti-dedup/` and serves every page from it, refreshing that snapshot in the
+snapshot from the metadata-validated inventory persisted in the
+machine-local cache (see [Previews](#previews)) and serves every page from it, refreshing that snapshot in the
 background every few seconds while the viewer is in use (about once a minute
 when idle) and rehashing only paths whose size or modification time changed.
 **Refresh** on Duplicates remains the explicit full verification, and every
@@ -296,6 +296,16 @@ Releases before 0.23.1 kept previews in `.pihti-dedup/previews/` inside the
 workspace; that folder is no longer read and can be deleted. DXF is not
 covered and shows the placeholder.
 
+The same machine-local folder holds every other rebuildable cache: `inventory`
+(the viewer's persisted scan, so a restart does not rehash the workspace) and
+`git-previews` (old file versions Doctor draws from Git history). Nothing
+rebuildable is written beside the workspace, so two machines running the
+viewer on the synced folder never write the same file. Releases before 0.27.2
+kept the inventory and `git-previews` in `.pihti-dedup/`; the first start
+after upgrading reads that inventory once as a warm start and never writes
+there again. Delete `.pihti-dedup/`'s `inventory-*.json`, `git-previews`, and
+any Dropbox conflicted copies by hand once the viewer has started.
+
 For a merged PR, preview merge-added same-name, byte-identical copies from the
 viewer or CLI:
 
@@ -313,8 +323,9 @@ the same plan with:
 Apply mode never permanently deletes files. It revalidates path, size, modified
 time, and SHA-256; keeps
 at least one identical copy outside the merge, moves only merge-added candidates
-to gitignored `.pihti-dedup/quarantine/`, writes a restoration manifest, and
-rescans. Modified pre-existing files and groups introduced entirely by the same
+to the sibling `PIHTI-quarantine/runs/` store (runs in an older
+`.pihti-dedup/quarantine/` stay listed and restorable), writes a restoration
+manifest, and rescans. Modified pre-existing files and groups introduced entirely by the same
 merge are protected.
 
 Pack-and-Go support files under `bellows/Design Data/` and

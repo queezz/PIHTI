@@ -105,8 +105,8 @@ def test_serve_opens_the_catalog_as_the_landing_view(monkeypatch, tmp_path: Path
     assert options == [{"refresh_seconds": 5.0}]
     out = capsys.readouterr().out
     assert "PIHTI CAD viewer: http://127.0.0.1:4185/catalog" in out
-    assert f"preview and mesh cache: {cache_root(tmp_path)}" in out  # logged once at start
-    assert out.count("preview and mesh cache:") == 1
+    assert f"machine-local cache: {cache_root(tmp_path)}" in out  # logged once at start
+    assert out.count("machine-local cache:") == 1
 
 
 def test_legacy_cli_retains_old_summary_and_group_keys(tmp_path: Path, capsys) -> None:

@@ -930,6 +930,6 @@ def main(argv: Sequence[str] | None = None) -> int:
     if args.open:
         threading.Timer(0.7, lambda: webbrowser.open(url)).start()
     print(f"PIHTI CAD viewer: {url}")
-    print(f"preview and mesh cache: {cache_root(workspace)}")
+    print(f"machine-local cache: {cache_root(workspace)}")
     app.run(host=args.host, port=args.port, threaded=True, use_reloader=False)
     return 0

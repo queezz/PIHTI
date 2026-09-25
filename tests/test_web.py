@@ -102,7 +102,8 @@ def test_inventory_cache_survives_restart_and_rehashes_only_changed_files(
     first = web.InventoryCache(root, scan_workspace).get(include_vendor=False)
 
     assert all(record.sha256 for record in first.records)
-    assert (root / ".pihti-dedup" / "inventory-default-v1.json").is_file()
+    assert (cache_root(root) / "inventory" / "inventory-default-v1.json").is_file()
+    assert not (root / ".pihti-dedup").exists()  # a cache, never beside the workspace
 
     original = web.sha256_file
     hashed: list[str] = []
@@ -123,6 +124,98 @@ def test_inventory_cache_survives_restart_and_rehashes_only_changed_files(
 
     assert len(refreshed.records) == len(first.records)
     assert hashed == ["BoronProbe_2026/parts/bearing.ipt"]
+
+
+def test_every_inventory_scope_lands_in_the_machine_local_cache_root(tmp_path: Path) -> None:
+    root = make_workspace(tmp_path)
+    cache = web.InventoryCache(root, scan_workspace)
+    cache.get(include_vendor=False)
+    cache.get(include_vendor=True)
+
+    store = cache_root(root) / "inventory"
+    assert sorted(path.name for path in store.iterdir()) == [
+        "inventory-default-v1.json",
+        "inventory-vendor-v1.json",
+    ]
+    assert not (root / ".pihti-dedup").exists()
+
+
+def _move_inventories_to_the_workspace(root: Path) -> Path:
+    """Stage what a release before 0.27.2 left: the JSON in `.pihti-dedup/`."""
+
+    legacy = root / ".pihti-dedup"
+    legacy.mkdir()
+    store = cache_root(root) / "inventory"
+    for path in store.iterdir():
+        path.replace(legacy / path.name)
+    return legacy
+
+
+def test_a_workspace_inventory_is_a_one_time_warm_start_then_ignored(
+    monkeypatch, tmp_path: Path
+) -> None:
+    root = make_workspace(tmp_path)
+    first = web.InventoryCache(root, scan_workspace).get(include_vendor=False)
+    legacy = _move_inventories_to_the_workspace(root) / "inventory-default-v1.json"
+    legacy_bytes = legacy.read_bytes()
+
+    original = web.sha256_file
+    hashed: list[str] = []
+
+    def record_hash(path: Path) -> str:
+        hashed.append(path.relative_to(root).as_posix())
+        return original(path)
+
+    monkeypatch.setattr(web, "sha256_file", record_hash)
+    warm = web.InventoryCache(root, scan_workspace).get(include_vendor=False)
+
+    # The old copy saved the rehash, and the unchanged result is written once
+    # to the machine-local place; the old file is neither rewritten nor removed.
+    assert hashed == []
+    assert warm.records == first.records
+    assert (cache_root(root) / "inventory" / "inventory-default-v1.json").is_file()
+    assert legacy.read_bytes() == legacy_bytes
+    assert sorted(path.name for path in legacy.parent.iterdir()) == [legacy.name]
+
+    # From now on the machine-local file wins: a planted digest in the old
+    # copy is never adopted, even for a record whose size and mtime match.
+    planted = legacy.read_text(encoding="utf-8").replace(
+        first.records[0].sha256 or "", "0" * 64
+    )
+    legacy.write_text(planted, encoding="utf-8")
+    later = web.InventoryCache(root, scan_workspace).get(include_vendor=False)
+
+    assert hashed == []
+    assert all(record.sha256 != "0" * 64 for record in later.records)
+    assert later.records == first.records
+
+
+def test_a_workspace_inventory_is_tried_once_per_scope_and_must_validate(
+    monkeypatch, tmp_path: Path
+) -> None:
+    root = make_workspace(tmp_path)
+    legacy = root / ".pihti-dedup" / "inventory-default-v1.json"
+    legacy.parent.mkdir()
+    legacy.write_text("{not json", encoding="utf-8")
+    reads: list[Path] = []
+    original = web.InventoryCache._read
+
+    def spy(self, path: Path, include_vendor: bool):
+        reads.append(path)
+        return original(self, path, include_vendor)
+
+    monkeypatch.setattr(web.InventoryCache, "_read", spy)
+    cache = web.InventoryCache(root, scan_workspace, store=tmp_path / "machine" / "inventory")
+    # A store that never gets written keeps the machine-local file absent, the
+    # worst case for re-reading the old copy; it is still tried only once.
+    monkeypatch.setattr(web.InventoryCache, "_store", lambda self, inventory: None)
+    assert cache._load(False) is None
+    assert cache._load(False) is None
+    inventory = cache.get(include_vendor=False)
+
+    assert reads.count(legacy) == 1
+    assert all(record.sha256 for record in inventory.records)  # a cold start
+    assert legacy.read_text(encoding="utf-8") == "{not json"
 
 
 def test_vendor_scope_reuses_default_hashes(monkeypatch, tmp_path: Path) -> None:
@@ -704,7 +797,7 @@ def test_the_viewer_names_its_cache_root_once_and_ignores_an_old_workspace_cache
 
     with caplog.at_level("INFO", logger="pihti_dedup.web"):
         app = create_app(root)
-    named = [record for record in caplog.records if "preview and mesh cache" in record.message]
+    named = [record for record in caplog.records if "machine-local cache" in record.message]
     assert len(named) == 1 and str(cache_root(root)) in named[0].message
     assert app.config["CACHE_ROOT"] == cache_root(root)
 
@@ -2388,6 +2481,12 @@ def test_assembly_doctor_surfaces_git_rename_and_historical_preview(
     assert "/doctor/history-preview/" + "a" * 40 in html
     assert preview.status_code == 200
     assert preview.mimetype == "image/svg+xml"
+    # The historical blob is cached machine-local, like every other rebuildable
+    # cache, and a full Doctor visit writes nothing under `.pihti-dedup/`.
+    blobs = list((cache_root(tmp_path) / "git-previews").iterdir())
+    assert [blob.suffix for blob in blobs] == [".ipt"]
+    assert blobs[0].read_bytes() == b"old bytes"
+    assert not (tmp_path / ".pihti-dedup").exists()
 
 
 def test_assembly_doctor_rejects_non_assemblies_and_traversal(tmp_path: Path) -> None:

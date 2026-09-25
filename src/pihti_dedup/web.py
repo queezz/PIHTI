@@ -21,7 +21,7 @@ from flask import Flask, Response, jsonify, redirect, render_template, request, 
 from markupsafe import escape
 
 from pihti_dedup import __version__, geometry_preview, inventor_session, mesh_cache, step_mirror
-from pihti_dedup.cache_root import cache_root
+from pihti_dedup.cache_root import CacheRootError, cache_root
 from pihti_dedup.cleanup import (
     execute_cleanup,
     execute_consolidation,
@@ -246,14 +246,32 @@ def _removed_batches(manifests: tuple[dict, ...], *, gap_seconds: int = 600) -> 
     return batches
 
 
+#: Folder under the machine-local cache root for the persisted inventories.
+INVENTORY_DIRNAME = "inventory"
+#: Folder under the machine-local cache root for Git-history blobs drawn by Doctor.
+GIT_PREVIEWS_DIRNAME = "git-previews"
+#: The workspace folder that held the inventories before 0.27.2 (and the
+#: quarantine before the sibling store); never written by this module.
+LEGACY_DIRNAME = ".pihti-dedup"
+
+
 class InventoryCache:
     """Disk-aware inventory cache shared by every viewer surface.
 
     A ten-second time-to-live used to make normal tab switches hash the whole
     workspace again.  This cache instead performs a metadata-only validation,
     reuses hashes for files whose path, size, and modification time are
-    unchanged, and persists that knowledge beneath the viewer's ignored cache
-    directory so a server restart is not a cold start.
+    unchanged, and persists that knowledge so a server restart is not a cold
+    start.
+
+    The persisted JSON is a rebuildable cache, so it lives machine-local in
+    `cache_root(workspace)/inventory/`, outside the workspace and outside
+    Dropbox: two machines writing one synced file produced conflicted copies.
+    Releases before 0.27.2 kept it in the workspace's `.pihti-dedup/`; when the
+    machine-local file is absent, a still-present workspace copy is read once
+    per scope as a warm start (it is validated against the disk like any other
+    snapshot), and every write goes to the new place. The old file is never
+    written or deleted; the owner removes it.
     """
 
     SCHEMA_VERSION = 1
@@ -267,8 +285,12 @@ class InventoryCache:
         idle_interval: float = 60.0,
         clock: Callable[[], float] = time.monotonic,
         on_clear: Callable[[], None] | None = None,
+        store: Path | None = None,
     ) -> None:
         """`max_age == 0` validates the disk on every `get()`.
+
+        `store` overrides the folder the JSON is persisted in; the default is
+        `cache_root(workspace)/inventory/`, resolved on first use.
 
         `max_age > 0` serves the in-memory snapshot and leaves validation to
         `refresh()`/`refresh_due()` (a background ticker), except after
@@ -289,10 +311,27 @@ class InventoryCache:
         self._dirty: set[bool] = set()
         self._generation = 0  # bumped by clear(); a validation started earlier is stale
         self._serials: dict[bool, int] = {}  # bumped by every disk validation of a scope
+        self._store_dir: Path | None = store
+        self._persisted: set[bool] = set()  # scopes whose machine-local file is current
+        self._legacy_read: set[bool] = set()  # scopes whose workspace copy was tried
 
-    def _path(self, include_vendor: bool) -> Path:
+    @classmethod
+    def _filename(cls, include_vendor: bool) -> str:
         scope = "vendor" if include_vendor else "default"
-        return self.workspace / ".pihti-dedup" / f"inventory-{scope}-v1.json"
+        return f"inventory-{scope}-v{cls.SCHEMA_VERSION}.json"
+
+    def _path(self, include_vendor: bool) -> Path | None:
+        """The machine-local file, or None when the cache root is refused."""
+
+        if self._store_dir is None:
+            try:
+                self._store_dir = cache_root(self.workspace) / INVENTORY_DIRNAME
+            except CacheRootError:
+                return None
+        return self._store_dir / self._filename(include_vendor)
+
+    def _legacy_path(self, include_vendor: bool) -> Path:
+        return self.workspace / LEGACY_DIRNAME / self._filename(include_vendor)
 
     @staticmethod
     def _same_file(left: FileRecord, right: FileRecord) -> bool:
@@ -351,8 +390,29 @@ class InventoryCache:
         return self._inventory(snapshot, records)
 
     def _load(self, include_vendor: bool) -> Inventory | None:
+        """The persisted inventory for one scope, or None.
+
+        Reads the machine-local file; when it is absent, reads the pre-0.27.2
+        workspace copy once per scope as a warm start. A scope loaded from the
+        machine-local file is marked current, so an unchanged validation does
+        not rewrite it; a warm start is not, so the first validation writes
+        the machine-local file and the workspace copy is never read again.
+        """
+
+        path = self._path(include_vendor)
+        if path is not None and path.is_file():
+            loaded = self._read(path, include_vendor)
+            if loaded is not None:
+                self._persisted.add(include_vendor)
+            return loaded
+        if include_vendor in self._legacy_read:
+            return None
+        self._legacy_read.add(include_vendor)
+        return self._read(self._legacy_path(include_vendor), include_vendor)
+
+    def _read(self, path: Path, include_vendor: bool) -> Inventory | None:
         try:
-            payload = json.loads(self._path(include_vendor).read_text(encoding="utf-8"))
+            payload = json.loads(path.read_text(encoding="utf-8"))
             if (
                 payload.get("schema_version") != self.SCHEMA_VERSION
                 or payload.get("include_vendor") != include_vendor
@@ -376,6 +436,8 @@ class InventoryCache:
 
     def _store(self, inventory: Inventory) -> None:
         target = self._path(inventory.include_vendor)
+        if target is None:
+            return
         temporary = target.with_suffix(".tmp")
         payload = {
             "schema_version": self.SCHEMA_VERSION,
@@ -390,9 +452,10 @@ class InventoryCache:
             target.parent.mkdir(parents=True, exist_ok=True)
             temporary.write_text(json.dumps(payload, separators=(",", ":")), encoding="utf-8")
             temporary.replace(target)
+            self._persisted.add(inventory.include_vendor)
         except OSError:
-            # This is a performance cache. A read-only workspace must still be
-            # fully usable; it simply pays for hashing again after a restart.
+            # This is a performance cache. An unwritable cache root must not
+            # stop the viewer; it simply pays for hashing again after a restart.
             try:
                 temporary.unlink(missing_ok=True)
             except OSError:
@@ -431,9 +494,10 @@ class InventoryCache:
             self._requested[include_vendor] = False
             if generation == self._generation:
                 self._dirty.discard(include_vendor)
-        if changed:
-            # Only a changed inventory is written: a background tick must not
-            # rewrite the JSON into a synced folder every few seconds.
+        if changed or include_vendor not in self._persisted:
+            # Only a changed inventory is rewritten: a background tick must
+            # not rewrite the JSON every few seconds. A warm start from the
+            # old workspace copy is written once to the machine-local place.
             self._store(inventory)
         return inventory
 
@@ -1161,10 +1225,11 @@ def create_app(
     """
 
     root = Path(workspace or Path.cwd()).resolve()
-    # Previews and meshes live machine-local, outside the workspace and
-    # Dropbox; a refused root (a virtualized AppData tree) stops the start.
+    # The inventory, previews, meshes, and Git-history previews live
+    # machine-local, outside the workspace and Dropbox; a refused root (a
+    # virtualized AppData tree) stops the start.
     machine_cache = cache_root(root)
-    logger.info("preview and mesh cache: %s", machine_cache)
+    logger.info("machine-local cache: %s", machine_cache)
     app = Flask(__name__)
     app.config.update(
         WORKSPACE=root,
@@ -1172,7 +1237,12 @@ def create_app(
         VERSION=__version__,
         FORM_TOKEN=secrets.token_urlsafe(32),
     )
-    cache = InventoryCache(root, scanner, max_age=max(refresh_seconds, 0.0))
+    cache = InventoryCache(
+        root,
+        scanner,
+        max_age=max(refresh_seconds, 0.0),
+        store=machine_cache / INVENTORY_DIRNAME,
+    )
     previews = PreviewCache(root)
     references = ReferenceCache()
     catalog_metadata: dict[str, tuple[int, int, DocumentMeta]] = {}
@@ -1997,7 +2067,7 @@ def create_app(
         digest = hashlib.sha256(
             f"{commit}:{relative_path}".encode("utf-8", "surrogatepass")
         ).hexdigest()
-        store = root / ".pihti-dedup" / "git-previews"
+        store = machine_cache / GIT_PREVIEWS_DIRNAME
         cached = store / f"{digest}{Path(relative_path).suffix.lower()}"
         try:
             store.mkdir(parents=True, exist_ok=True)

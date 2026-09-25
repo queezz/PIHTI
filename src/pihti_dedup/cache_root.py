@@ -2,11 +2,15 @@
 
 A preview PNG and a mesh binary are rebuilt from the CAD file whenever they
 are missing, and a whole workspace of them is hundreds of megabytes that
-change on every resave. Kept beside the workspace they would sync through
-Dropbox to every machine, so they live under one machine-local root instead:
+change on every resave. The persisted inventory is rebuilt by a rescan, and
+two machines writing one synced copy of it made Dropbox conflicted copies.
+Kept beside the workspace these would sync through Dropbox to every machine,
+so they live under one machine-local root instead:
 
+    <base>/<workspace-id>/inventory/
     <base>/<workspace-id>/previews/
     <base>/<workspace-id>/meshes/
+    <base>/<workspace-id>/git-previews/
 
 `<base>` is the `PIHTI_DEDUP_CACHE_ROOT` environment variable when it is set,
 otherwise `%LOCALAPPDATA%\\pihti-dedup` on Windows and `~/.cache/pihti-dedup`
@@ -20,8 +24,11 @@ spelling: a packaged desktop app can give its process tree a private view of
 base that resolves there is refused with an error naming it, rather than
 filling a cache nobody else can see.
 
-The inventory snapshots and the quarantine store stay in the workspace's
-`.pihti-dedup/`; they are small, or data the owner may want beside it.
+The quarantine is content, not cache, and stays shared: new runs go to the
+sibling `<workspace>-quarantine/runs/`, and runs in the workspace's older
+`.pihti-dedup/quarantine/` stay listed and restorable. Nothing else is written
+under `.pihti-dedup/`; an inventory left there by a release before 0.27.2 is
+read once as a warm start and never written or deleted.
 """
 
 from __future__ import annotations

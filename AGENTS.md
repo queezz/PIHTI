@@ -82,9 +82,9 @@ words go into folder notes and file sidecars, nothing is inferred, and
   ledger.
 - Version numbers in `pyproject.toml` and `src/pihti_dedup/__init__.py` describe
   the dedup tool only; they are not versions of the PIHTI CAD archive.
-- `OldVersions/`, `_site/`, caches (including the machine-local preview and
-  mesh cache root, `%LOCALAPPDATA%\pihti-dedup\<workspace-id>\` or the folder
-  named by `PIHTI_DEDUP_CACHE_ROOT`), the STEP mirror (the sibling folder
+- `OldVersions/`, `_site/`, caches (including the machine-local root for the
+  inventory, previews, and meshes, `%LOCALAPPDATA%\pihti-dedup\<workspace-id>\`
+  or the folder named by `PIHTI_DEDUP_CACHE_ROOT`), the STEP mirror (the sibling folder
   `PIHTI-step` beside the workspace, or the folder named by
   `PIHTI_DEDUP_STEP_MIRROR`), lock files, local staging, Pack-and-Go logs,
   vendor `Design Data/`, and vendor `Templates/` are not curated source.

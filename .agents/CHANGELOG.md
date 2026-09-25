@@ -6,6 +6,20 @@ remains authoritative for exact file changes.
 
 ## 2026-09-25
 
+- Shipped `pihti-dedup` 0.27.2: the viewer's persisted inventory leaves
+  Dropbox. With the viewer on two machines, both wrote
+  `.pihti-dedup/inventory-default-v1.json` beside the synced workspace and
+  Dropbox kept a conflicted copy. Every inventory scope now lives in the
+  machine-local cache root, `%LOCALAPPDATA%\pihti-dedup\<workspace-id>\inventory\`
+  (or under `PIHTI_DEDUP_CACHE_ROOT`), beside previews and meshes. The first
+  start after upgrading reads a still-present `.pihti-dedup/` copy once as a
+  warm start, validated against the disk like any snapshot, then writes only
+  the new place; the old file is never touched, so delete it by hand. Doctor's
+  Git-history previews moved to `git-previews\` in the same root, closing
+  that open direction. Nothing writes `.pihti-dedup/` any more: new quarantine
+  runs already go to the sibling `PIHTI-quarantine/runs/`, and older runs
+  there stay restorable. `serve` now prints `machine-local cache:` for the
+  root.
 - Shipped `pihti-dedup` 0.27.1: the STEP mirror no longer opens an assembly
   that names a part nobody has. `BoronProbe_2026/parts/C25K22A4CU.iam`
   names vendor parts that lived on a student's OneDrive, so Inventor raised
