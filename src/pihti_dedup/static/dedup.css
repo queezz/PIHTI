@@ -367,6 +367,7 @@ a.copy-path { display: inline-block; text-align: center; text-decoration: none; 
 .sourcing-rail-label { flex: none; font-size: 0.62rem; font-weight: 650; letter-spacing: 0.09em; text-transform: uppercase; }
 .sourcing-rail a { min-width: 0; overflow: hidden; text-overflow: ellipsis; color: var(--accent); }
 .sourcing-rail a:hover { color: var(--text); }
+.sourcing-rail .sourcing-rail-add { flex: none; align-self: center; min-width: 0; margin-left: auto; padding: 0 7px; color: var(--muted); font-size: 0.62rem; line-height: 1.1rem; }
 /* The left rail is exactly as tall as the room between the sticky offset and
    the page foot, like the tree card. Three stations, none of which moves with
    what a page shows: the folder card on top at one height (the head plus the
@@ -1056,6 +1057,29 @@ a.tree-name:hover { color: var(--accent); text-decoration: underline; }
 .sourcing-problems ul { display: flex; flex-direction: column; gap: 5px; margin: 0; padding: 0 2px; list-style: none; color: var(--muted); font-size: 0.72rem; }
 .sourcing-problems li { display: flex; flex-wrap: wrap; gap: 4px 10px; }
 .sourcing-problems code { color: var(--collision); }
+/* A catalog folder's options, in place under its files: file-sized tiles,
+   rejected ones folded into one row that opens where it is. */
+.catalog-browse > .sourcing-block:not(:first-child) { border-top: 1px solid var(--line-soft); }
+.sourcing-block { scroll-margin-top: calc(var(--bar-height) + var(--content-pad) + 56px); padding-bottom: 2px; }
+.sourcing-block > .grid-label:last-child { padding-bottom: 11px; }
+.sourcing-head { display: flex; align-items: center; gap: 6px; }
+.sourcing-head .copy-path { margin-left: 6px; padding: 1px 7px; font-size: 0.62rem; }
+.sourcing-block > .thumb-grid { padding-top: 9px; }
+.sourcing-tile .thumb-facts { align-items: center; }
+.sourcing-price { color: var(--muted); font-size: 0.68rem; font-variant-numeric: tabular-nums; }
+.sourcing-rejected { padding: 0 15px 11px; }
+.sourcing-rejected > summary { width: max-content; color: var(--dim); font-size: 0.7rem; cursor: pointer; }
+.sourcing-rejected > summary:hover { color: var(--text); }
+.sourcing-rejected > .thumb-grid { padding: 9px 0 0; }
+.sourcing-broken { margin: 0; padding: 0 15px 11px; list-style: none; color: var(--dim); font-size: 0.68rem; }
+.sourcing-broken code { color: var(--collision); }
+.thumb-details a { color: var(--accent); overflow-wrap: anywhere; }
+/* The part page's File card: this file's options, one compact row each. */
+.sourcing-rows { display: flex; flex-direction: column; gap: 3px; margin: 0 0 8px; padding: 0; list-style: none; }
+.sourcing-rows a { display: flex; align-items: center; gap: 7px; min-width: 0; padding: 3px 6px; border: 1px solid var(--line-soft); border-radius: 6px; color: var(--text); background: #0d141c; font-size: 0.72rem; text-decoration: none; }
+.sourcing-rows a:hover { border-color: #40566c; background: #141d28; }
+.sourcing-row-title { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sourcing-rows small { flex: none; color: var(--dim); font-size: 0.66rem; font-variant-numeric: tabular-nums; }
 
 /* The sourcing editor: fields, the files it is for, then the note beside its
    live preview. Flat headed groups inside the one card. */

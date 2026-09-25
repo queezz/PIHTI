@@ -6,6 +6,21 @@ remains authoritative for exact file changes.
 
 ## 2026-09-25
 
+- Shipped `pihti-dedup` 0.28.0: sourcing shows where you already are. The
+  owner kept getting lost going to Sourcing and back, with two options for
+  one small assembly and more to come. A catalog folder now lists its own
+  options under its files in a Sourcing section: file-sized tiles with the
+  note's first picture, title, status, price, and `for` files, furthest
+  along first (received, ordered, quoted, candidate) and rejected ones folded
+  into one "N rejected" row that opens in place. Hovering or arrowing onto a
+  tile shows its facts in the inspector (vendor, part number, price, status,
+  the link, the files) with an Edit option chip; a click opens the editor.
+  The folder card's Sourcing line is the count plus Add option. A file's
+  page lists its options in the File card, newest first, gathered from any
+  folder whose note names the file, with Add option pre-set to that file;
+  Save and Cancel return to the page the editor was opened from.
+  `/sourcing/<folder>` now redirects to the folder's section, so old links
+  keep working; the archive-wide Sourcing tab stays.
 - Shipped `pihti-dedup` 0.27.2: the viewer's persisted inventory leaves
   Dropbox. With the viewer on two machines, both wrote
   `.pihti-dedup/inventory-default-v1.json` beside the synced workspace and

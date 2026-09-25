@@ -1060,6 +1060,7 @@ var PihtiEnlarge = (function () {
   var stepForm = inspector && inspector.querySelector("form[data-inspector-step-export]");
   var enlargeButton = inspector && inspector.querySelector("[data-inspector-enlarge]");
   var tools = inspector && inspector.querySelector("[data-mesh-tools]");
+  var editLink = inspector && inspector.querySelector("[data-inspector-edit]");
   var shown = null;
   var hoverTimer = null;
 
@@ -1072,15 +1073,65 @@ var PihtiEnlarge = (function () {
     image.addEventListener("load", function () { sizeImage(image.naturalWidth); });
   }
 
+  // A sourcing option's facts, from its tile's data attributes: a link
+  // cannot sit inside the tile's own link, so the inspector builds them.
+  function optionFacts(tile) {
+    var data = tile.dataset;
+    var list = document.createElement("dl");
+    list.className = "thumb-details";
+    function row(label, content) {
+      if (!content) return;
+      var item = document.createElement("div");
+      var term = document.createElement("dt");
+      var value = document.createElement("dd");
+      term.textContent = label;
+      if (typeof content === "string") value.textContent = content;
+      else value.appendChild(content);
+      item.append(term, value);
+      list.appendChild(item);
+    }
+    row("Vendor", data.vendor);
+    row("Part number", data.partNumber);
+    row("Price", data.price);
+    var badge = tile.querySelector(".thumb-facts .badge");
+    row("Status", badge ? badge.cloneNode(true) : data.status);
+    if (/^https?:\/\//i.test(data.url || "")) {
+      var link = document.createElement("a");
+      link.href = data.url;
+      link.textContent = data.url;
+      link.target = "_blank";
+      link.rel = "noopener noreferrer";
+      row("Link", link);
+    }
+    var targets = [];
+    try { targets = JSON.parse(data.for || "[]"); } catch (_) { targets = []; }
+    if (targets.length) {
+      var names = document.createElement("span");
+      targets.forEach(function (target, index) {
+        if (index) names.appendChild(document.createTextNode(", "));
+        var node = document.createElement(target.url ? "a" : "span");
+        if (target.url) node.href = target.url;
+        node.textContent = target.name;
+        names.appendChild(node);
+      });
+      row("For", names);
+    }
+    row("Date", data.date);
+    return list;
+  }
+
   function show(tile) {
     if (!inspector || !tile.matches("a.thumb-tile")) return;
     var source = tile.querySelector("img");
     if (!source) return;
+    var option = tile.dataset.inspect === "sourcing";
     var details = tile.querySelector(".thumb-details");
     var name = tile.querySelector(".thumb-name, .hero-name");
     var size = tile.querySelector(".thumb-meta");
     title.textContent = name ? name.textContent : "";
-    if (details) {
+    if (option) {
+      facts.replaceChildren(optionFacts(tile));
+    } else if (details) {
       var copy = details.cloneNode(true);
       copy.hidden = false;
       facts.replaceChildren(copy);
@@ -1092,7 +1143,18 @@ var PihtiEnlarge = (function () {
     }
     image.src = source.currentSrc || source.src;
     sizeImage(source.complete ? source.naturalWidth : 0);
-    pointFlags(tile, title.textContent);
+    // An option has no placement flags; its one action is its editor.
+    flagForms.forEach(function (form) { form.hidden = option; });
+    if (option) {
+      flagForms.forEach(function (form) { form.removeAttribute("action"); delete form.dataset.file; });
+    } else {
+      pointFlags(tile, title.textContent);
+    }
+    if (editLink) {
+      editLink.hidden = !option;
+      if (option) editLink.href = tile.getAttribute("href");
+      else editLink.removeAttribute("href");
+    }
     empty.hidden = true;
     body.hidden = false;
     shown = tile;
@@ -1409,12 +1471,16 @@ var PihtiEnlarge = (function () {
     image.removeAttribute("src");
     facts.replaceChildren();
     flagForms.forEach(function (form) { form.removeAttribute("action"); delete form.dataset.file; });
+    if (editLink) { editLink.hidden = true; editLink.removeAttribute("href"); }
     if (stepForm) { stepForm.hidden = true; stepForm.removeAttribute("action"); delete stepForm.dataset.file; }
     shown = null;
   }
 
+  // A folded row (the rejected options) keeps its tiles out of the walk.
   function tiles() {
-    return Array.from(grid.querySelectorAll(TILE)).filter(function (tile) { return !tile.hidden; });
+    return Array.from(grid.querySelectorAll(TILE)).filter(function (tile) {
+      return !tile.hidden && !tile.closest("details:not([open])");
+    });
   }
 
   function verticalNeighbour(tile, direction) {
@@ -1497,11 +1563,16 @@ var PihtiEnlarge = (function () {
     if (event.key === "Escape" && shown) clear();
   });
 
-  // A link to `#file-...` lands on that tile: focus it and show it.
-  var landed = window.location.hash.indexOf("#file-") === 0 &&
-    document.getElementById(window.location.hash.slice(1));
+  // A link to `#file-...` or `#option-...` lands on that tile: focus it and
+  // show it, opening the rejected row when it sits there.
+  var hash = window.location.hash;
+  var landed = (hash.indexOf("#file-") === 0 || hash.indexOf("#option-") === 0) &&
+    document.getElementById(decodeURIComponent(hash.slice(1)));
   if (landed && grid.contains(landed) && landed.matches(TILE)) {
+    var fold = landed.closest("details");
+    if (fold) fold.open = true;
     landed.focus({ preventScroll: true });
+    landed.scrollIntoView({ block: "nearest" });
     show(landed);
   }
 })();
@@ -1946,7 +2017,7 @@ var PihtiEnlarge = (function () {
       var card = item.closest(".hero-card");
       if (card) card.hidden = !match;
       if (match) shown += 1;
-      if (match && item.matches("a.thumb-tile")) files += 1;
+      if (match && item.matches("a.thumb-tile:not(.sourcing-tile)")) files += 1;
     });
     groups.forEach(function (group) {
       group.hidden = !group.querySelector("[data-filter-item]:not([hidden])");
@@ -2220,7 +2291,7 @@ var PihtiEnlarge = (function () {
   var toast = document.querySelector("[data-sourcing-toast]");
   if (!toast) return;
   var url = new URL(window.location.href);
-  url.searchParams.delete("saved");
+  url.searchParams.delete("option");
   window.history.replaceState(null, "", url.pathname + url.search + url.hash);
   window.setTimeout(function () { toast.remove(); }, 8000);
 })();

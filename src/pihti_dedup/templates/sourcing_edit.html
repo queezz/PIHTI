@@ -19,6 +19,7 @@
         <form method="post" class="sourcing-form" data-live-note-form data-preview-folder="{{ path }}">
           <input type="hidden" name="token" value="{{ form_token }}">
           {% if revision %}<input type="hidden" name="revision" value="{{ revision }}">{% endif %}
+          {% if back %}<input type="hidden" name="back" value="{{ back }}">{% endif %}
           <div class="sourcing-fields">
             <label class="field wide"><span>Title</span><input name="title" type="text" value="{{ values.title }}" required autocomplete="off"></label>
             <label class="field"><span>Status</span>
@@ -59,7 +60,7 @@
 
           <div class="sourcing-save">
             <button class="button primary" type="submit">Save</button>
-            <a class="button" href="{{ url_for('sourcing_folder', relative_folder=path) }}">Cancel</a>
+            <a class="button" href="{{ back_url }}">Cancel</a>
             <small data-live-note-status aria-live="polite"></small>
           </div>
         </form>
@@ -79,7 +80,7 @@
           <div><dt>Options</dt><dd>{{ option_count }}</dd></div>
         </dl>
         <div class="sourcing-rail-actions">
-          <a class="button" href="{{ url_for('sourcing_folder', relative_folder=path) }}">Back to sourcing</a>
+          <a class="button" href="{{ back_url }}">{% if back %}Back to {{ back_name }}{% else %}Back to folder{% endif %}</a>
         </div>
       </section>
     </aside>

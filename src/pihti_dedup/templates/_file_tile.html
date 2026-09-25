@@ -62,6 +62,22 @@
 </a>
 {% endmacro %}
 
+{# One sourcing option as a file-sized tile: its first picture, its title,
+   its status and price, the files it is for. It opens the option's editor;
+   hovering or arrowing onto it shows its facts in the inspector, which the
+   script builds from these data attributes (a link cannot sit in a link). #}
+{% macro option_tile(tile) %}
+{% set option = tile.option %}
+<a class="thumb-tile sourcing-tile" id="{{ tile.anchor }}" href="{{ tile.edit_url }}" title="{{ option.title }}" data-inspect="sourcing" data-status="{{ option.status }}" data-vendor="{{ option.vendor }}" data-part-number="{{ option.part_number }}" data-price="{{ option.price }}" data-url="{{ option.url }}" data-date="{{ option.date }}" data-for='{{ tile.for_links|tojson }}'>
+  <img src="{{ tile.picture }}" alt="" loading="lazy" decoding="async" width="160" height="120">
+  <span class="thumb-content">
+    <span class="thumb-name">{{ option.title }}</span>
+    <span class="thumb-facts">{{ badge('sourcing-' ~ option.status, option.status, 'Status: ' ~ option.status) }}{% if option.price %}<span class="sourcing-price">{{ option.price }}</span>{% endif %}</span>
+  </span>
+  <span class="tile-badges sourcing-for">{% for name in option.for_files %}<span class="metadata-chip">{{ name }}</span>{% endfor %}</span>
+</a>
+{% endmacro %}
+
 {# A designated main assembly, at file-tile size. The preview and name open
    the part page; on the root page the folder line and Open folder go to the
    folder that holds it. Links cannot nest, so the card holds the part link

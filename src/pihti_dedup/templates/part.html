@@ -3,7 +3,7 @@
 {% from "_file_tile.html" import badge, legend_card, mesh_dialog, mesh_tools %}
 {% block title %}{{ name }} · PIHTI{% endblock %}
 {% block body %}
-{% if toast %}<div class="operation-toast" role="status" data-operation-toast data-hero-toast>{{ toast }}</div>{% endif %}
+{% if toast %}<div class="operation-toast" role="status" data-operation-toast data-hero-toast data-sourcing-toast>{{ toast }}</div>{% endif %}
 <main class="page">
   <div class="work-grid two-rail catalog-grid">
     <div class="work-main catalog-main">
@@ -128,11 +128,20 @@
         {% endif %}
         {% if signals %}
         <ul class="file-marks" aria-label="What the catalog knows about this file">
-          {% for mark in signals %}<li>{{ badge(mark.kind, mark.word, mark.text) }}{% if mark.kind == 'sourced' and sourcing_url %}<a href="{{ sourcing_url }}">{{ mark.text }}</a>{% else %}<span>{{ mark.text }}</span>{% endif %}</li>{% endfor %}
+          {% for mark in signals %}<li>{{ badge(mark.kind, mark.word, mark.text) }}<span>{{ mark.text }}</span></li>{% endfor %}
+        </ul>
+        {% endif %}
+        {# This file's sourcing options, newest first, wherever their notes sit. #}
+        {% if sourcing_rows %}
+        <ul class="sourcing-rows" aria-label="Sourcing options for {{ name }}">
+          {% for row in sourcing_rows %}{% set option = row.option %}
+          <li><a href="{{ row.url }}" title="{{ option.relative_path|winpath }}">{{ badge('sourcing-' ~ option.status, option.status, 'Status: ' ~ option.status) }}<span class="sourcing-row-title">{{ option.title }}</span>{% if option.price %}<small>{{ option.price }}</small>{% endif %}</a></li>
+          {% endfor %}
         </ul>
         {% endif %}
         <div class="chip-row">
           <a class="copy-path" href="{{ url_for('catalog', relative_folder=folder if folder != '.' else none) }}">Back to folder</a>
+          {% if sourcing_add %}<a class="copy-path" href="{{ sourcing_add }}">Add option</a>{% endif %}
           {% if folder_editable %}<a class="copy-path" href="{{ url_for('folder_page', relative_folder=folder) }}">Folder note</a>{% endif %}
           {% if suffix|lower == '.iam' %}<a class="copy-path" href="{{ url_for('doctor_assembly', relative_path=path) }}">Open in Doctor</a>{% endif %}
         </div>

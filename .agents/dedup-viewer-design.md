@@ -288,7 +288,8 @@ file whose resolved path is inside the workspace and directly in a
 sandbox`, so it displays as a picture but never runs as a page; a PDF is
 served inline. An image URL carries `?v=` from the file's mtime and size and
 is immutable while that matches, as previews are. Deleting an option or an
-attachment is not built.
+attachment is not built. Since 0.28.0 the folder view lives in the
+catalog folder page and the part page; see that paragraph.
 
 Version 0.21.0 renames a CAD file and repairs the referring documents through
 the running Inventor session, so Design Assistant is no longer needed for a
@@ -751,6 +752,51 @@ the Removed page, and old runs under `.pihti-dedup/quarantine/` stay listed
 and restorable. The scanners still skip `.pihti-dedup/`. The CLI `scan`,
 `merge-cleanup`, and `warm-previews` never read or wrote the persisted
 inventory (each walks the disk itself), so only the viewer changed.
+
+Version 0.28.0 shows sourcing where the owner already is ("Going to sourcing
+and back is awkward, I get lost. And I already have two links for one small
+assembly. It'll grow."). **Catalog folder.** Under the file grid, inside the
+same `.catalog-browse` card and so inside the inspector's `[data-thumb-grid]`,
+a `#sourcing` block: head `Sourcing · N` with an **Add option** chip, then
+the folder's own notes as `a.thumb-tile.sourcing-tile` in a `.thumb-grid`
+(same subgrid rows as a file: picture, title plus status badge and price, the
+`for` names as `metadata-chip`s in the badge row). The picture is
+`sourcing.first_picture` (the first image the note links from its own
+`attachments/`, a Markdown or Obsidian embed, PDFs passed over, a missing file
+ignored), else a `data:` placeholder. Order is `sourcing.by_status`:
+`STATUS_ORDER` received, ordered, quoted, candidate, rejected, newest first
+within each (date, then mtime); rejected tiles sit in one closed
+`<details class="sourcing-rejected">` "N rejected" that opens in place. A
+problem note is one "does not parse" line with the reason as its tooltip.
+Every catalog folder (not the root, not a search) has the block, one line
+when empty. **Inspector.** A tile carries `data-inspect="sourcing"` and
+`data-status/-vendor/-part-number/-price/-url/-date`, plus `data-for` as JSON
+(`[{name, url}]`, a part-page link when the name resolves); the script builds
+the fact list from these (Vendor, Part number, Price, Status badge, Link as
+the full URL opening in a new tab, For as links, Date), because a link cannot
+sit inside the tile's own link. For an option the hero and cover forms are
+hidden and disarmed and a quiet **Edit option** chip takes the foot row;
+there is no mesh. The keyboard walk skips tiles inside a closed fold, and
+`#option-<slug>` lands like `#file-...`, opening the fold. The filter's file
+count counts `a.thumb-tile:not(.sourcing-tile)`. **Rail line.** The folder
+card's Sourcing line keeps its 1.25rem: the summary as an in-page `#sourcing`
+link (or "None yet") and the same **Add option** chip; nothing links away.
+**Part page.** The File card lists the file's options as compact rows
+(status badge, title, price), newest first, each opening its editor with
+`back=<file>`, and **Add option** opens the new form with `for=<file>` and
+`back`. The `sourced` signal stays and now reads "N sourcing options". Options
+for a file are gathered archive-wide: a `for` name means the file of that name
+in the note's folder, or when that folder has none, every catalog file with
+the name (`_sourcing_index` now also returns `files` and `named`). The folder
+block lists only the folder's own notes. **Editor.** `back` (a workspace file,
+else ignored) is a hidden field; Save redirects there with `?option=<slug>`
+(toast "Saved: <title>"), otherwise to `/catalog/<folder>?option=<slug>
+#option-<slug>`; Cancel and the rail button go the same way; the crumb
+Sourcing points at `#sourcing`. **Routes.** `/sourcing/<folder>` is a 302 to
+`/catalog/<folder>#sourcing` (with `?saved=<slug>`, to that tile), so old
+links keep working; `/sourcing` stays the archive-wide list with its Status
+filter, each card's folder link now the catalog tile; new, edit, attach, and
+the attachment route are unchanged.
 
 ## Purpose
 

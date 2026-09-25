@@ -546,24 +546,32 @@ Why this one. ![catalogue](attachments/20260924-101500-catalogue.png)
 ```
 
 `status` is one of `candidate`, `quoted`, `ordered`, `received`, or
-`rejected`; `for` lists CAD files in the same folder and may be empty. The links
-are ordinary relative Markdown, so the note reads the same on GitHub, in
-MkDocs, and in Obsidian; Obsidian's `![[attachments/name.png]]` also works.
+`rejected`; `for` lists CAD filenames and may be empty. A name the note's
+folder does not carry means the file of that name elsewhere, so an assembly
+can gather options from several folders. The links are ordinary relative
+Markdown, so the note reads the same on GitHub, in MkDocs, and in Obsidian;
+Obsidian's `![[attachments/name.png]]` also works.
 
-**Sourcing** in the top bar lists every option in the archive, grouped by
-status. A folder's own page shows its options as cards, newest first, with
-pictures inline and PDFs as links that open in the browser; the Status card on
-the left narrows the list, as does the filter box. In the catalog, each folder
-card has a Sourcing line (`3 options · 1 ordered`, or **Add** when there are
-none), a file named in `for` gets a `sourced` badge, and the inspector names
-the options. **Add option** and **Edit** open a form with the fields, the
-folder's CAD files as checkboxes, and the note text beside a live preview.
-Paste or drop a picture or a PDF (up to 25 MB) into the text to attach it: it
-is saved under `sourcing/attachments/` with a timestamped name and its link
-goes in at the cursor. Saving writes the note and never commits it. Deleting
-an option or an attachment is not built; delete the files yourself. The
-`notes check` gate also reports a sourcing note that does not parse or whose
-status is not one of the five.
+Options show where you already are. A catalog folder lists its own options
+under its files in a **Sourcing** section: file-sized tiles with the note's
+first picture, the title, the status, the price, and the `for` files. They
+run furthest along first (received, ordered, quoted, candidate), newest first
+within each; rejected ones fold into one "N rejected" row that opens in place.
+Hovering or arrowing onto a tile shows its facts in the inspector (vendor,
+part number, price, status, the link, the files); a click opens its editor.
+The folder card's Sourcing line gives the count and **Add option**. A file's
+own page lists its options in the File card, wherever the notes sit, with
+**Add option** pre-set to that file; Save and Cancel return to the page you
+came from. A file named in `for` gets a `sourced` badge. **Sourcing** in the
+top bar lists every option in the archive by status, with a Status filter;
+the old `/sourcing/<folder>` address now lands on the folder's section.
+The editor has the fields, the folder's CAD files as checkboxes, and the note
+text beside a live preview. Paste or drop a picture or a PDF (up to 25 MB)
+into the text to attach it: it is saved under `sourcing/attachments/` with a
+timestamped name and its link goes in at the cursor. Saving writes the note
+and never commits it. Deleting an option or an attachment is not built;
+delete the files yourself. The `notes check` gate also reports a sourcing
+note that does not parse or whose status is not one of the five.
 
 ---
 

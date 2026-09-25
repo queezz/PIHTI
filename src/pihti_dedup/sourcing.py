@@ -62,6 +62,8 @@ SOURCING_DIR = "sourcing"
 ATTACHMENTS_DIR = "attachments"
 NOTE_SUFFIX = ".md"
 STATUS_VALUES = ("candidate", "quoted", "ordered", "received", "rejected")
+#: Furthest along first: the order a folder's option cards are shown in.
+STATUS_ORDER = ("received", "ordered", "quoted", "candidate", "rejected")
 FIELDS = ("title", "vendor", "part_number", "url", "price", "status", "for", "date")
 TEXT_FIELDS = ("vendor", "part_number", "url", "price")
 
@@ -91,6 +93,8 @@ _SLUG_RE = re.compile(r"[^a-z0-9]+")
 _NAME_RE = re.compile(r"[^A-Za-z0-9._-]+")
 # A note name: what `slugify` writes, or a hand-named note (no path, no leading dot).
 _SLUG_SHAPE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._ -]{0,119}$")
+# A Markdown image or link target: `![a](target)`, `[a](<target with spaces>)`.
+_MARKDOWN_TARGET = re.compile(r"!?\[[^\]\n]*\]\(\s*(<[^>\n]+>|[^)\s]+)")
 # `![[target]]` and `![[target|caption]]`, as Obsidian writes an embed.
 _OBSIDIAN_EMBED = re.compile(r"!\[\[([^\]\n|]+)(?:\|([^\]\n]*))?\]\]")
 
@@ -301,6 +305,23 @@ def read_folder_options(
 def newest_first(options: list[SourcingOption]) -> list[SourcingOption]:
     ordered = sorted(options, key=lambda option: option.title.casefold())
     return sorted(ordered, key=lambda option: (option.date, option.mtime_ns), reverse=True)
+
+
+def by_status(options: list[SourcingOption]) -> list[SourcingOption]:
+    """Furthest along first (`STATUS_ORDER`), newest first within a status."""
+
+    rank = {status: position for position, status in enumerate(STATUS_ORDER)}
+    return sorted(newest_first(options), key=lambda option: rank.get(option.status, len(rank)))
+
+
+def first_picture(option: SourcingOption) -> str | None:
+    """The first picture the note links from its own attachments folder, by name."""
+
+    for match in _MARKDOWN_TARGET.finditer(rewrite_obsidian_embeds(option.body)):
+        name = attachment_target(match.group(1).strip("<>"))
+        if name and Path(name).suffix.casefold() in IMAGE_EXTENSIONS:
+            return name
+    return None
 
 
 def write_option(path: Path, frontmatter: dict, body: str, *, create: bool) -> str:

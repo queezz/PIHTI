@@ -1,10 +1,10 @@
 {% extends "base.html" %}
-{% from "_file_tile.html" import file_tile, hero_tile, legend_card, mesh_dialog, mesh_tools %}
+{% from "_file_tile.html" import file_tile, hero_tile, legend_card, mesh_dialog, mesh_tools, option_tile %}
 {% from "_folder_tree.html" import tree_rail, catalog_bar %}
 {% block title %}{% if query %}Search{% elif path != '.' %}{{ name }}{% else %}Catalog{% endif %} · PIHTI{% endblock %}
 
 {% block body %}
-{% if toast %}<div class="operation-toast" role="status" data-operation-toast data-hero-toast>{{ toast }}</div>{% endif %}
+{% if toast %}<div class="operation-toast" role="status" data-operation-toast data-hero-toast data-sourcing-toast>{{ toast }}</div>{% endif %}
 <main class="page">
   <div class="work-grid two-rail catalog-grid">
     <div class="work-main catalog-main">
@@ -49,6 +49,31 @@
             <a class="button" href="{{ url_for('catalog', q=query, show=next_show, include_vendor='1' if include_vendor else none, _anchor=next_anchor) }}">Show 48 more</a>
             <span>{{ result_total - shown }} still hidden</span>
           </div>
+          {% endif %}
+        </div>
+        {% endif %}
+        {# The folder's own sourcing options, in place: furthest along first,
+           rejected ones folded into one row that opens here. #}
+        {% if sourcing %}
+        <div class="sourcing-block" id="sourcing">
+          <p class="grid-label sourcing-head"><strong>Sourcing</strong> · {{ sourcing.count }}<a class="copy-path" href="{{ sourcing.add_url }}">Add option</a></p>
+          {% if sourcing.tiles %}
+          <div class="thumb-grid">
+            {% for tile in sourcing.tiles %}{{ option_tile(tile) }}{% endfor %}
+          </div>
+          {% endif %}
+          {% if sourcing.rejected %}
+          <details class="sourcing-rejected" data-sourcing-rejected>
+            <summary>{{ sourcing.rejected|length }} rejected</summary>
+            <div class="thumb-grid">
+              {% for tile in sourcing.rejected %}{{ option_tile(tile) }}{% endfor %}
+            </div>
+          </details>
+          {% endif %}
+          {% if sourcing.problems %}
+          <ul class="sourcing-broken">
+            {% for problem in sourcing.problems %}<li title="{{ problem.detail }}"><code>{{ problem.relative_path|winpath }}</code> · does not parse</li>{% endfor %}
+          </ul>
           {% endif %}
         </div>
         {% endif %}
@@ -173,18 +198,19 @@
         {% if sourcing_line %}
         <p class="sourcing-rail" data-sourcing-rail>
           <span class="sourcing-rail-label">Sourcing</span>
-          {% if sourcing_line.summary %}<a href="{{ sourcing_line.url }}">{{ sourcing_line.summary }}</a>
-          {% else %}<span class="sourcing-rail-empty">No sourcing yet</span> · <a href="{{ sourcing_line.add_url }}">Add</a>{% endif %}
+          {% if sourcing_line.summary %}<a href="#sourcing">{{ sourcing_line.summary }}</a>
+          {% else %}<span class="sourcing-rail-empty">None yet</span>{% endif %}
+          <a class="copy-path sourcing-rail-add" href="{{ sourcing_line.add_url }}">Add option</a>
         </p>
         {% endif %}
         {% endif %}
       </section>
-      {% if files or hero_files %}
+      {% if files or hero_files or (sourcing and sourcing.count) %}
       <section class="rail-card inspector" data-inspector aria-label="File inspector">
         <div class="inspector-head">
           <h2>Inspector</h2>
         </div>
-        <p class="inspector-empty" data-inspector-empty>Hover or arrow onto a file</p>
+        <p class="inspector-empty" data-inspector-empty>Hover or arrow onto a tile</p>
         <div class="inspector-body" data-inspector-body hidden>
           {# An STL, 3MF, or STEP file turns in 3D on the canvas once its mesh
              arrives; the still image stays until then and on any failure. #}
@@ -222,6 +248,7 @@
             {% endfor %}
             {# Keeps its place and shows only while a 3D view is shown, so
                the preview above never changes height at the swap. #}
+            <a class="copy-path inspector-flag" data-inspector-edit hidden>Edit option</a>
             <button class="copy-path inspector-flag inspector-enlarge is-idle" type="button" data-inspector-enlarge aria-haspopup="dialog" aria-controls="mesh-dialog" title="See this 3D view large (F)">Enlarge</button>
           </div>
         </div>
@@ -232,6 +259,6 @@
 
     {{ tree_rail(tree, include_vendor) }}
   </div>
-  {% if files or hero_files %}{{ mesh_dialog() }}{% endif %}
+  {% if files or hero_files or (sourcing and sourcing.count) %}{{ mesh_dialog() }}{% endif %}
 </main>
 {% endblock %}

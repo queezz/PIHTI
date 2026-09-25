@@ -1554,7 +1554,7 @@ def test_the_left_rail_inspector_is_present_only_where_there_are_files(tmp_path:
 
     context = folder.split('<aside class="rail-side rail-context"', 1)[1].split("</aside>", 1)[0]
     assert '<section class="rail-card inspector" data-inspector' in context
-    assert "<p class=\"inspector-empty\" data-inspector-empty>Hover or arrow onto a file</p>" in context
+    assert "<p class=\"inspector-empty\" data-inspector-empty>Hover or arrow onto a tile</p>" in context
     assert context.index("data-note-rail") < context.index("data-inspector")
     assert "data-inspector" in search
     assert "data-inspector" not in only_folders
@@ -2786,7 +2786,7 @@ def test_hero_toggle_seeds_a_sidecar_and_returns_to_the_tile(tmp_path: Path, mon
     page = client.get(location.split("#", 1)[0])
     html = page.get_data(as_text=True)
     assert page.headers["Cache-Control"] == "no-store"  # the page after a toggle stays live
-    assert '<div class="operation-toast" role="status" data-operation-toast data-hero-toast>Hero set: vessel-main.iam</div>' in html
+    assert '<div class="operation-toast" role="status" data-operation-toast data-hero-toast data-sourcing-toast>Hero set: vessel-main.iam</div>' in html
     assert f'id="{web.tile_anchor("Vessel/vessel-main.iam")}"' in html
 
     cleared = post_hero(app, client, "Vessel/vessel-main.iam", False, "Vessel")
@@ -3040,7 +3040,7 @@ def test_hero_styles_pin_the_file_tile_width_and_every_mark_is_a_badge(tmp_path:
     assert "heroForm" not in script and "data-inspector-hero" not in script
     assert "window.confirm(form.dataset.flagConfirm)" in script
     assert "window.confirm(form.dataset.confirm)" in script
-    assert 'window.location.hash.indexOf("#file-") === 0' in script
+    assert 'hash.indexOf("#file-") === 0' in script
     # The hero card's folder links prefetch like every other folder link.
     assert "a.hero-folder, a.hero-open-folder" in script
 

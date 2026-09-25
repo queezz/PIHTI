@@ -273,7 +273,7 @@ def test_new_then_edit_round_trips_through_the_form(tmp_path: Path) -> None:
     created = client.post("/sourcing/bellows/new", data=fields)
     assert created.status_code == 302
     assert created.headers["Location"].endswith(
-        "/sourcing/bellows?saved=edge-welded-bellows-40-mm#option-edge-welded-bellows-40-mm"
+        "/catalog/bellows?option=edge-welded-bellows-40-mm#option-edge-welded-bellows-40-mm"
     )
     path = root / "bellows" / "sourcing" / "edge-welded-bellows-40-mm.md"
     assert path.read_text(encoding="utf-8") == (
@@ -293,12 +293,11 @@ def test_new_then_edit_round_trips_through_the_form(tmp_path: Path) -> None:
         "\n"
         "![front](attachments/front.png)\n"
     )
-    page = client.get("/sourcing/bellows?saved=edge-welded-bellows-40-mm").get_data(as_text=True)
+    page = client.get("/catalog/bellows?option=edge-welded-bellows-40-mm").get_data(as_text=True)
     assert "Saved: Edge-welded bellows, 40 mm" in page
-    assert 'id="option-edge-welded-bellows-40-mm" data-filter-item data-status="quoted"' in page
-    assert '<a href="/part/bellows/bellows.iam">bellows.iam</a>' in page
+    assert 'id="option-edge-welded-bellows-40-mm" href="/sourcing/bellows/edge-welded-bellows-40-mm/edit"' in page
+    assert 'data-status="quoted"' in page and 'data-url="https://example.com/ewb-40"' in page
     assert '<b class="badge badge-sourcing-quoted" title="Status: quoted">quoted</b>' in page
-    assert 'href="https://example.com/ewb-40" rel="noopener noreferrer"' in page
 
     # A second option with the same title gets its own file.
     client.post("/sourcing/bellows/new", data={**fields, "status": "candidate"})
@@ -334,14 +333,15 @@ def test_a_note_that_does_not_parse_is_shown_not_overwritten(tmp_path: Path) -> 
     app = create_app(root)
     client = app.test_client()
 
-    page = client.get("/sourcing/bellows").get_data(as_text=True)
+    page = client.get("/catalog/bellows").get_data(as_text=True)
     edit = client.get("/sourcing/bellows/broken/edit").get_data(as_text=True)
     post = client.post(
         "/sourcing/bellows/broken/edit",
         data={"token": app.config["FORM_TOKEN"], "title": "X", "status": "quoted"},
     )
 
-    assert "Does not parse" in page and "status must be one of" in page
+    broken_line = page.split('<ul class="sourcing-broken">', 1)[1].split("</ul>", 1)[0]
+    assert "does not parse" in broken_line and "status must be one of" in broken_line
     assert "This note does not parse" in edit and "<form" not in edit.split("sourcing-editor", 1)[1].split("</section>", 1)[0]
     assert post.status_code == 409
     assert broken.read_text(encoding="utf-8") == "---\ntitle: Stage\nstatus: maybe\n---\n"
@@ -365,8 +365,12 @@ def test_the_folder_card_has_one_sourcing_line_in_both_states(tmp_path: Path) ->
     root_page = client.get("/catalog").get_data(as_text=True)
     style = client.get("/static/dedup.css").get_data(as_text=True)
 
-    assert 'No sourcing yet</span> · <a href="/sourcing/PALP/new">Add</a>' in line(empty)
-    assert '<a href="/sourcing/bellows">3 options · 1 quoted · 1 ordered</a>' in line(some)
+    add = '<a class="copy-path sourcing-rail-add" href="/sourcing/{}/new">Add option</a>'
+    assert '<span class="sourcing-rail-empty">None yet</span>' in line(empty)
+    assert add.format("PALP") in line(empty) and add.format("bellows") in line(some)
+    # A count that jumps to the section on the same page; nothing links away.
+    assert '<a href="#sourcing">3 options · 1 quoted · 1 ordered</a>' in line(some)
+    assert 'href="/sourcing/bellows"' not in some
     assert "data-sourcing-rail" not in root_page
     # Inside the folder card, below the note, above the inspector.
     context = some.split('<aside class="rail-side rail-context"', 1)[1]
@@ -398,7 +402,7 @@ def test_a_file_named_in_for_gets_a_sourced_badge_and_an_inspector_fact(tmp_path
     assert "badge-sourced" not in tile("flange.ipt")
     legend = html.split('aria-label="Legend">', 1)[1].split("</section>", 1)[0]
     assert '<b class="badge badge-sourced" title="Named in a sourcing option">sourced</b>' in legend
-    assert '<a href="/sourcing/bellows">Sourcing option: Bellows A; Bellows B</a>' in part
+    assert "<span>2 sourcing options</span>" in part
 
 
 def test_the_archive_page_groups_every_option_by_status(tmp_path: Path) -> None:
@@ -414,7 +418,7 @@ def test_the_archive_page_groups_every_option_by_status(tmp_path: Path) -> None:
     assert labels == [("candidate", "1"), ("ordered", "2")]
     ordered = html.split("<strong>ordered</strong>", 1)[1]
     assert ordered.index("Clamp C") < ordered.index("Bellows A")  # newest first
-    assert '<a class="sourcing-folder" href="/sourcing/PALP"' in html
+    assert '<a class="sourcing-folder" href="/catalog/PALP#option-c"' in html
     assert 'data-status-filter="ordered" aria-pressed="false"' in html
     assert 'data-status-filter="quoted"' not in html  # no row for an empty status
     assert '>Sourcing</a>' in html.split('<nav class="topnav"', 1)[1].split("</nav>", 1)[0]
@@ -465,3 +469,195 @@ def test_the_scanner_never_sees_sourcing_files(tmp_path: Path) -> None:
         "bellows/bellows.iam",
         "bellows/flange.ipt",
     ]
+
+
+# ---- sourcing in place (0.28.0) -----------------------------------------------
+
+
+def section(html: str) -> str:
+    return html.split('<div class="sourcing-block" id="sourcing">', 1)[1].split('<p class="filter-empty"', 1)[0]
+
+
+def tile_ids(html: str) -> list[str]:
+    return re.findall(r'<a class="thumb-tile sourcing-tile" id="option-([^"]+)"', html)
+
+
+def test_the_folder_section_shows_the_folders_own_options_as_tiles(tmp_path: Path) -> None:
+    root = make_workspace(tmp_path)
+    attach(root, "bellows", "front.png", PNG)
+    attach(root, "bellows", "quote.pdf", PDF)
+    body = "[quote](attachments/quote.pdf)\n\n![[front.png]]\n\n![missing](attachments/gone.png)"
+    write_note(root, "bellows", "a", note_text("Rails A", "quoted", "bellows.iam", body=body))
+    write_note(root, "bellows", "b", note_text("Rails B", "candidate", "bellows.iam", "flange.ipt"))
+    write_note(root, "PALP", "c", note_text("Clamp", "ordered", "clamp.ipt"))
+    client = create_app(root).test_client()
+
+    html = client.get("/catalog/bellows").get_data(as_text=True)
+    part = section(html)
+
+    browse = html.split("data-thumb-grid", 1)[1].split("</section>", 1)[0]
+    assert browse.index('class="file-block"') < browse.index('id="sourcing"')  # under the files
+    assert '<strong>Sourcing</strong> · 2<a class="copy-path" href="/sourcing/bellows/new">Add option</a>' in part
+    assert tile_ids(part) == ["a", "b"]  # only this folder's notes
+    a = part.split('id="option-a"', 1)[1].split("</a>", 1)[0]
+    b = part.split('id="option-b"', 1)[1].split("</a>", 1)[0]
+    # The first picture the note links, not its PDF; a note without one gets the placeholder.
+    assert '<img src="/sourcing-file/bellows/sourcing/attachments/front.png?v=' in a
+    assert '<img src="data:image/svg+xml,' in b
+    assert 'href="/sourcing/bellows/a/edit"' in part and 'href="/sourcing/bellows/b/edit"' in part
+    assert '<span class="thumb-name">Rails A</span>' in a
+    assert '<b class="badge badge-sourcing-quoted" title="Status: quoted">quoted</b>' in a
+    assert (
+        '<span class="tile-badges sourcing-for"><span class="metadata-chip">bellows.iam</span>'
+        '<span class="metadata-chip">flange.ipt</span></span>'
+    ) in b
+    # The inspector is there to show them; the root page has no section.
+    assert "data-inspector" in html
+    palp = client.get("/catalog/PALP").get_data(as_text=True)
+    assert tile_ids(section(palp)) == ["c"]
+    assert 'id="sourcing"' not in client.get("/catalog").get_data(as_text=True)
+
+
+def test_option_tiles_carry_what_the_inspector_shows(tmp_path: Path) -> None:
+    root = make_workspace(tmp_path)
+    text = note_text("Rails A", "quoted", "bellows.iam", "gone.ipt").replace(
+        "status:",
+        "vendor: Misumi\npart_number: SSEB16\nprice: 6,000 JPY\nurl: https://example.com/rails?a=1&b='2'\nstatus:",
+    )
+    write_note(root, "bellows", "a", text)
+    client = create_app(root).test_client()
+
+    html = client.get("/catalog/bellows").get_data(as_text=True)
+    tile = section(html).split('<a class="thumb-tile sourcing-tile"', 1)[1].split(">", 1)[0]
+    script = client.get("/static/dedup.js").get_data(as_text=True)
+
+    assert 'data-inspect="sourcing"' in tile and 'data-status="quoted"' in tile
+    assert 'data-vendor="Misumi"' in tile and 'data-part-number="SSEB16"' in tile
+    assert 'data-price="6,000 JPY"' in tile and 'data-date="2026-09-24"' in tile
+    assert 'data-url="https://example.com/rails?a=1&amp;b=&#39;2&#39;"' in tile
+    # `for` as JSON in a single-quoted attribute: a file here links to its part
+    # page; a name no file carries has no link.
+    assert (
+        "data-for='[{\"name\": \"bellows.iam\", \"url\": \"/part/bellows/bellows.iam\"}, "
+        "{\"name\": \"gone.ipt\", \"url\": \"\"}]'"
+    ) in tile
+    # The inspector builds the facts from those attributes, the link clickable,
+    # and swaps the placement flags for the editor link.
+    assert 'tile.dataset.inspect === "sourcing"' in script
+    for label in ("Vendor", "Part number", "Price", "Status", "Link", "For"):
+        assert f'row("{label}"' in script
+    assert 'link.rel = "noopener noreferrer"' in script
+    assert "[data-inspector-edit]" in script
+    assert "a.thumb-tile:not(.sourcing-tile)" in script  # the file count counts files only
+    assert '<a class="copy-path inspector-flag" data-inspector-edit hidden>Edit option</a>' in html
+
+
+def test_cards_sort_by_status_and_rejected_ones_fold_into_one_row(tmp_path: Path) -> None:
+    root = make_workspace(tmp_path)
+    notes = [
+        ("cand-old", "candidate", "2026-09-01"),
+        ("rej-old", "rejected", "2026-09-02"),
+        ("recv", "received", "2026-08-01"),
+        ("cand-new", "candidate", "2026-09-20"),
+        ("quoted", "quoted", "2026-09-10"),
+        ("ordered", "ordered", "2026-09-05"),
+        ("rej-new", "rejected", "2026-09-21"),
+    ]
+    for slug, status, date in notes:
+        write_note(root, "bellows", slug, note_text(slug.title(), status, date=date))
+    client = create_app(root).test_client()
+
+    part = section(client.get("/catalog/bellows").get_data(as_text=True))
+    shown, folded = part.split('<details class="sourcing-rejected" data-sourcing-rejected>', 1)
+
+    assert tile_ids(shown) == ["recv", "ordered", "quoted", "cand-new", "cand-old"]
+    assert "<summary>2 rejected</summary>" in folded
+    assert tile_ids(folded) == ["rej-new", "rej-old"]
+    assert "<details" not in shown
+    # No rejected option, no fold.
+    fresh = make_workspace(tmp_path / "fresh")
+    write_note(fresh, "bellows", "a", note_text("A", "quoted"))
+    fresh_page = create_app(fresh).test_client().get("/catalog/bellows").get_data(as_text=True)
+    assert "sourcing-rejected" not in fresh_page
+    # The walk skips a folded row, and a link to a folded tile opens it.
+    script = client.get("/static/dedup.js").get_data(as_text=True)
+    assert 'tile.closest("details:not([open])")' in script
+    assert 'hash.indexOf("#option-") === 0' in script and "fold.open = true" in script
+
+
+def test_the_part_page_lists_the_files_options_and_adds_for_it(tmp_path: Path) -> None:
+    root = make_workspace(tmp_path)
+    app = create_app(root)
+    write_note(root, "bellows", "old", note_text("Old rails", "rejected", "bellows.iam", date="2026-09-01"))
+    newer = note_text("New rails", "quoted", "bellows.iam", date="2026-09-20")
+    write_note(root, "bellows", "new", newer.replace("status:", "price: 6000\nstatus:"))
+    # An option in another folder, for a file that folder does not have.
+    write_note(root, "PALP", "far", note_text("Far rails", "ordered", "bellows.iam", date="2026-09-10"))
+    write_note(root, "PALP", "near", note_text("Clamp", "candidate", "clamp.ipt"))
+    client = app.test_client()
+
+    page = client.get("/part/bellows/bellows.iam").get_data(as_text=True)
+    rows = page.split('<ul class="sourcing-rows"', 1)[1].split("</ul>", 1)[0]
+
+    assert re.findall(r'<span class="sourcing-row-title">([^<]+)</span>', rows) == [
+        "New rails",
+        "Far rails",
+        "Old rails",
+    ]
+    assert (
+        '<a href="/sourcing/bellows/new/edit?back=bellows/bellows.iam" title="bellows\\sourcing\\new.md">'
+        '<b class="badge badge-sourcing-quoted" title="Status: quoted">quoted</b>'
+        '<span class="sourcing-row-title">New rails</span><small>6000</small></a>'
+    ) in rows
+    assert 'href="/sourcing/PALP/far/edit?back=bellows/bellows.iam"' in rows
+    assert "<span>3 sourcing options</span>" in page  # the sourced signal stays
+    add = '<a class="copy-path" href="/sourcing/bellows/new?back=bellows/bellows.iam&amp;for=bellows.iam">'
+    assert add + "Add option</a>" in page
+    # The other folder's note is listed on the file, but not in this folder's section.
+    assert tile_ids(section(client.get("/catalog/bellows").get_data(as_text=True))) == ["new", "old"]
+    assert tile_ids(section(client.get("/catalog/PALP").get_data(as_text=True))) == ["far", "near"]
+    flange = client.get("/part/bellows/flange.ipt").get_data(as_text=True)
+    assert "sourcing-rows" not in flange and "for=flange.ipt" in flange
+
+    # Add pre-fills `for`; Save and Cancel go back to the part page.
+    form = client.get("/sourcing/bellows/new?back=bellows/bellows.iam&for=bellows.iam").get_data(as_text=True)
+    assert 'name="for" value="bellows.iam" checked>' in form
+    assert 'name="for" value="flange.ipt">' in form
+    assert '<input type="hidden" name="back" value="bellows/bellows.iam">' in form
+    assert '<a class="button" href="/part/bellows/bellows.iam">Cancel</a>' in form
+    assert "Back to bellows.iam" in form
+    saved = client.post(
+        "/sourcing/bellows/new",
+        data={
+            "token": app.config["FORM_TOKEN"],
+            "title": "Third rails",
+            "status": "candidate",
+            "for": ["bellows.iam"],
+            "back": "bellows/bellows.iam",
+        },
+    )
+    assert saved.status_code == 302
+    assert saved.headers["Location"].endswith("/part/bellows/bellows.iam?option=third-rails")
+    assert "Saved: Third rails" in client.get(saved.headers["Location"]).get_data(as_text=True)
+    # A back path outside the workspace is ignored: the folder's section instead.
+    stray = client.get("/sourcing/bellows/new?back=../outside.txt").get_data(as_text=True)
+    assert 'name="back"' not in stray
+    assert '<a class="button" href="/catalog/bellows#sourcing">Cancel</a>' in stray
+
+
+def test_the_old_folder_page_redirects_to_the_catalog_section(tmp_path: Path) -> None:
+    root = make_workspace(tmp_path)
+    write_note(root, "bellows", "a", note_text("A", "quoted"))
+    client = create_app(root).test_client()
+
+    plain = client.get("/sourcing/bellows")
+    saved = client.get("/sourcing/bellows?saved=a")
+
+    assert plain.status_code == 302 and plain.headers["Location"].endswith("/catalog/bellows#sourcing")
+    assert saved.headers["Location"].endswith("/catalog/bellows?option=a#option-a")
+    assert client.get("/sourcing/nowhere").status_code == 404
+    assert client.get("/sourcing/bellows/sourcing").status_code == 404
+    # The editor and the archive-wide list stay.
+    assert client.get("/sourcing/bellows/a/edit").status_code == 200
+    assert client.get("/sourcing/bellows/new").status_code == 200
+    assert client.get("/sourcing").status_code == 200

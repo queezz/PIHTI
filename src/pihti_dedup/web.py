@@ -16,6 +16,7 @@ from dataclasses import asdict, replace
 from datetime import datetime
 from pathlib import Path
 from typing import Callable
+from urllib.parse import quote
 
 from flask import Flask, Response, jsonify, redirect, render_template, request, send_file, url_for
 from markupsafe import escape
@@ -108,8 +109,11 @@ from pihti_dedup.sourcing import (
     SourcingError,
     attachment_target,
     attachments_dir,
+    by_status,
+    first_picture,
     is_slug,
     is_sourcing_path,
+    newest_first,
     note_path,
     parse_option,
     read_folder_options,
@@ -957,14 +961,29 @@ FEATURED_SIGNAL = {"kind": "featured", "word": SIGNAL_WORDS["featured"], "text":
 SOURCED_SIGNAL = {"kind": "sourced", "word": SIGNAL_WORDS["sourced"], "text": "Named in a sourcing option"}
 
 
-def sourced_signal(titles) -> dict:
-    """The `sourced` mark on the part page, which names the options (no Sourced fact there)."""
+def sourced_signal(count: int) -> dict:
+    """The `sourced` mark on the part page; the File card lists the options below it."""
 
     return {
         "kind": "sourced",
         "word": SIGNAL_WORDS["sourced"],
-        "text": "Sourcing option: " + "; ".join(titles),
+        "text": f"{count} sourcing option{'s' if count != 1 else ''}",
     }
+
+
+def sourcing_placeholder() -> str:
+    """A `data:` picture for an option whose note links no picture."""
+
+    svg = (
+        '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 120">'
+        '<rect width="160" height="120" fill="#101822"/>'
+        '<rect x="0.5" y="0.5" width="159" height="119" fill="none" stroke="#283747"/>'
+        '<path d="M58 48h44v30H58z M58 48l8-10h28l8 10" fill="none" stroke="#3b4d61" stroke-width="2"/>'
+        '<text x="80" y="98" fill="#697989" font-family="ui-monospace, monospace" '
+        'font-size="11" text-anchor="middle">NO PICTURE</text>'
+        "</svg>"
+    )
+    return "data:image/svg+xml," + quote(svg)
 
 
 def attachment_version(mtime_ns: int, size: int) -> str:
@@ -3583,13 +3602,21 @@ def create_app(
             for record in records
         ]
         sourcing_line = None
-        if current != "." and not query:
+        sourcing = None
+        toast = _hero_toast()
+        if current != "." and not query and not is_sourcing_path(current):
             options, problems = sourcing_index["folders"].get(current, ([], []))
-            sourcing_line = {
-                "summary": summary_line(options, problems),
-                "url": url_for("sourcing_folder", relative_folder=current),
-                "add_url": url_for("sourcing_new", relative_folder=current),
+            add_url = url_for("sourcing_new", relative_folder=current)
+            sourcing_line = {"summary": summary_line(options, problems), "add_url": add_url}
+            tiles = [_option_tile(option, sourcing_index) for option in by_status(options)]
+            sourcing = {
+                "count": len(options),
+                "add_url": add_url,
+                "tiles": [tile for tile in tiles if tile["option"].status != "rejected"],
+                "rejected": [tile for tile in tiles if tile["option"].status == "rejected"],
+                "problems": problems,
             }
+            toast = toast or _option_toast(options)
 
         note = _read_catalog_note(current)
         note_text = _note_display_text(note)
@@ -3627,8 +3654,9 @@ def create_app(
             "saved": _flag(request.args.get("saved")),
             "form_token": app.config["FORM_TOKEN"],
             "include_vendor": inventory.include_vendor,
-            "toast": _hero_toast(),
+            "toast": toast,
             "sourcing_line": sourcing_line,
+            "sourcing": sourcing,
             "step_reason": step_mirror.NO_CURRENT_STEP,
             "step_export_available": _session() is not None,
         }
@@ -3935,10 +3963,31 @@ def create_app(
             signals = (*signals, HERO_SIGNAL)
         if featured:
             signals = (*signals, FEATURED_SIGNAL)
-        sourced_titles = _sourcing_index(inventory)["sourced"].get(relative.casefold(), ())
-        if sourced_titles:
-            signals = (*signals, sourced_signal(sourced_titles))
+        sourcing_index = _sourcing_index(inventory)
+        file_options = sourcing_index["files"].get(relative.casefold(), ())
+        if file_options:
+            signals = (*signals, sourced_signal(len(file_options)))
         signals = ordered_signals(signals)
+        sourcing_rows = [
+            {
+                "option": option,
+                "url": url_for(
+                    "sourcing_edit", relative_folder=option.folder, slug=option.slug, back=relative
+                ),
+                "elsewhere": option.folder != folder,
+            }
+            for option in file_options
+        ]
+        sourcing_add = ""
+        if (
+            folder != "."
+            and not is_sourcing_path(folder)
+            and folder in {item["name"] for item in index}
+            and target.suffix.casefold() not in PROJECT_EXTENSIONS
+        ):
+            sourcing_add = url_for(
+                "sourcing_new", relative_folder=folder, back=relative, **{"for": target.name}
+            )
         referrers = _current_index().referring(target.name)
         renameable = target.suffix.casefold() in RENAMEABLE_EXTENSIONS
         inventor = _inventor_state(referrers) if renameable and referrers else None
@@ -3956,12 +4005,11 @@ def create_app(
         return {
             "step": step,
             "part_mesh": part_mesh,
-            "sourcing_url": (
-                url_for("sourcing_folder", relative_folder=folder) if sourced_titles else ""
-            ),
+            "sourcing_rows": sourcing_rows,
+            "sourcing_add": sourcing_add,
             "hero": hero,
             "featured": featured,
-            "toast": _hero_toast(),
+            "toast": _hero_toast() or _option_toast(file_options),
             "version": __version__,
             "path": relative,
             "name": target.name,
@@ -4019,7 +4067,6 @@ def create_app(
             if cached is not None and cached[0] is inventory and cached[1] == serial:
                 return cached[2]
         folders: dict[str, tuple[list, list]] = {}
-        sourced: dict[str, tuple[str, ...]] = {}
         for item in _catalog_index(inventory):
             name = item["name"]
             if name == "." or is_sourcing_path(name):
@@ -4027,15 +4074,30 @@ def create_app(
             folder = root / name
             if not sourcing_dir(folder).is_dir():
                 continue
-            options, problems = read_folder_options(folder, name)
-            folders[name] = (options, problems)
+            folders[name] = read_folder_options(folder, name)
+        # A `for` name means the file of that name in the note's own folder;
+        # when that folder has none, every catalog file carrying the name (an
+        # assembly whose options sit in another folder).
+        paths = {record.path.casefold() for record in inventory.records}
+        named: dict[str, list[str]] = {}
+        for record in inventory.records:
+            named.setdefault(record.name.casefold(), []).append(record.path)
+        by_file: dict[str, list] = {}
+        for name, (options, _problems) in folders.items():
             for option in options:
                 for filename in option.for_files:
-                    key = f"{name}/{filename}".casefold()
-                    sourced[key] = (*sourced.get(key, ()), option.title)
+                    local = f"{name}/{filename}".casefold()
+                    elsewhere = [path.casefold() for path in named.get(filename.casefold(), ())]
+                    for key in [local] if local in paths or not elsewhere else elsewhere:
+                        if option not in by_file.setdefault(key, []):
+                            by_file[key].append(option)
+        files = {key: tuple(newest_first(options)) for key, options in by_file.items()}
         # Titles in name order, so a badge reads the same whichever note changed last.
-        sourced = {key: tuple(sorted(titles, key=str.casefold)) for key, titles in sourced.items()}
-        found = {"folders": folders, "sourced": sourced}
+        sourced = {
+            key: tuple(sorted((option.title for option in options), key=str.casefold))
+            for key, options in files.items()
+        }
+        found = {"folders": folders, "sourced": sourced, "files": files, "named": named}
         with hero_lock:
             sourcing_memo[inventory.include_vendor] = (inventory, serial, found)
         return found
@@ -4083,29 +4145,62 @@ def create_app(
 
         return render_markdown(rewrite_obsidian_embeds(text), resolve=resolve)
 
-    def _option_card(option) -> dict:
+    def _for_links(option, index: dict) -> list[dict]:
+        """Each `for` name with its part page: in the note's folder, else the one file of that name."""
+
         folder = root / option.folder
         links = []
         for name in option.for_files:
-            exists = (folder / name).is_file()
+            path = f"{option.folder}/{name}"
+            if not (folder / name).is_file():
+                elsewhere = index["named"].get(name.casefold(), [])
+                path = elsewhere[0] if len(elsewhere) == 1 else ""
             links.append(
-                {
-                    "name": name,
-                    "url": (
-                        url_for("part_page", relative_path=f"{option.folder}/{name}")
-                        if exists
-                        else ""
-                    ),
-                }
+                {"name": name, "url": url_for("part_page", relative_path=path) if path else ""}
             )
+        return links
+
+    def _option_card(option, index: dict) -> dict:
         return {
             "option": option,
             "anchor": f"option-{option.slug}",
             "html": _render_sourcing(option.body, option.folder),
-            "for_links": links,
+            "for_links": _for_links(option, index),
             "edit_url": url_for("sourcing_edit", relative_folder=option.folder, slug=option.slug),
-            "folder_url": url_for("sourcing_folder", relative_folder=option.folder),
+            "folder_url": url_for(
+                "catalog", relative_folder=option.folder, _anchor=f"option-{option.slug}"
+            ),
         }
+
+    def _option_tile(option, index: dict) -> dict:
+        """One option as a catalog tile: its first picture, its words, its facts for the inspector."""
+
+        picture = first_picture(option)
+        if picture and not (attachments_dir(root / option.folder) / picture).is_file():
+            picture = None
+        return {
+            "option": option,
+            "anchor": f"option-{option.slug}",
+            "picture": _attachment_url(option.folder, picture) if picture else sourcing_placeholder(),
+            "for_links": _for_links(option, index),
+            "edit_url": url_for("sourcing_edit", relative_folder=option.folder, slug=option.slug),
+        }
+
+    def _option_toast(options) -> str:
+        """`Saved: <title>` after the editor sends the reader back (`?option=<slug>`)."""
+
+        saved = request.args.get("option", "")
+        return next((f"Saved: {option.title}" for option in options if saved and option.slug == saved), "")
+
+    def _sourcing_back(relative_folder: str, back: str, slug: str = "") -> str:
+        """Where the editor returns: the part page it was opened from, else the folder's section."""
+
+        extra = {"option": slug} if slug else {}
+        anchor = f"option-{slug}" if slug else "sourcing"
+        target = workspace_file(root, back) if back else None
+        if target is not None:
+            return url_for("part_page", relative_path=target.relative_to(root).as_posix(), **extra)
+        return url_for("catalog", relative_folder=relative_folder, _anchor=anchor, **extra)
 
     def _sourcing_shell(inventory: Inventory, current: str) -> dict:
         return {
@@ -4121,7 +4216,7 @@ def create_app(
             {
                 "name": "Sourcing",
                 "path": folder,
-                "url": url_for("sourcing_folder", relative_folder=folder),
+                "url": url_for("catalog", relative_folder=folder, _anchor="sourcing"),
             }
         )
         crumbs.extend(tail)
@@ -4141,11 +4236,12 @@ def create_app(
             )
             members.sort(key=lambda option: (option.date, option.mtime_ns), reverse=True)
             if members:
-                groups.append({"status": status, "cards": [_option_card(o) for o in members]})
+                groups.append(
+                    {"status": status, "cards": [_option_card(o, index) for o in members]}
+                )
         return render_template(
             "sourcing.html",
             **_sourcing_shell(inventory, "."),
-            mode="all",
             name="Sourcing",
             path=".",
             breadcrumbs=[
@@ -4153,46 +4249,23 @@ def create_app(
                 {"name": "Sourcing", "path": ".", "url": url_for("sourcing_all")},
             ],
             groups=groups,
-            cards=[],
             problems=problems,
             option_count=len(options),
             folder_count=len(index["folders"]),
             counts=status_counts(options),
-            toast="",
         )
 
     @app.get("/sourcing/<path:relative_folder>")
     def sourcing_folder(relative_folder: str):
+        """The old folder page: its options now sit under the catalog folder's files."""
+
         found = _sourcing_target(relative_folder)
         if found is None:
             return render_template(
                 "_not_found.html", version=__version__, path=relative_folder
             ), 404
-        target, name = found
-        inventory = cache.get(include_vendor=False, hash_files=False)
-        options, problems = read_folder_options(target, name)
         saved = request.args.get("saved", "")
-        toast = next((f"Saved: {option.title}" for option in options if option.slug == saved), "")
-        try:
-            attachments = sum(1 for item in attachments_dir(target).iterdir() if item.is_file())
-        except OSError:
-            attachments = 0
-        return render_template(
-            "sourcing.html",
-            **_sourcing_shell(inventory, name),
-            mode="folder",
-            name=target.name,
-            path=name,
-            absolute_path=str(sourcing_dir(target)),
-            breadcrumbs=_sourcing_crumbs(name),
-            groups=[],
-            cards=[_option_card(option) for option in options],
-            problems=problems,
-            option_count=len(options),
-            attachment_count=attachments,
-            counts=status_counts(options),
-            toast=toast,
-        )
+        return redirect(_sourcing_back(found[1], "", saved if is_slug(saved) else ""))
 
     def _revision(text: str) -> str:
         return hashlib.sha256(text.encode("utf-8")).hexdigest()[:16]
@@ -4218,6 +4291,10 @@ def create_app(
                 "_not_found.html", version=__version__, path=relative_folder
             ), 404
         target, name = found
+        # A part page's Add or row: its path, so Save and Cancel go back there.
+        back = (request.form.get("back") if request.method == "POST" else request.args.get("back")) or ""
+        back_file = workspace_file(root, back) if back else None
+        back = back_file.relative_to(root).as_posix() if back_file is not None else ""
         path = None
         existing_text = ""
         frontmatter: dict = {}
@@ -4279,20 +4356,17 @@ def create_app(
                 finally:
                     _forget_sourcing()
                 if not error:
-                    return redirect(
-                        url_for(
-                            "sourcing_folder",
-                            relative_folder=name,
-                            saved=written,
-                            _anchor=f"option-{written}",
-                        )
-                    )
+                    return redirect(_sourcing_back(name, back, written))
             if status_code == 200:
                 status_code = 400
         elif request.method == "POST":
             status_code = 409  # the note on disk does not parse; it is not replaced
         elif path is None:
             frontmatter = {"status": STATUS_VALUES[0], "date": datetime.now().date()}
+            # Add from a part page: the option is for that file.
+            wanted_for = request.args.get("for", "")
+            if wanted_for in cad_names:
+                frontmatter["for"] = [wanted_for]
         chosen = [str(item) for item in (frontmatter.get("for") or ()) if str(item).strip()]
         choices = [{"name": item, "present": True, "checked": item in chosen} for item in cad_names]
         choices += [
@@ -4328,6 +4402,9 @@ def create_app(
             preview_html=_render_sourcing(body, name),
             revision=_revision(existing_text) if path is not None else "",
             option_count=len(read_folder_options(target, name)[0]),
+            back=back,
+            back_name=back.rsplit("/", 1)[-1],
+            back_url=_sourcing_back(name, back),
         ), status_code
 
     @app.post("/sourcing/<path:relative_folder>/attach")
