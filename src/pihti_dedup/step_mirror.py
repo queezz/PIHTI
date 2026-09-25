@@ -206,6 +206,25 @@ class MirrorStatus:
         return self._by_path.get(relative.casefold())
 
 
+def _replace_with_retry(temporary: Path, target: Path, *, attempts: int = 8, wait: float = 0.25) -> None:
+    """`Path.replace` that rides out a sync client's brief lock on the target.
+
+    Dropbox opens a file it just noticed for a moment; a replace in that
+    moment raises a permission error on Windows. The index is small and
+    rewritten often, so waiting a few hundred milliseconds and trying again
+    is the whole cure; the last attempt raises so the caller still logs it.
+    """
+
+    for attempt in range(attempts):
+        try:
+            temporary.replace(target)
+            return
+        except PermissionError:
+            if attempt == attempts - 1:
+                raise
+            time.sleep(wait)
+
+
 class StepMirror:
     """The mirror of one workspace: where each STEP goes, which are current, exports."""
 
@@ -264,7 +283,7 @@ class StepMirror:
                 json.dumps(index, ensure_ascii=False, indent=1, sort_keys=True) + "\n",
                 encoding="utf-8",
             )
-            temporary.replace(self.index_path)
+            _replace_with_retry(temporary, self.index_path)
         except OSError:
             log.warning("could not write the STEP mirror index at %s", self.index_path, exc_info=True)
             try:

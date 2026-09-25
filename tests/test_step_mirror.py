@@ -701,3 +701,39 @@ def test_the_mirror_page_lists_what_waits_and_what_was_exported(
     assert "Frame\\frame.iam" in recent and "<small>exported</small>" in recent
     assert "frame.iam" not in page.split('id="sec-missing"', 1)[1].split("</section>", 1)[0]
     assert "The folder is created" not in page
+
+
+def test_the_index_write_rides_out_a_brief_lock(tmp_path: Path, monkeypatch) -> None:
+    from pihti_dedup import step_mirror as module
+
+    source = tmp_path / "index.tmp"
+    source.write_text("{}", encoding="utf-8")
+    target = tmp_path / "mirror-index.json"
+    calls = {"n": 0}
+    original = Path.replace
+
+    def flaky(self, other):
+        calls["n"] += 1
+        if calls["n"] < 3:
+            raise PermissionError(5, "Access is denied")
+        return original(self, other)
+
+    monkeypatch.setattr(Path, "replace", flaky)
+    monkeypatch.setattr(module.time, "sleep", lambda _s: None)
+    module._replace_with_retry(source, target)
+
+    assert target.read_text(encoding="utf-8") == "{}"
+    assert calls["n"] == 3
+
+
+def test_the_index_write_gives_up_after_the_last_attempt(tmp_path: Path, monkeypatch) -> None:
+    import pytest
+
+    from pihti_dedup import step_mirror as module
+
+    source = tmp_path / "index.tmp"
+    source.write_text("{}", encoding="utf-8")
+    monkeypatch.setattr(Path, "replace", lambda self, other: (_ for _ in ()).throw(PermissionError(5, "denied")))
+    monkeypatch.setattr(module.time, "sleep", lambda _s: None)
+    with pytest.raises(PermissionError):
+        module._replace_with_retry(source, tmp_path / "mirror-index.json", attempts=3)

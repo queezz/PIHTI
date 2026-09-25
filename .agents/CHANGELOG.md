@@ -6,6 +6,11 @@ remains authoritative for exact file changes.
 
 ## 2026-09-25
 
+- Shipped `pihti-dedup` 0.24.1: the STEP mirror index is swapped into place
+  with a short retry, because Dropbox holds a freshly written file for a
+  moment and the first real `step-mirror sync` lost one index write to that
+  lock (the exports themselves were unaffected).
+
 - Shipped `pihti-dedup` 0.24.0: the STEP mirror. Every Inventor part and
   assembly in the default scan scope gets a STEP copy, exported by Inventor
   itself into the sibling folder `PIHTI-step` beside the workspace (override:
