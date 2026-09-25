@@ -60,6 +60,8 @@ def test_a_fully_repaired_rename_is_settled_and_will_not_prompt(tmp_path: Path) 
     assert entry.fully_repaired and entry.settled and entry.will_prompt is False
     assert entry.repair_note == "repaired through Inventor 2027.1"
     assert read_ledger(root) == (entry,)
+    # A rename's referrers still resolve when opened: plain Open, no options.
+    assert {item[0] for item in app.log if item[0].startswith("open")} == {"open"}
     line = json.loads(ledger_path(root).read_text(encoding="utf-8"))
     assert line["repaired"] == ["Frame/probe.iam", "Frame/stand.iam"]
     assert str(root).casefold() not in ledger_path(root).read_text(encoding="utf-8").casefold()
@@ -294,7 +296,7 @@ def test_the_workbench_stops_showing_the_indirect_old_name(tmp_path: Path) -> No
         "Inventor refreshes it on the next save."
     ) in page
     assert "is-missing" not in page
-    assert "This assembly has no direct missing, ambiguous, or generic names." in page
+    assert "Nothing to fix" in page
 
 
 def test_renamed_destinations_are_open_on_the_workbench(tmp_path: Path) -> None:
@@ -315,7 +317,7 @@ def test_renamed_destinations_are_open_on_the_workbench(tmp_path: Path) -> None:
 
     page = client.get("/doctor/assembly/Frame/probe.iam").get_data(as_text=True)
 
-    assert '<details class="assembly-renamed" open><summary>Renamed destinations (1)' in page
+    assert '<p class="assembly-renamed">Renamed to <a href="/part/Frame/parts/Frame-body.ipt"' in page
 
 
 def test_a_repaired_entry_renders_green_even_when_the_old_name_survives(tmp_path: Path) -> None:
@@ -329,7 +331,7 @@ def test_a_repaired_entry_renders_green_even_when_the_old_name_survives(tmp_path
     page = create_app(root).test_client().get("/renames").get_data(as_text=True)
 
     assert "Repaired through Inventor 2027.1." in page
-    assert "Other files named <code>Body.ipt</code> still exist elsewhere; they were not touched." in page
+    assert "Other <code>Body.ipt</code> files untouched" in page
     assert "Inventor will NOT ask now." not in page
     assert "not repaired" not in page
     assert 'class="rename-badge is-repaired"' in page
@@ -366,7 +368,7 @@ def test_a_legacy_repaired_entry_does_not_print_its_frozen_note(tmp_path: Path) 
     assert "Repaired through Inventor 2027.1." in page
     assert "not repaired" not in page
     assert "no reference to this file" not in page
-    assert "Check the unmarked documents below by hand." in page
+    assert "check the unmarked ones" in page
 
 
 def test_a_plain_entry_keeps_the_live_red_banner(tmp_path: Path) -> None:
@@ -412,10 +414,12 @@ def test_forms_without_inventor_say_so_and_offer_no_repair(tmp_path: Path) -> No
     part = client.get("/part/Frame/parts/Body.ipt").get_data(as_text=True)
 
     for html in (doctor, part):
-        assert INVENTOR_ABSENT in html
         assert 'name="repair"' not in html
         assert "open in Inventor" not in html
-    assert "never edits geometry, rewrites an Inventor reference" in part
+    assert INVENTOR_ABSENT in part
+    # Doctor names the way to its button instead of a manual chore.
+    assert "Start Inventor, open PIHTI.ipj, then come back" in doctor
+    assert "Rename and fix in Inventor" not in doctor
 
 
 def test_forms_with_inventor_offer_the_repair_and_flag_open_referrers(tmp_path: Path) -> None:
@@ -424,14 +428,18 @@ def test_forms_with_inventor_offer_the_repair_and_flag_open_referrers(tmp_path: 
     session = fake_session(app)
     client = create_app(root, session_factory=lambda: session).test_client()
 
-    for url in ("/doctor/name/Body.ipt", "/part/Frame/parts/Body.ipt"):
-        html = client.get(url).get_data(as_text=True)
-        assert (
-            '<input type="checkbox" name="repair" value="1" checked> '
-            "Repair references through Inventor 2027.1"
-        ) in html
-        assert html.count("open in Inventor: close it first") == 1
-        assert INVENTOR_ABSENT not in html
+    part = client.get("/part/Frame/parts/Body.ipt").get_data(as_text=True)
+    assert (
+        '<input type="checkbox" name="repair" value="1" checked> '
+        "Repair references through Inventor 2027.1"
+    ) in part
+    assert part.count("open in Inventor: close it first") == 1
+    assert INVENTOR_ABSENT not in part
+    doctor = client.get("/doctor/name/Body.ipt").get_data(as_text=True)
+    assert '<input type="hidden" name="repair" value="1">' in doctor
+    assert ">Rename and fix in Inventor</button>" in doctor
+    assert "Inventor 2027.1" in doctor
+    assert doctor.count("open in Inventor: close it first") == 1
 
 
 def test_doctor_rename_confirms_then_repairs_and_the_ledger_settles(tmp_path: Path) -> None:
@@ -471,7 +479,7 @@ def test_doctor_rename_confirms_then_repairs_and_the_ledger_settles(tmp_path: Pa
     ) in page
     # The saved assemblies still carry Body.ipt as a fossil, but no longer name it.
     assert b"B\x00o\x00d\x00y\x00.\x00i\x00p\x00t" in (root / "Frame" / "probe.iam").read_bytes()
-    assert "No assembly, drawing, or presentation currently embeds this filename." in page
+    assert "No assembly names Body.ipt" in page
     part = client.get("/part/Frame/parts/Frame-body.ipt").get_data(as_text=True)
     assert "Frame\\probe.iam" in part and "Frame\\stand.iam" in part
 

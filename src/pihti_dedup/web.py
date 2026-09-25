@@ -55,7 +55,17 @@ from pihti_dedup.inventor_meta import (
     read_preview,
 )
 from pihti_dedup.inventor_meta import read_document as read_inventor_document
-from pihti_dedup.inventor_session import CLOSE_FIRST, NO_ANSWER, Session, SessionTimeout, path_key
+from pihti_dedup.inventor_session import (
+    CLOSE_FIRST,
+    DEFAULT_TIMEOUT,
+    NO_ANSWER,
+    REPAIRED,
+    RepairRefused,
+    Session,
+    SessionTimeout,
+    path_key,
+    repair_references,
+)
 from pihti_dedup.inventory import (
     NEWVER_EXPLANATION,
     ExcludedPath,
@@ -75,8 +85,10 @@ from pihti_dedup.renames import (
     indirect_clause,
     plan_rename,
     read_ledger,
+    record_repoint,
     set_settled,
     settled_pairs,
+    suggest_unique_name,
 )
 from pihti_dedup.sidecar import (
     FEATURED_KEY,
@@ -123,7 +135,12 @@ from pihti_dedup.standard_parts import (
     is_standard_candidate,
     plan_standard_move,
 )
-from pihti_dedup.whereused import ReferenceCache, build_index, filename_locations
+from pihti_dedup.whereused import (
+    REFERRING_EXTENSIONS,
+    ReferenceCache,
+    build_index,
+    filename_locations,
+)
 
 Scanner = Callable[..., Inventory]
 MergeReader = Callable[[Path], tuple[PullRequestMerge, ...]]
@@ -1095,6 +1112,18 @@ BATCH_NOTICES = {
     "idle": "No batch is running.",
 }
 START_INVENTOR = "Start Inventor, open PIHTI.ipj, then come back"
+#: Doctor's answer to "Fix in Inventor" without a session.
+DOCTOR_ABSENT = "Inventor is not running; nothing changed."
+
+
+def _fix_words(outcome: str, name: str, filename: str) -> str:
+    """One referrer's repair outcome as the Doctor row says it."""
+
+    if outcome == inventor_session.SKIPPED_OPEN:
+        return f"{name} is {CLOSE_FIRST}"
+    if outcome == inventor_session.NO_DESCRIPTOR:
+        return f"{name} holds no reference named {filename}"
+    return outcome.removeprefix("failed: ")
 
 
 def _step_code(outcome: str) -> str:
@@ -1534,11 +1563,158 @@ def create_app(
     def duplicates():
         return render_template("duplicates.html", workspace=root.name, version=__version__)
 
-    @app.get("/doctor")
-    def doctor():
+    def _session_card() -> dict:
+        """The Doctor and mirror pages' Inventor card: its version, or how to start it."""
+
+        session = _session()
+        return {
+            "version": session.version if session is not None else "",
+            "start": START_INVENTOR,
+        }
+
+    def _repoint_candidates(filename: str, locations, ledger) -> list[str]:
+        """Files a referrer of the missing `filename` could be pointed at.
+
+        The ledger's successors for that name first (the files it was renamed
+        to that still exist), then every other workspace file of the same type
+        whose stem starts with the old stem. Never a file under `OldVersions/`.
+        """
+
+        key = filename.casefold()
+        stem = Path(filename).stem.casefold()
+        suffix = Path(filename).suffix.casefold()
+        found: list[str] = []
+        seen: set[str] = set()
+
+        def add(path: str) -> None:
+            folded = path.casefold()
+            if folded in seen or "oldversions" in folded.split("/"):
+                return
+            if workspace_file(root, path) is None:
+                return
+            seen.add(folded)
+            found.append(path)
+
+        successors = sorted(
+            (
+                entry.new_path
+                for entry in ledger
+                if entry.old_name.casefold() == key and entry.new_name.casefold() != key
+            ),
+            key=lambda path: (path.rsplit("/", 1)[-1].casefold(), path.casefold()),
+        )
+        for path in successors:
+            add(path)
+        for name_key in sorted(locations):
+            if name_key == key or not name_key.endswith(suffix):
+                continue
+            if not Path(name_key).stem.startswith(stem):
+                continue
+            for path in sorted(locations[name_key], key=str.casefold):
+                add(path)
+        return found
+
+    def _folder_of(path: str) -> str:
+        return path.rsplit("/", 1)[0] if "/" in path else "."
+
+    def _fix_rows(
+        referrers, candidates, *, results: dict | None = None, open_paths=frozenset()
+    ) -> list[dict]:
+        """One row per referring assembly of a missing name: pick a file, fix it."""
+
+        rows = []
+        for referrer in referrers:
+            folder = _folder_of(referrer)
+            near = [path for path in candidates if _folder_of(path) == folder]
+            if len(near) == 1:
+                chosen = near[0]
+            elif len(candidates) == 1:
+                chosen = candidates[0]
+            else:
+                chosen = ""
+            rows.append(
+                {
+                    "path": referrer,
+                    "name": referrer.rsplit("/", 1)[-1],
+                    "folder": folder,
+                    "absolute": str(root / referrer),
+                    "open_in_inventor": referrer in open_paths,
+                    "choices": [
+                        {
+                            "path": path,
+                            "name": path.rsplit("/", 1)[-1],
+                            "folder": _folder_of(path),
+                            "selected": path == chosen,
+                        }
+                        for path in candidates
+                    ],
+                    "result": (results or {}).get(referrer, ""),
+                }
+            )
+        return rows
+
+    def _fixed_note(filename: str, referrer: str) -> str:
+        """The row's line after a fix: which file the ledger says it now uses."""
+
+        if not referrer or not filename:
+            return ""
+        key, wanted = filename.casefold(), referrer.casefold()
+        for entry in reversed(read_ledger(root)):
+            if entry.old_name.casefold() == key and any(
+                path.casefold() == wanted for path in entry.repaired
+            ):
+                return f"repaired → {entry.new_name}"
+        return ""
+
+    def _doctor_queue_context(notice: str = "", *, failed: bool = False) -> dict:
         inventory = cache.get(include_vendor=False)
         index = _current_index()
         locations = _current_locations()
+        ledger = read_ledger(root)
+        session = _session_card()
+
+        # Missing file: the old name of a rename still open, carried by no
+        # file, still named by an assembly. The same rule keeps an assembly
+        # out of the STEP mirror, so the byte scan's fossils stay off the list.
+        missing: dict[str, dict] = {}
+        for entry in ledger:
+            key = entry.old_name.casefold()
+            if entry.settled or key in missing or locations.get(key):
+                continue
+            referrers = index.referring(entry.old_name)
+            if referrers:
+                missing[key] = {"name": entry.old_name, "referrers": referrers}
+        missing_items = []
+        for item in missing.values():
+            candidates = _repoint_candidates(item["name"], locations, ledger)
+            obvious = len(item["referrers"]) == 1 and len(candidates) == 1
+            missing_items.append(
+                {
+                    **item,
+                    "candidates": candidates,
+                    "thumb": item["referrers"][0],
+                    "fix": (
+                        {"referrer": item["referrers"][0], "target": candidates[0]}
+                        if obvious and session["version"]
+                        else None
+                    ),
+                }
+            )
+        missing_items.sort(key=lambda item: item["name"].casefold())
+
+        ambiguous = [
+            {
+                "name": group.title,
+                "records": group.records,
+                "referrers": index.referring(group.title),
+            }
+            for group in inventory.filename_groups
+            if group.records
+            and all(
+                record.suffix.casefold() in RENAMEABLE_EXTENSIONS for record in group.records
+            )
+        ]
+
         generic: dict[str, list[FileRecord]] = {}
         for record in inventory.records:
             if (
@@ -1554,9 +1730,14 @@ def create_app(
             }
             for records in generic.values()
         ]
-        generic_views.sort(
-            key=lambda item: (-len(item["records"]), item["name"].casefold())
-        )
+        generic_views.sort(key=lambda item: (-len(item["records"]), item["name"].casefold()))
+
+        # Only assemblies with an actual problem are queue items: a generic
+        # name, a name carried twice, or a missing name an open rename left
+        # behind. The byte scan's other missing names are fossils (a template
+        # an assembly started from, an import's source name) and stay on the
+        # assembly's own page only, as the mirror's needs-Doctor rule has it.
+        renamed = step_mirror.renamed_names(ledger)
         assembly_views = []
         for path, names in index.document_names.items():
             if Path(path).suffix.casefold() != ".iam":
@@ -1565,26 +1746,26 @@ def create_app(
                 _display_reference_name(name).casefold(): _display_reference_name(name)
                 for name in names
             }
-            problems = [
-                name
-                for name in distinct_names.values()
-                if _is_generic_cad_name(name)
-                or len(locations.get(name.casefold(), ())) != 1
-            ]
-            if not problems:
+            generic_count = missing_count = ambiguous_count = 0
+            for key, name in distinct_names.items():
+                found = len(locations.get(key, ()))
+                if _is_generic_cad_name(name):
+                    generic_count += 1
+                elif found > 1:
+                    ambiguous_count += 1
+                elif not found and key in renamed:
+                    missing_count += 1
+            problem_count = generic_count + missing_count + ambiguous_count
+            if not problem_count:
                 continue
             assembly_views.append(
                 {
                     "path": path,
                     "name": Path(path).name,
-                    "problem_count": len(problems),
-                    "generic_count": sum(_is_generic_cad_name(name) for name in problems),
-                    "missing_count": sum(
-                        not locations.get(name.casefold(), ()) for name in problems
-                    ),
-                    "ambiguous_count": sum(
-                        len(locations.get(name.casefold(), ())) > 1 for name in problems
-                    ),
+                    "problem_count": problem_count,
+                    "generic_count": generic_count,
+                    "missing_count": missing_count,
+                    "ambiguous_count": ambiguous_count,
                 }
             )
         assembly_views.sort(
@@ -1604,36 +1785,33 @@ def create_app(
                 "base_name": item.base_path.rsplit("/", 1)[-1],
                 "absolute": str(root / item.path),
                 "base_absolute": str(root / item.base_path),
-                "folder_absolute": str((root / item.path).parent),
-                "mtime_ns": item.record.mtime_ns,
-                "base_mtime_ns": item.base.mtime_ns if item.base else None,
             }
             for item in inventory.save_leftovers
         ]
-        return render_template(
-            "doctor.html",
-            version=__version__,
-            workspace=root.name,
-            interrupted=interrupted,
-            standard_candidates=standard_candidates,
-            standard_movable=sum(
-                item.plan.outcome == MOVE for item in standard_candidates
-            ),
-            collisions=tuple(
-                group
-                for group in inventory.filename_groups
-                if group.records
-                and all(
-                    record.suffix.casefold() in RENAMEABLE_EXTENSIONS
-                    for record in group.records
-                )
-            ),
-            generic_names=generic_views,
-            assemblies=[item for item in assembly_views if item["generic_count"]],
-            missing_assemblies=[
-                item for item in assembly_views if not item["generic_count"]
-            ],
-        )
+        fixed = request.args.get("fixed", "")
+        fixed_name = request.args.get("name", "")
+        fixed_note = _fixed_note(fixed_name, fixed)
+        if fixed_note and not notice:
+            notice = f"{fixed.rsplit('/', 1)[-1]}: {fixed_note}"
+        return {
+            "version": __version__,
+            "workspace": root.name,
+            "session": session,
+            "notice": notice,
+            "notice_failed": failed,
+            "missing_items": missing_items,
+            "ambiguous": ambiguous,
+            "generic_names": generic_views,
+            "assemblies": assembly_views,
+            "interrupted": interrupted,
+            "standard_candidates": standard_candidates,
+            "standard_movable": sum(item.plan.outcome == MOVE for item in standard_candidates),
+            "form_token": app.config["FORM_TOKEN"],
+        }
+
+    @app.get("/doctor")
+    def doctor():
+        return render_template("doctor.html", **_doctor_queue_context())
 
     def _validated_doctor_assembly(value: str) -> str:
         target = workspace_file(root, value)
@@ -1648,10 +1826,21 @@ def create_app(
             return render_template(
                 "_not_found.html", version=__version__, path=relative_path
             ), 404
+        return render_template(
+            "doctor_assembly.html", **_doctor_assembly_context(assembly_path)
+        )
+
+    def _doctor_assembly_context(
+        assembly_path: str, *, results: dict | None = None, notice: str = ""
+    ) -> dict:
         target = root / assembly_path
         index = _current_index()
         locations = _current_locations()
         ledger = read_ledger(root)
+        session = _session_card()
+        open_paths: frozenset[str] = frozenset()
+        if session["version"]:
+            open_paths = _inventor_state([assembly_path]).get("open", frozenset())
         problems = []
         reference_groups: dict[str, list[str]] = {}
         for raw_name in index.names_in(assembly_path):
@@ -1732,26 +1921,43 @@ def create_app(
                     "status": "missing" if not paths else "ambiguous" if len(paths) > 1 else "generic",
                     "history": history,
                     "history_error": history_error,
+                    "fix": (
+                        _fix_rows(
+                            [assembly_path],
+                            _repoint_candidates(name, locations, ledger),
+                            results={
+                                assembly_path: (results or {}).get(name.casefold(), "")
+                            },
+                            open_paths=open_paths,
+                        )[0]
+                        if not paths
+                        else None
+                    ),
                 }
             )
         status_order = {"missing": 0, "ambiguous": 1, "generic": 2}
         problems.sort(
             key=lambda item: (status_order[item["status"]], item["name"].casefold())
         )
-        return render_template(
-            "doctor_assembly.html",
-            version=__version__,
-            workspace=root.name,
-            assembly={
+        fixed_note = _fixed_note(request.args.get("name", ""), request.args.get("fixed", ""))
+        if fixed_note and not notice:
+            notice = f"{request.args.get('name', '')}: {fixed_note}"
+        return {
+            "version": __version__,
+            "workspace": root.name,
+            "assembly": {
                 "path": assembly_path,
                 "name": target.name,
                 "absolute": str(target),
                 "folder_absolute": str(target.parent),
             },
-            problems=problems,
-            renamed=_flag(request.args.get("renamed")),
-            rename_notice=_rename_notice(request.args.get("entry", "")),
-        )
+            "problems": problems,
+            "session": session,
+            "notice": notice,
+            "form_token": app.config["FORM_TOKEN"],
+            "renamed": _flag(request.args.get("renamed")),
+            "rename_notice": _rename_notice(request.args.get("entry", "")),
+        }
 
     @app.get("/doctor/history-preview/<commit>/<path:relative_path>")
     def git_history_preview(commit: str, relative_path: str):
@@ -1792,32 +1998,75 @@ def create_app(
         draft_name: str = "",
         pending=None,
         repair_pending=None,
+        fix_results: dict | None = None,
+        notice: str = "",
     ) -> dict:
         locations = _current_locations()
         current_paths = locations.get(filename.casefold(), ())
-        current_members = [
-            {
-                "path": path,
-                "stem": Path(path).stem,
-                "suffix": Path(path).suffix,
-                "absolute": str(root / path),
-                "folder_absolute": str((root / path).parent),
-            }
-            for path in current_paths
-        ]
-        entries = tuple(
-            reversed(
-                [
-                    entry
-                    for entry in read_ledger(root)
-                    if entry.old_name.casefold() == filename.casefold()
-                ]
-            )
-        )
+        ledger = read_ledger(root)
         index = _current_index()
-        assembly_path = _validated_doctor_assembly(request.values.get("assembly", ""))
         referrers = index.referring(filename)
-        inventor = _inventor_state(referrers) if current_members and referrers else None
+        # One suggested unique name per copy; the owner picks which copy.
+        taken: set[str] = set()
+        current_members = []
+        for path in current_paths:
+            suggested = suggest_unique_name(path, locations, frozenset(taken))
+            taken.add(suggested.casefold())
+            current_members.append(
+                {
+                    "path": path,
+                    "name": path.rsplit("/", 1)[-1],
+                    "folder": _folder_of(path),
+                    "stem": Path(path).stem,
+                    "suffix": Path(path).suffix,
+                    "suggested_stem": Path(suggested).stem,
+                    "absolute": str(root / path),
+                    "folder_absolute": str((root / path).parent),
+                }
+            )
+        entries = tuple(
+            reversed([entry for entry in ledger if entry.old_name.casefold() == filename.casefold()])
+        )
+        assembly_path = _validated_doctor_assembly(request.values.get("assembly", ""))
+        inventor = _inventor_state(referrers) if referrers else None
+        open_paths = inventor["open"] if inventor else frozenset()
+        # A name no file carries: every referrer is a row that repoints it
+        # through Inventor to a file the owner picks.
+        fix_rows = []
+        if not current_paths and referrers:
+            fix_rows = _fix_rows(
+                referrers,
+                _repoint_candidates(filename, locations, ledger),
+                results=fix_results,
+                open_paths=open_paths,
+            )
+        # A refusal for an assembly that has no row here (the name exists
+        # again, or the assembly stopped naming it) is the page's own line.
+        unplaced = [
+            message
+            for path, message in (fix_results or {}).items()
+            if message and not any(row["path"] == path for row in fix_rows)
+        ]
+        if unplaced and not error:
+            error = unplaced[0]
+        fixed = request.args.get("fixed", "")
+        fixed_note = _fixed_note(filename, fixed)
+        if fixed_note and not notice:
+            notice = f"{fixed.rsplit('/', 1)[-1]}: {fixed_note}"
+        # A fixed referrer no longer names the file, so it left the list;
+        # its row stays for this view with what it now uses.
+        if fixed_note and not current_paths and not any(row["path"] == fixed for row in fix_rows):
+            fix_rows.append(
+                {
+                    "path": fixed,
+                    "name": fixed.rsplit("/", 1)[-1],
+                    "folder": _folder_of(fixed),
+                    "open_in_inventor": False,
+                    "choices": [],
+                    "result": "",
+                    "done": fixed_note,
+                }
+            )
         consolidation = None
         if len(current_members) > 1:
             clash = next(
@@ -1848,6 +2097,9 @@ def create_app(
             "workspace": root.name,
             "filename": filename,
             "inventor": inventor,
+            "session": _session_card(),
+            "notice": notice,
+            "fix_rows": fix_rows,
             "repair_pending": repair_pending,
             "rename_notice": _rename_notice(request.args.get("entry", "")),
             "current_paths": current_paths,
@@ -1858,7 +2110,9 @@ def create_app(
                     "path": path,
                     "absolute": str(root / path),
                     "folder_absolute": str((root / path).parent),
-                    "open_in_inventor": bool(inventor and path in inventor["open"]),
+                    "name": path.rsplit("/", 1)[-1],
+                    "folder": _folder_of(path),
+                    "open_in_inventor": path in open_paths,
                 }
                 for path in referrers
             ],
@@ -1968,6 +2222,104 @@ def create_app(
             )
         return redirect(url_for("doctor_name", filename=filename, renamed="1", entry=entry_id))
 
+    @app.post("/doctor/name/<filename>/repoint")
+    def doctor_repoint(filename: str):
+        """Point one referring assembly of a missing name at a chosen file.
+
+        Through the running Inventor: open the assembly invisibly, replace
+        every reference named `filename` with the chosen file, save, close,
+        and verify on reopen. The file already exists, so nothing is renamed;
+        the ledger records the referrer as repaired. No confirmation step: a
+        repoint is reversible through the ledger and Inventor's OldVersions.
+        """
+
+        guard = _guard(request)
+        if guard is not None:
+            return guard
+        referrer = request.form.get("referrer", "").replace("\\", "/").strip("/")
+        chosen = request.form.get("target", "")
+        origin = request.form.get("origin", "name")
+        assembly_path = _validated_doctor_assembly(request.form.get("assembly", ""))
+
+        def refuse(message: str):
+            if origin == "doctor":
+                return render_template(
+                    "doctor.html", **_doctor_queue_context(notice=message, failed=True)
+                ), 409
+            if origin == "assembly" and assembly_path:
+                return render_template(
+                    "doctor_assembly.html",
+                    **_doctor_assembly_context(
+                        assembly_path, results={filename.casefold(): message}
+                    ),
+                ), 409
+            return render_template(
+                "doctor_name.html",
+                **_doctor_name_context(filename, fix_results={referrer: message}),
+            ), 409
+
+        source = workspace_file(root, referrer)
+        if source is None or source.suffix.casefold() not in REFERRING_EXTENSIONS:
+            return refuse("that assembly is no longer in the workspace; nothing changed")
+        referrer = source.relative_to(root).as_posix()
+        name = source.name
+        target = workspace_file(root, chosen) if chosen else None
+        if target is None:
+            return refuse("choose the file to point it at")
+        if target.suffix.casefold() != Path(filename).suffix.casefold():
+            return refuse(f"{target.name} is not a {Path(filename).suffix} file")
+        target_path = target.relative_to(root).as_posix()
+        if filename_locations(root).get(filename.casefold()):
+            return refuse(f"{filename} exists again; nothing changed")
+        if not any(
+            item.casefold() == filename.casefold() for item in _fresh_index().names_in(referrer)
+        ):
+            return refuse(f"{name} no longer names {filename}")
+        session = _session()
+        if session is None:
+            return refuse(DOCTOR_ABSENT)
+        state = _inventor_state([referrer], fresh=True)
+        if not state["available"]:
+            return refuse(f"{NO_ANSWER}; nothing changed")
+        if referrer in state["open"]:
+            return refuse(f"{name} is {CLOSE_FIRST}; nothing changed")
+        try:
+            repair = repair_references(
+                session,
+                [source],
+                filename,
+                target,
+                rename=lambda: None,
+                timeout=DEFAULT_TIMEOUT,
+                skip_unresolved=True,
+            )
+        except RepairRefused as exc:
+            return refuse(f"{exc}; nothing changed")
+        except Exception as exc:  # noqa: BLE001 - Inventor refused before saving
+            return refuse(f"Inventor refused the repair ({exc}); nothing changed")
+        outcome = repair.outcomes[0][1] if repair.outcomes else "failed: no outcome"
+        if outcome != REPAIRED:
+            return refuse(_fix_words(outcome, name, filename))
+        record_repoint(
+            root,
+            referrer=referrer,
+            old_name=filename,
+            new_path=target_path,
+            version=repair.version,
+        )
+        cache.clear()
+        if origin == "doctor":
+            return redirect(url_for("doctor", fixed=referrer, name=filename))
+        if origin == "assembly" and assembly_path:
+            return redirect(
+                url_for(
+                    "doctor_assembly", relative_path=assembly_path, fixed=referrer, name=filename
+                )
+            )
+        return redirect(
+            url_for("doctor_name", filename=filename, fixed=referrer, assembly=assembly_path or None)
+        )
+
     def _rename_repair_step(plan, collision_confirmed: bool):
         """Decide the Inventor half of a rename form post.
 
@@ -2031,20 +2383,14 @@ def create_app(
         return candidates
 
     standard_groups = {
-        MOVE: ("Ready to move", "Unique name", "Nothing else in the workspace carries the name."),
+        MOVE: ("Ready to move", "Unique name", "Unique name"),
         IDENTICAL: (
             "Already in the library",
             "Same bytes at the destination",
-            "The library already holds these bytes under this name; "
-            "the stray copy can go to the recoverable quarantine.",
+            "Same bytes already in the library",
         ),
-        CONFLICT: (
-            "Name collision",
-            "Refused",
-            "The name exists elsewhere, so a move would leave Inventor two candidates. "
-            "Settle it in Collision Doctor first.",
-        ),
-        REFUSED: ("Refused", "Cannot move", "The move breaks a path or filename rule."),
+        CONFLICT: ("Name collision", "Refused", "Name exists elsewhere: rename it in Doctor first"),
+        REFUSED: ("Refused", "Cannot move", "Breaks a path or filename rule"),
     }
 
     def _standard_confirm(plan) -> str:
@@ -2730,6 +3076,7 @@ def create_app(
             open_count=sum(not entry.settled for entry in entries),
             prompt_count=sum(entry.will_prompt and not entry.settled for entry in entries),
             repaired_count=sum(entry.fully_repaired for entry in entries),
+            move_count=sum(entry.is_move for entry in entries),
             ledger=LEDGER_RELATIVE,
             form_token=app.config["FORM_TOKEN"],
         )
@@ -3226,12 +3573,17 @@ def create_app(
         except FolderNoteError as exc:
             note = None
             error = str(exc)
+        tree_inventory = cache.get(include_vendor=False, hash_files=False)
+        crumbs = _breadcrumbs(relative)
+        crumbs.append({"name": "Folder note", "path": relative})
         return {
             "version": __version__,
             "path": relative,
             "name": target.name,
+            "absolute_path": str(target),
             "parent": relative.rsplit("/", 1)[0] if "/" in relative else "",
-            "breadcrumbs": _breadcrumbs(relative),
+            "breadcrumbs": crumbs,
+            "tree": folder_tree(_catalog_index(tree_inventory), current=relative),
             "files": files,
             "subtree_count": len(subtree),
             "note": note,
@@ -3531,8 +3883,6 @@ def create_app(
             "properties": properties,
             "mass": mass,
             "mass_invalid": bool(meta.fields) and not valid_mass,
-            "part_number_mismatch": bool(meta.part_number)
-            and meta.part_number.casefold() != target.stem.casefold(),
             "sidecar": sidecar,
             "sidecar_html": render_markdown(sidecar.body if sidecar else ""),
             "sidecar_name": companion.name,

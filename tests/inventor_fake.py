@@ -7,7 +7,12 @@ It mirrors exactly the calls the repair recipe makes: `SoftwareVersion`,
 small stand-in file (`fail_export` makes it raise, `hang` on "saveas" makes it
 stall), and the leftover close's `Application.Views` (`windows` lists the
 full paths shown in a window), `View.Document`, and
-`doc.ReferencingDocuments` (the loaded documents whose references name it). The "disk" is a dict of referring document -> referenced full
+`doc.ReferencingDocuments` (the loaded documents whose references name it),
+and Doctor's dialog-free open: `TransientObjects.CreateNameValueMap()` (a
+`FakeNameValueMap` recording what `Add` was given) and
+`Documents.OpenWithOptions(path, options, visible)`, logged as
+`("open-options", name, {options}, visible)`; `legacy_api` makes both
+attributes missing, as on a session whose API lacks them. The "disk" is a dict of referring document -> referenced full
 paths; `Save2` writes it back and, when the document exists as a real file,
 rewrites that file's bytes the way Inventor would: the new name added, the old
 one left behind as a fossil string.
@@ -129,9 +134,30 @@ class FakeDocument:
         app.loaded = [document for document in app.loaded if document is not self]
 
 
+class FakeNameValueMap:
+    """Inventor's NameValueMap, as far as `Add` goes."""
+
+    def __init__(self) -> None:
+        self.values: dict[str, object] = {}
+
+    def Add(self, name: str, value) -> None:  # noqa: N802
+        self.values[name] = value
+
+
 class FakeDocuments:
     def __init__(self, app: FakeInventor) -> None:
         self._app = app
+
+    @property
+    def OpenWithOptions(self):  # noqa: N802
+        if self._app.legacy_api:
+            raise AttributeError("OpenWithOptions")
+        return self._open_with_options
+
+    def _open_with_options(self, full_name: str, options: FakeNameValueMap, visible: bool):
+        app = self._app
+        app.log.append(("open-options", ntpath.basename(full_name), dict(options.values), visible))
+        return self._load(full_name)
 
     @property
     def Count(self) -> int:  # noqa: N802
@@ -143,6 +169,10 @@ class FakeDocuments:
     def Open(self, full_name: str, visible: bool) -> FakeDocument:  # noqa: N802
         app = self._app
         app.log.append(("open", ntpath.basename(full_name), visible))
+        return self._load(full_name)
+
+    def _load(self, full_name: str) -> FakeDocument:
+        app = self._app
         app.maybe_hang("open", full_name)
         for document in app.loaded:
             if key(document.FullFileName) == key(full_name):
@@ -172,10 +202,18 @@ class FakeInventor:
         #: Full paths shown in a window; `Views` answers from this.
         self.windows: list[str] = []
         self.hang: tuple[str, str] | None = None
+        #: A session whose API has no OpenWithOptions / TransientObjects.
+        self.legacy_api = False
         self.release = threading.Event()
         self.loaded: list[FakeDocument] = [
             FakeDocument(self, path, owner=True) for path in owner_open
         ]
+
+    @property
+    def TransientObjects(self):  # noqa: N802
+        if self.legacy_api:
+            raise AttributeError("TransientObjects")
+        return SimpleNamespace(CreateNameValueMap=FakeNameValueMap)
 
     @property
     def Views(self):  # noqa: N802

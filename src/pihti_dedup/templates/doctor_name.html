@@ -1,74 +1,104 @@
 {% extends "base.html" %}
-{% block title %}{{ filename }} doctor · PIHTI{% endblock %}
+{% from "_shell.html" import page_bar, session_card, jump_card, fix_row %}
+{% block title %}{{ filename }} · Doctor · PIHTI{% endblock %}
 {% block body %}
+{% set kind = 'Missing file' if not current_members else 'Ambiguous filename' if current_members|length > 1 else 'Generic name' if generic_name else 'Name' %}
 <main class="page">
-  <section class="doctor-head name-session-head">
-    <div>
-      <p class="micro-heading">Name repair session{% if generic_name %} · generic imported name{% endif %}</p>
-      <h1>{{ filename }}</h1>
-      <p>Rename every intended geometry here, then open the referring assemblies below and repoint each occurrence.</p>
-    </div>
-    <span class="doctor-head-actions">{% if assembly_path %}<a class="button" href="{{ url_for('doctor_assembly', relative_path=assembly_path) }}">Back to assembly</a>{% endif %}<a class="button" href="{{ url_for('doctor') }}">All doctor queues</a></span>
-  </section>
-
-  {% if renamed %}<p class="metadata-notice doctor-notice" role="status">{% if rename_notice %}{{ rename_notice.text }}{% else %}Renamed and recorded.{% endif %} This session remains open so the last original cannot disappear from view.</p>{% endif %}
-  {% if consolidated_keep %}<p class="metadata-notice doctor-notice" role="status">Kept <code>{{ consolidated_keep|winpath }}</code>; the other revisions are in recoverable quarantine, recorded under Removed.</p>{% endif %}
-  {% if rename_error %}<p class="metadata-error" role="alert">{{ rename_error }}</p>{% endif %}
-
-  <div class="work-grid one-rail doctor-session">
+  <div class="work-grid two-rail doctor-session">
     <div class="work-main">
-      <section class="part-card">
-        <h2>Current files carrying this name</h2>
-        {% if inventor and not inventor.available %}<p class="part-note muted repair-absent">{{ inventor.note }}</p>{% endif %}
-        {% if current_members %}
-        <div class="doctor-members">
+      {% set crumbs = [{'name': 'Doctor', 'url': url_for('doctor')}] %}
+      {% if assembly_path %}{% set _ = crumbs.append({'name': assembly_path.rsplit('/', 1)[-1], 'url': url_for('doctor_assembly', relative_path=assembly_path)}) %}{% endif %}
+      {% set _ = crumbs.append({'name': filename}) %}
+      {{ page_bar(crumbs) }}
+
+      {% if renamed %}<p class="metadata-notice doctor-notice" role="status">{% if rename_notice %}{{ rename_notice.text }}{% else %}Renamed and recorded.{% endif %}</p>{% endif %}
+      {% if notice %}<p class="metadata-notice doctor-notice" role="status">{{ notice }}</p>{% endif %}
+      {% if consolidated_keep %}<p class="metadata-notice doctor-notice" role="status">Kept <code>{{ consolidated_keep|winpath }}</code>; the others are in quarantine, under Removed.</p>{% endif %}
+      {% if rename_error %}<p class="metadata-error doctor-error" role="alert">{{ rename_error }}</p>{% endif %}
+
+      {% if current_members %}
+      <section class="doctor-panel queue-panel" id="copies">
+        <header><h2>{{ 'Copies' if current_members|length > 1 else 'File' }}</h2><strong>{{ current_members|length }}</strong></header>
+        <div class="doctor-list">
           {% for member in current_members %}
-          <article class="doctor-member{% if draft_path == member.path %} has-draft{% endif %}">
-            <a class="doctor-file-preview" href="{{ url_for('part_page', relative_path=member.path) }}" aria-label="Open {{ member.path|winpath }}">
-              <img src="{{ preview_url(member.path) }}" alt="Preview of {{ member.path|winpath }}" loading="lazy" decoding="async" width="128" height="96">
-            </a>
-            <div class="doctor-member-body">
-            <div class="doctor-member-path">
-              <strong>{{ member.path|winpath }}</strong>
-              <span><button class="copy-path" type="button" data-copy-text="{{ member.absolute|winpath }}">Copy file path</button><button class="copy-path" type="button" data-copy-text="{{ member.folder_absolute|winpath }}">Copy folder</button></span>
-            </div>
+          <article class="queue-row copy-row{% if draft_path == member.path %} has-draft{% endif %}" data-copy-row>
+            <a class="queue-thumb" href="{{ url_for('part_page', relative_path=member.path) }}" aria-label="Open {{ member.path|winpath }}"><img src="{{ preview_url(member.path) }}" alt="Preview of {{ member.path|winpath }}" loading="lazy" decoding="async" width="64" height="48"></a>
+            <span class="queue-name"><a href="{{ url_for('part_page', relative_path=member.path) }}" title="{{ member.path|winpath }}">{{ member.folder|winpath }}</a><small>{{ referrers|length }} assembl{{ 'y names' if referrers|length == 1 else 'ies name' }} it · <button class="copy-link" type="button" data-copy-text="{{ member.absolute|winpath }}">copy path</button></small></span>
             {% if repair_pending and draft_path == member.path %}
-            {% with repair_action=doctor_name_action, repair_relative_path=member.path %}{% include "_repair_confirm.html" %}{% endwith %}
+            <div class="copy-confirm">{% with repair_action=doctor_name_action, repair_relative_path=member.path %}{% include "_repair_confirm.html" %}{% endwith %}</div>
             {% elif rename_pending and draft_path == member.path %}
-            <div class="rename-warning" role="alert">
-              <strong>Other files still carry {{ filename }}.</strong>
-              <p>Until this repair session reaches zero originals, Inventor can silently bind a broken reference to the wrong member. The shared referrer list is below.</p>
+            <div class="copy-confirm rename-warning" role="alert">
+              <strong>{{ filename }} stays on {{ current_members|length - 1 }} other file{{ '' if current_members|length == 2 else 's' }}: Inventor binds to it silently.</strong>
               <form method="post" action="{{ doctor_name_action }}">
                 <input type="hidden" name="token" value="{{ form_token }}">
                 <input type="hidden" name="relative_path" value="{{ member.path }}">
                 <input type="hidden" name="new_name" value="{{ rename_pending.new_name }}">
                 <input type="hidden" name="confirm_collision" value="1">
-                <button class="button apply-button" type="submit">Rename this member and stay in session</button>
+                <button class="copy-path apply-button" type="submit">Rename this member and stay in session</button>
               </form>
             </div>
             {% else %}
-            <form method="post" action="{{ doctor_name_action }}" class="rename-form doctor-rename-form">
+            <form method="post" action="{{ doctor_name_action }}" class="copy-form">
               <input type="hidden" name="token" value="{{ form_token }}">
               <input type="hidden" name="relative_path" value="{{ member.path }}">
-              <label>Specific filename</label>
-              <div class="rename-input"><input name="new_name" type="text" value="{{ draft_name if draft_path == member.path and draft_name else member.stem }}" autocomplete="off" spellcheck="false" required><span class="rename-suffix">{{ member.suffix }}</span></div>
-              <button class="button" type="submit">Review rename</button>
-              {% if inventor and inventor.available %}<label class="reference-check repair-check"><input type="checkbox" name="repair" value="1" checked> Repair references through Inventor {{ inventor.version }}</label>{% endif %}
+              <label class="rename-input"><span class="sr-only">New name for {{ member.path|winpath }}</span><input name="new_name" type="text" value="{{ draft_name if draft_path == member.path and draft_name else member.suggested_stem }}" autocomplete="off" spellcheck="false" required><span class="rename-suffix">{{ member.suffix }}</span></label>
+              {% if session.version and referrers %}
+              <input type="hidden" name="repair" value="1">
+              <button class="copy-path" type="submit">Rename and fix in Inventor</button>
+              {% else %}
+              <button class="copy-path" type="submit">Rename</button>
+              {% endif %}
             </form>
             {% endif %}
-            </div>
           </article>
           {% endfor %}
         </div>
-        {% else %}
-        <p class="doctor-complete"><strong>No original remains.</strong> Inventor will now ask for every unresolved reference to <code>{{ filename }}</code>.</p>
-        {% endif %}
       </section>
+      {% endif %}
+
+      {% if fix_rows or not current_members %}
+      <section class="doctor-panel queue-panel" id="referrers">
+        <header><h2>Assemblies naming it</h2><strong>{{ fix_rows|length }}</strong></header>
+        <div class="doctor-list">
+          {% for row in fix_rows %}{{ fix_row(row, filename, session, form_token, 'name', assembly_path) }}
+          {% else %}<p class="doctor-empty">No assembly names {{ filename }}</p>{% endfor %}
+        </div>
+      </section>
+      {% else %}
+      <section class="doctor-panel queue-panel" id="referrers">
+        <header><h2>Assemblies naming it</h2><strong>{{ referrers|length }}</strong></header>
+        <div class="doctor-list">
+          {% for referrer in referrers %}
+          <div class="queue-row">
+            <a class="queue-thumb" href="{{ url_for('part_page', relative_path=referrer.path) }}"><img src="{{ preview_url(referrer.path) }}" alt="Preview of {{ referrer.path|winpath }}" loading="lazy" decoding="async" width="64" height="48"></a>
+            <span class="queue-name"><a href="{{ url_for('part_page', relative_path=referrer.path) }}">{{ referrer.name }}</a><small>{{ referrer.folder|winpath }}{% if referrer.open_in_inventor %} · <span class="inventor-open">open in Inventor: close it first</span>{% endif %}</small></span>
+            <span class="queue-count"></span>
+            <span class="queue-action"><button class="copy-path" type="button" data-copy-text="{{ referrer.absolute|winpath }}">Copy path</button></span>
+          </div>
+          {% else %}<p class="doctor-empty">No assembly, drawing, or presentation currently embeds this filename.</p>{% endfor %}
+        </div>
+      </section>
+      {% endif %}
+
+      {% if entries %}
+      <section class="doctor-panel queue-panel" id="history">
+        <header><h2>Renamed</h2><strong>{{ entries|length }}</strong></header>
+        <div class="doctor-list">
+          {% for entry in entries %}
+          <div class="queue-row">
+            <a class="queue-thumb" href="{{ url_for('part_page', relative_path=entry.new_path) }}"><img src="{{ preview_url(entry.new_path) }}" alt="Preview of {{ entry.new_path|winpath }}" loading="lazy" decoding="async" width="64" height="48"></a>
+            <span class="queue-name"><a href="{{ url_for('part_page', relative_path=entry.new_path) }}">{{ entry.new_name }}</a><small>{{ entry.new_path|winpath }}</small></span>
+            <span class="queue-count">{{ entry.timestamp[:10] }}</span>
+            <span class="queue-action">{% if entry.settled %}settled{% endif %}</span>
+          </div>
+          {% endfor %}
+        </div>
+      </section>
+      {% endif %}
 
       {% if consolidation %}
       <details class="part-card consolidate-disclosure" data-doctor-consolidate data-consolidate-src="{{ consolidation.src }}" data-form-token="{{ form_token }}" data-done="{{ consolidation.done }}" data-member-count="{{ consolidation.members|length }}">
         <summary>Consolidate after comparing in Inventor</summary>
-        <p class="part-note">Only after these revisions were opened side by side in Inventor and compared: keep one, and the others move to recoverable quarantine.</p>
         <ul class="consolidate-list">
           {% for member in consolidation.members %}
           <li><code>{{ member.path|winpath }}</code>{% if member.sha256 %} <small>{{ member.sha256[:10] }}</small>{% endif %}<button class="copy-path" type="button" data-consolidate-keep data-keep-path="{{ member.path }}" data-display-path="{{ member.path|winpath }}">Keep this one</button></li>
@@ -76,37 +106,35 @@
         </ul>
       </details>
       {% endif %}
-
-      <section class="part-card">
-        <h2>Referring assemblies and drawings</h2>
-        <p class="part-note muted">These documents embed the ambiguous filename. Copy a path, open it in Inventor, and repoint the intended component after renaming.</p>
-        {% if referrers %}
-        <div class="doctor-referrers">
-          {% for referrer in referrers %}
-          <div><a class="doctor-referrer-preview" href="{{ url_for('part_page', relative_path=referrer.path) }}"><img src="{{ preview_url(referrer.path) }}" alt="Preview of {{ referrer.path|winpath }}" loading="lazy" decoding="async" width="80" height="60"></a><a href="{{ url_for('part_page', relative_path=referrer.path) }}"><code>{{ referrer.path|winpath }}</code>{% if referrer.open_in_inventor %}<small class="inventor-open">open in Inventor: close it first</small>{% endif %}</a><span><button class="copy-path" type="button" data-copy-text="{{ referrer.absolute|winpath }}">Copy file path</button><button class="copy-path" type="button" data-copy-text="{{ referrer.folder_absolute|winpath }}">Copy folder</button></span></div>
-          {% endfor %}
-        </div>
-        {% else %}<p class="part-note">No assembly, drawing, or presentation currently embeds this filename.</p>{% endif %}
-      </section>
-
-      {% if entries %}
-      <section class="part-card">
-        <h2>Renamed during this name's history</h2>
-        <div class="doctor-history">
-          {% for entry in entries %}
-          <div><a class="doctor-history-preview" href="{{ url_for('part_page', relative_path=entry.new_path) }}"><img src="{{ preview_url(entry.new_path) }}" alt="Preview of {{ entry.new_path|winpath }}" loading="lazy" decoding="async" width="80" height="60"></a><code>{{ entry.old_path|winpath }}</code><span aria-hidden="true">→</span><a href="{{ url_for('part_page', relative_path=entry.new_path) }}"><code>{{ entry.new_path|winpath }}</code></a></div>
-          {% endfor %}
-        </div>
-      </section>
-      {% endif %}
     </div>
 
-    <aside class="rail-side" aria-label="Name repair status">
-      <section class="rail-card doctor-status{% if current_will_prompt %} is-safe{% else %} is-danger{% endif %}">
-        <h2>Inventor resolution now</h2>
-        {% if current_will_prompt %}<strong>Will ask</strong><p class="rail-note">Zero files carry the old name.</p>{% else %}<strong>Will not ask</strong><p class="rail-note">{{ current_members|length }} possible silent target{% if current_members|length != 1 %}s{% endif %} remain.</p>{% endif %}
+    <aside class="rail-side rail-context" aria-label="Name">
+      <section class="rail-card context-card doctor-status{% if current_will_prompt %} is-safe{% else %} is-danger{% endif %}">
+        <h2>{{ kind }}</h2>
+        <p class="context-title">{{ filename }}</p>
+        <dl class="scope-list">
+          <div><dt>Files</dt><dd>{{ current_members|length }}</dd></div>
+          <div><dt>Assemblies</dt><dd>{{ referrers|length }}</dd></div>
+          <div><dt>Renamed</dt><dd>{{ entries|length }}</dd></div>
+          <div><dt>Inventor</dt><dd>{% if current_will_prompt %}Will ask{% elif current_members|length > 1 %}Will not ask{% else %}Binds it{% endif %}</dd></div>
+        </dl>
       </section>
-      <section class="rail-card"><h2>Session</h2><dl class="scope-list"><div><dt>Originals</dt><dd>{{ current_members|length }}</dd></div><div><dt>Renamed</dt><dd>{{ entries|length }}</dd></div><div><dt>Referrers</dt><dd>{{ referrers|length }}</dd></div></dl></section>
+      {{ session_card(session) }}
+    </aside>
+
+    <aside class="rail-side rail-tree" aria-label="Sections">
+      {% set jumps = [] %}
+      {% if current_members %}{% set _ = jumps.append(('#copies', 'Copies' if current_members|length > 1 else 'File', current_members|length)) %}{% endif %}
+      {% set _ = jumps.append(('#referrers', 'Assemblies naming it', fix_rows|length if fix_rows or not current_members else referrers|length)) %}
+      {% if entries %}{% set _ = jumps.append(('#history', 'Renamed', entries|length)) %}{% endif %}
+      {{ jump_card(jumps) }}
+      <section class="rail-card">
+        <h2>Doctor</h2>
+        <nav class="rail-nav" aria-label="Doctor">
+          {% if assembly_path %}<a class="rail-navrow" href="{{ url_for('doctor_assembly', relative_path=assembly_path) }}"><span>{{ assembly_path.rsplit('/', 1)[-1] }}</span></a>{% endif %}
+          <a class="rail-navrow" href="{{ url_for('doctor') }}"><span>All queues</span></a>
+        </nav>
+      </section>
     </aside>
   </div>
 </main>

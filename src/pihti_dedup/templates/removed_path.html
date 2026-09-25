@@ -1,12 +1,39 @@
 {% extends "base.html" %}
+{% from "_shell.html" import page_bar %}
 {% block title %}Path was consolidated · PIHTI{% endblock %}
 {% block body %}
-<main class="page"><div class="error-card removed-answer">
-  <p class="micro-heading">Path history answer</p><h2>This file was deliberately consolidated</h2>
-  <p><code>{{ path|winpath }}</code> was moved to recoverable quarantine.</p>
-  {% if event.keep_path %}<p>Use the reviewed survivor:</p><p><strong><code>{{ event.keep_path|winpath }}</code></strong></p>{% endif %}
-  {% if event.where_used %}<p>Possible referrers by filename:</p><ul>{% for referrer in event.where_used %}<li><code>{{ referrer|winpath }}</code></li>{% endfor %}</ul>{% endif %}
-  <p class="muted">Recovery manifest: <code>{{ event.manifest|winpath }}</code></p>
-  <a class="button" href="{{ url_for('removed', q=item.name) }}">Open removal history</a>
-</div></main>
+<main class="page">
+  <div class="work-grid two-rail">
+    <div class="work-main">
+      {{ page_bar([{'name': 'Removed', 'url': url_for('removed')}, {'name': path.rsplit('/', 1)[-1]}]) }}
+      <section class="error-card removed-answer">
+        <h2>This file was deliberately consolidated</h2>
+        <p><code>{{ path|winpath }}</code> is in recoverable quarantine.</p>
+        {% if event.keep_path %}<p>Use <strong><code>{{ event.keep_path|winpath }}</code></strong></p>{% endif %}
+        <a class="copy-path" href="{{ url_for('removed', q=item.name) }}">Open removal history</a>
+      </section>
+    </div>
+
+    <aside class="rail-side rail-context" aria-label="Removed file">
+      <section class="rail-card context-card">
+        <h2>Removed</h2>
+        <p class="context-title">{{ path.rsplit('/', 1)[-1] }}</p>
+        <dl class="scope-list">
+          <div><dt>Path</dt><dd><code>{{ path|winpath }}</code></dd></div>
+          {% if event.keep_path %}<div><dt>Survivor</dt><dd><code>{{ event.keep_path|winpath }}</code></dd></div>{% endif %}
+          <div><dt>Manifest</dt><dd><code>{{ event.manifest|winpath }}</code></dd></div>
+        </dl>
+      </section>
+    </aside>
+
+    <aside class="rail-side rail-tree" aria-label="Referrers">
+      <section class="rail-card">
+        <h2>Referrers</h2>
+        {% if event.where_used %}
+        <ul class="referrer-list">{% for referrer in event.where_used %}<li><code>{{ referrer|winpath }}</code></li>{% endfor %}</ul>
+        {% else %}<p class="rail-note muted">None</p>{% endif %}
+      </section>
+    </aside>
+  </div>
+</main>
 {% endblock %}

@@ -6,6 +6,28 @@ remains authoritative for exact file changes.
 
 ## 2026-09-25
 
+- Shipped `pihti-dedup` 0.27.0: one layout on every page, and Doctor rows
+  that fix through Inventor. Renames, Duplicates, Doctor and its three
+  sub-pages, Removed, the STEP mirror (now a top-bar tab), Sourcing, the part
+  page and the folder page all use the catalog's shell: what you look at, its
+  facts and actions in the wide left rail, the page in the middle, navigation,
+  filters and jump lists in the narrow right rail, both pinned; the catalog
+  itself is unchanged. The main column's top line stays in the flow, so the
+  Renames filter no longer slides over the first card, and cards sit
+  left-aligned at a reading width. Explanatory paragraphs are cut to a few
+  words; coloured edge bars are gone. Doctor's queue is one line per item.
+  Its Assemblies section lists only assemblies with a real problem (37 on
+  this tree instead of 258). On a missing file's page each assembly that names it gets a file choice and
+  **Fix in Inventor**: Inventor opens that one assembly with its
+  skip-unresolved-files option (no Resolve Link dialog), repoints, saves, and
+  verifies it, and the rename ledger marks it repaired (settled once every
+  assembly is done); a missing file with one obvious answer is fixed from the
+  queue itself, and the assembly page carries the same row. A name carried
+  twice gets one row per copy with a suggested unique name and **Rename and
+  fix in Inventor**. Without Inventor the rows say "Start Inventor". The part
+  page's Rename moved into the left rail as a compact card, and the yellow
+  "Part Number differs from the filename" callout is gone: a Part Number that
+  does not follow a rename is normal in Inventor.
 - Shipped `pihti-dedup` 0.26.0: **Export fresh STEPs** on the STEP mirror
   page. With Inventor open, one button runs the `step-mirror sync` batch from
   the viewer: every missing and out-of-date copy, oldest first, leftovers

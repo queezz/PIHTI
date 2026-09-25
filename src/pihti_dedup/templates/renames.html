@@ -1,23 +1,24 @@
 {% extends "base.html" %}
+{% from "_shell.html" import page_bar %}
 {% block title %}Renames · PIHTI{% endblock %}
 {% block body %}
 <main class="page">
-  <div class="work-grid one-rail" data-rename-ledger data-form-token="{{ form_token }}">
+  <div class="work-grid two-rail" data-rename-ledger data-form-token="{{ form_token }}">
     <div class="work-main">
-      <div class="rename-column">
-      <section class="filterbar" aria-label="Rename filters">
-        <label class="searchbox">
-          <span class="sr-only">Filter by old or new filename</span>
-          <span aria-hidden="true">⌕</span>
-          <input type="search" data-rename-search placeholder="Old or new filename" autocomplete="off">
-        </label>
-        <span class="shown-count"><strong data-rename-count>{{ entries|length }}</strong> of {{ entries|length }} renames</span>
-      </section>
+      {% call page_bar([{'name': 'Renames'}]) %}
+      <label class="searchbox">
+        <span class="sr-only">Filter by old or new filename</span>
+        <span aria-hidden="true">⌕</span>
+        <input type="search" data-rename-search placeholder="Old or new filename" autocomplete="off">
+      </label>
+      <span class="shown-count"><strong data-rename-count>{{ entries|length }}</strong> of {{ entries|length }}</span>
+      {% endcall %}
 
+      <div class="rename-column">
       {% for view in entries %}
       {% set entry = view.entry %}
       <article class="rename-card state-{{ view.state }}{% if entry.settled %} is-settled{% endif %}"
-               id="rename-{{ entry.id }}" data-rename-entry data-settled="{{ 'true' if entry.settled else 'false' }}" data-search="{{ view.search }}">
+               id="rename-{{ entry.id }}" data-rename-entry data-kind="{{ 'move' if view.is_move else 'rename' }}" data-settled="{{ 'true' if entry.settled else 'false' }}" data-search="{{ view.search }}">
         <header class="rename-head">
           <div class="rename-names">
             {% if view.is_move %}
@@ -39,35 +40,30 @@
             {% if entry.repaired %}
             <p class="rename-flavor repaired">
               <strong>Repaired through Inventor{% if entry.repair_version %} {{ entry.repair_version }}{% endif %}.</strong>
-              {{ view.repaired_names|join(', ') }} repointed to <code>{{ entry.new_name }}</code>, saved, and verified on reopen.{% if not entry.fully_repaired %} Check the unmarked documents below by hand.{% endif %}
-              {% if view.others_elsewhere %}<small>Other files named <code>{{ entry.old_name }}</code> still exist elsewhere; they were not touched.</small>{% endif %}
+              {{ view.repaired_names|join(', ') }} → <code>{{ entry.new_name }}</code>{% if not entry.fully_repaired %} · check the unmarked ones{% endif %}
+              {% if view.others_elsewhere %}<small>Other <code>{{ entry.old_name }}</code> files untouched</small>{% endif %}
             </p>
             {% elif entry.fully_repaired %}
             <p class="rename-flavor repaired">
               <strong>Repaired through Inventor{% if entry.repair_version %} {{ entry.repair_version }}{% endif %}.</strong>
-              No referring document needed repointing; every one already used another file with this name.
+              Every referrer uses another file with this name
             </p>
             {% elif view.is_move and view.move_present and not view.move_others %}
-            <p class="rename-flavor moved">
-              <strong>Moved; Inventor finds it by filename.</strong>
-              Only this file carries the name, so every referring document binds to it without a dialog. Open each once to confirm.
-            </p>
+            <p class="rename-flavor moved"><strong>Moved; Inventor finds it by name.</strong></p>
             {% elif view.is_move and view.move_others %}
             <p class="rename-flavor silent">
-              <strong>Moved, but the name is no longer unique.</strong>
-              <code>{{ view.move_others|map('winpath')|join(', ') }}</code> also carries <code>{{ entry.old_name }}</code>, so Inventor may bind to either file. Settle it in the name repair session.
+              <strong>Moved; the name is not unique.</strong>
+              Also <code>{{ view.move_others|map('winpath')|join(', ') }}</code>
             </p>
             {% elif view.current_will_prompt %}
             <p class="rename-flavor prompt">
-              <strong>Inventor will ask now.</strong>
-              No other file carries <code>{{ entry.old_name }}</code>; a document that wants it raises the resolve-link dialog. Paste the full path.
-              {% if view.status_changed and not view.is_move %}<small>At rename time another copy still existed; the repair session has since removed that ambiguity.</small>{% endif %}
+              <strong>Inventor will ask now.</strong> Paste the full path
+              {% if view.status_changed and not view.is_move %}<small>At rename time another copy still existed</small>{% endif %}
             </p>
             {% else %}
             <p class="rename-flavor silent">
-              <strong>Inventor will NOT ask now.</strong>
-              Another file named <code>{{ entry.old_name }}</code> is still in the workspace, so Inventor binds to <em>that</em> file silently. Open each document below and repoint it by hand.
-              {% if view.status_changed %}<small>At rename time no copy remained; the old name has reappeared since then.</small>{% endif %}
+              <strong>Inventor will NOT ask now.</strong> Another <code>{{ entry.old_name }}</code> binds silently; repoint by hand
+              {% if view.status_changed %}<small>At rename time no copy remained</small>{% endif %}
             </p>
             {% endif %}
 
@@ -76,7 +72,7 @@
             {% endif %}
 
             <div class="rename-referrers">
-              <h3>Referring documents at rename time <span>({{ entry.where_used|length }})</span></h3>
+              <h3>Referrers at rename time <span>({{ entry.where_used|length }})</span></h3>
               {% if view.referrers %}
               <ul class="referrer-list">
                 {% for referrer in view.referrers %}
@@ -93,7 +89,7 @@
                 {% endfor %}
               </ul>
               {% else %}
-              <p class="part-note muted">No assembly, drawing, or presentation named this file when it was renamed.</p>
+              <p class="part-note muted">None</p>
               {% endif %}
             </div>
           </div>
@@ -107,14 +103,14 @@
               <button class="copy-path" type="button" data-copy-text="{{ view.full_path|winpath }}">Copy full path</button>
               <span class="path-line" title="{{ view.full_path|winpath }}"><span class="path-head">{{ view.full_head }}</span><span class="path-tail">{{ view.full_tail }}</span></span>
             </div>
-            <p class="rename-doctor-link"><a href="{{ url_for('doctor_name', filename=entry.old_name) }}">Open this name repair session →</a></p>
+            <p class="rename-doctor-link"><a class="copy-path" href="{{ url_for('doctor_name', filename=entry.old_name) }}">Open in Doctor</a></p>
           </div>
         </div>
 
         <footer class="rename-foot">
           <label class="reference-check">
             <input type="checkbox" data-rename-settled="{{ entry.id }}" {% if entry.settled %}checked{% endif %}>
-            Settled — every referrer above opens correctly
+            Settled
           </label>
           <span class="rename-status" data-rename-status="{{ entry.id }}"></span>
         </footer>
@@ -123,29 +119,35 @@
 
       <div class="no-results" data-rename-empty {% if entries %}hidden{% endif %}>
         <strong>{% if entries %}No renames match this filter.{% else %}No renames recorded yet.{% endif %}</strong>
-        <span>{% if entries %}Clear the search box or show every rename to bring them back.{% else %}Rename a file from its part page and it lands here.{% endif %}</span>
       </div>
       </div>
     </div>
 
-    <aside class="rail-side" aria-label="Rename ledger">
-      <section class="rail-card">
+    <aside class="rail-side rail-context" aria-label="Rename ledger">
+      <section class="rail-card context-card">
         <h2>Ledger</h2>
         <div class="rail-filters" role="group" aria-label="Filter by settled state">
           <button type="button" class="rail-filter is-active" data-settled-filter="all" aria-pressed="true"><span>All</span><strong>{{ entries|length }}</strong></button>
           <button type="button" class="rail-filter unsettled" data-settled-filter="unsettled" aria-pressed="false"><span>Unsettled</span><strong data-unsettled-count>{{ open_count }}</strong></button>
           <button type="button" class="rail-filter settled" data-settled-filter="settled" aria-pressed="false"><span>Settled</span><strong data-settled-count>{{ entries|length - open_count }}</strong></button>
         </div>
-        <dl class="scope-list">
+        <p class="rail-note muted" title="PIHTI.ipj sets UsingUniqueFilenames=Yes: Inventor finds a moved file by its name. One match binds silently; none opens the resolve dialog.">Inventor finds a file by its name.<br>This ledger says which case each rename left.</p>
+        <p class="rail-note muted"><code>{{ ledger|winpath }}</code></p>
+      </section>
+    </aside>
+
+    <aside class="rail-side rail-tree" aria-label="Rename kinds">
+      <section class="rail-card">
+        <h2>Kind</h2>
+        <div class="rail-filters" role="group" aria-label="Filter by kind">
+          <button type="button" class="rail-filter is-active" data-rename-kind-filter="all" aria-pressed="true"><span>All</span><strong>{{ entries|length }}</strong></button>
+          <button type="button" class="rail-filter" data-rename-kind-filter="rename" aria-pressed="false"><span>Rename</span><strong>{{ entries|length - move_count }}</strong></button>
+          <button type="button" class="rail-filter" data-rename-kind-filter="move" aria-pressed="false"><span>Move</span><strong>{{ move_count }}</strong></button>
+        </div>
+        <dl class="scope-list rail-counts">
           <div><dt>Will prompt</dt><dd>{{ prompt_count }}</dd></div>
           <div><dt>Repaired</dt><dd>{{ repaired_count }}</dd></div>
         </dl>
-        <p class="rail-note muted"><code>{{ ledger|winpath }}</code> — Git-tracked, workspace-relative. The absolute paths are built for this machine at render time and are never stored.</p>
-      </section>
-
-      <section class="rail-card">
-        <h2>Why this page</h2>
-        <p class="rail-note muted">The project file sets <code>UsingUniqueFilenames=Yes</code>, so Inventor resolves a broken reference by searching the workspace for the filename. One match rebinds silently; none raises the resolve dialog. This ledger is the record of which case each rename created.</p>
       </section>
     </aside>
   </div>

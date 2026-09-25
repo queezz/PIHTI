@@ -1,15 +1,13 @@
 {% extends "base.html" %}
+{% from "_shell.html" import page_bar %}
 {% block title %}Removed paths · PIHTI{% endblock %}
 {% block body %}
-<main class="page removed-page" data-removed-ledger>
-  <div class="work-grid one-rail removed-layout">
+<main class="page removed-page">
+  <div class="work-grid two-rail removed-layout" data-removed-ledger>
     <div class="work-main">
-      <header class="catalog-heading removed-heading">
-        <div><p class="micro-heading">Recovery ledger</p><h1>Removed paths</h1>
-          <p class="catalog-description">Answers for missing Inventor references. Manual cleanup actions within ten minutes are grouped into collapsible sessions.</p>
-        </div>
-      </header>
-      <form class="filterbar catalog-search" action="{{ url_for('removed') }}" method="get" role="search"><label class="searchbox"><span class="sr-only">Search removed filename or path</span><span aria-hidden="true">⌕</span><input type="search" name="q" value="{{ query }}" placeholder="Missing filename or old path"></label><button class="button" type="submit">Search history</button>{% if query %}<a class="button" href="{{ url_for('removed') }}">Clear</a>{% endif %}</form>
+      {% call page_bar([{'name': 'Removed'}]) %}
+      <form class="catalog-search" action="{{ url_for('removed') }}" method="get" role="search"><label class="searchbox"><span class="sr-only">Search removed filename or path</span><span aria-hidden="true">⌕</span><input type="search" name="q" value="{{ query }}" placeholder="Missing filename or old path"></label><button class="copy-path" type="submit">Search</button>{% if query %}<a class="copy-path" href="{{ url_for('removed') }}">Clear</a>{% endif %}</form>
+      {% endcall %}
       {% if restored %}<p class="metadata-notice" role="status">Quarantined files restored to their original paths.</p>{% endif %}
       <section class="removed-batches" aria-label="Quarantine history">
         {% for batch in batches %}
@@ -33,21 +31,23 @@
               </div>
               <footer class="removed-actions">
                 <div class="removed-disclosures">{% if event.where_used %}<details class="scan-errors"><summary>Referrers ({{ event.where_used|length }})</summary><ul>{% for path in event.where_used %}<li><code>{{ path|winpath }}</code></li>{% endfor %}</ul></details>{% endif %}<details class="removed-manifest"><summary>Manifest</summary><code>{{ event.manifest|winpath }}</code></details></div>
-                {% if not event.restored_at %}<form method="post" action="{{ url_for('removed_restore') }}"><input type="hidden" name="token" value="{{ form_token }}"><input type="hidden" name="manifest" value="{{ event.manifest }}"><button class="button" type="submit">Restore this event</button></form>{% endif %}
+                {% if not event.restored_at %}<form method="post" action="{{ url_for('removed_restore') }}"><input type="hidden" name="token" value="{{ form_token }}"><input type="hidden" name="manifest" value="{{ event.manifest }}"><button class="copy-path" type="submit">Restore this event</button></form>{% endif %}
               </footer>
             </article>
             {% endfor %}
           </div>
         </details>
-        {% else %}<div class="no-results"><strong>No removed paths match{% if query %} “{{ query }}”{% endif %}.</strong><span>Reviewed cleanup events will appear here.</span></div>{% endfor %}
-        <div class="no-results" data-removed-filter-empty hidden><strong>No sessions in this view.</strong><span>Choose another status in the rail.</span></div>
+        {% else %}<div class="no-results"><strong>No removed paths match{% if query %} “{{ query }}”{% endif %}.</strong></div>{% endfor %}
+        <div class="no-results" data-removed-filter-empty hidden><strong>No sessions in this view.</strong></div>
       </section>
     </div>
-    <aside class="rail-side" aria-label="Recovery history actions">
-      <section class="rail-card"><h2>History</h2><dl class="removed-summary"><div><dt>Events</dt><dd>{{ summary.events }}</dd></div><div><dt>Paths</dt><dd>{{ summary.files }}</dd></div></dl></section>
+    <aside class="rail-side rail-context" aria-label="Recovery history">
+      <section class="rail-card context-card"><h2>History</h2><dl class="scope-list"><div><dt>Events</dt><dd>{{ summary.events }}</dd></div><div><dt>Paths</dt><dd>{{ summary.files }}</dd></div><div><dt>Recoverable</dt><dd>{{ summary.recoverable }}</dd></div><div><dt>Restored</dt><dd>{{ summary.restored }}</dd></div></dl>
+        <div class="chip-row"><button type="button" class="copy-path" data-removed-expand>Expand visible</button><button type="button" class="copy-path" data-removed-collapse>Collapse all</button></div>
+      </section>
+    </aside>
+    <aside class="rail-side rail-tree" aria-label="Filter by status">
       <section class="rail-card"><h2>Status</h2><div class="rail-filters"><button type="button" class="rail-filter is-active" data-removed-filter="all" aria-pressed="true"><span>All</span><strong>{{ summary.events }}</strong></button><button type="button" class="rail-filter" data-removed-filter="recoverable" aria-pressed="false"><span>Recoverable</span><strong>{{ summary.recoverable }}</strong></button><button type="button" class="rail-filter" data-removed-filter="restored" aria-pressed="false"><span>Restored</span><strong>{{ summary.restored }}</strong></button></div></section>
-      <section class="rail-card rail-action-card"><h2>Sessions</h2><div class="rail-actions"><button type="button" class="rail-action" data-removed-expand><span class="rail-action-icon" aria-hidden="true">＋</span><span><strong>Expand visible</strong><small>Show every event in view</small></span></button><button type="button" class="rail-action" data-removed-collapse><span class="rail-action-icon" aria-hidden="true">−</span><span><strong>Collapse all</strong><small>Keep only session headings</small></span></button></div></section>
-      <p class="rail-note muted">Restore remains inside each event so a session can never restore the wrong group.</p>
     </aside>
   </div>
 </main>

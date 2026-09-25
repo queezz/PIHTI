@@ -1789,6 +1789,8 @@ var PihtiEnlarge = (function () {
   var search = ledger.querySelector("[data-rename-search]");
   var settledButtons = Array.from(ledger.querySelectorAll("[data-settled-filter]"));
   var settledFilter = "all";
+  var kindButtons = Array.from(ledger.querySelectorAll("[data-rename-kind-filter]"));
+  var kindFilter = "all";
   try {
     var savedFilter = localStorage.getItem(SETTLED_KEY);
     if (savedFilter === "settled" || savedFilter === "unsettled") settledFilter = savedFilter;
@@ -1868,7 +1870,8 @@ var PihtiEnlarge = (function () {
     cards.forEach(function (card) {
       var settled = card.dataset.settled === "true";
       var match = (!query || card.dataset.search.indexOf(query) !== -1) &&
-        (settledFilter === "all" || (settledFilter === "settled") === settled);
+        (settledFilter === "all" || (settledFilter === "settled") === settled) &&
+        (kindFilter === "all" || card.dataset.kind === kindFilter);
       card.hidden = !match;
       if (match) shown += 1;
     });
@@ -1890,6 +1893,18 @@ var PihtiEnlarge = (function () {
 
   settledButtons.forEach(function (button) {
     button.addEventListener("click", function () { selectSettled(button.dataset.settledFilter); });
+  });
+  // Rename or move: a filter for this visit only, beside the settled one.
+  kindButtons.forEach(function (button) {
+    button.addEventListener("click", function () {
+      kindFilter = button.dataset.renameKindFilter;
+      kindButtons.forEach(function (other) {
+        var active = other === button;
+        other.classList.toggle("is-active", active);
+        other.setAttribute("aria-pressed", active ? "true" : "false");
+      });
+      filterRenames();
+    });
   });
   if (search) search.addEventListener("input", filterRenames);
   selectSettled(settledFilter);

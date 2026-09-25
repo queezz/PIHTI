@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "_shell.html" import page_bar %}
 {% block title %}STEP mirror · PIHTI{% endblock %}
 {% macro mirror_rows(items, empty) %}
 <div class="doctor-list">
@@ -13,28 +14,22 @@
 {% endmacro %}
 {% block body %}
 <main class="page">
-  <div class="work-grid one-rail doctor-session">
+  <div class="work-grid two-rail doctor-session">
     <div class="work-main">
-      <section class="doctor-head name-session-head">
-        <div>
-          <p class="micro-heading">Regenerable copies</p>
-          <h1>STEP mirror</h1>
-          <p>A STEP copy of every Inventor part and assembly, exported by Inventor itself into a folder beside the workspace. The 3D view reads Inventor files from here; nothing here is curated source.</p>
-        </div>
-      </section>
+      {{ page_bar([{'name': 'STEP mirror'}]) }}
 
       <section class="doctor-panel standard-group" id="sec-missing">
-        <header><div><p class="micro-heading">No copy yet</p><h2>Missing</h2></div><strong>{{ status.missing|length }}</strong></header>
-        {{ mirror_rows(status.missing, 'Every Inventor file has a STEP copy.') }}
+        <header><div><h2>Missing</h2><small class="problem-kind">No copy yet</small></div><strong>{{ status.missing|length }}</strong></header>
+        {{ mirror_rows(status.missing, 'None') }}
       </section>
 
       <section class="doctor-panel standard-group" id="sec-stale">
-        <header><div><p class="micro-heading">Saved since the copy</p><h2>Stale</h2></div><strong>{{ status.stale|length }}</strong></header>
-        {{ mirror_rows(status.stale, 'No STEP copy is older than its file.') }}
+        <header><div><h2>Stale</h2><small class="problem-kind">Saved since the copy</small></div><strong>{{ status.stale|length }}</strong></header>
+        {{ mirror_rows(status.stale, 'None') }}
       </section>
 
       <section class="doctor-panel standard-group" id="sec-doctor">
-        <header><div><p class="micro-heading">Not opened: Inventor would ask</p><h2>Needs Doctor</h2></div><strong>{{ needs_doctor|length }}</strong></header>
+        <header><div><h2>Needs Doctor</h2><small class="problem-kind">Inventor would ask</small></div><strong>{{ needs_doctor|length }}</strong></header>
         <div class="doctor-list">
           {% for entry in needs_doctor %}
           <a class="doctor-row mirror-row mirror-doctor" href="{{ url_for('doctor_name', filename=entry.name, assembly=entry.path) }}">
@@ -42,12 +37,12 @@
             <span><strong>{{ entry.item.name }}</strong><small>{{ entry.item.folder|winpath }}</small></span>
             <b>{{ entry.reason }}</b>
           </a>
-          {% else %}<p class="doctor-empty">Every waiting assembly names files that exist exactly once.</p>{% endfor %}
+          {% else %}<p class="doctor-empty">None</p>{% endfor %}
         </div>
       </section>
 
       <section class="doctor-panel standard-group" id="sec-recent">
-        <header><div><p class="micro-heading">Newest first, from export.log</p><h2>Last exports</h2></div><strong>{{ recent|length }}</strong></header>
+        <header><div><h2>Last exports</h2><small class="problem-kind">export.log, newest first</small></div><strong>{{ recent|length }}</strong></header>
         <div class="doctor-list">
           {% for line in recent %}
           <div class="doctor-row mirror-log{% if line.kind not in ('exported', 'closed-leftover') %} is-failed{% endif %}">
@@ -60,8 +55,8 @@
       </section>
     </div>
 
-    <aside class="rail-side" aria-label="STEP mirror">
-      <section class="rail-card">
+    <aside class="rail-side rail-context" aria-label="STEP mirror">
+      <section class="rail-card context-card">
         <h2>Mirror</h2>
         <div class="context-path">
           <code title="{{ location|winpath }}">{{ location|winpath }}</code>
@@ -74,14 +69,12 @@
           <div><dt>Need Doctor</dt><dd>{{ needs_doctor|length }}</dd></div>
           <div><dt>Inventor files</dt><dd data-mirror-count="total">{{ status.total }}</dd></div>
         </dl>
-        {% if not created %}<p class="rail-note muted">The folder is created with the first export.</p>{% endif %}
+        {% if not created %}<p class="rail-note muted">Created by the first export</p>{% endif %}
       </section>
       <section class="rail-card mirror-batch" id="mirror-batch" data-mirror-batch data-batch-status="{{ url_for('step_mirror_status') }}" data-batch-state="{{ batch.state }}">
         <h2>Inventor</h2>
         {% if inventor_version %}
-        <p class="rail-note mirror-inventor">Inventor {{ inventor_version }} is running.{% if background %} One file is exported per refresh, oldest first; files open in Inventor wait.{% else %} Background export is off in this viewer.{% endif %}</p>
-        {% else %}
-        <p class="rail-note mirror-inventor">Inventor is not running; nothing is exported.</p>
+        <p class="rail-note mirror-inventor">Inventor {{ inventor_version }}{% if background %} · one file a minute in the background{% endif %}</p>
         {% endif %}
         {% if batch_notice %}<p class="rail-note mirror-notice" role="status" data-batch-notice>{{ batch_notice }}</p>{% endif %}
         <p class="rail-note mirror-batch-line" role="status" data-batch-line{% if not batch.line %} hidden{% endif %}>{{ batch.line }}</p>
@@ -103,9 +96,12 @@
           <input type="hidden" name="token" value="{{ form_token }}">
           <button class="copy-path" type="submit">Stop after this file</button>
         </form>
-        {% if leftovers %}<p class="rail-note muted">{{ leftovers|length }} document{{ '' if leftovers|length == 1 else 's' }} left open by a timeout, closed at the next export if {{ 'it has' if leftovers|length == 1 else 'they have' }} no window.</p>{% endif %}
-        {% if deferred %}<p class="rail-note muted">{{ deferred|length }} file{{ '' if deferred|length == 1 else 's' }} passed over after a failure, until {{ 'it changes' if deferred|length == 1 else 'they change' }}.</p>{% endif %}
+        {% if leftovers %}<p class="rail-note muted">{{ leftovers|length }} left open by a timeout</p>{% endif %}
+        {% if deferred %}<p class="rail-note muted">{{ deferred|length }} passed over after a failure</p>{% endif %}
       </section>
+    </aside>
+
+    <aside class="rail-side rail-tree" aria-label="Mirror sections">
       <section class="rail-card">
         <h2>On this page</h2>
         <nav class="rail-nav" aria-label="Mirror sections">

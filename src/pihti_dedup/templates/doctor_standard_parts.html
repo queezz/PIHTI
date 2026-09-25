@@ -1,25 +1,18 @@
 {% extends "base.html" %}
+{% from "_shell.html" import page_bar %}
 {% block title %}Standard parts · PIHTI{% endblock %}
 {% block body %}
 <main class="page">
   {% if toast %}<div class="operation-toast" role="status" data-operation-toast>{{ toast }}</div>{% endif %}
-  <div class="work-grid one-rail doctor-session" data-standard-parts>
+  <div class="work-grid two-rail doctor-session" data-standard-parts>
     <div class="work-main">
-      <section class="doctor-head name-session-head">
-        <div>
-          <p class="micro-heading">Library repair</p>
-          <h1>Standard parts</h1>
-          <p>Standard fasteners outside <code>{{ destination|winpath }}</code>. Inventor finds a uniquely named part by filename, so moving it changes no assembly. Each move is confirmed on its own row and recorded under Renames.</p>
-        </div>
-        <span class="doctor-head-actions"><a class="button" href="{{ url_for('doctor') }}">All doctor queues</a></span>
-      </section>
+      {{ page_bar([{'name': 'Doctor', 'url': url_for('doctor')}, {'name': 'Standard parts'}]) }}
 
       {% if error %}<p class="metadata-error standard-error" role="alert">{{ error }}</p>{% endif %}
 
       {% for group in groups %}
       <section class="doctor-panel standard-group" id="sec-{{ group.key }}" data-standard-group="{{ group.key }}">
-        <header><div><p class="micro-heading">{{ group.kicker }}</p><h2>{{ group.title }}</h2></div><strong data-standard-group-count>{{ group.rows|length }}</strong></header>
-        <p class="doctor-intro">{{ group.intro }}</p>
+        <header><div><h2>{{ group.title }}</h2><small class="problem-kind">{{ group.intro }}</small></div><strong data-standard-group-count>{{ group.rows|length }}</strong></header>
         <div class="standard-list" data-standard-list>
           {% for row in group.rows %}
           {% set plan = row.plan %}
@@ -49,7 +42,7 @@
                 <input type="hidden" name="path" value="{{ row.path }}">
                 <input type="hidden" name="signature" value="{{ plan.signature }}">
                 <input type="hidden" name="confirmed" value="1">
-                <button class="button apply-button" type="submit" data-busy-label="Moving…">Move</button>
+                <button class="copy-path apply-button" type="submit" data-busy-label="Moving…">Move</button>
               </form>
               {% elif plan.outcome == 'already-there-identical' %}
               <form method="post" action="{{ url_for('standard_part_quarantine') }}" data-standard-confirm="{{ row.confirm }}">
@@ -58,12 +51,12 @@
                 <input type="hidden" name="signature" value="{{ plan.signature }}">
                 <input type="hidden" name="survivor" value="{{ plan.survivor_path }}">
                 <input type="hidden" name="references_checked" value="1">
-                <button class="button apply-button" type="submit" data-busy-label="Quarantining…">Quarantine copy</button>
+                <button class="copy-path apply-button" type="submit" data-busy-label="Quarantining…">Quarantine copy</button>
               </form>
               {% elif plan.outcome == 'conflict' %}
-              <a class="button" href="{{ url_for('doctor_name', filename=row.name) }}">Open in Collision Doctor</a>
+              <a class="copy-path" href="{{ url_for('doctor_name', filename=row.name) }}">Open in Doctor</a>
               {% endif %}
-              <button class="button" type="button" data-standard-skip aria-pressed="false">Skip</button>
+              <button class="copy-path" type="button" data-standard-skip aria-pressed="false">Skip</button>
             </div>
             {% if plan.outcome in ('conflict', 'refused') and plan.reason %}<p class="standard-reason">{{ plan.reason }}</p>{% endif %}
           </article>
@@ -71,18 +64,17 @@
         </div>
       </section>
       {% else %}
-      <div class="no-results"><strong>No standard parts outside the library.</strong><span>Every file with fastener evidence already sits in {{ destination|winpath }}.</span></div>
+      <div class="no-results"><strong>No standard parts outside the library.</strong></div>
       {% endfor %}
 
       <section class="doctor-panel standard-group" id="sec-skipped" data-standard-skipped hidden>
-        <header><div><p class="micro-heading">This browser tab only</p><h2>Skipped</h2></div><strong data-standard-skipped-count>0</strong></header>
-        <p class="doctor-intro">Skipped rows return to their group when this tab closes or when you press Restore.</p>
+        <header><div><h2>Skipped</h2><small class="problem-kind">This tab only</small></div><strong data-standard-skipped-count>0</strong></header>
         <div class="standard-list" data-standard-skipped-list></div>
       </section>
     </div>
 
-    <aside class="rail-side" aria-label="Standard parts">
-      <section class="rail-card">
+    <aside class="rail-side rail-context" aria-label="Standard parts">
+      <section class="rail-card context-card">
         <h2>Library</h2>
         <dl class="scope-list">
           <div><dt>Folder</dt><dd><code>{{ destination|winpath }}</code></dd></div>
@@ -90,6 +82,9 @@
           <div><dt>Candidates outside</dt><dd>{{ candidate_count }}</dd></div>
         </dl>
       </section>
+    </aside>
+
+    <aside class="rail-side rail-tree" aria-label="Candidate groups">
       {% if groups %}
       <section class="rail-card">
         <h2>On this page</h2>
@@ -99,6 +94,10 @@
         </nav>
       </section>
       {% endif %}
+      <section class="rail-card">
+        <h2>Doctor</h2>
+        <nav class="rail-nav" aria-label="Doctor"><a class="rail-navrow" href="{{ url_for('doctor') }}"><span>All queues</span></a></nav>
+      </section>
     </aside>
   </div>
 </main>

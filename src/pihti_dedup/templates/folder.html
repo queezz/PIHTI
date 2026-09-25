@@ -1,34 +1,19 @@
 {% extends "base.html" %}
 {% from "_file_tile.html" import file_tile %}
+{% from "_folder_tree.html" import tree_rail, catalog_bar %}
 {% block title %}{{ name }} · PIHTI{% endblock %}
 {% block body %}
 <main class="page">
-  <div class="work-grid one-rail">
+  <div class="work-grid two-rail">
     <div class="work-main">
-      <nav class="breadcrumbs" aria-label="Breadcrumb">
-        {% for crumb in breadcrumbs %}
-        <a href="{{ url_for('catalog', relative_folder=crumb.path if crumb.path != '.' else none) }}">{{ crumb.name }}</a><span aria-hidden="true">/</span>
-        {% endfor %}
-        <strong aria-current="page">Folder note</strong>
-      </nav>
-
-      <section class="part-head folder-head">
-        <div class="part-identity">
-          <h1>{{ name }}</h1>
-          <p class="part-path" title="{{ path|winpath }}">{{ path|winpath }}</p>
-          {% if note and note.excerpt %}<p class="part-description">{{ note.excerpt }}</p>{% endif %}
-        </div>
-      </section>
+      {{ catalog_bar(breadcrumbs, filter=false) }}
 
       <section class="part-card metadata-card">
-        <h2>Folder note</h2>
-        <p class="part-note muted"><code>{{ path|winpath }}\README.md</code> — the folder's own README, the same file MkDocs and GitHub show. Nothing is committed for you.</p>
+        <h2>Folder note <code>{{ path|winpath }}\README.md</code></h2>
 
         {% if saved %}<p class="metadata-notice" role="status">Folder note saved.</p>{% endif %}
         {% if error %}<p class="metadata-error" role="alert">{{ error }}</p>{% endif %}
-        {% if note and note.generated %}
-        <p class="part-note">Generated index — edit and save to make it your folder note; the generator will then leave this file alone.</p>
-        {% endif %}
+        {% if note and note.generated %}<p class="part-note">Generated index: saving makes it yours.</p>{% endif %}
 
         {% if note_html %}
         <div class="note-rendered markdown-body">{{ note_html }}</div>
@@ -38,7 +23,7 @@
 
         <details class="raw-editor" {% if error or draft is not none %}open{% endif %}>
           <summary class="edit-toggle">Edit raw text</summary>
-          <p class="editor-hint">Markdown needs explicit structure. <strong>Start with a one-sentence summary directly below the title.</strong> It appears on this folder's Catalog card. Then use headings and <code>- **Label:** value</code> for details.</p>
+          <p class="editor-hint"><strong>First line under the title: a one-sentence summary.</strong> It shows on the folder's card.</p>
           <form method="post" action="{{ url_for('folder_note', relative_folder=path) }}" class="metadata-form">
             <input type="hidden" name="token" value="{{ form_token }}">
             <label class="sr-only" for="folder-note-text">Raw folder note text</label>
@@ -49,7 +34,7 @@
       </section>
 
       <section class="part-card">
-        <h2>Files in this folder</h2>
+        <h2>Files here</h2>
         {% if files %}
         <div class="thumb-grid flush">
           {% for item in files %}{{ file_tile(item) }}{% endfor %}
@@ -60,41 +45,27 @@
       </section>
     </div>
 
-    <aside class="rail-side" aria-label="Folder navigation and facts">
-      <section class="rail-card rail-action-card">
-        <h2>Continue browsing</h2>
-        <nav class="rail-actions" aria-label="Leave the folder-note editor">
-          <a class="rail-action primary" href="{{ url_for('catalog', relative_folder=path) }}">
-            <span class="rail-action-icon" aria-hidden="true">←</span>
-            <span><strong>Back to this folder</strong><small>Return to its files and subfolders</small></span>
-          </a>
-          {% if parent %}
-          <a class="rail-action" href="{{ url_for('catalog', relative_folder=parent) }}">
-            <span class="rail-action-icon" aria-hidden="true">↑</span>
-            <span><strong>Parent folder</strong><small>{{ parent|winpath }}</small></span>
-          </a>
-          {% endif %}
-          <a class="rail-action" href="{{ url_for('catalog') }}">
-            <span class="rail-action-icon" aria-hidden="true">⌂</span>
-            <span><strong>Catalog home</strong><small>Browse from the archive root</small></span>
-          </a>
-        </nav>
-      </section>
-
-      <section class="rail-card">
+    <aside class="rail-side rail-context" aria-label="Folder">
+      <section class="rail-card context-card">
         <h2>Folder</h2>
+        <p class="context-title">{{ name }}</p>
+        <div class="context-path">
+          <code title="{{ path|winpath }}">{{ path|winpath }}</code>
+          <button class="copy-path" type="button" data-copy-text="{{ absolute_path|winpath }}" title="Paste into Inventor's address bar">Copy path</button>
+        </div>
+        {% if note and note.excerpt %}<p class="catalog-description">{{ note.excerpt }}</p>{% endif %}
         <dl class="scope-list">
           <div><dt>Direct files</dt><dd>{{ files|length }}</dd></div>
           <div><dt>Below here</dt><dd>{{ subtree_count }}</dd></div>
         </dl>
-        <p class="rail-note muted">{{ path|winpath }}</p>
-      </section>
-
-      <section class="rail-card">
-        <h2>Boundary</h2>
-        <p class="rail-note muted">This page writes only the folder's <code>README.md</code>. It never touches a CAD file and never commits.</p>
+        <div class="chip-row">
+          <a class="copy-path" href="{{ url_for('catalog', relative_folder=path) }}">Back to this folder</a>
+          {% if parent %}<a class="copy-path" href="{{ url_for('catalog', relative_folder=parent) }}">Parent folder</a>{% endif %}
+        </div>
       </section>
     </aside>
+
+    {{ tree_rail(tree, false, 'location') }}
   </div>
 </main>
 {% endblock %}

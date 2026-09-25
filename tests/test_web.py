@@ -171,8 +171,17 @@ def test_results_offer_recent_pr_merge_as_a_real_filter(tmp_path: Path) -> None:
     assert 'class="member is-pr-member"' in result_html
     assert "Edited PR #3" in result_html
     assert 'data-merges="3"' in result_html
-    assert 'class="rail-side rail-primary"' in result_html
-    assert 'class="rail-side rail-secondary"' in result_html
+    # The one shell: scan facts and merge cleanup left, filters right.
+    assert 'class="work-grid two-rail"' in result_html
+    assert result_html.index('class="rail-side rail-context"') < result_html.index(
+        'class="rail-side rail-tree"'
+    )
+    left = result_html.split('class="rail-side rail-context"', 1)[1].split("</aside>", 1)[0]
+    right = result_html.split('class="rail-side rail-tree"', 1)[1].split("</aside>", 1)[0]
+    for heading in ("<h2>Scan</h2>", "<h2>Merge cleanup</h2>", "<h2>Merged PRs</h2>"):
+        assert heading in left
+    for heading in ("<h2>Groups</h2>", "<h2>Folders</h2>"):
+        assert heading in right
     canonical_href = 'href="/part/ContentCenter/parts/bearing.ipt"'
     canonical_index = result_html.index(canonical_href)
     member_marker = '          <div\n            class="member'
@@ -262,8 +271,15 @@ def test_styles_keep_desktop_rail_at_its_initial_top_offset(tmp_path: Path) -> N
     assert "top: calc(var(--bar-height) + var(--content-pad));" in style
     assert ".summary-strip" not in style
     assert "grid-template-columns: minmax(0, 1fr) 17rem 17rem" in style
-    # Only the catalog folder tree may scroll inside its pinned rail card.
-    assert scrolling_selectors(style) == [".inspector-facts", ".tree-card .folder-tree"]
+    # Inside the catalog only the folder tree and the inspector's facts
+    # scroll; the shell's two rails scroll inside themselves only when a page
+    # puts more there than the room between the sticky offset and the foot.
+    assert scrolling_selectors(style) == [
+        ".two-rail > .rail-context",
+        ".two-rail > .rail-tree",
+        ".inspector-facts",
+        ".tree-card .folder-tree",
+    ]
     assert ".operation-toast" in style
     assert "#dup-results.is-refreshing { pointer-events: none; }" in style
     assert "opacity: 0.56" not in style
@@ -350,7 +366,6 @@ def test_reviewed_collision_consolidates_to_one_logged_restorable_survivor(
     session = client.get("/doctor/name/bearing.ipt").get_data(as_text=True)
     assert '<details class="part-card consolidate-disclosure" data-doctor-consolidate' in session
     assert "<summary>Consolidate after comparing in Inventor</summary>" in session
-    assert "opened side by side in Inventor" in session
     assert f'data-consolidate-src="/duplicates/member/{group.id}/consolidate"' in session
     assert session.count("data-consolidate-keep") == 3
 
@@ -539,7 +554,9 @@ def test_newver_pair_is_characterized_and_offers_confirmed_member_delete(
     assert 'data-display-path="Parts\\Part5.ipt"' not in result_html
     assert "delete-member" not in result_html
     assert ">Rename<" not in result_html
-    assert result_html.count('<p class="group-explain">') == 1
+    # The explanation is the label's tooltip, never a paragraph on the card.
+    assert '<p class="group-explain">' not in result_html
+    assert 'title="Inventor writes this file during a save' in result_html
 
     unconfirmed = client.post(
         f"/duplicates/member/{group.id}/delete",
@@ -881,7 +898,7 @@ def test_catalog_browses_one_folder_level_at_a_time(tmp_path: Path) -> None:
     assert 'src="/preview/BoronProbe/parts/bearing.ipt?v=' in folder
     assert folder.count('class="thumb-tile"') == 1
     assert "Design Data" not in landing
-    assert 'class="work-grid catalog-grid"' in landing
+    assert 'class="work-grid two-rail catalog-grid"' in landing
     assert client.get("/catalog/not-there").status_code == 404
     assert client.get("/catalog/..%2Foutside").status_code == 404
 
@@ -1080,7 +1097,10 @@ def test_part_page_shows_iproperties_and_flags_a_part_number_mismatch(
 
     html = client.get("/part/BoronProbe/parts/bearing.ipt").get_data(as_text=True)
 
-    assert "Part Number differs from the filename" in html
+    # Part Number seeded from the filename and never following a rename is
+    # normal in Inventor: the fact row stays, no callout.
+    assert "Part Number differs" not in html
+    assert "part-mismatch" not in html
     assert "UFC-152" in html
     assert "Rotating feedthrough body" in html
     assert "Stainless Steel" in html
@@ -1104,7 +1124,6 @@ def test_part_page_withholds_mass_when_inventor_did_not_flag_it_valid(
 
     assert "Mass properties are withheld" in html
     assert "32.07" not in html
-    assert "Part Number differs" not in html
 
 
 def test_metadata_sidecar_is_seeded_then_edited_through_the_part_page(
@@ -1481,7 +1500,7 @@ def test_part_page_shares_the_catalog_shell_and_packs_its_facts(
     folder = client.get("/catalog/BoronProbe/parts").get_data(as_text=True)
 
     for html in (part, folder):
-        assert '<div class="work-grid catalog-grid">' in html
+        assert '<div class="work-grid two-rail catalog-grid">' in html
         assert '<aside class="rail-side rail-context"' in html
         assert '<aside class="rail-side rail-tree" aria-label="Folder tree">' in html
         assert '<header class="catalog-bar">' in html
@@ -1502,9 +1521,9 @@ def test_part_page_shares_the_catalog_shell_and_packs_its_facts(
     assert pair.index("Where used") < pair.index("Metadata sidecar")
     assert "No document names this file." in pair
     assert "No sidecar yet" in pair and ">Create metadata</button>" in pair
-    # Rename is a disclosure carrying the old boundary sentence; no Boundary card.
-    assert '<details class="part-card rename-editor" id="rename" data-rename-disclosure>' in part
-    assert "never edits geometry, rewrites an Inventor reference, or commits anything" in part
+    # Rename is an action: a compact card in the left rail, no explanation.
+    assert '<section class="rail-card rename-rail" id="rename">' in context
+    assert "never edits geometry" not in part
     assert ">Boundary</h2>" not in part
 
 
@@ -1617,12 +1636,12 @@ def test_catalog_styles_place_context_left_and_tree_right_on_one_sticky_offset(
     # A wide left rail for the inspector, the standard tree rail right (the
     # same 17rem as the outer Duplicates rail, so it does not move across tabs).
     assert (
-        ".work-grid.catalog-grid { grid-template-columns: 25.5rem minmax(0, 1fr) 17rem; "
+        ".work-grid.two-rail { grid-template-columns: 25.5rem minmax(0, 1fr) 17rem; "
         "align-items: stretch; }"
     ) in style
     assert "grid-template-columns: minmax(0, 1fr) 17rem 17rem" in style
-    assert ".catalog-grid > .rail-context { grid-column: 1; grid-row: 1; }" in style
-    assert ".catalog-grid > .rail-tree { grid-column: 3; grid-row: 1; }" in style
+    assert ".two-rail > .rail-context { grid-column: 1; grid-row: 1;" in style
+    assert ".two-rail > .rail-tree { grid-column: 3; grid-row: 1;" in style
     # Both rails and the header line share the one sticky offset of every tab.
     rail_rule = style.split(".rail-side {", 1)[1].split("}", 1)[0]
     bar_rule = style.split(".catalog-bar {", 1)[1].split("}", 1)[0]
@@ -1630,9 +1649,9 @@ def test_catalog_styles_place_context_left_and_tree_right_on_one_sticky_offset(
         assert "top: calc(var(--bar-height) + var(--content-pad));" in rule
     # One fold: below 1200px both rails move into one right column, no inspector.
     fold = style.split("@media (max-width: 1200px)", 1)[1]
-    assert ".work-grid.catalog-grid { grid-template-columns: minmax(0, 1fr) 17rem;" in fold
+    assert ".work-grid.two-rail { grid-template-columns: minmax(0, 1fr) 17rem;" in fold
     assert ".inspector { display: none !important; }" in fold
-    assert ".catalog-grid" not in style.split("@media (max-width: 1100px)", 1)[1].split("@media", 1)[0]
+    assert ".two-rail" not in style.split("@media (max-width: 1100px)", 1)[1].split("@media", 1)[0]
     assert "thumb-peek" not in style and "thumb-peek" not in script  # nothing floats
     # The inspector and keyboard walking are progressive enhancement.
     assert "var HOVER_DELAY = 150;" in script
@@ -1686,9 +1705,11 @@ def test_folder_note_editor_explains_that_the_summary_feeds_catalog_cards(tmp_pa
     catalog = client.get("/catalog/BoronProbe/parts").get_data(as_text=True)
     full_page = client.get("/folder/BoronProbe/parts").get_data(as_text=True)
 
+    assert "Start with a one-sentence summary directly below the title." in catalog
+    assert "It appears on this folder's Catalog card." in catalog
+    assert "First line under the title: a one-sentence summary." in full_page
+    assert "It shows on the folder's card." in full_page
     for html in (catalog, full_page):
-        assert "Start with a one-sentence summary directly below the title." in html
-        assert "It appears on this folder's Catalog card." in html
         assert "One sentence: what this folder contains" in html
 
 
@@ -1697,16 +1718,16 @@ def test_folder_note_full_page_has_obvious_routes_back_to_browsing(tmp_path: Pat
 
     html = client.get("/folder/BoronProbe/parts").get_data(as_text=True)
 
-    assert 'aria-label="Leave the folder-note editor"' in html
-    assert 'class="rail-action primary" href="/catalog/BoronProbe/parts"' in html
-    assert "Back to this folder" in html
-    assert 'class="rail-action" href="/catalog/BoronProbe"' in html
-    assert "Parent folder" in html
-    assert 'class="rail-action" href="/catalog"' in html
-    assert "Catalog home" in html
-    assert "Catalog</a><span" in html
-    assert "Folder note</strong>" in html
-    assert 'href="/catalog/BoronProbe/parts"' in html
+    # The one shell: the folder's facts and its ways back on the left, the
+    # tree on the right, the crumb line on top.
+    assert '<div class="work-grid two-rail">' in html
+    context = html.split('<aside class="rail-side rail-context"', 1)[1].split("</aside>", 1)[0]
+    assert '<a class="copy-path" href="/catalog/BoronProbe/parts">Back to this folder</a>' in context
+    assert '<a class="copy-path" href="/catalog/BoronProbe">Parent folder</a>' in context
+    assert '<aside class="rail-side rail-tree" aria-label="Folder tree">' in html
+    assert '<header class="catalog-bar">' in html
+    assert 'href="/catalog">Catalog</a><span' in html
+    assert '<strong aria-current="page">Folder note</strong>' in html
 
 
 def test_a_folder_note_is_written_to_that_folders_own_readme(tmp_path: Path) -> None:
@@ -1751,10 +1772,7 @@ def test_generated_readme_editors_hide_the_leading_comment_but_keep_the_body(
     assert "<h2>Purpose</h2>" in catalog_html  # preview is directly inside the dialog
     assert "## Purpose" in catalog_html  # raw editing is directly inside the dialog too
     assert "## Purpose" in folder_html
-    assert (
-        "Generated index — edit and save to make it your folder note; "
-        "the generator will then leave this file alone." in folder_html
-    )
+    assert "Generated index: saving makes it yours." in folder_html
 
 
 def test_a_manually_edited_readme_is_shown_as_is_with_no_generated_hint(tmp_path: Path) -> None:
@@ -1768,7 +1786,7 @@ def test_a_manually_edited_readme_is_shown_as_is_with_no_generated_hint(tmp_path
 
     for html in (catalog_html, folder_html):
         assert "Hand-written prose about the bearing stack." in html
-        assert "Generated index — edit and save to make it your folder note" not in html
+        assert "Generated index" not in html
 
 
 def test_sidecar_prose_is_rendered_and_the_raw_text_hides_behind_an_edit_toggle(
@@ -1817,7 +1835,7 @@ def test_an_empty_folder_note_editor_teaches_valid_markdown_structure(tmp_path: 
 
     html = client.get("/folder/BoronProbe").get_data(as_text=True)
 
-    assert "Markdown needs explicit structure" in html
+    assert "First line under the title: a one-sentence summary." in html
     assert "# BoronProbe&#10;&#10;One sentence: what this folder contains" in html
     assert "- **Owner:**" in html
 
@@ -1948,7 +1966,12 @@ def test_rename_moves_the_file_its_sidecar_and_writes_the_ledger(tmp_path: Path)
     client = app.test_client()
 
     page = client.get("/part/BoronProbe/parts/spacer.ipt").get_data(as_text=True)
-    assert "Rename in place" in page
+    # Rename is an action: a compact card in the left rail, not the column's foot.
+    context = page.split('<aside class="rail-side rail-context"', 1)[1].split("</aside>", 1)[0]
+    assert '<section class="rail-card rename-rail" id="rename">' in context
+    assert "<h2>Rename</h2>" in context
+    assert '<button class="copy-path" type="submit">Rename</button>' in context
+    assert "Rename in place" not in page
     assert "BoronProbe\\probe.iam" in page  # where-used, read out of the assembly bytes
 
     renamed = client.post(
@@ -2117,8 +2140,10 @@ def test_doctor_keeps_a_name_session_open_until_the_last_original_is_renamed(
 
     page = client.get(url).get_data(as_text=True)
     assert page.count('name="relative_path"') == 2
-    assert page.count('class="doctor-file-preview"') == 2
+    assert page.count("data-copy-row") == 2
     assert "Will not ask" in page
+    # Each copy gets its own suggested unique name; the page picks no copy.
+    assert 'value="Wide Din Clip A"' in page and 'value="Wide Din Clip B"' in page
 
     warned = client.post(
         url,
@@ -2142,10 +2167,11 @@ def test_doctor_keeps_a_name_session_open_until_the_last_original_is_renamed(
     )
     assert renamed_first.status_code == 302
     page = client.get(url + "?renamed=1").get_data(as_text=True)
-    assert "This session remains open so the last original cannot disappear" in page
+    assert "Renamed and recorded." in page
     assert "B\\Wide Din Clip.ipt" in page
     assert "A\\Wide Din Clip v1.ipt" in page
-    assert 'class="doctor-history-preview"' in page
+    history = page.split('id="history"', 1)[1].split("</section>", 1)[0]
+    assert 'src="/preview/A/Wide%20Din%20Clip%20v1.ipt' in history
 
     renamed_second = client.post(
         url,
@@ -2157,7 +2183,7 @@ def test_doctor_keeps_a_name_session_open_until_the_last_original_is_renamed(
     )
     assert renamed_second.status_code == 302
     page = client.get(url).get_data(as_text=True)
-    assert "No original remains." in page
+    assert "<h2>Missing file</h2>" in page
     assert "Will ask" in page
 
 
@@ -2203,12 +2229,19 @@ def test_doctor_lists_collision_and_generic_name_queues(tmp_path: Path) -> None:
         target.write_bytes(content)
     html = create_app(root).test_client().get("/doctor").get_data(as_text=True)
 
-    assert "Collision doctor" in html
-    assert "Name doctor" in html
-    assert 'href="/doctor/name/Body.ipt"' in html
-    assert 'href="/doctor/name/Part001.ipt"' in html
-    assert html.count('class="doctor-preview-stack"') == 3
-    assert "including singletons that never appear under Duplicates" in html
+    # One line per item: thumbnail, name, N assemblies, one chip.
+    ambiguous = html.split('id="name-clashes"', 1)[1].split("</section>", 1)[0]
+    generic = html.split('id="generic"', 1)[1].split("</section>", 1)[0]
+    assert "<h2>Ambiguous filenames</h2>" in ambiguous
+    assert '<a href="/doctor/name/Body.ipt">Body.ipt</a><small>2 copies</small>' in ambiguous
+    assert '<span class="queue-count">0 assemblies</span>' in ambiguous
+    assert '<a class="copy-path" href="/doctor/name/Body.ipt">Open</a>' in ambiguous
+    assert "<h2>Generic names</h2>" in generic
+    assert '<a class="copy-path" href="/doctor/name/Part001.ipt">Rename</a>' in generic
+    assert generic.count('class="queue-row"') == 2  # Body.ipt is generic too
+    assert html.count('class="queue-thumb"') >= 3
+    # The session card says how to reach the fixes.
+    assert "Start Inventor, open PIHTI.ipj, then come back" in html
 
 
 def test_doctor_previews_referring_assemblies(tmp_path: Path) -> None:
@@ -2221,8 +2254,9 @@ def test_doctor_previews_referring_assemblies(tmp_path: Path) -> None:
 
     html = create_app(tmp_path).test_client().get("/doctor/name/Body.ipt").get_data(as_text=True)
 
-    assert 'class="doctor-referrer-preview"' in html
-    assert '/preview/Assembly/Fixture.iam' in html
+    referrers = html.split('id="referrers"', 1)[1].split("</section>", 1)[0]
+    assert 'class="queue-thumb"' in referrers
+    assert '/preview/Assembly/Fixture.iam' in referrers
 
 
 def test_doctor_starts_from_assembly_and_lists_direct_name_problems(
@@ -2250,19 +2284,23 @@ def test_doctor_starts_from_assembly_and_lists_direct_name_problems(
     client = create_app(tmp_path).test_client()
 
     queue = client.get("/doctor").get_data(as_text=True)
-    assert "Assembly workbenches" in queue
+    assert "<h2>Assemblies</h2>" in queue
     assert 'href="/doctor/assembly/Assembly/Fixture.iam"' in queue
+    # Body.ipt counts once (generic); Missing.ipt is a fossil no rename left
+    # behind, so it is not a queue problem.
+    row = queue.split('href="/doctor/assembly/Assembly/Fixture.iam"', 2)[2].split("</div>", 1)[0]
+    assert '<span class="queue-count">1 generic</span>' in row
     detail = client.get("/doctor/assembly/Assembly/Fixture.iam")
     html = detail.get_data(as_text=True)
 
     assert detail.status_code == 200
-    assert "One assembly at a time" in html
+    assert "One assembly at a time" not in html  # the long how-to is gone
     assert "Body.ipt" in html
-    assert "2 possible silent targets" in html
+    assert "Ambiguous filename · 2 files" in html
     assert "Missing.ipt" in html
-    assert "No commit of this repository ever had a file with this name." in html
-    assert "not from a file you lost" in html
-    assert "Never tracked" not in html
+    assert "Never in Git: an import or library name" in html
+    # No candidate for a missing name: no fix chip, a plain line.
+    assert "No file to point at" in html
     assert "Unique.ipt" not in html
     assert html.count("Preview of A\\Body.ipt") == 1
     assert html.count("Preview of B\\Body.ipt") == 1
@@ -2356,8 +2394,15 @@ def test_styles_indent_the_folder_tree_and_scroll_only_the_tree_inside_its_pinne
     # rail the priority ("not nailed, hate it"). So each catalog rail stops
     # between the sticky offset and the page foot (so the end of the scroll
     # cannot push it up either), and only the tree, or the inspector's fact
-    # list, scrolls inside it. Nothing gets a fixed pixel ceiling.
-    assert scrolling_selectors(style) == [".inspector-facts", ".tree-card .folder-tree"]
+    # list, scrolls inside it. Nothing gets a fixed pixel ceiling. The other
+    # pages' rails (0.27.0) take the same ceiling and scroll only when a page
+    # puts more there than it holds.
+    assert scrolling_selectors(style) == [
+        ".two-rail > .rail-context",
+        ".two-rail > .rail-tree",
+        ".inspector-facts",
+        ".tree-card .folder-tree",
+    ]
     # The 1px absorbs sub-pixel document heights that scrollHeight rounds away.
     ceiling = "calc(100vh - var(--bar-height) - var(--content-pad) - var(--page-foot) - 1px)"
     assert (
@@ -2366,8 +2411,9 @@ def test_styles_indent_the_folder_tree_and_scroll_only_the_tree_inside_its_pinne
     assert f".rail-context {{ height: {ceiling}; }}" in style
     assert "padding: var(--content-pad) 0 var(--page-foot);" in style
     assert re.search(r"max-height:\s*\d", style) is None
-    assert style.count("max-height: calc(") == 1  # the tree card; the left rail is exactly its height
-    assert style.count(ceiling) == 2
+    # The tree card and the shell's right rail; the left rail is exactly its height.
+    assert style.count("max-height: calc(") == 2
+    assert style.count(ceiling) == 3
 
 
 def counting_scanner(calls: list[bool]):
@@ -3402,11 +3448,14 @@ def test_doctor_collision_session_leads_with_rename_and_repair(tmp_path: Path) -
 
     html = client.get("/doctor/name/bearing.ipt").get_data(as_text=True)
 
-    assert html.count("Review rename</button>") == 3
-    assert html.count('name="repair" value="1" checked> Repair references through Inventor') == 3
+    # One row per copy: a suggested unique name and the one chip.
+    assert html.count(">Rename and fix in Inventor</button>") == 3
+    assert html.count('<input type="hidden" name="repair" value="1">') == 3
     disclosure = html.split('<details class="part-card consolidate-disclosure"', 1)[1]
     assert disclosure.split(">", 1)[0].count(" open") == 0
-    assert html.index("Review rename") < html.index("Consolidate after comparing in Inventor")
+    assert html.index("Rename and fix in Inventor") < html.index(
+        "Consolidate after comparing in Inventor"
+    )
     assert "Keep only this" not in html and "Quarantine this" not in html
 
 
@@ -3426,14 +3475,10 @@ def test_doctor_lists_interrupted_saves_without_a_removal_action(tmp_path: Path)
     html = client.get("/doctor").get_data(as_text=True)
 
     section = html.split('id="interrupted-saves"', 1)[1].split("</section>", 1)[0]
-    assert html.index('id="interrupted-saves"') < html.index("Assembly workbenches")
-    assert (
-        "<code>Bracket.newVer.ipt</code> differs from <code>Bracket.ipt</code>: it may hold "
-        "newer work that never replaced the original. Open both in Inventor and compare; if "
-        "the leftover is the later state, replace the original with it in Inventor, then "
-        "remove the leftover."
-    ) in section
-    assert "<code>Gone.newVer.ipt</code>: orphan save leftover" in section
+    # First on the page: a leftover may hold newer work.
+    assert html.index('id="interrupted-saves"') < html.index('id="name-clashes"')
+    assert "differs from Bracket.ipt · compare in Inventor" in section
+    assert "no Gone.ipt beside it" in section
     assert "Clip.newVer.ipt" not in section
     assert "data-member-delete" not in section and "Remove leftover" not in section
     # The identical pair is a Duplicates matter, with its one quiet action.

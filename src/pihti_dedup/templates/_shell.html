@@ -1,0 +1,63 @@
+{# The one page shell's small pieces (0.27.0). Every page is
+   `.work-grid.two-rail`: the context rail left (what you look at, its facts,
+   its actions), the page's own column, the navigation rail right. #}
+
+{# The main column's top line: where you are, and the page's one filter when
+   it has one. It stays in the flow, so nothing slides over the first card. #}
+{% macro page_bar(crumbs) %}
+<header class="page-bar">
+  <nav class="breadcrumbs" aria-label="Breadcrumb">
+    {% for crumb in crumbs %}{% if not loop.last %}<a href="{{ crumb.url }}">{{ crumb.name }}</a><span aria-hidden="true">/</span>{% else %}<strong aria-current="page">{{ crumb.name }}</strong>{% endif %}{% endfor %}
+  </nav>
+  {% if caller is defined %}{{ caller() }}{% endif %}
+</header>
+{% endmacro %}
+
+{# Whether a running Inventor can do the page's fixes. #}
+{% macro session_card(session) %}
+<section class="rail-card session-card" id="inventor">
+  <h2>Inventor</h2>
+  {% if session.version %}<p class="rail-note session-line">Inventor {{ session.version }}</p>
+  {% else %}<p class="rail-note muted session-line session-absent">{{ session.start }}</p>{% endif %}
+</section>
+{% endmacro %}
+
+{# A jump list: `items` is a list of (anchor, label, count). #}
+{% macro jump_card(items, title="On this page") %}
+<section class="rail-card">
+  <h2>{{ title }}</h2>
+  <nav class="rail-nav" aria-label="{{ title }}">
+    {% for anchor, label, count in items %}<a class="rail-navrow" href="{{ anchor }}"><span>{{ label }}</span>{% if count is not none %}<strong>{{ count }}</strong>{% endif %}</a>{% endfor %}
+  </nav>
+</section>
+{% endmacro %}
+
+{# One referring assembly of a missing name: pick the file, fix it through
+   Inventor. `row` comes from web._fix_rows; `origin` says where to come back. #}
+{% macro fix_row(row, filename, session, form_token, origin="name", assembly="") %}
+<div class="queue-row fix-row{% if row.result %} has-result{% endif %}" data-fix-row>
+  <a class="queue-thumb" href="{{ url_for('part_page', relative_path=row.path) }}" aria-label="Open {{ row.path|winpath }}"><img src="{{ preview_url(row.path) }}" alt="" loading="lazy" decoding="async" width="64" height="48"></a>
+  <span class="queue-name"><a href="{{ url_for('part_page', relative_path=row.path) }}">{{ row.name }}</a><small>{{ row.folder|winpath }}{% if row.open_in_inventor %} · <span class="inventor-open">open in Inventor</span>{% endif %}</small></span>
+  {% if row.done %}
+  <span class="fix-result is-done">{{ row.done }}</span>
+  {% elif not row.choices %}
+  <span class="queue-count">No file to point at</span>
+  {% else %}
+  <form class="fix-form" method="post" action="{{ url_for('doctor_repoint', filename=filename) }}">
+    <input type="hidden" name="token" value="{{ form_token }}">
+    <input type="hidden" name="referrer" value="{{ row.path }}">
+    <input type="hidden" name="origin" value="{{ origin }}">
+    {% if assembly %}<input type="hidden" name="assembly" value="{{ assembly }}">{% endif %}
+    <label class="fix-select"><span class="sr-only">File for {{ row.name }}</span>
+      <select name="target" required>
+        {% if not row.choices|selectattr('selected')|list %}<option value="" selected disabled>Choose file</option>{% endif %}
+        {% for choice in row.choices %}<option value="{{ choice.path }}"{% if choice.selected %} selected{% endif %} title="{{ choice.path|winpath }}">{{ choice.name }} · {{ choice.folder|winpath }}</option>{% endfor %}
+      </select>
+    </label>
+    {% if session.version %}<button class="copy-path" type="submit" data-busy-label="Fixing…">Fix in Inventor</button>
+    {% else %}<span class="queue-count session-absent">Start Inventor</span>{% endif %}
+  </form>
+  {% endif %}
+  {% if row.result %}<p class="fix-result is-failed" role="alert">{{ row.result }}</p>{% endif %}
+</div>
+{% endmacro %}

@@ -438,6 +438,34 @@ def _close(document: Any) -> None:
         pass
 
 
+#: Why a document naming a missing file is not opened on a session whose API
+#: has no dialog-free open: a plain `Open` would raise Resolve Link and wait.
+WOULD_ASK = "Inventor would ask"
+
+
+class _WouldAsk(Exception):
+    """The session cannot open a document without Inventor's resolve dialog."""
+
+
+def _open_skipping_unresolved(application: Any, path: Path) -> Any:
+    """Open `path` invisibly with `SkipAllUnresolvedFiles`, so Resolve Link never shows.
+
+    A missing reference then stays in `ReferencedFileDescriptors` with
+    `ReferenceMissing` true, which `ReplaceReference` repoints. A session
+    without `OpenWithOptions` or `TransientObjects` raises `_WouldAsk`
+    instead of falling back to a plain `Open` that would wait on a dialog.
+    `SilentOperation` is never touched.
+    """
+
+    try:
+        open_with = application.Documents.OpenWithOptions
+        options = application.TransientObjects.CreateNameValueMap()
+    except AttributeError:
+        raise _WouldAsk(WOULD_ASK) from None
+    options.Add("SkipAllUnresolvedFiles", True)
+    return open_with(str(path), options, False)
+
+
 def repair_references(
     session: Session,
     referrers: Iterable[Path],
@@ -447,6 +475,7 @@ def repair_references(
     rename: Callable[[], None],
     survivors: Iterable[Path] = (),
     timeout: float = DEFAULT_TIMEOUT,
+    skip_unresolved: bool = False,
 ) -> RepairResult:
     """Open the referrers, call `rename`, repoint, save, close, and verify.
 
@@ -456,9 +485,21 @@ def repair_references(
     saved). `survivors` are other files that keep the old name; a descriptor
     resolved to one of them before the rename is not repointed. Otherwise every referrer gets one outcome: `repaired`,
     `skipped-open-in-inventor`, `no-descriptor`, or `failed: <reason>`.
+
+    `skip_unresolved` is for a referrer whose reference is already missing
+    (Doctor's repoint of a missing name): every open, the verify included,
+    goes through `OpenWithOptions` with `SkipAllUnresolvedFiles`, so Inventor
+    never stops on Resolve Link; a session without that API gets
+    `failed: Inventor would ask` and plain `Open` is never called. A rename
+    keeps plain `Open`: its referrers still resolve when they are opened.
     """
 
     new_path = Path(new_path)
+
+    def open_document(application: Any, path: Path) -> Any:
+        if skip_unresolved:
+            return _open_skipping_unresolved(application, path)
+        return application.Documents.Open(str(path), False)
     old_path = new_path.with_name(old_name)
     paths = [Path(path) for path in referrers]
     old_key = old_name.casefold()
@@ -467,7 +508,9 @@ def repair_references(
 
     def verify(application: Any, path: Path, run: _Run) -> str:
         try:
-            document = application.Documents.Open(str(path), False)
+            document = open_document(application, path)
+        except _WouldAsk:
+            return f"failed: {WOULD_ASK}"
         except Exception as exc:  # noqa: BLE001 - reported per referrer
             return f"failed: could not reopen to verify ({_reason(exc)})"
         try:
@@ -503,7 +546,10 @@ def repair_references(
                     run.record(str(path), SKIPPED_OPEN)
                     continue
                 try:
-                    document = application.Documents.Open(str(path), False)
+                    document = open_document(application, path)
+                except _WouldAsk:
+                    run.record(str(path), f"failed: {WOULD_ASK}")
+                    continue
                 except Exception as exc:  # noqa: BLE001 - reported per referrer
                     run.record(str(path), f"failed: could not open ({_reason(exc)})")
                     continue

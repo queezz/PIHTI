@@ -167,9 +167,10 @@ bytes, other name**). When several files share a name but not all their
 bytes, each set of identical members is shown as its own group, and a member
 whose bytes match nothing is not a duplicate at all. Same-name files with
 different bytes are name clashes, not duplicates: the rail counts them and
-links to Doctor, where they are repaired by renaming. In Duplicates, use the
-two right rails to review one kind, project folder, or recent merged PR at a
-time. PR filters come from local first-parent
+links to Doctor, where they are repaired by renaming. In Duplicates, the left
+rail holds the scan facts, merge cleanup, and merged PRs; the right rail
+filters by kind, file type, cross-folder, and project folder, so one kind,
+folder, or recent merged PR is reviewed at a time. PR filters come from local first-parent
 Git history and do not require GitHub access. Each member row can copy either the
 absolute file path for Inventor's **File name** field or its containing folder for
 the dialog's address bar. Rows include size,
@@ -212,22 +213,36 @@ collapsible sessions. Its rail filters recoverable/restored history and expands
 or collapses visible sessions; restoration remains scoped to one exact event.
 
 Use **Doctor** when the right operation is renaming rather than consolidation.
-Assembly Workbenches are the primary route for STEP/import repair: choose the
-referring `.iam`, inspect its preview and direct embedded names, then keep that
-assembly as the context while repairing one component at a time. Missing names
-remain visible until Inventor repoints and saves the assembly; a top-level
-assembly that names a repaired sub-assembly's part only indirectly stops
-showing it once the repair is recorded, because Inventor refreshes that name on
-the assembly's next save. For each missing name, Doctor searches every
-reachable Git ref and shows whether a commit ever had a file with that name,
-whether it was deleted, or whether it was renamed; historical Inventor previews and
-copy-ready current rename destinations sit beside that evidence.
-Collision Doctor opens every repeated Inventor filename as one durable repair
-session, so renaming two members cannot make the final unversioned member vanish
-from Duplicates. Name Doctor also finds low-information imported names such as
-`Body.ipt`, `Body001.ipt`, and `Part.ipt`, including singletons. A name session
-keeps current originals, already-renamed destinations, and every filename-based
-referring assembly together, with copy-ready file and folder paths for Inventor.
+Its queue is one line per item (thumbnail, name, how many assemblies name it,
+one chip), in sections: **Interrupted saves**, **Missing file** (the old name
+of a rename still open, which an assembly still names and no file carries),
+**Ambiguous filenames** (a name carried by two or more files), **Generic
+names** (`Body.ipt`, `Body001.ipt`, `Part.ipt`, singletons included),
+**Assemblies** (only those naming a missing, repeated, or generic file; names
+the byte scan finds but no open rename left behind stay on the assembly's own
+page), and **Standard parts**. The chip opens the item's page; a
+missing file with one assembly and one obvious file is fixed in place.
+
+With Inventor running, Doctor does the fix itself. On a missing file's page
+each assembly that names it is one row with a choice of file (the files the
+ledger renamed it to first, then any file whose name starts with the old one;
+the one in the assembly's own folder is preselected) and **Fix in Inventor**:
+Inventor opens that assembly invisibly, points its reference at the chosen
+file, saves it without dialogs, and reopens it to verify, and the rename ledger
+marks it repaired (and the rename settled once every assembly it lists is
+repaired or uses another of its files). The assembly is opened with Inventor's
+skip-unresolved-files option, so Inventor never stops to ask for the missing
+file. A name carried twice shows one row per
+copy with a suggested unique name (`RKC CONTROLLER v2.ipt` for the copy in
+`TempController-v2`) and **Rename and fix in Inventor**, the same guarded
+rename and repair as `rename --repair`, after a confirmation that names the
+assemblies it will save. The page never suggests which copy to rename. Without
+Inventor the rows say "Start Inventor". The assembly page (one assembly, its
+missing, ambiguous, and generic names) carries the same fix row for each of its
+missing names, plus Git evidence for a name no file carries. A name session
+keeps the copies, already-renamed destinations, and every filename-based
+referring assembly together, so renaming two members cannot make the final
+unversioned member vanish from Duplicates.
 The Renames page recalculates **Inventor will ask now** from the live workspace;
 the ledger still notes when the outcome differed at rename time.
 
@@ -251,7 +266,7 @@ part gets a **Move** button: the part and its sidecar move into the library,
 and the move is recorded in the rename ledger. Referring assemblies still find
 the part, because Inventor resolves by filename. A byte-identical copy already
 in the library gets **Quarantine copy** instead. A name that exists elsewhere
-is refused and links to Collision Doctor. Every row is confirmed on its own,
+is refused and links to Doctor. Every row is confirmed on its own,
 and **Skip** hides a row for this browser tab only. The CLI twin is
 `pihti-dedup standard-parts . --dry`; `--apply --references-checked` runs only
 the plain moves.
@@ -311,10 +326,12 @@ the earlier JSON/CSV/Markdown inventory workflow.
 
 The same local server serves a hierarchical catalog at `/catalog`, folder routes
 below it such as `/catalog/Plasma%20Vessel`, and `/part/<path>` for one file.
-Catalog and part pages share one three-column layout: a wide left rail with the
-current folder or file, the thumbnails in the middle, and the folder tree on the
-right, with the current branch open. Both rails stay in place while the page
-scrolls; a long tree scrolls inside its own card. A single line above the
+Every page shares the catalog's three-column layout: a wide left rail with
+what you are looking at, its facts and its actions (here the current folder or
+file), the page itself in the middle, and a narrow right rail for navigation,
+filters, and jump lists (here the folder tree, with the current branch open).
+Both rails stay in place while the page scrolls; a long tree, or a rail with
+more than the window holds, scrolls inside itself. A single line above the
 thumbnails holds the breadcrumb and a filter field. Typing filters the folder
 cards and file tiles already on the page; Enter, or **Search whole archive**,
 runs the global server-side search instead. A folder shows every file it
@@ -371,8 +388,9 @@ exports one such file anyway. A document a timed-out export left open without
 a window is closed at the next export. In the inspector, an Inventor file without a current
 copy shows "3D needs the STEP mirror · export now"; the part page's File card
 shows the copy's time, or none, with the same action. **STEP mirror N / M** in
-the top bar counts the current copies and opens a page listing what is
-missing, what is out of date, and the last exports. With Inventor open, that
+the top bar counts the current copies, and the **STEP mirror** tab opens a page
+listing what is missing, what is out of date, what needs Doctor, and the last
+exports. With Inventor open, that
 page's **Export fresh STEPs** runs the same batch as `step-mirror sync` in the
 viewer (everything missing or out of date, oldest first, with the same skips)
 while the background export waits; a status line follows it every few seconds
@@ -410,8 +428,8 @@ opens the note in a reader, and **Edit** beside the × switches to the raw
 editor with a live preview. Save returns to the same folder and reopens the
 reader with feedback. Close it with ×, **Close**, Escape, or the backdrop. A
 folder without a note shows **Write one**, which opens the editor directly.
-The optional full-page editor has breadcrumb navigation and prominent rail
-cards back to the current folder, its parent, and the Catalog root.
+The optional full-page editor has the catalog's breadcrumb line and tree, and
+chips back to the current folder and its parent.
 
 Mark a folder's main assembly with **Make main assembly** in the inspector or
 **Main assembly** on the part page. One
@@ -457,9 +475,12 @@ A part page reads iProperties straight out of the file: part number,
 description, material, designer, author, creation date, document subtype, and
 the Inventor build that last saved it. Mass, volume, density, and surface area
 appear only when Inventor's own `Valid MassProps` flag says its cached values
-are still good. When the Part Number differs from the filename, the page says so
-prominently — Inventor resolves references by filename, so the two records
-disagreeing is worth seeing.
+are still good. A Part Number that differs from the filename is normal (Inventor
+seeds it from the filename once and never follows a rename; vendor parts carry
+catalogue numbers), so it is shown as a fact, not flagged. **Rename** is a
+compact card in the left rail under the File card: the new name with the fixed
+extension, **Repair references through Inventor** when Inventor is running,
+and one chip; the confirmation names every assembly it will save.
 
 Free-form notes live in a **metadata sidecar**: a Markdown file named after the
 whole CAD filename, so `B_probe_bearing.ipt` gets `B_probe_bearing.ipt.md` next

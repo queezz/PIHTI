@@ -610,14 +610,180 @@ def set_settled(root: Path, target_id: str, settled: bool) -> RenameEntry:
     if match is None:
         raise RenameError("that rename is not in the ledger")
     updated = replace(match, settled=bool(settled))
+    _rewrite_ledger(root, [updated if entry.id == target_id else entry for entry in entries])
+    return updated
+
+
+def _rewrite_ledger(root: Path, entries) -> None:
     path = ledger_path(root)
+    path.parent.mkdir(parents=True, exist_ok=True)
     lines = [
-        json.dumps(
-            (updated if entry.id == target_id else entry).to_dict(),
-            ensure_ascii=False,
-            sort_keys=True,
-        )
-        for entry in entries
+        json.dumps(entry.to_dict(), ensure_ascii=False, sort_keys=True) for entry in entries
     ]
     path.write_text("\n".join(lines) + "\n", encoding="utf-8", newline="\n")
-    return updated
+
+
+#: The note on a ledger line that records a repoint alone: no file moved.
+REPOINT_NOTE = "repointed through Inventor; no file was renamed"
+
+
+def _without(paths: tuple[str, ...], key: str) -> tuple[str, ...]:
+    return tuple(path for path in paths if path.casefold() != key)
+
+
+def _settle_if_done(entry: RenameEntry, note: str) -> RenameEntry:
+    if not entry.fully_repaired:
+        return entry
+    return replace(entry, settled=True, will_prompt=False, repair_note=entry.repair_note or note)
+
+
+def record_repoint(
+    root: Path,
+    *,
+    referrer: str,
+    old_name: str,
+    new_path: str,
+    version: str = "",
+) -> RenameEntry:
+    """Record that Inventor repointed `referrer` from the missing `old_name` to `new_path`.
+
+    Nothing moved on disk: the file at `new_path` already existed. The ledger
+    entry that renamed `old_name` to `new_path` and listed `referrer` gains it
+    in `repaired`; every other entry for `old_name` that listed it gains it in
+    `not_applicable` (it now uses the chosen successor, not theirs). Without
+    such an entry a new settled line records the repoint, so the where-used
+    index drops the fossil name either way. An entry is settled, and stops
+    prompting, once every referrer it lists is repaired, not applicable, or
+    indirect. Returns the entry that carries the repair.
+    """
+
+    root = Path(root).resolve()
+    old_key = old_name.casefold()
+    referrer_key = referrer.casefold()
+    new_key = new_path.casefold()
+    note = f"repaired through Inventor {version}".strip()
+    entries = list(read_ledger(root))
+    carrier: RenameEntry | None = None
+    for position, entry in enumerate(entries):
+        if entry.old_name.casefold() != old_key:
+            continue
+        if not any(path.casefold() == referrer_key for path in entry.where_used):
+            continue
+        if carrier is None and entry.new_path.casefold() == new_key:
+            repaired = entry.repaired
+            if not any(path.casefold() == referrer_key for path in repaired):
+                repaired = (*repaired, referrer)
+            updated = replace(
+                entry,
+                repaired=repaired,
+                not_applicable=_without(entry.not_applicable, referrer_key),
+                indirect=_without(entry.indirect, referrer_key),
+                repair_note=entry.repair_note or note,
+            )
+            carrier = updated = _settle_if_done(updated, note)
+        elif any(
+            path.casefold() == referrer_key for path in (*entry.repaired, *entry.not_applicable)
+        ):
+            continue
+        else:
+            updated = _settle_if_done(
+                replace(entry, not_applicable=(*entry.not_applicable, referrer)), note
+            )
+        entries[position] = updated
+    if entries:
+        _rewrite_ledger(root, entries)
+    if carrier is not None:
+        return carrier
+    folder = new_path.rsplit("/", 1)[0] if "/" in new_path else ""
+    return append_entry(
+        root,
+        RenameEntry(
+            id="",
+            timestamp=datetime.now(timezone.utc).isoformat(timespec="seconds"),
+            old_path=f"{folder}/{old_name}" if folder else old_name,
+            new_path=new_path,
+            old_name=old_name,
+            new_name=new_path.rsplit("/", 1)[-1],
+            where_used=(referrer,),
+            will_prompt=False,
+            settled=True,
+            notes=REPOINT_NOTE,
+            repaired=(referrer,),
+            repair_note=note,
+        ),
+    )
+
+
+#: Folder names that say nothing about which copy a file is.
+_PLAIN_FOLDERS = frozenset(
+    {"parts", "part", "assembly", "assemblies", "asm", "steps", "step", "stp", "cad", "files"}
+)
+_VERSION_WORD = re.compile(r"^[vV]\d+$")
+_WORD = re.compile(r"[A-Z]+(?![a-z])|[A-Z]?[a-z]+|\d+")
+_HINT_LENGTH = 16
+
+
+def _folder_hint(folder: str, stem: str) -> str:
+    """A few words of `folder` that the stem does not already say."""
+
+    if folder.casefold() in _PLAIN_FOLDERS:
+        return ""
+    tokens = [token for token in re.split(r"[\s_\-.]+", folder) if token]
+    if tokens and _VERSION_WORD.match(tokens[-1]):
+        return tokens[-1].lower()
+    said = {word.casefold() for word in _WORD.findall(stem)}
+    said |= {token.casefold() for token in re.split(r"[\s_\-.]+", stem) if token}
+    kept: list[str] = []
+    for token in tokens:
+        if token.casefold() in said:
+            continue
+        words = _WORD.findall(token)
+        left = [word for word in words if word.casefold() not in said]
+        if words and not left:
+            continue
+        kept.append(token if len(left) == len(words) else "".join(left))
+    hint = ""
+    for word in kept:
+        joined = f"{hint} {word}".strip()
+        if hint and len(joined) > _HINT_LENGTH:
+            break
+        hint = joined
+    return hint
+
+
+def suggest_unique_name(
+    relative_path: str,
+    locations: dict[str, tuple[str, ...]],
+    taken: set[str] | frozenset[str] = frozenset(),
+) -> str:
+    """A unique filename for one copy of a repeated name: `<stem> <folder hint><ext>`.
+
+    The hint comes from the nearest folder that says something the stem does
+    not (a trailing version word such as `-v2` alone). A name that already
+    exists in the workspace, is in `taken` (casefolded), or that Windows
+    refuses is passed over; the last resort numbers the stem.
+    """
+
+    path = Path(relative_path.replace("\\", "/"))
+    stem, suffix = path.stem, path.suffix
+
+    def usable(candidate: str) -> bool:
+        key = candidate.casefold()
+        if key in taken or locations.get(key):
+            return False
+        try:
+            check_filename(candidate)
+        except RenameError:
+            return False
+        return True
+
+    for folder in path.parents:
+        if not folder.name:
+            break
+        hint = _folder_hint(folder.name, stem)
+        if hint and usable(f"{stem} {hint}{suffix}"):
+            return f"{stem} {hint}{suffix}"
+    number = 2
+    while not usable(f"{stem} {number}{suffix}"):
+        number += 1
+    return f"{stem} {number}{suffix}"

@@ -628,6 +628,92 @@ while a batch runs and updates the line and the Mirror card counts in place;
 the lists refresh on the next load. The web never launches Inventor and never
 sets `SilentOperation`.
 
+Version 0.27.0 puts every page on the catalog's shell and gives Doctor its
+buttons. **One layout.** `.work-grid.two-rail` is the old `.catalog-grid`
+generalised: `25.5rem minmax(0, 1fr) 17rem`, `.rail-context` left (what you
+look at, its facts, its actions), `.work-main` centre, `.rail-tree` right
+(navigation, filters, jump lists), both rails sticky at `calc(var(--bar-height)
++ var(--content-pad))`, one fold below 1200px into a single right column. The
+catalog keeps `catalog-grid` beside `two-rail` and is pixel-identical (measured
+against 0.26.0 at 1600×1000: bar, rail cards, legend, tree, folder cards, and
+tiles at the same rects). The left rail keeps the catalog's exact height; the
+right rail takes the tree card's ceiling; each scrolls inside itself only when
+a page puts more there (the Duplicates folder list, a long rename
+confirmation), so the scroll test now lists the two rails beside the tree and
+the inspector's facts. Pages other than the catalog's own open with
+`.page-bar` (`_shell.html`), the catalog bar's look but in the flow: the
+Renames filter used to be a sticky `.filterbar` that slid over the first card.
+Per page: Renames (Ledger filter chips and a two-line note left; Kind chips,
+rename or move, with Will prompt and Repaired right; cards left-aligned at
+70rem); Duplicates (Scan, Merge cleanup, Merged PRs left; Groups with the type
+select and cross-folder box, Folders right); Doctor and its sub-pages (the
+queue's or item's facts and the Inventor card left; the section jump list
+right); STEP mirror (Mirror counts and the 0.26.0 Inventor card left, On this
+page right, and a top-bar tab marked current on its routes, the live count
+kept in the meta); Removed (History with Expand / Collapse left, Status
+right); the consolidated-path answer (the path facts left, referrers right);
+Sourcing unchanged; the part page (Rename moved from the column's foot into a
+compact left-rail card with the same form fields and route); the folder page
+(the catalog bar and tree). Copy was cut to punch lines everywhere touched;
+coloured edge bars (Duplicates, Removed, Renames, the assembly workbench,
+warnings) are gone; Doctor panels are capped at 60rem so a row never spreads
+across a 2560px window. The part page's "Part Number differs from the
+filename" callout is removed: Inventor seeds the Part Number from the filename
+once and never follows a rename, and vendor parts carry catalogue numbers, so
+it was never a finding; the Part number fact row stays.
+
+**Doctor rows that do the thing.** The queue is one line per item (thumbnail,
+name, `N assemblies`, one chip) under Interrupted saves, Missing file,
+Ambiguous filenames (`#name-clashes`, Duplicates' pointer), Generic names,
+Assemblies, and Standard parts. Assemblies lists only those with an actual
+problem: a generic name, a name carried twice, or a missing name that an open
+ledger rename left behind (each name counted once, generic first); the byte
+scan's other missing names are fossils and stay on the assembly's own page
+(258 rows became 37 on this tree). A **missing file** is the old name of an open
+ledger rename that no file carries and an assembly still names (the same rule
+as the mirror's needs-Doctor check, so byte-scan fossils stay off the list).
+Its page (`/doctor/name/<name>`) has one row per referring assembly: a select
+of candidates (`_repoint_candidates`: the ledger's successors for that name
+that still exist, then every same-type file whose stem starts with the old
+stem, never `OldVersions/`), preselected only when one candidate sits in the
+assembly's folder or only one exists, and **Fix in Inventor**. `POST
+/doctor/name/<name>/repoint` (form token, loopback; `referrer`, `target`,
+`origin` = name | assembly | doctor) revalidates (the referrer still names the
+file, the name is still missing, the target exists with the same extension),
+refuses without a session ("Inventor is not running; nothing changed.") or
+when the assembly is open in Inventor, then runs `repair_references` for that
+one referrer with a no-op rename (the file already exists) and
+`skip_unresolved=True`: every open, the verify included, is
+`Documents.OpenWithOptions(path, options, False)` with a
+`TransientObjects.CreateNameValueMap()` holding `SkipAllUnresolvedFiles`
+True, so Resolve Link never shows and the missing reference stays in
+`ReferencedFileDescriptors` with `ReferenceMissing` true; every descriptor
+whose basename is the old name is replaced, the document saved with
+`Save2(False)`, closed, and verified on reopen. A session without that API
+records `failed: Inventor would ask` and never falls back to a plain `Open`.
+The rename repair keeps plain `Open`: its referrers still resolve. On `repaired`,
+`renames.record_repoint` marks the referrer repaired in the ledger entry that
+renamed the name to the chosen file, and not applicable in the name's other
+entries that listed it; an entry becomes settled with `will_prompt` false once
+every referrer it lists is repaired, not applicable, or indirect. A referrer
+no entry lists for that file gets its own settled line (note "repointed
+through Inventor; no file was renamed"), so `settled_pairs` drops the fossil
+name from the where-used index either way. There is no confirmation step: a
+repoint is reversible through the ledger and Inventor's OldVersions. Any
+other outcome is shown on the row and records nothing. The queue fixes in
+place (origin doctor) when an item has one assembly and one candidate and a
+session answers; the assembly page carries the same row for each of its
+missing names (origin assembly). A **name carried twice** shows one row per copy with
+`renames.suggest_unique_name` (`<stem> <hint><ext>`: the nearest folder that
+says something the stem does not, a trailing version word alone, `parts` and
+`STEPs` passed over, 16 characters at most, never a name the workspace
+carries or another row suggests, `check_filename` applied, a number last) and
+**Rename and fix in Inventor**, which posts the existing Doctor rename with
+`repair=1` and so goes through `_repair_confirm.html` (copy cut to the facts)
+and `execute_rename(..., session=...)`. Without a session the copy row's chip
+is a plain **Rename** (recorded for manual repointing) and the Inventor card
+says "Start Inventor, open PIHTI.ipj, then come back".
+
 ## Purpose
 
 Provide a local, human-in-the-loop view of filename collisions and byte-level
@@ -693,9 +779,11 @@ Follow paperlib's proven shape, specifically its Duplicates screen and
 - `GET /duplicates/results` performs or retrieves the scan asynchronously and
   returns the result fragment.
 - The result fragment begins with one shared three-column grid: results plus two
-  fixed-width rails. Both rails start at their sticky offset, never move when the
-  page scrolls, and never get an internal scrollbar. On narrower screens they
-  stack after the results.
+  fixed-width rails. Both rails start at their sticky offset and never move when
+  the page scrolls. Since 0.27.0 this is the every-page `.two-rail` shell (scan
+  facts, merge cleanup and merged PRs left; kind, type, cross-folder and folder
+  filters right); a rail taller than the window scrolls inside itself, and
+  below 1200px both rails stack in one right column.
 - Default bind is `127.0.0.1`. Actual cleanup is localhost-only; the remaining
   routes are read-only.
 - Client-side text and kind filters operate on the loaded groups without rescans.

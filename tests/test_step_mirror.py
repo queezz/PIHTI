@@ -841,9 +841,11 @@ def test_the_mirror_page_lists_what_waits_and_what_was_exported(
     client = create_app(root).test_client()
 
     page = client.get("/step-mirror").get_data(as_text=True)
-    assert "<h1>STEP mirror</h1>" in page
-    assert "Inventor is not running; nothing is exported." in page
-    assert "The folder is created with the first export." in page
+    assert '<strong aria-current="page">STEP mirror</strong>' in page
+    assert 'class="is-current" aria-current="page">STEP mirror</a>' in page
+    assert 'class="work-grid two-rail doctor-session"' in page
+    assert "Start Inventor, open PIHTI.ipj, then come back" in page
+    assert "Created by the first export" in page
     assert str(step_mirror_folder).replace("/", "\\") in page
     missing = page.split('id="sec-missing"', 1)[1].split("</section>", 1)[0]
     assert missing.index("old.ipt") < missing.index("new.ipt")
@@ -857,7 +859,7 @@ def test_the_mirror_page_lists_what_waits_and_what_was_exported(
     app = fake_for(root)
     running = create_app(root, session_factory=lambda: fake_session(app)).test_client()
     page = running.get("/step-mirror").get_data(as_text=True)
-    assert "Inventor 2027.1 is running." in page
+    assert "Inventor 2027.1" in page
     recent = page.split('id="sec-recent"', 1)[1].split("</section>", 1)[0]
     assert "Frame\\frame.iam" in recent and "<small>exported</small>" in recent
     assert "frame.iam" not in page.split('id="sec-missing"', 1)[1].split("</section>", 1)[0]
@@ -1133,9 +1135,9 @@ def test_the_mirror_page_lists_needs_doctor_with_a_doctor_link(tmp_path: Path) -
     assert client.get("/doctor/name/board.ipt?assembly=Frame/frame.iam").status_code == 200
 
     clean = create_app(make_workspace(tmp_path / "Clean")).test_client()
-    assert "Every waiting assembly names files that exist exactly once." in clean.get(
-        "/step-mirror"
-    ).get_data(as_text=True)
+    clean_page = clean.get("/step-mirror").get_data(as_text=True)
+    section = clean_page.split('id="sec-doctor"', 1)[1].split("</section>", 1)[0]
+    assert '<p class="doctor-empty">None</p>' in section
 
 
 def test_export_now_on_a_needs_doctor_assembly_says_so(tmp_path: Path) -> None:

@@ -210,7 +210,7 @@ def test_execute_moves_the_file_and_sidecar_and_ledgers_a_silent_rebind(tmp_path
     assert entry.is_move is True
 
     page = create_app(root).test_client().get("/renames").get_data(as_text=True)
-    assert "Moved; Inventor finds it by filename." in page
+    assert "Moved; Inventor finds it by name." in page
     assert "Inventor will NOT ask now." not in page
     assert f'data-copy-text="{root / LIBRARY / "M3x10-SHCS.ipt"}"' in page
     assert "Probe\\parts\\M3x10-SHCS.ipt" in page
@@ -306,8 +306,8 @@ def test_doctor_shows_the_standard_parts_card_with_its_count(tmp_path: Path) -> 
 
     assert "<h2>Standard parts</h2>" in html
     assert 'href="/doctor/standard-parts"' in html
-    assert "4 standard parts outside the library" in html
-    assert "1 ready to move · 3 need a decision first" in html
+    assert "4 outside the library" in html
+    assert "1 ready to move" in html
 
 
 def test_standard_parts_page_groups_rows_by_outcome(tmp_path: Path, monkeypatch) -> None:
@@ -336,7 +336,7 @@ def test_standard_parts_page_groups_rows_by_outcome(tmp_path: Path, monkeypatch)
     assert ">Move</button>" in html
     assert ">Quarantine copy</button>" in html
     assert "Surviving copy" in html and "ContentCenter\\Fastners\\M3-nut.ipt" in html
-    assert 'href="/doctor/name/M4-nut.ipt"' in html and "Open in Collision Doctor" in html
+    assert 'href="/doctor/name/M4-nut.ipt">Open in Doctor</a>' in html
     assert html.count("data-standard-skip aria-pressed") == 4
     assert "anode-holding-nut" not in html
     assert "bnc-nut-holder" not in html
@@ -398,7 +398,7 @@ def test_move_post_needs_the_token_and_then_moves_and_redirects(tmp_path: Path) 
     assert "data-operation-toast" in after
     assert f"Ledger entry {entry.id}" in after
     assert 'data-path="Probe/parts/M3x10-SHCS.ipt"' not in after
-    assert "Moved; Inventor finds it by filename." in client.get("/renames").get_data(
+    assert "Moved; Inventor finds it by name." in client.get("/renames").get_data(
         as_text=True
     )
 

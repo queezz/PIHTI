@@ -1,103 +1,137 @@
 {% extends "base.html" %}
+{% from "_shell.html" import page_bar, session_card, jump_card %}
 {% block title %}Doctor · PIHTI{% endblock %}
+
+{# One queue line: thumbnail · name · N assemblies · one chip. #}
+{% macro queue_row(thumb, href, name, detail, count, chip="Open") %}
+<div class="queue-row">
+  <a class="queue-thumb" href="{{ href }}" aria-hidden="true" tabindex="-1"><img src="{{ preview_url(thumb) }}" alt="" loading="lazy" decoding="async" width="64" height="48"></a>
+  <span class="queue-name"><a href="{{ href }}">{{ name }}</a>{% if detail %}<small>{{ detail }}</small>{% endif %}</span>
+  <span class="queue-count">{{ count }}</span>
+  <span class="queue-action">{% if caller is defined %}{{ caller() }}{% else %}<a class="copy-path" href="{{ href }}">{{ chip }}</a>{% endif %}</span>
+</div>
+{% endmacro %}
+
+{% macro n_assemblies(count) %}{{ count }} assembl{{ 'y' if count == 1 else 'ies' }}{% endmacro %}
+
 {% block body %}
 <main class="page">
-  <section class="doctor-head">
-    <p class="micro-heading">Workspace repair</p>
-    <h1>CAD name doctor</h1>
-    <p>Work from an ambiguous filename to its parts and referring assemblies. Renames remain guarded, logged, and folder-local.</p>
-  </section>
+  <div class="work-grid two-rail">
+    <div class="work-main">
+      {{ page_bar([{'name': 'Doctor'}]) }}
+      {% if notice %}<p class="{{ 'metadata-error doctor-error' if notice_failed else 'metadata-notice doctor-notice' }}" role="status">{{ notice }}</p>{% endif %}
 
-  {% if interrupted %}
-  <section class="doctor-panel interrupted-saves" id="interrupted-saves">
-    <header><div><p class="micro-heading">Inventor save leftovers</p><h2>Interrupted saves</h2></div><strong>{{ interrupted|length }}</strong></header>
-    <div class="doctor-list">
-      {% for item in interrupted %}
-      <div class="doctor-row interrupted-row is-{{ item.state }}" data-interrupted-save="{{ item.state }}">
-        <a class="doctor-preview-stack" href="{{ url_for('part_page', relative_path=item.path) }}" aria-label="Open {{ item.path|winpath }}"><img src="{{ preview_url(item.path) }}" alt="" loading="lazy" decoding="async" width="64" height="48"></a>
-        <div class="interrupted-body">
-          {% if item.state == 'differs' %}
-          <p><code>{{ item.name }}</code> differs from <code>{{ item.base_name }}</code>: it may hold newer work that never replaced the original. Open both in Inventor and compare; if the leftover is the later state, replace the original with it in Inventor, then remove the leftover.</p>
-          <small>{{ item.path|winpath }} · modified {{ item.mtime_ns|filetime }}</small>
-          <small>{{ item.base_path|winpath }} · modified {{ item.base_mtime_ns|filetime }}</small>
-          {% else %}
-          <p><code>{{ item.name }}</code>: orphan save leftover; no <code>{{ item.base_name }}</code> beside it.</p>
-          <small>{{ item.path|winpath }} · modified {{ item.mtime_ns|filetime }}</small>
-          {% endif %}
+      {% if interrupted %}
+      <section class="doctor-panel queue-panel interrupted-saves" id="interrupted-saves">
+        <header><h2>Interrupted saves</h2><strong>{{ interrupted|length }}</strong></header>
+        <div class="doctor-list">
+          {% for item in interrupted %}
+          <div class="queue-row interrupted-row is-{{ item.state }}" data-interrupted-save="{{ item.state }}">
+            <a class="queue-thumb" href="{{ url_for('part_page', relative_path=item.path) }}" aria-label="Open {{ item.path|winpath }}"><img src="{{ preview_url(item.path) }}" alt="" loading="lazy" decoding="async" width="64" height="48"></a>
+            <span class="queue-name"><a href="{{ url_for('part_page', relative_path=item.path) }}">{{ item.name }}</a><small>{{ item.path.rsplit('/', 1)[0]|winpath if '/' in item.path else '' }}</small></span>
+            <span class="queue-count">{% if item.state == 'differs' %}differs from {{ item.base_name }} · compare in Inventor{% else %}no {{ item.base_name }} beside it{% endif %}</span>
+            <span class="queue-action">
+              <button class="copy-path" type="button" data-copy-text="{{ item.absolute|winpath }}">Copy leftover path</button>
+              {% if item.state == 'differs' %}<button class="copy-path" type="button" data-copy-text="{{ item.base_absolute|winpath }}">Copy original path</button>{% endif %}
+            </span>
+          </div>
+          {% endfor %}
         </div>
-        <span class="interrupted-actions">
-          <button class="copy-path" type="button" data-copy-text="{{ item.absolute|winpath }}">Copy leftover path</button>
-          {% if item.state == 'differs' %}<button class="copy-path" type="button" data-copy-text="{{ item.base_absolute|winpath }}">Copy original path</button>{% endif %}
-        </span>
-      </div>
-      {% endfor %}
+      </section>
+      {% endif %}
+
+      {% if missing_items %}
+      <section class="doctor-panel queue-panel" id="missing">
+        <header><h2>Missing file</h2><strong>{{ missing_items|length }}</strong></header>
+        <div class="doctor-list">
+          {% for item in missing_items %}
+          {% set href = url_for('doctor_name', filename=item.name) %}
+          {% if item.fix %}
+          {% call queue_row(item.thumb, href, item.name, item.fix.target|winpath, n_assemblies(item.referrers|length)) %}
+          <form method="post" action="{{ url_for('doctor_repoint', filename=item.name) }}">
+            <input type="hidden" name="token" value="{{ form_token }}">
+            <input type="hidden" name="referrer" value="{{ item.fix.referrer }}">
+            <input type="hidden" name="target" value="{{ item.fix.target }}">
+            <input type="hidden" name="origin" value="doctor">
+            <button class="copy-path" type="submit" title="Point {{ item.fix.referrer|winpath }} at {{ item.fix.target|winpath }}">Fix in Inventor</button>
+          </form>
+          {% endcall %}
+          {% else %}
+          {{ queue_row(item.thumb, href, item.name, (item.candidates|length) ~ ' candidate' ~ ('' if item.candidates|length == 1 else 's'), n_assemblies(item.referrers|length)) }}
+          {% endif %}
+          {% endfor %}
+        </div>
+      </section>
+      {% endif %}
+
+      <section class="doctor-panel queue-panel" id="name-clashes">
+        <header><h2>Ambiguous filenames</h2><strong>{{ ambiguous|length }}</strong></header>
+        <div class="doctor-list">
+          {% for item in ambiguous %}
+          {{ queue_row(item.records[0], url_for('doctor_name', filename=item.name), item.name, (item.records|length) ~ ' copies', n_assemblies(item.referrers|length)) }}
+          {% else %}<p class="doctor-empty">No repeated names</p>{% endfor %}
+        </div>
+      </section>
+
+      <section class="doctor-panel queue-panel" id="generic">
+        <header><h2>Generic names</h2><strong>{{ generic_names|length }}</strong></header>
+        <div class="doctor-list">
+          {% for item in generic_names %}
+          {{ queue_row(item.records[0], url_for('doctor_name', filename=item.name), item.name, (item.records|length) ~ ' file' ~ ('' if item.records|length == 1 else 's'), n_assemblies(item.referrers|length), 'Rename') }}
+          {% else %}<p class="doctor-empty">No generic names</p>{% endfor %}
+        </div>
+      </section>
+
+      <section class="doctor-panel queue-panel" id="assemblies">
+        <header><h2>Assemblies</h2><strong>{{ assemblies|length }}</strong></header>
+        <div class="doctor-list">
+          {% for assembly in assemblies %}
+          {% set parts = [] %}
+          {% if assembly.missing_count %}{% set _ = parts.append(assembly.missing_count ~ ' missing') %}{% endif %}
+          {% if assembly.ambiguous_count %}{% set _ = parts.append(assembly.ambiguous_count ~ ' ambiguous') %}{% endif %}
+          {% if assembly.generic_count %}{% set _ = parts.append(assembly.generic_count ~ ' generic') %}{% endif %}
+          {{ queue_row(assembly.path, url_for('doctor_assembly', relative_path=assembly.path), assembly.name, assembly.path.rsplit('/', 1)[0]|winpath if '/' in assembly.path else '', parts|join(' · ')) }}
+          {% else %}<p class="doctor-empty">No assembly names a missing, repeated, or generic file</p>{% endfor %}
+        </div>
+      </section>
+
+      <section class="doctor-panel queue-panel" id="standard-parts">
+        <header><h2>Standard parts</h2><strong>{{ standard_candidates|length }}</strong></header>
+        <div class="doctor-list">
+          {% if standard_candidates %}
+          {% set first = standard_candidates[0] %}
+          {{ queue_row(first.record or first.path, url_for('doctor_standard_parts'), (standard_candidates|length) ~ ' outside the library', standard_movable ~ ' ready to move', '', 'Review') }}
+          {% else %}<p class="doctor-empty">None outside the library</p>{% endif %}
+        </div>
+      </section>
+
     </div>
-  </section>
-  {% endif %}
 
-  <section class="doctor-panel assembly-queue">
-    <header><div><p class="micro-heading">Work in Inventor context</p><h2>Assembly workbenches</h2></div><strong>{{ assemblies|length }}</strong></header>
-    <p class="doctor-intro">Start with the assembly that came from the import. Inspect it in Inventor, then repair its embedded missing, ambiguous, and generic names in sequence.</p>
-    <div class="doctor-list assembly-doctor-list">
-      {% for assembly in assemblies %}
-      <a class="doctor-row assembly-doctor-row" href="{{ url_for('doctor_assembly', relative_path=assembly.path) }}">
-        <span class="doctor-preview-stack" aria-hidden="true"><img src="{{ preview_url(assembly.path) }}" alt="" loading="lazy" decoding="async" width="64" height="48"></span>
-        <span><strong>{{ assembly.name }}</strong><small>{{ assembly.path|winpath }}</small></span>
-        <span class="assembly-problem-counts">{% if assembly.missing_count %}<b>{{ assembly.missing_count }} missing</b>{% endif %}{% if assembly.ambiguous_count %}<b>{{ assembly.ambiguous_count }} ambiguous</b>{% endif %}{% if assembly.generic_count %}<b>{{ assembly.generic_count }} generic</b>{% endif %}</span>
-      </a>
-      {% else %}<p class="doctor-empty">No assembly currently embeds a missing, ambiguous, or generic CAD name.</p>{% endfor %}
-    </div>
-    {% if missing_assemblies %}<details class="assembly-more"><summary>{{ missing_assemblies|length }} additional assemblies with missing or ambiguous specific names</summary><div class="doctor-list assembly-doctor-list">{% for assembly in missing_assemblies %}<a class="doctor-row assembly-doctor-row" href="{{ url_for('doctor_assembly', relative_path=assembly.path) }}"><span class="doctor-preview-stack" aria-hidden="true"><img src="{{ preview_url(assembly.path) }}" alt="" loading="lazy" decoding="async" width="64" height="48"></span><span><strong>{{ assembly.name }}</strong><small>{{ assembly.path|winpath }}</small></span><span class="assembly-problem-counts">{% if assembly.missing_count %}<b>{{ assembly.missing_count }} missing</b>{% endif %}{% if assembly.ambiguous_count %}<b>{{ assembly.ambiguous_count }} ambiguous</b>{% endif %}</span></a>{% endfor %}</div></details>{% endif %}
-  </section>
+    <aside class="rail-side rail-context" aria-label="Doctor queue">
+      <section class="rail-card context-card">
+        <h2>Queue</h2>
+        <dl class="scope-list">
+          {% if interrupted %}<div><dt>Interrupted saves</dt><dd>{{ interrupted|length }}</dd></div>{% endif %}
+          {% if missing_items %}<div><dt>Missing file</dt><dd>{{ missing_items|length }}</dd></div>{% endif %}
+          <div><dt>Ambiguous filenames</dt><dd>{{ ambiguous|length }}</dd></div>
+          <div><dt>Generic names</dt><dd>{{ generic_names|length }}</dd></div>
+          <div><dt>Assemblies</dt><dd>{{ assemblies|length }}</dd></div>
+          <div><dt>Standard parts</dt><dd>{{ standard_candidates|length }}</dd></div>
+        </dl>
+      </section>
+      {{ session_card(session) }}
+    </aside>
 
-  <section class="doctor-panel standard-card">
-    <header><div><p class="micro-heading">Library repair</p><h2>Standard parts</h2></div><strong>{{ standard_candidates|length }}</strong></header>
-    <p class="doctor-intro">Fasteners outside <code>ContentCenter\Fastners</code>, found by their standard iProperty, a designation in the filename, the library's naming convention, or their description.</p>
-    <div class="doctor-list">
-      {% if standard_candidates %}
-      <a class="doctor-row" href="{{ url_for('doctor_standard_parts') }}">
-        <span class="doctor-preview-stack" aria-hidden="true">
-          {% for candidate in standard_candidates[:3] %}<img src="{{ preview_url(candidate.record or candidate.path) }}" alt="" loading="lazy" decoding="async" width="64" height="48">{% endfor %}
-        </span>
-        <span><strong>{{ standard_candidates|length }} standard part{% if standard_candidates|length != 1 %}s{% endif %} outside the library</strong><small>{{ standard_movable }} ready to move · {{ standard_candidates|length - standard_movable }} need a decision first</small></span>
-        <b>Review</b>
-      </a>
-      {% else %}<p class="doctor-empty">No standard parts outside the library.</p>{% endif %}
-    </div>
-  </section>
-
-  <div class="doctor-columns doctor-secondary-columns">
-    <section class="doctor-panel" id="name-clashes">
-      <header><div><p class="micro-heading">Unique filename repair</p><h2>Collision doctor</h2></div><strong>{{ collisions|length }}</strong></header>
-      <p class="doctor-intro">Every repeated Inventor filename is a resolution hazard, whether its bytes match or not.</p>
-      <div class="doctor-list">
-        {% for group in collisions %}
-        <a class="doctor-row" href="{{ url_for('doctor_name', filename=group.title) }}">
-          <span class="doctor-preview-stack" aria-hidden="true">
-            {% for record in group.records[:3] %}<img src="{{ preview_url(record) }}" alt="" loading="lazy" decoding="async" width="64" height="48">{% endfor %}
-          </span>
-          <span><strong>{{ group.title }}</strong><small>{{ group.records|length }} files · {{ group.hashes|length }} distinct {{ 'hash' if group.hashes|length == 1 else 'hashes' }}</small></span>
-          <b>{{ 'Different bytes' if group.kind == 'collision' else 'Same bytes' }}</b>
-        </a>
-        {% else %}<p class="doctor-empty">No repeated Inventor filenames remain.</p>{% endfor %}
-      </div>
-    </section>
-
-    <section class="doctor-panel">
-      <header><div><p class="micro-heading">Imported geometry</p><h2>Name doctor</h2></div><strong>{{ generic_names|length }}</strong></header>
-      <p class="doctor-intro">Low-information names such as <code>Body001.ipt</code> and <code>Part.ipt</code>, including singletons that never appear under Duplicates.</p>
-      <div class="doctor-list">
-        {% for item in generic_names %}
-        <a class="doctor-row" href="{{ url_for('doctor_name', filename=item.name) }}">
-          <span class="doctor-preview-stack" aria-hidden="true">
-            {% for record in item.records[:3] %}<img src="{{ preview_url(record) }}" alt="" loading="lazy" decoding="async" width="64" height="48">{% endfor %}
-          </span>
-          <span><strong>{{ item.name }}</strong><small>{{ item.records|length }} file{% if item.records|length != 1 %}s{% endif %} · {{ item.referrers|length }} referring document{% if item.referrers|length != 1 %}s{% endif %}</small></span>
-          <b>Diagnose</b>
-        </a>
-        {% else %}<p class="doctor-empty">No generic Inventor names match the current rules.</p>{% endfor %}
-      </div>
-    </section>
+    <aside class="rail-side rail-tree" aria-label="Doctor sections">
+      {% set jumps = [] %}
+      {% if interrupted %}{% set _ = jumps.append(('#interrupted-saves', 'Interrupted saves', interrupted|length)) %}{% endif %}
+      {% if missing_items %}{% set _ = jumps.append(('#missing', 'Missing file', missing_items|length)) %}{% endif %}
+      {% set _ = jumps.append(('#name-clashes', 'Ambiguous filenames', ambiguous|length)) %}
+      {% set _ = jumps.append(('#generic', 'Generic names', generic_names|length)) %}
+      {% set _ = jumps.append(('#assemblies', 'Assemblies', assemblies|length)) %}
+      {% set _ = jumps.append(('#standard-parts', 'Standard parts', standard_candidates|length)) %}
+      {{ jump_card(jumps) }}
+    </aside>
   </div>
 </main>
 {% endblock %}

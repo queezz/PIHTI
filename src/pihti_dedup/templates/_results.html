@@ -1,21 +1,14 @@
-<div class="work-grid">
+{% from "_shell.html" import page_bar %}
+<div class="work-grid two-rail">
   <div class="work-main">
-    <section class="filterbar" aria-label="Duplicate filters">
+    {% call page_bar([{'name': 'Duplicates'}]) %}
       <label class="searchbox">
         <span class="sr-only">Filter by filename or path</span>
         <span aria-hidden="true">⌕</span>
         <input type="search" data-filter-search placeholder="Filename or path" autocomplete="off">
       </label>
-      <label class="select-wrap compact">
-        <span class="sr-only">Extension</span>
-        <select data-filter-extension>
-          <option value="">All types</option>
-          {% for extension in extensions %}<option value="{{ extension }}">{{ extension }}</option>{% endfor %}
-        </select>
-      </label>
-      <label class="check-control"><input type="checkbox" data-filter-cross> Cross-folder only</label>
       <span class="shown-count"><strong data-visible-count>{{ groups|length }}</strong> shown</span>
-    </section>
+    {% endcall %}
 
     <section class="dry-plan" data-plan-panel hidden aria-live="polite">
       <header>
@@ -27,9 +20,7 @@
     </section>
 
     <section class="group-list" aria-label="Duplicate groups">
-      {# The save-leftover explanation is stated once, on the first such card;
-         the others carry it as the label's tooltip. #}
-      {% set explained = namespace(done=false) %}
+      {# The save-leftover explanation is the label's tooltip. #}
       {% for group in groups %}
       <article
         class="dup-card kind-{{ group.kind }}"
@@ -54,7 +45,6 @@
               {% if group.cross_folder %}<span aria-hidden="true">·</span> crosses folders{% endif %}
               {% if group.characterization == 'split' %}<span aria-hidden="true">·</span> other files with this name differ{% endif %}
             </p>
-            {% if group.characterization == 'newver' and not explained.done %}<p class="group-explain">{{ newver_explanation }}</p>{% set explained.done = true %}{% endif %}
           </div>
           {% if group.characterization == 'split' and group.extensions|length == 1 and group.extensions[0] in RENAMEABLE_EXTENSIONS %}<a class="button group-doctor" href="{{ url_for('doctor_name', filename=group.title) }}">Name clash in Doctor</a>{% endif %}
         </header>
@@ -117,57 +107,8 @@
     </section>
   </div>
 
-  <aside class="rail-side rail-primary" aria-label="Duplicate classification and folders">
-    <section class="rail-card">
-      <h2>Groups</h2>
-      <div class="rail-filters" role="group" aria-label="Filter by duplicate kind">
-        <button type="button" class="rail-filter is-active" data-kind-filter="all" aria-pressed="true"><span>All</span><strong>{{ groups|length }}</strong></button>
-        <button type="button" class="rail-filter exact" data-kind-filter="exact" aria-pressed="false"><span>Identical copies</span><strong>{{ kind_counts.exact }}</strong></button>
-        <button type="button" class="rail-filter renamed" data-kind-filter="renamed" aria-pressed="false"><span>Same bytes, other name</span><strong>{{ kind_counts.renamed }}</strong></button>
-      </div>
-      {% if clash_count %}<a class="rail-link" href="{{ url_for('doctor') }}#name-clashes" data-clash-pointer>{{ clash_count }} name clash{% if clash_count != 1 %}es{% endif %} → Doctor</a>{% endif %}
-    </section>
-
-    <section class="rail-card">
-      <h2>Folders</h2>
-      <nav class="rail-nav" aria-label="Filter by project folder">
-        <button type="button" class="rail-navrow is-active" data-system-filter="" aria-pressed="true"><span>All folders</span><strong>{{ groups|length }}</strong></button>
-        {% for folder in folder_stats %}
-        <button type="button" class="rail-navrow" data-system-filter="{{ folder.name|lower }}" aria-pressed="false">
-          <span title="{{ folder.name }}">{{ folder.name }}</span>
-          <strong>{{ folder.groups }}</strong>
-        </button>
-        {% endfor %}
-      </nav>
-    </section>
-  </aside>
-
-  <aside class="rail-side rail-secondary" aria-label="Merged pull requests and scan actions">
-    {% if merge_views %}
-    <section class="rail-card">
-      <h2>Merged PRs</h2>
-      <nav class="rail-nav merge-nav" aria-label="Filter by merged pull request">
-        <button type="button" class="rail-navrow is-active" data-merge-filter="" aria-pressed="true"><span>No PR filter</span></button>
-        {% for merge in merge_views %}
-        <button type="button" class="rail-navrow merge-row" data-merge-filter="{{ merge.key }}" data-plan-src="{{ url_for('merge_cleanup_plan', pr_number=merge.number) }}" data-apply-src="{{ url_for('merge_cleanup_apply', pr_number=merge.number) }}" data-cleanup-candidates="{{ merge.cleanup_candidates }}" aria-pressed="false">
-          <span><b>PR #{{ merge.number }}</b>{{ merge.branch }}<small>{{ merge.cad_files }} CAD · {{ merge.folders|length }} folders · {{ merge.cleanup_candidates }} removable</small></span>
-          <strong>{{ merge.groups }}</strong>
-        </button>
-        {% endfor %}
-      </nav>
-    </section>
-    {% endif %}
-
-    <section class="rail-card cleanup-card" data-cleanup-card data-form-token="{{ form_token }}">
-      <h2>Merge cleanup</h2>
-      <p class="rail-note" data-cleanup-note>Select one merged PR.</p>
-      <button class="button full" type="button" data-plan-run disabled>Preview --dry</button>
-      <label class="reference-check"><input type="checkbox" data-references-checked disabled> Inventor references checked</label>
-      <button class="button full apply-button" type="button" data-cleanup-apply disabled>Apply to quarantine</button>
-      <p class="rail-note muted">Apply revalidates the preview and writes a restoration manifest.</p>
-    </section>
-
-    <section class="rail-card">
+  <aside class="rail-side rail-context" aria-label="Scan and merge cleanup">
+    <section class="rail-card context-card">
       <h2>Scan</h2>
       <dl class="scope-list">
         <div><dt>Workspace</dt><dd>{{ inventory.root.name }}</dd></div>
@@ -185,6 +126,64 @@
         <ul>{% for error in inventory.errors %}<li>{{ error }}</li>{% endfor %}</ul>
       </details>
       {% endif %}
+    </section>
+    <section class="rail-card cleanup-card" data-cleanup-card data-form-token="{{ form_token }}">
+      <h2>Merge cleanup</h2>
+      <p class="rail-note" data-cleanup-note>Select one merged PR.</p>
+      <button class="button full" type="button" data-plan-run disabled>Preview --dry</button>
+      <label class="reference-check"><input type="checkbox" data-references-checked disabled> Inventor references checked</label>
+      <button class="button full apply-button" type="button" data-cleanup-apply disabled>Apply to quarantine</button>
+    </section>
+
+    {% if merge_views %}
+    <section class="rail-card">
+      <h2>Merged PRs</h2>
+      <nav class="rail-nav merge-nav" aria-label="Filter by merged pull request">
+        <button type="button" class="rail-navrow is-active" data-merge-filter="" aria-pressed="true"><span>No PR filter</span></button>
+        {% for merge in merge_views %}
+        <button type="button" class="rail-navrow merge-row" data-merge-filter="{{ merge.key }}" data-plan-src="{{ url_for('merge_cleanup_plan', pr_number=merge.number) }}" data-apply-src="{{ url_for('merge_cleanup_apply', pr_number=merge.number) }}" data-cleanup-candidates="{{ merge.cleanup_candidates }}" aria-pressed="false">
+          <span><b>PR #{{ merge.number }}</b>{{ merge.branch }}<small>{{ merge.cad_files }} CAD · {{ merge.folders|length }} folders · {{ merge.cleanup_candidates }} removable</small></span>
+          <strong>{{ merge.groups }}</strong>
+        </button>
+        {% endfor %}
+      </nav>
+    </section>
+    {% endif %}
+
+  </aside>
+
+  <aside class="rail-side rail-tree" aria-label="Duplicate groups and folders">
+    <section class="rail-card">
+      <h2>Groups</h2>
+      <div class="rail-filters" role="group" aria-label="Filter by duplicate kind">
+        <button type="button" class="rail-filter is-active" data-kind-filter="all" aria-pressed="true"><span>All</span><strong>{{ groups|length }}</strong></button>
+        <button type="button" class="rail-filter exact" data-kind-filter="exact" aria-pressed="false"><span>Identical copies</span><strong>{{ kind_counts.exact }}</strong></button>
+        <button type="button" class="rail-filter renamed" data-kind-filter="renamed" aria-pressed="false"><span>Same bytes, other name</span><strong>{{ kind_counts.renamed }}</strong></button>
+      </div>
+      <div class="rail-filter-extra">
+        <label class="select-wrap compact">
+          <span class="sr-only">Extension</span>
+          <select data-filter-extension>
+            <option value="">All types</option>
+            {% for extension in extensions %}<option value="{{ extension }}">{{ extension }}</option>{% endfor %}
+          </select>
+        </label>
+        <label class="check-control"><input type="checkbox" data-filter-cross> Cross-folder only</label>
+      </div>
+      {% if clash_count %}<a class="rail-link" href="{{ url_for('doctor') }}#name-clashes" data-clash-pointer>{{ clash_count }} name clash{% if clash_count != 1 %}es{% endif %} → Doctor</a>{% endif %}
+    </section>
+
+    <section class="rail-card">
+      <h2>Folders</h2>
+      <nav class="rail-nav" aria-label="Filter by project folder">
+        <button type="button" class="rail-navrow is-active" data-system-filter="" aria-pressed="true"><span>All folders</span><strong>{{ groups|length }}</strong></button>
+        {% for folder in folder_stats %}
+        <button type="button" class="rail-navrow" data-system-filter="{{ folder.name|lower }}" aria-pressed="false">
+          <span title="{{ folder.name }}">{{ folder.name }}</span>
+          <strong>{{ folder.groups }}</strong>
+        </button>
+        {% endfor %}
+      </nav>
     </section>
   </aside>
 </div>
