@@ -688,8 +688,8 @@ def test_the_mesh_route_turns_an_inventor_file_from_its_current_mirror_step(
     root = make_workspace(tmp_path / "PIHTI")
     loaded: list = []
 
-    def load(path):
-        loaded.append(Path(path))
+    def load(path, *, fine=False):
+        loaded.append((Path(path), fine))
         return np.array([[(0, 0, 0), (1, 0, 0), (0, 1, 0)], [(0, 0, 0), (1, 0, 0), (0, 0, 1)]])
 
     monkeypatch.setattr(geometry_preview, "available_extensions", lambda: frozenset({".stl", ".step"}))
@@ -708,7 +708,7 @@ def test_the_mesh_route_turns_an_inventor_file_from_its_current_mirror_step(
     served = client.get(f"{url}?v={key}")
     assert served.status_code == 200 and served.mimetype == "application/octet-stream"
     assert served.headers["Cache-Control"] == "private, max-age=31536000, immutable"
-    assert loaded == [StepMirror(root).target("Frame/frame.iam")]
+    assert loaded == [(StepMirror(root).target("Frame/frame.iam"), True)]
 
     # A resave makes the STEP stale: refused, never the old geometry.
     stamp(root / "Frame" / "frame.iam", BASE + 9_999 * SECOND)
