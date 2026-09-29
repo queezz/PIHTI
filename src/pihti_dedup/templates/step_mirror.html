@@ -44,7 +44,7 @@
             <span class="doctor-preview-stack" aria-hidden="true"><img src="{{ preview_url(row.entry.path) }}" alt="" loading="lazy" decoding="async" width="64" height="48"></span>
             <span class="mirror-file"><strong>{{ row.entry.item.name }}</strong><small>{{ row.entry.item.folder|winpath }}</small></span>
             <span class="mirror-diagnosis"><strong>{{ row.diagnosis }}</strong>{% if row.copies %}<small>{% for path in row.copies %}{{ path|winpath }}{% if not loop.last %} · {% endif %}{% endfor %}</small>{% endif %}</span>
-            <span class="mirror-actions"><a class="copy-path" href="{{ url_for('doctor_name', filename=row.entry.name, assembly=row.entry.path, **{'from': 'step-mirror'}) }}">{{ row.action }}</a></span>
+            <span class="mirror-actions"><a class="copy-path" href="{{ url_for('doctor_name', filename=row.entry.name, assembly=row.entry.path, **{'from': 'step-mirror'}) }}">{{ row.action }}</a>{% if inventor_version and not row.copies %}<form method="post" action="{{ url_for('doctor_verify_reference', filename=row.entry.name) }}"><input type="hidden" name="token" value="{{ form_token }}"><input type="hidden" name="referrer" value="{{ row.entry.path }}"><button class="copy-path" type="submit">Recheck Inventor</button></form>{% endif %}</span>
           </article>
           {% else %}<p class="doctor-empty">None</p>{% endfor %}
         </div>

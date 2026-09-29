@@ -456,10 +456,14 @@ def _rename(
         plan_rename,
         read_ledger,
         settled_pairs,
+        verified_reference_pairs,
     )
     from pihti_dedup.whereused import build_index
 
-    index = build_index(workspace, settled=settled_pairs(read_ledger(workspace)))
+    index = build_index(
+        workspace,
+        settled=settled_pairs(read_ledger(workspace)) | verified_reference_pairs(workspace),
+    )
     try:
         plan = plan_rename(workspace, relative_path, new_name, index=index)
     except RenameError as exc:
@@ -612,7 +616,7 @@ class _FolderLines:
 def _attach_references(mirror, workspace: Path) -> None:
     """Build the pre-check's where-used and filename data once for this run."""
 
-    from pihti_dedup.renames import read_ledger, settled_pairs
+    from pihti_dedup.renames import read_ledger, settled_pairs, verified_reference_pairs
     from pihti_dedup.step_mirror import renamed_names, retired_names
     from pihti_dedup.whereused import build_index, filename_locations
 
@@ -620,7 +624,7 @@ def _attach_references(mirror, workspace: Path) -> None:
         ledger = read_ledger(workspace)
     except OSError:
         ledger = ()
-    pairs = settled_pairs(ledger)
+    pairs = settled_pairs(ledger) | verified_reference_pairs(workspace)
     renamed = renamed_names(ledger)
     retired = retired_names(ledger)
     index = build_index(workspace, settled=pairs)

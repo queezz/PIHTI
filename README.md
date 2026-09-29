@@ -400,7 +400,11 @@ source appears in one work queue only. After Doctor renames a document and
 Inventor saves and reopens its repaired assemblies, the mirror carries their
 existing geometry-equivalent STEP copies to the verified file state. The
 rename therefore does not manufacture a second wave of stale or blocked work;
-a source that had no STEP before the rename still remains missing. The check reads names from the assembly's bytes, so
+a source that had no STEP before the rename still remains missing. If you fix
+a missing reference directly in Inventor but its old name remains embedded in
+the IAM, use **Recheck Inventor** on the blocked row. The viewer opens it with
+resolve dialogs suppressed and unblocks only after Inventor reports no direct
+reference with that name. The check reads names from the assembly's bytes, so
 a name it no longer uses can skip it by mistake; `step-mirror export --force`
 exports one such file anyway. A document a timed-out export left open without
 a window is closed at the next export. In the inspector, an Inventor file without a current

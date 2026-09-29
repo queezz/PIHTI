@@ -6,6 +6,13 @@ remains authoritative for exact file changes.
 
 ## 2026-09-29
 
+- Shipped `pihti-dedup` 0.29.1: a reference repaired manually in Inventor no
+  longer stays blocked because its old filename survives as an inert byte
+  string in the IAM. A missing-reference row now offers **Recheck Inventor**;
+  the guarded action opens the assembly with unresolved dialogs suppressed,
+  verifies that Inventor has no direct descriptor with that name, and records
+  only that assembly/name pair. The STEP queue and CLI then ignore the fossil
+  without hiding the same missing name in any other assembly.
 - Shipped `pihti-dedup` 0.29.0: the STEP mirror is an action queue instead of
   three overlapping inventories. Safe missing and stale files appear once
   under **Ready to export**, name their exact state and timestamps, and get a

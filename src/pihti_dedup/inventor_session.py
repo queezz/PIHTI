@@ -351,6 +351,7 @@ def plan_repair(
     target: Path | None = None,
     survivors: Iterable[Path] = (),
     timeout: float = DEFAULT_TIMEOUT,
+    skip_unresolved: bool = False,
 ) -> RepairPlan:
     """Which referrers are open in Inventor and which carry a matching descriptor.
 
@@ -370,7 +371,15 @@ def plan_repair(
                 rows.append(ReferrerPlan(path, open_in_inventor=True))
                 continue
             try:
-                document = application.Documents.Open(str(path), False)
+                document = (
+                    _open_skipping_unresolved(application, path)
+                    if skip_unresolved
+                    else application.Documents.Open(str(path), False)
+                )
+            except _WouldAsk:
+                rows.append(ReferrerPlan(path, error=WOULD_ASK))
+                run.tick()
+                continue
             except Exception as exc:  # noqa: BLE001 - reported per referrer
                 rows.append(ReferrerPlan(path, error=_reason(exc)))
                 run.tick()

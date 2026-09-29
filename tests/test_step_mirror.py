@@ -18,6 +18,7 @@ from inventor_fake import FakeInventor, fake_session, reference_bytes
 from pihti_dedup import cli, geometry_preview, inventor_session, step_mirror
 from pihti_dedup.inventor_session import EXPORTED, SKIPPED_OPEN, TIMED_OUT
 from pihti_dedup.inventory import scan_workspace
+from pihti_dedup.renames import verified_reference_pairs
 from pihti_dedup.step_mirror import (
     CURRENT,
     MISSING,
@@ -1487,6 +1488,33 @@ def test_the_mirror_page_lists_needs_doctor_with_a_doctor_link(tmp_path: Path) -
     clean_page = clean.get("/step-mirror").get_data(as_text=True)
     section = clean_page.split('id="sec-doctor"', 1)[1].split("</section>", 1)[0]
     assert '<p class="doctor-empty">None</p>' in section
+
+
+def test_recheck_inventor_unblocks_an_owner_fixed_reference_fossil(tmp_path: Path) -> None:
+    root = make_workspace(tmp_path / "PIHTI")
+    frame = root / "Frame" / "frame.iam"
+    frame.write_bytes(reference_bytes(r"C:\gone\manometer-bracket.ipt"))
+    app = fake_for(root)  # Inventor's live descriptor list no longer carries the old name.
+    viewer = create_app(root, session_factory=lambda: fake_session(app))
+    client = viewer.test_client()
+
+    before = client.get("/step-mirror").get_data(as_text=True)
+    assert "References manometer-bracket.ipt; no workspace file has that name." in before
+    assert "Recheck Inventor" in before
+
+    done = client.post(
+        "/doctor/name/manometer-bracket.ipt/verify",
+        data={"token": viewer.config["FORM_TOKEN"], "referrer": "Frame/frame.iam"},
+    )
+
+    assert done.status_code == 302 and done.headers["Location"].endswith("#sec-ready")
+    after = client.get(done.headers["Location"].split("#", 1)[0]).get_data(as_text=True)
+    assert "Verified in Inventor: frame.iam no longer uses that missing reference." in after
+    assert "manometer-bracket.ipt" not in after.split('id="sec-doctor"', 1)[1]
+    assert "frame.iam" in after.split('id="sec-ready"', 1)[1].split("</section>", 1)[0]
+    assert verified_reference_pairs(root) == frozenset(
+        {("Frame/frame.iam", "manometer-bracket.ipt")}
+    )
 
 
 def test_export_now_on_a_needs_doctor_assembly_says_so(tmp_path: Path) -> None:

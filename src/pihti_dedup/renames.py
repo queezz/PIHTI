@@ -49,6 +49,7 @@ RENAMEABLE_EXTENSIONS = REFERENCED_EXTENSIONS
 #: for a durable machine record. JSONL so an append is one line and a
 #: hand-inspection needs no parser.
 LEDGER_RELATIVE = ".agents/rename-ledger.jsonl"
+REFERENCE_LEDGER_RELATIVE = ".agents/reference-verifications.jsonl"
 
 #: Inventor and Windows both start failing well before the extended-path limit,
 #: and this workspace lives under Dropbox, so the classic ceiling is the real one.
@@ -556,6 +557,57 @@ def settled_pairs(entries) -> frozenset[tuple[str, str]]:
         for entry in entries
         for referrer in (*entry.repaired, *entry.indirect)
     )
+
+
+def read_reference_verifications(root: Path) -> tuple[dict, ...]:
+    """Verified `(assembly, fossil name)` rows recorded after an external fix."""
+
+    path = Path(root) / REFERENCE_LEDGER_RELATIVE
+    try:
+        lines = path.read_text(encoding="utf-8").splitlines()
+    except OSError:
+        return ()
+    found = []
+    for line in lines:
+        try:
+            item = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if isinstance(item, dict) and item.get("referrer") and item.get("old_name"):
+            found.append(item)
+    return tuple(found)
+
+
+def verified_reference_pairs(root: Path) -> frozenset[tuple[str, str]]:
+    return frozenset(
+        (str(item["referrer"]), str(item["old_name"]))
+        for item in read_reference_verifications(root)
+    )
+
+
+def record_reference_verification(
+    root: Path, *, referrer: str, old_name: str, version: str
+) -> dict:
+    """Record Inventor's proof that `referrer` no longer directly names `old_name`."""
+
+    existing = read_reference_verifications(root)
+    for item in existing:
+        if (
+            str(item["referrer"]).casefold() == referrer.casefold()
+            and str(item["old_name"]).casefold() == old_name.casefold()
+        ):
+            return item
+    item = {
+        "timestamp": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+        "referrer": referrer,
+        "old_name": old_name,
+        "inventor": version,
+    }
+    path = Path(root) / REFERENCE_LEDGER_RELATIVE
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("a", encoding="utf-8", newline="\n") as handle:
+        handle.write(json.dumps(item, ensure_ascii=False, sort_keys=True) + "\n")
+    return item
 
 
 def ledger_path(root: Path) -> Path:

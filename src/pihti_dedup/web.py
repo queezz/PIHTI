@@ -66,6 +66,9 @@ from pihti_dedup.inventor_session import (
     path_key,
     repair_references,
 )
+from pihti_dedup.inventor_session import (
+    plan_repair as plan_inventor_repair,
+)
 from pihti_dedup.inventory import (
     NEWVER_EXPLANATION,
     ExcludedPath,
@@ -85,10 +88,12 @@ from pihti_dedup.renames import (
     indirect_clause,
     plan_rename,
     read_ledger,
+    record_reference_verification,
     record_repoint,
     set_settled,
     settled_pairs,
     suggest_unique_name,
+    verified_reference_pairs,
 )
 from pihti_dedup.sidecar import (
     FEATURED_KEY,
@@ -1340,7 +1345,7 @@ def create_app(
             ledger = read_ledger(root)
         except OSError:
             return frozenset()
-        return settled_pairs(ledger)
+        return settled_pairs(ledger) | verified_reference_pairs(root)
 
     def _renamed_names() -> frozenset[str]:
         # The old name of a rename still open always blocks a mirror export
@@ -2456,6 +2461,48 @@ def create_app(
         return redirect(
             url_for("doctor_name", filename=filename, fixed=referrer, assembly=assembly_path or None)
         )
+
+    @app.post("/doctor/name/<filename>/verify")
+    def doctor_verify_reference(filename: str):
+        """Verify an owner-fixed reference and suppress its fossil byte string."""
+
+        guard = _guard(request)
+        if guard is not None:
+            return guard
+        referrer = request.form.get("referrer", "").replace("\\", "/").strip("/")
+        source = workspace_file(root, referrer)
+        if source is None or source.suffix.casefold() != ".iam":
+            return Response("that assembly is no longer in the workspace", status=409)
+        referrer = source.relative_to(root).as_posix()
+        if not any(
+            item.casefold() == filename.casefold() for item in _fresh_index().names_in(referrer)
+        ):
+            return redirect(url_for("step_mirror_page", verified=referrer, _anchor="sec-ready"))
+        session = _session()
+        if session is None:
+            return Response("Inventor is not running", status=409)
+        try:
+            plan = plan_inventor_repair(
+                session,
+                [source],
+                filename,
+                timeout=DEFAULT_TIMEOUT,
+                skip_unresolved=True,
+            )
+        except Exception as exc:  # noqa: BLE001 - a COM refusal is the result
+            return Response(f"Inventor could not verify the assembly: {exc}", status=409)
+        row = plan.referrers[0]
+        if row.open_in_inventor:
+            return Response("close the assembly in Inventor, then verify again", status=409)
+        if row.error:
+            return Response(f"Inventor could not verify the assembly: {row.error}", status=409)
+        if row.matches:
+            return Response(f"Inventor still reports {filename} as a direct reference", status=409)
+        record_reference_verification(
+            root, referrer=referrer, old_name=filename, version=plan.version
+        )
+        cache.clear()
+        return redirect(url_for("step_mirror_page", verified=referrer, _anchor="sec-ready"))
 
     def _rename_repair_step(plan, collision_confirmed: bool):
         """Decide the Inventor half of a rename form post.
@@ -4632,6 +4679,12 @@ def create_app(
         step_file = request.args.get("file", "").replace("\\", "/").rsplit("/", 1)[-1]
         if step_code in STEP_TOASTS and step_file:
             single_notice = STEP_TOASTS[step_code].format(name=step_file)
+        verified = request.args.get("verified", "").replace("\\", "/")
+        if verified:
+            single_notice = (
+                f"Verified in Inventor: {verified.rsplit('/', 1)[-1]} no longer uses "
+                "that missing reference."
+            )
         return render_template(
             "step_mirror.html",
             version=__version__,
