@@ -212,7 +212,9 @@ def query_filename_history(repo: Path, basename: str) -> FilenameHistory:
     return FilenameHistory(name, tuple(occurrences))
 
 
-def materialize_historical_blob(repo: Path, commit: str, path: str) -> bytes:
+def materialize_historical_blob(
+    repo: Path, commit: str, path: str, *, before: bool = False
+) -> bytes:
     """Return a historical blob without writing it anywhere.
 
     Only a full object id returned by this module is accepted.  The repository
@@ -233,4 +235,12 @@ def materialize_historical_blob(repo: Path, commit: str, path: str) -> bytes:
     ):
         raise ValueError("path must be a traversal-free repository-relative path")
     root = _repository_root(Path(repo))
-    return _run_git(root, "cat-file", "blob", f"{commit}:{parsed.as_posix()}")
+    revision = commit
+    if before:
+        # A D row names the commit that removed the file.  Its last bytes live
+        # in that commit's first parent, not in the deleting tree itself.
+        parent = _run_git(root, "rev-parse", f"{commit}^").decode("ascii").strip()
+        if not _HEX_OBJECT.fullmatch(parent):
+            raise GitHistoryError(f"Git did not report a parent for {commit}")
+        revision = parent
+    return _run_git(root, "cat-file", "blob", f"{revision}:{parsed.as_posix()}")

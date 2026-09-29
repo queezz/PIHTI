@@ -468,7 +468,8 @@ def test_each_copy_gets_a_suggested_unique_name(tmp_path: Path) -> None:
     assert 'value="RKC CONTROLLER Temp"' in html
     assert 'value="RKC CONTROLLER v2"' in html
     assert html.count(">Rename and fix in Inventor</button>") == 2
-    assert html.count("2 assemblies name it") == 2
+    assert html.count("2 assemblies reference this filename") == 2
+    assert html.count("Rename this file") == 2
 
 
 def test_rename_and_fix_round_trip(tmp_path: Path) -> None:

@@ -452,14 +452,15 @@ def test_reviewed_collision_consolidates_to_one_logged_restorable_survivor(
     keep = "BoronProbe_2026/parts/bearing.ipt"
 
     # Different-byte revisions are never offered for removal on Duplicates;
-    # the reviewed consolidation lives behind a closed disclosure in Doctor.
+    # the reviewed consolidation is visible in Doctor after the rename choices.
     page = client.get("/duplicates/results").get_data(as_text=True)
     assert "Keep only this" not in page
     assert "Quarantine this" not in page
     assert "data-consolidate-keep" not in page
     session = client.get("/doctor/name/bearing.ipt").get_data(as_text=True)
-    assert '<details class="part-card consolidate-disclosure" data-doctor-consolidate' in session
-    assert "<summary>Consolidate after comparing in Inventor</summary>" in session
+    assert '<section class="doctor-panel queue-panel consolidate-disclosure"' in session
+    assert "<h2>Or keep one file</h2>" in session
+    assert "Compare the geometry in Inventor, then choose the surviving path" in session
     assert f'data-consolidate-src="/duplicates/member/{group.id}/consolidate"' in session
     assert session.count("data-consolidate-keep") == 3
 
@@ -2466,7 +2467,9 @@ def test_assembly_doctor_surfaces_git_rename_and_historical_preview(
         "query_filename_history",
         lambda root, name: FilenameHistory(name, (occurrence,)),
     )
-    monkeypatch.setattr(web, "materialize_historical_blob", lambda *args: b"old bytes")
+    monkeypatch.setattr(
+        web, "materialize_historical_blob", lambda *args, **kwargs: b"old bytes"
+    )
     client = create_app(tmp_path).test_client()
 
     html = client.get("/doctor/assembly/Assembly/Fixture.iam").get_data(as_text=True)
@@ -2496,6 +2499,44 @@ def test_assembly_doctor_rejects_non_assemblies_and_traversal(tmp_path: Path) ->
 
     assert client.get("/doctor/assembly/part.ipt").status_code == 404
     assert client.get("/doctor/assembly/..%2Foutside.iam").status_code == 404
+
+
+def test_assembly_doctor_reads_a_deleted_files_preview_before_its_delete_commit(
+    monkeypatch, tmp_path: Path
+) -> None:
+    assembly = tmp_path / "Assembly" / "Fixture.iam"
+    assembly.parent.mkdir()
+    assembly.write_bytes(
+        b"\x00\x00" + "Gone.ipt".encode("utf-16-le") + b"\x00\x00"
+    )
+    occurrence = FilenameOccurrence(
+        commit="b" * 40,
+        committed_at="2026-08-01T10:00:00+09:00",
+        subject="Remove old import",
+        status="D",
+        path="Legacy/Gone.ipt",
+    )
+    calls = []
+    monkeypatch.setattr(
+        web,
+        "query_filename_history",
+        lambda root, name: FilenameHistory(name, (occurrence,)),
+    )
+
+    def materialize(*args, **kwargs):
+        calls.append((args, kwargs))
+        return b"old bytes"
+
+    monkeypatch.setattr(web, "materialize_historical_blob", materialize)
+    client = create_app(tmp_path).test_client()
+
+    html = client.get("/doctor/assembly/Assembly/Fixture.iam").get_data(as_text=True)
+    assert "/doctor/history-preview/" + "b" * 40 + "/Legacy/Gone.ipt?before=1" in html
+    response = client.get(
+        "/doctor/history-preview/" + "b" * 40 + "/Legacy/Gone.ipt?before=1"
+    )
+    assert response.status_code == 200
+    assert calls[-1][1] == {"before": True}
 
 
 def test_packaged_script_drives_the_folder_tree_and_the_rename_ledger(tmp_path: Path) -> None:
@@ -3589,10 +3630,9 @@ def test_doctor_collision_session_leads_with_rename_and_repair(tmp_path: Path) -
     # One row per copy: a suggested unique name and the one chip.
     assert html.count(">Rename and fix in Inventor</button>") == 3
     assert html.count('<input type="hidden" name="repair" value="1">') == 3
-    disclosure = html.split('<details class="part-card consolidate-disclosure"', 1)[1]
-    assert disclosure.split(">", 1)[0].count(" open") == 0
+    assert '<section class="doctor-panel queue-panel consolidate-disclosure"' in html
     assert html.index("Rename and fix in Inventor") < html.index(
-        "Consolidate after comparing in Inventor"
+        "Or keep one file"
     )
     assert "Keep only this" not in html and "Quarantine this" not in html
 

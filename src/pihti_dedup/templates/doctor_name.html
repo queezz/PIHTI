@@ -6,10 +6,16 @@
 <main class="page">
   <div class="work-grid two-rail doctor-session">
     <div class="work-main">
-      {% set crumbs = [{'name': 'Doctor', 'url': url_for('doctor')}] %}
+      {% set crumbs = [] %}
+      {% if from_mirror %}{% set _ = crumbs.append({'name': 'STEP mirror', 'url': url_for('step_mirror_page')}) %}{% endif %}
+      {% set _ = crumbs.append({'name': 'Doctor', 'url': url_for('doctor')}) %}
       {% if assembly_path %}{% set _ = crumbs.append({'name': assembly_path.rsplit('/', 1)[-1], 'url': url_for('doctor_assembly', relative_path=assembly_path)}) %}{% endif %}
       {% set _ = crumbs.append({'name': filename}) %}
       {{ page_bar(crumbs) }}
+
+      {% if from_mirror and assembly_path %}
+      <p class="metadata-notice mirror-context-notice" role="status"><strong>STEP export is blocked for {{ assembly_path.rsplit('/', 1)[-1] }}.</strong> It references <code>{{ filename }}</code>. {% if current_members|length > 1 %}{{ current_members|length }} workspace files have that exact filename; rename one or compare them and keep one.{% elif not current_members %}No workspace file has that name; choose the file this assembly should use.{% endif %}</p>
+      {% endif %}
 
       {% if renamed %}<p class="metadata-notice doctor-notice" role="status">{% if rename_notice %}{{ rename_notice.text }}{% else %}Renamed and recorded.{% endif %}</p>{% endif %}
       {% if notice %}<p class="metadata-notice doctor-notice" role="status">{{ notice }}</p>{% endif %}
@@ -23,7 +29,7 @@
           {% for member in current_members %}
           <article class="queue-row copy-row{% if draft_path == member.path %} has-draft{% endif %}" data-copy-row>
             <a class="queue-thumb" href="{{ url_for('part_page', relative_path=member.path) }}" aria-label="Open {{ member.path|winpath }}"><img src="{{ preview_url(member.path) }}" alt="Preview of {{ member.path|winpath }}" loading="lazy" decoding="async" width="64" height="48"></a>
-            <span class="queue-name"><a href="{{ url_for('part_page', relative_path=member.path) }}" title="{{ member.path|winpath }}">{{ member.folder|winpath }}</a><small>{{ referrers|length }} assembl{{ 'y names' if referrers|length == 1 else 'ies name' }} it · <button class="copy-link" type="button" data-copy-text="{{ member.absolute|winpath }}">copy path</button></small></span>
+            <span class="queue-name"><a href="{{ url_for('part_page', relative_path=member.path) }}" title="{{ member.path|winpath }}">{{ member.path|winpath }}</a><small>{{ referrers|length }} assembl{{ 'y references' if referrers|length == 1 else 'ies reference' }} this filename · <button class="copy-link" type="button" data-copy-text="{{ member.absolute|winpath }}">copy path</button></small></span>
             {% if repair_pending and draft_path == member.path %}
             <div class="copy-confirm">{% with repair_action=doctor_name_action, repair_relative_path=member.path %}{% include "_repair_confirm.html" %}{% endwith %}</div>
             {% elif rename_pending and draft_path == member.path %}
@@ -41,6 +47,7 @@
             <form method="post" action="{{ doctor_name_action }}" class="copy-form">
               <input type="hidden" name="token" value="{{ form_token }}">
               <input type="hidden" name="relative_path" value="{{ member.path }}">
+              <span class="copy-form-label">Rename this file</span>
               <label class="rename-input"><span class="sr-only">New name for {{ member.path|winpath }}</span><input name="new_name" type="text" value="{{ draft_name if draft_path == member.path and draft_name else member.suggested_stem }}" autocomplete="off" spellcheck="false" required><span class="rename-suffix">{{ member.suffix }}</span></label>
               {% if session.version and referrers %}
               <input type="hidden" name="repair" value="1">
@@ -97,14 +104,14 @@
       {% endif %}
 
       {% if consolidation %}
-      <details class="part-card consolidate-disclosure" data-doctor-consolidate data-consolidate-src="{{ consolidation.src }}" data-form-token="{{ form_token }}" data-done="{{ consolidation.done }}" data-member-count="{{ consolidation.members|length }}">
-        <summary>Consolidate after comparing in Inventor</summary>
+      <section class="doctor-panel queue-panel consolidate-disclosure" id="consolidate" data-doctor-consolidate data-consolidate-src="{{ consolidation.src }}" data-form-token="{{ form_token }}" data-done="{{ consolidation.done }}" data-member-count="{{ consolidation.members|length }}">
+        <header><div><h2>Or keep one file</h2><small class="problem-kind">Compare the geometry in Inventor, then choose the surviving path</small></div><strong>{{ consolidation.members|length }}</strong></header>
         <ul class="consolidate-list">
           {% for member in consolidation.members %}
           <li><code>{{ member.path|winpath }}</code>{% if member.sha256 %} <small>{{ member.sha256[:10] }}</small>{% endif %}<button class="copy-path" type="button" data-consolidate-keep data-keep-path="{{ member.path }}" data-display-path="{{ member.path|winpath }}">Keep this one</button></li>
           {% endfor %}
         </ul>
-      </details>
+      </section>
       {% endif %}
     </div>
 
@@ -127,10 +134,12 @@
       {% if current_members %}{% set _ = jumps.append(('#copies', 'Copies' if current_members|length > 1 else 'File', current_members|length)) %}{% endif %}
       {% set _ = jumps.append(('#referrers', 'Assemblies naming it', fix_rows|length if fix_rows or not current_members else referrers|length)) %}
       {% if entries %}{% set _ = jumps.append(('#history', 'Renamed', entries|length)) %}{% endif %}
+      {% if consolidation %}{% set _ = jumps.append(('#consolidate', 'Keep one file', consolidation.members|length)) %}{% endif %}
       {{ jump_card(jumps) }}
       <section class="rail-card">
         <h2>Doctor</h2>
         <nav class="rail-nav" aria-label="Doctor">
+          {% if from_mirror %}<a class="rail-navrow" href="{{ url_for('step_mirror_page') }}"><span>Back to STEP mirror</span></a>{% endif %}
           {% if assembly_path %}<a class="rail-navrow" href="{{ url_for('doctor_assembly', relative_path=assembly_path) }}"><span>{{ assembly_path.rsplit('/', 1)[-1] }}</span></a>{% endif %}
           <a class="rail-navrow" href="{{ url_for('doctor') }}"><span>All queues</span></a>
         </nav>

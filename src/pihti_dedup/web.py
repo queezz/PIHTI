@@ -2001,6 +2001,7 @@ def create_app(
                                 if occurrence.status[:1] in {"R", "C"}
                                 and occurrence.rename_destination
                                 else occurrence.path,
+                                "preview_before": occurrence.status[:1] == "D",
                                 "current_destination": (
                                     occurrence.rename_destination
                                     if occurrence.rename_destination
@@ -2080,11 +2081,14 @@ def create_app(
     @app.get("/doctor/history-preview/<commit>/<path:relative_path>")
     def git_history_preview(commit: str, relative_path: str):
         try:
-            data = materialize_historical_blob(root, commit, relative_path)
+            before = _flag(request.args.get("before"))
+            data = materialize_historical_blob(root, commit, relative_path, before=before)
         except (GitHistoryError, OSError, ValueError):
             return Response("historical file unavailable", status=404, mimetype="text/plain")
         digest = hashlib.sha256(
-            f"{commit}:{relative_path}".encode("utf-8", "surrogatepass")
+            f"{commit}:{'before:' if before else ''}{relative_path}".encode(
+                "utf-8", "surrogatepass"
+            )
         ).hexdigest()
         store = machine_cache / GIT_PREVIEWS_DIRNAME
         cached = store / f"{digest}{Path(relative_path).suffix.lower()}"
@@ -2185,6 +2189,7 @@ def create_app(
                     "done": fixed_note,
                 }
             )
+        from_mirror = request.values.get("from") == "step-mirror"
         consolidation = None
         if len(current_members) > 1:
             clash = next(
@@ -2204,7 +2209,10 @@ def create_app(
                         for record in clash.records
                     ],
                     "done": url_for(
-                        "doctor_name", filename=filename, assembly=assembly_path or None
+                        "doctor_name",
+                        filename=filename,
+                        assembly=assembly_path or None,
+                        **{"from": "step-mirror" if from_mirror else None},
                     ),
                 }
         kept = request.args.get("kept", "")
@@ -2244,8 +2252,12 @@ def create_app(
             "renamed": _flag(request.args.get("renamed")),
             "root": root,
             "assembly_path": assembly_path,
+            "from_mirror": from_mirror,
             "doctor_name_action": url_for(
-                "doctor_name", filename=filename, assembly=assembly_path or None
+                "doctor_name",
+                filename=filename,
+                assembly=assembly_path or None,
+                **{"from": "step-mirror" if from_mirror else None},
             ),
         }
 
@@ -2317,6 +2329,7 @@ def create_app(
                     pending=plan,
                 ),
             ), 409
+        current_steps = mirror.current_steps((plan.old_path, *plan.referrers))
         try:
             result = execute_rename(root, plan, confirmed=confirmed, session=session)
         except (RenameError, OSError) as exc:
@@ -2329,6 +2342,12 @@ def create_app(
                     draft_name=new_name,
                 ),
             ), 409
+        mirror.carry_forward_rename(
+            result.entry.old_path,
+            result.entry.new_path,
+            result.entry.repaired,
+            current_steps,
+        )
         cache.clear()
         entry_id = result.entry.id if result.repair is not None else None
         assembly_path = _validated_doctor_assembly(request.values.get("assembly", ""))
@@ -3165,12 +3184,19 @@ def create_app(
             context = _part_context(target)
             context.update(rename_pending=plan, rename_draft=plan.new_name)
             return render_template("part.html", **context), 409
+        current_steps = mirror.current_steps((plan.old_path, *plan.referrers))
         try:
             result = execute_rename(root, plan, confirmed=confirmed, session=session)
         except (RenameError, OSError) as exc:
             context = _part_context(target)
             context.update(rename_error=str(exc), rename_draft=new_name)
             return render_template("part.html", **context), 409
+        mirror.carry_forward_rename(
+            result.entry.old_path,
+            result.entry.new_path,
+            result.entry.repaired,
+            current_steps,
+        )
         cache.clear()
         return redirect(
             url_for(
@@ -3995,15 +4021,28 @@ def create_app(
         part_mesh = mesh_url(relative)
         if step_mirror.in_scope(relative):
             state = mirror.state(relative, stat.st_mtime_ns, stat.st_size)
+            blocked = mirror.blocker(relative) if state.state != step_mirror.CURRENT else None
             step = {
                 "state": state.state,
                 "step_mtime_ns": state.step_mtime_ns,
-                "available": _session() is not None,
+                "source_mtime_ns": stat.st_mtime_ns,
+                "available": blocked is None and _session() is not None,
+                "blocker_name": blocked[0] if blocked else "",
+                "blocker_reason": blocked[1] if blocked else "",
+                "doctor_url": url_for(
+                    "doctor_name",
+                    filename=blocked[0],
+                    assembly=relative,
+                    **{"from": "step-mirror"},
+                )
+                if blocked
+                else "",
             }
             if state.state != step_mirror.CURRENT:
                 part_mesh = ""  # the File card names the state and the action
         return {
             "step": step,
+            "from_mirror": request.args.get("from") == "step-mirror",
             "part_mesh": part_mesh,
             "sourcing_rows": sourcing_rows,
             "sourcing_add": sourcing_add,
@@ -4524,6 +4563,15 @@ def create_app(
             code = _step_code(result.outcome)
         state = {"step": code}
         origin = request.form.get("origin", "")
+        if origin == "step-mirror":
+            return redirect(
+                url_for(
+                    "step_mirror_page",
+                    **state,
+                    file=relative,
+                    _anchor="sec-ready",
+                )
+            )
         if origin == "part":
             return redirect(url_for("part_page", relative_path=relative, **state, file=relative))
         folder = "."
@@ -4557,11 +4605,41 @@ def create_app(
         session = _session()
         job = app.extensions.get("pihti_step_mirror_job")
         needs_doctor = mirror.needs_doctor(status)
+        blocked_paths = {entry.path.casefold() for entry in needs_doctor}
+        ready_missing = tuple(
+            item for item in status.missing if item.path.casefold() not in blocked_paths
+        )
+        ready_stale = tuple(
+            item for item in status.stale if item.path.casefold() not in blocked_paths
+        )
+        locations = _current_locations()
+        doctor_rows = []
+        for entry in needs_doctor:
+            copies = locations.get(entry.name.casefold(), ())
+            if copies:
+                diagnosis = (
+                    f"References {entry.name}; {len(copies)} workspace files have that name."
+                )
+                action = f"Review {len(copies)} files"
+            else:
+                diagnosis = f"References {entry.name}; no workspace file has that name."
+                action = "Choose a replacement"
+            doctor_rows.append(
+                {"entry": entry, "diagnosis": diagnosis, "action": action, "copies": copies}
+            )
+        single_notice = ""
+        step_code = request.args.get("step", "")
+        step_file = request.args.get("file", "").replace("\\", "/").rsplit("/", 1)[-1]
+        if step_code in STEP_TOASTS and step_file:
+            single_notice = STEP_TOASTS[step_code].format(name=step_file)
         return render_template(
             "step_mirror.html",
             version=__version__,
             status=status,
             needs_doctor=needs_doctor,
+            doctor_rows=doctor_rows,
+            ready_missing=ready_missing,
+            ready_stale=ready_stale,
             location=str(mirror.root),
             created=mirror.root.is_dir(),
             recent=mirror.recent(),
@@ -4570,8 +4648,9 @@ def create_app(
             background=refresh_seconds > 0,
             deferred=job.deferred() if job is not None else {},
             batch=mirror_batch.status(),
-            exportable=len(status.queue) - len(needs_doctor),
+            exportable=len(ready_missing) + len(ready_stale),
             batch_notice=BATCH_NOTICES.get(request.args.get("batch", ""), ""),
+            single_notice=single_notice,
             start_inventor=START_INVENTOR,
             form_token=app.config["FORM_TOKEN"],
         )

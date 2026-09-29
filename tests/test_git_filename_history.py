@@ -127,3 +127,21 @@ def test_blob_materialization_rejects_revision_and_path_injection(tmp_path: Path
         query_filename_history(repo, "folder/part.ipt")
     with pytest.raises(GitHistoryError):
         materialize_historical_blob(repo, "f" * 40, "part.ipt")
+
+
+def test_deleted_file_materializes_from_the_deleting_commits_parent(tmp_path: Path) -> None:
+    repo = make_repo(tmp_path)
+    part = repo / "Legacy" / "Bracket.ipt"
+    part.parent.mkdir()
+    part.write_bytes(b"last surviving preview")
+    git(repo, "add", "--", "Legacy/Bracket.ipt")
+    commit(repo, "Add bracket", "2026-08-05T12:00:00+09:00")
+    part.unlink()
+    git(repo, "add", "--", "Legacy/Bracket.ipt")
+    deleted = commit(repo, "Remove bracket", "2026-08-06T12:00:00+09:00")
+
+    with pytest.raises(GitHistoryError):
+        materialize_historical_blob(repo, deleted, "Legacy/Bracket.ipt")
+    assert materialize_historical_blob(
+        repo, deleted, "Legacy/Bracket.ipt", before=True
+    ) == b"last surviving preview"

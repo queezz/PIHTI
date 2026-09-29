@@ -4,6 +4,23 @@ Shipped archive milestones only. PIHTI does not yet have a formal release/versio
 contract, so entries are dated rather than assigned software versions. Git history
 remains authoritative for exact file changes.
 
+## 2026-09-29
+
+- Shipped `pihti-dedup` 0.29.0: the STEP mirror is an action queue instead of
+  three overlapping inventories. Safe missing and stale files appear once
+  under **Ready to export**, name their exact state and timestamps, and get a
+  direct Export or Re-export button while Inventor is running. Assemblies that
+  would prompt now appear once under **Blocked by references**, identify the
+  referenced child and every matching workspace path, and link to the exact
+  Doctor decision. The file page preserves this context and provides a route
+  back. Doctor exposes full paths, labels each rename input, and keeps the
+  compare-and-keep choice visible instead of hiding it in a disclosure.
+  Rename repair now carries geometry-equivalent STEP copies to the renamed
+  source and the assemblies Inventor saved and verified, so one rename does
+  not make those same files reappear as stale or newly blocked work. Deleted
+  files in Doctor's Git evidence render their last preview from the parent of
+  the deleting commit instead of showing a broken image.
+
 ## 2026-09-25
 
 - Shipped `pihti-dedup` 0.28.0: sourcing shows where you already are. The

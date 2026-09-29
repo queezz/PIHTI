@@ -1,16 +1,24 @@
 {% extends "base.html" %}
 {% from "_shell.html" import page_bar %}
 {% block title %}STEP mirror · PIHTI{% endblock %}
-{% macro mirror_rows(items, empty) %}
-<div class="doctor-list">
-  {% for item in items %}
-  <a class="doctor-row mirror-row" href="{{ url_for('part_page', relative_path=item.path) }}">
-    <span class="doctor-preview-stack" aria-hidden="true"><img src="{{ preview_url(item.path) }}" alt="" loading="lazy" decoding="async" width="64" height="48"></span>
-    <span><strong>{{ item.name }}</strong><small>{{ item.folder|winpath }}</small></span>
-    <b>{% if item.step_mtime_ns %}STEP {{ item.step_mtime_ns|minutetime }}{% else %}modified {{ item.source_mtime_ns|minutetime }}{% endif %}</b>
-  </a>
-  {% else %}<p class="doctor-empty">{{ empty }}</p>{% endfor %}
-</div>
+{% macro ready_row(item, state) %}
+<article class="doctor-row mirror-row mirror-action-row">
+  <a class="doctor-preview-stack" href="{{ url_for('part_page', relative_path=item.path, **{'from': 'step-mirror'}) }}" aria-label="Open {{ item.path|winpath }}"><img src="{{ preview_url(item.path) }}" alt="" loading="lazy" decoding="async" width="64" height="48"></a>
+  <span class="mirror-file"><a href="{{ url_for('part_page', relative_path=item.path, **{'from': 'step-mirror'}) }}"><strong>{{ item.name }}</strong></a><small>{{ item.folder|winpath }}</small></span>
+  <span class="mirror-diagnosis">
+    {% if state == 'stale' %}<strong>STEP is stale</strong><small>Source saved {{ item.source_mtime_ns|minutetime }} · STEP exported {{ item.step_mtime_ns|minutetime }}</small>
+    {% else %}<strong>No STEP copy</strong><small>Source saved {{ item.source_mtime_ns|minutetime }}</small>{% endif %}
+  </span>
+  <span class="mirror-actions">
+    {% if inventor_version %}
+    <form method="post" action="{{ url_for('part_step_export', relative_path=item.path) }}">
+      <input type="hidden" name="token" value="{{ form_token }}">
+      <input type="hidden" name="origin" value="step-mirror">
+      <button class="copy-path" type="submit">{{ 'Re-export STEP' if state == 'stale' else 'Export STEP' }}</button>
+    </form>
+    {% else %}<span class="mirror-waiting">Start Inventor to export</span>{% endif %}
+  </span>
+</article>
 {% endmacro %}
 {% block body %}
 <main class="page">
@@ -18,25 +26,26 @@
     <div class="work-main">
       {{ page_bar([{'name': 'STEP mirror'}]) }}
 
-      <section class="doctor-panel standard-group" id="sec-missing">
-        <header><div><h2>Missing</h2><small class="problem-kind">No copy yet</small></div><strong>{{ status.missing|length }}</strong></header>
-        {{ mirror_rows(status.missing, 'None') }}
-      </section>
-
-      <section class="doctor-panel standard-group" id="sec-stale">
-        <header><div><h2>Stale</h2><small class="problem-kind">Saved since the copy</small></div><strong>{{ status.stale|length }}</strong></header>
-        {{ mirror_rows(status.stale, 'None') }}
+      {% if single_notice %}<p class="metadata-notice doctor-notice" role="status">{{ single_notice }}</p>{% endif %}
+      <section class="doctor-panel standard-group" id="sec-ready">
+        <header><div><h2>Ready to export</h2><small class="problem-kind">Safe to open without an Inventor prompt</small></div><strong>{{ exportable }}</strong></header>
+        <div class="doctor-list">
+          {% for item in ready_stale %}{{ ready_row(item, 'stale') }}{% endfor %}
+          {% for item in ready_missing %}{{ ready_row(item, 'missing') }}{% endfor %}
+          {% if not ready_stale and not ready_missing %}<p class="doctor-empty">{% if needs_doctor %}No files are ready. Resolve the blocked references below.{% else %}Every STEP copy is current.{% endif %}</p>{% endif %}
+        </div>
       </section>
 
       <section class="doctor-panel standard-group" id="sec-doctor">
-        <header><div><h2>Needs Doctor</h2><small class="problem-kind">Inventor would ask</small></div><strong>{{ needs_doctor|length }}</strong></header>
+        <header><div><h2>Blocked by references</h2><small class="problem-kind">Resolve these before STEP export</small></div><strong>{{ doctor_rows|length }}</strong></header>
         <div class="doctor-list">
-          {% for entry in needs_doctor %}
-          <a class="doctor-row mirror-row mirror-doctor" href="{{ url_for('doctor_name', filename=entry.name, assembly=entry.path) }}">
-            <span class="doctor-preview-stack" aria-hidden="true"><img src="{{ preview_url(entry.path) }}" alt="" loading="lazy" decoding="async" width="64" height="48"></span>
-            <span><strong>{{ entry.item.name }}</strong><small>{{ entry.item.folder|winpath }}</small></span>
-            <b>{{ entry.reason }}</b>
-          </a>
+          {% for row in doctor_rows %}
+          <article class="doctor-row mirror-row mirror-action-row mirror-doctor">
+            <span class="doctor-preview-stack" aria-hidden="true"><img src="{{ preview_url(row.entry.path) }}" alt="" loading="lazy" decoding="async" width="64" height="48"></span>
+            <span class="mirror-file"><strong>{{ row.entry.item.name }}</strong><small>{{ row.entry.item.folder|winpath }}</small></span>
+            <span class="mirror-diagnosis"><strong>{{ row.diagnosis }}</strong>{% if row.copies %}<small>{% for path in row.copies %}{{ path|winpath }}{% if not loop.last %} · {% endif %}{% endfor %}</small>{% endif %}</span>
+            <span class="mirror-actions"><a class="copy-path" href="{{ url_for('doctor_name', filename=row.entry.name, assembly=row.entry.path, **{'from': 'step-mirror'}) }}">{{ row.action }}</a></span>
+          </article>
           {% else %}<p class="doctor-empty">None</p>{% endfor %}
         </div>
       </section>
@@ -87,7 +96,7 @@
           <span class="mirror-batch-count" data-batch-count>{{ exportable }} waiting</span>
         </form>
         {% elif not batch.running %}
-        <p class="rail-note muted">Nothing to export.</p>
+        <p class="rail-note muted">{% if needs_doctor %}{{ needs_doctor|length }} blocked below.{% else %}Everything is current.{% endif %}</p>
         {% endif %}
         {% elif not batch.running %}
         <p class="rail-note muted" data-batch-absent>{{ start_inventor }}</p>
@@ -105,9 +114,8 @@
       <section class="rail-card">
         <h2>On this page</h2>
         <nav class="rail-nav" aria-label="Mirror sections">
-          <a class="rail-navrow" href="#sec-missing"><span>Missing</span><strong>{{ status.missing|length }}</strong></a>
-          <a class="rail-navrow" href="#sec-stale"><span>Stale</span><strong>{{ status.stale|length }}</strong></a>
-          <a class="rail-navrow" href="#sec-doctor"><span>Needs Doctor</span><strong>{{ needs_doctor|length }}</strong></a>
+          <a class="rail-navrow" href="#sec-ready"><span>Ready to export</span><strong>{{ exportable }}</strong></a>
+          <a class="rail-navrow" href="#sec-doctor"><span>Blocked</span><strong>{{ needs_doctor|length }}</strong></a>
           <a class="rail-navrow" href="#sec-recent"><span>Last exports</span><strong>{{ recent|length }}</strong></a>
         </nav>
       </section>

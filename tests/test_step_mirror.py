@@ -107,6 +107,118 @@ def test_only_parts_and_assemblies_in_the_default_scope_are_mirrored() -> None:
     assert StepMirror(Path("/w"), Path("/m")).target("A/lp-box.ipt") == Path("/m/A/lp-box.ipt.step")
 
 
+def test_repaired_rename_carries_geometry_equivalent_steps_forward(
+    tmp_path: Path, step_mirror_folder: Path
+) -> None:
+    old = "Box/Body.ipt"
+    new = "Box/Clamp body.ipt"
+    referrer = "Box/Fixture.iam"
+    (tmp_path / "Box").mkdir()
+    source = tmp_path / old
+    source.write_bytes(b"same part geometry")
+    assembly = tmp_path / referrer
+    assembly.write_bytes(b"assembly before repair")
+
+    mirror = StepMirror(tmp_path)
+    mirror.ensure_root()
+    old_step = mirror.target(old)
+    old_step.parent.mkdir(parents=True, exist_ok=True)
+    old_step.write_bytes(b"part STEP")
+    referrer_step = mirror.target(referrer)
+    referrer_step.write_bytes(b"assembly STEP")
+    old_stat = source.stat()
+    before = assembly.stat()
+    mirror.index_path.write_text(
+        json.dumps(
+            {
+                "version": 1,
+                "entries": {
+                    old.casefold(): {
+                        "path": old,
+                        "step": step_mirror.step_relative(old),
+                        "source_mtime_ns": old_stat.st_mtime_ns,
+                        "source_size": old_stat.st_size,
+                    },
+                    referrer.casefold(): {
+                        "path": referrer,
+                        "step": step_mirror.step_relative(referrer),
+                        "source_mtime_ns": before.st_mtime_ns,
+                        "source_size": before.st_size,
+                    },
+                },
+                "recent": [],
+            }
+        ),
+        encoding="utf-8",
+    )
+    current_before = mirror.current_steps((old, referrer))
+    source.rename(tmp_path / new)
+    assembly.write_bytes(b"assembly after reference-name repair")
+
+    advanced = mirror.carry_forward_rename(old, new, (referrer,), current_before)
+    index = json.loads(mirror.index_path.read_text(encoding="utf-8"))["entries"]
+
+    assert advanced == (new, referrer)
+    assert not old_step.exists()
+    assert mirror.target(new).read_bytes() == b"part STEP"
+    assert old.casefold() not in index
+    assert index[new.casefold()]["path"] == new
+    assert index[referrer.casefold()]["source_mtime_ns"] == assembly.stat().st_mtime_ns
+    assert index[referrer.casefold()]["source_size"] == assembly.stat().st_size
+
+
+def test_rename_carry_forward_never_claims_a_step_that_did_not_exist(
+    tmp_path: Path, step_mirror_folder: Path
+) -> None:
+    (tmp_path / "Box").mkdir()
+    (tmp_path / "Box" / "Named.ipt").write_bytes(b"part")
+    mirror = StepMirror(tmp_path)
+
+    assert mirror.carry_forward_rename(
+        "Box/Body.ipt", "Box/Named.ipt", (), frozenset()
+    ) == ()
+    assert not step_mirror_folder.exists()
+
+
+def test_rename_carry_forward_leaves_a_preexisting_stale_step_stale(
+    tmp_path: Path, step_mirror_folder: Path
+) -> None:
+    old = "Box/Body.ipt"
+    new = "Box/Named.ipt"
+    (tmp_path / "Box").mkdir()
+    source = tmp_path / old
+    source.write_bytes(b"new geometry")
+    mirror = StepMirror(tmp_path)
+    mirror.ensure_root()
+    mirror.target(old).parent.mkdir(parents=True, exist_ok=True)
+    mirror.target(old).write_bytes(b"old STEP")
+    mirror.index_path.write_text(
+        json.dumps(
+            {
+                "version": 1,
+                "entries": {
+                    old.casefold(): {
+                        "path": old,
+                        "step": step_mirror.step_relative(old),
+                        "source_mtime_ns": source.stat().st_mtime_ns,
+                        "source_size": 1,
+                    }
+                },
+                "recent": [],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    current_before = mirror.current_steps((old,))
+    source.rename(tmp_path / new)
+
+    assert current_before == frozenset()
+    assert mirror.carry_forward_rename(old, new, (), current_before) == ()
+    assert mirror.target(old).is_file()
+    assert not mirror.target(new).exists()
+
+
 # ---- staleness --------------------------------------------------------------
 
 
@@ -771,6 +883,14 @@ def test_export_now_is_guarded_exports_and_returns_to_the_file(tmp_path: Path) -
     page = client.get(location.split("#", 1)[0]).get_data(as_text=True)
     assert "STEP exported: frame.iam" in page
 
+    from_mirror = client.post(url, data={"token": token, "origin": "step-mirror"})
+    assert from_mirror.headers["Location"].startswith("/step-mirror?")
+    assert from_mirror.headers["Location"].endswith("#sec-ready")
+    mirror_page = client.get(from_mirror.headers["Location"].split("#", 1)[0]).get_data(
+        as_text=True
+    )
+    assert "STEP exported: frame.iam" in mirror_page
+
     from_part = client.post(url, data={"token": token, "origin": "part"})
     assert from_part.headers["Location"].startswith("/part/Frame/frame.iam?")
 
@@ -795,23 +915,30 @@ def test_the_part_page_names_the_step_and_turns_a_current_one(tmp_path: Path) ->
     client = create_app(root).test_client()
 
     before = client.get("/part/Frame/frame.iam").get_data(as_text=True)
-    assert "<dt>STEP</dt><dd>none</dd>" in before
-    assert "Open Inventor to export" in before and "Export STEP now" not in before
+    assert "<dt>STEP</dt><dd>Missing</dd>" in before
+    assert "Open Inventor to export" in before and ">Export STEP</button>" not in before
     assert "data-mesh-viewer" not in before
 
     with_session = create_app(root, session_factory=lambda: fake_session(app)).test_client()
     offered = with_session.get("/part/Frame/frame.iam").get_data(as_text=True)
-    assert 'action="/part/Frame/frame.iam/step-export"' in offered and "Export STEP now" in offered
+    assert 'action="/part/Frame/frame.iam/step-export"' in offered and ">Export STEP</button>" in offered
 
     export_now(root)
     after = client.get("/part/Frame/frame.iam").get_data(as_text=True)
-    assert re.search(r"<dt>STEP</dt><dd>\d{4}-\d\d-\d\d \d\d:\d\d</dd>", after)
-    assert "Export STEP now" not in after and "Open Inventor to export" not in after
+    assert re.search(r"<dt>STEP</dt><dd>Current · \d{4}-\d\d-\d\d \d\d:\d\d</dd>", after)
+    assert ">Export STEP</button>" not in after and "Open Inventor to export" not in after
     assert re.search(r'data-mesh-viewer data-mesh="/mesh/Frame/frame.iam\?v=[0-9a-f]+-[0-9a-f]+-s[0-9a-f]+-m', after)
 
     stamp(root / "Frame" / "frame.iam", BASE + 9_999 * SECOND)
     stale = client.get("/part/Frame/frame.iam").get_data(as_text=True)
-    assert ", older than the file</dd>" in stale and "data-mesh-viewer" not in stale
+    assert "<dt>STEP</dt><dd>Stale ·" in stale and "data-mesh-viewer" not in stale
+    stale_from_mirror = with_session.get(
+        "/part/Frame/frame.iam?from=step-mirror"
+    ).get_data(as_text=True)
+    assert "STEP is stale." in stale_from_mirror
+    assert "The source was saved" in stale_from_mirror and "its STEP was exported" in stale_from_mirror
+    assert ">Re-export STEP</button>" in stale_from_mirror
+    assert "Back to STEP mirror" in stale_from_mirror
 
     other = client.get("/part/Frame/parts/old.ipt").get_data(as_text=True)
     assert "<dt>STEP</dt>" in other
@@ -847,11 +974,13 @@ def test_the_mirror_page_lists_what_waits_and_what_was_exported(
     assert "Start Inventor, open PIHTI.ipj, then come back" in page
     assert "Created by the first export" in page
     assert str(step_mirror_folder).replace("/", "\\") in page
-    missing = page.split('id="sec-missing"', 1)[1].split("</section>", 1)[0]
-    assert missing.index("old.ipt") < missing.index("new.ipt")
-    assert "<small>Frame\\parts</small>" in missing
+    ready = page.split('id="sec-ready"', 1)[1].split("</section>", 1)[0]
+    assert ready.index("old.ipt") < ready.index("new.ipt")
+    assert "<small>Frame\\parts</small>" in ready
+    assert ready.count("No STEP copy") == 4
+    assert ready.count("Start Inventor to export") == 4
     assert "Nothing exported yet." in page
-    for anchor in ("#sec-missing", "#sec-stale", "#sec-recent"):
+    for anchor in ("#sec-ready", "#sec-doctor", "#sec-recent"):
         assert f'href="{anchor}"' in page
     assert not step_mirror_folder.exists()
 
@@ -862,7 +991,7 @@ def test_the_mirror_page_lists_what_waits_and_what_was_exported(
     assert "Inventor 2027.1" in page
     recent = page.split('id="sec-recent"', 1)[1].split("</section>", 1)[0]
     assert "Frame\\frame.iam" in recent and "<small>exported</small>" in recent
-    assert "frame.iam" not in page.split('id="sec-missing"', 1)[1].split("</section>", 1)[0]
+    assert "frame.iam" not in page.split('id="sec-ready"', 1)[1].split("</section>", 1)[0]
     assert "The folder is created" not in page
 
 
@@ -1337,12 +1466,22 @@ def test_the_mirror_page_lists_needs_doctor_with_a_doctor_link(tmp_path: Path) -
 
     page = client.get("/step-mirror").get_data(as_text=True)
     section = page.split('id="sec-doctor"', 1)[1].split("</section>", 1)[0]
-    assert "<h2>Needs Doctor</h2>" in section and "<strong>1</strong>" in section
-    assert 'href="/doctor/name/board.ipt?assembly=Frame/frame.iam"' in section
-    assert "<strong>frame.iam</strong>" in section and "board.ipt exists twice" in section
+    assert "<h2>Blocked by references</h2>" in section and "<strong>1</strong>" in section
+    assert 'href="/doctor/name/board.ipt?assembly=Frame/frame.iam&amp;from=step-mirror"' in section
+    assert "<strong>frame.iam</strong>" in section
+    assert "References board.ipt; 2 workspace files have that name." in section
+    assert "Review 2 files" in section
+    ready = page.split('id="sec-ready"', 1)[1].split("</section>", 1)[0]
+    assert "frame.iam" not in ready  # a blocked assembly appears in one work queue only
     assert "<dt>Need Doctor</dt><dd>1</dd>" in page
     assert 'href="#sec-doctor"' in page
-    assert client.get("/doctor/name/board.ipt?assembly=Frame/frame.iam").status_code == 200
+    doctor = client.get(
+        "/doctor/name/board.ipt?assembly=Frame/frame.iam&from=step-mirror"
+    ).get_data(as_text=True)
+    assert "STEP export is blocked for frame.iam." in doctor
+    assert "2 workspace files have that exact filename" in doctor
+    assert "Back to STEP mirror" in doctor
+    assert "Rename this file" in doctor
 
     clean = create_app(make_workspace(tmp_path / "Clean")).test_client()
     clean_page = clean.get("/step-mirror").get_data(as_text=True)
@@ -1354,6 +1493,13 @@ def test_export_now_on_a_needs_doctor_assembly_says_so(tmp_path: Path) -> None:
     root = make_blocked_workspace(tmp_path / "PIHTI")
     app = fake_for(root)
     viewer = create_app(root, session_factory=lambda: fake_session(app))
+    page = viewer.test_client().get(
+        "/part/Frame/frame.iam?from=step-mirror"
+    ).get_data(as_text=True)
+    assert "STEP export is blocked." in page
+    assert "References <code>board.ipt</code>" in page
+    assert "Resolve in Doctor" in page and "Export STEP</button>" not in page
+    assert "Back to STEP mirror" in page
     done = viewer.test_client().post(
         "/part/Frame/frame.iam/step-export",
         data={"token": viewer.config["FORM_TOKEN"], "origin": "part"},
@@ -1796,7 +1942,7 @@ def test_the_page_starts_a_batch_and_reports_it_as_json(tmp_path: Path) -> None:
     assert status["counts"] == {"current": 4, "stale": 0, "missing": 0, "total": 4}
     page = client.get("/step-mirror").get_data(as_text=True)
     assert "Finished · exported 4 of 4" in mirror_card(page)
-    assert "Nothing to export." in mirror_card(page)
+    assert "Everything is current." in mirror_card(page)
 
     script = client.get("/static/dedup.js").get_data(as_text=True)
     assert "[data-mirror-batch]" in script and "var POLL_MS = 3000;" in script

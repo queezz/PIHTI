@@ -9,6 +9,14 @@
     <div class="work-main catalog-main">
       {{ catalog_bar(breadcrumbs, filter=false) }}
 
+      {% if from_mirror and step and step.state != 'current' %}
+      <p class="metadata-notice mirror-context-notice" role="status">
+        {% if step.blocker_reason %}<strong>STEP export is blocked.</strong> This assembly references <code>{{ step.blocker_name }}</code>, but {{ step.blocker_reason }}.
+        {% elif step.state == 'stale' %}<strong>STEP is stale.</strong> The source was saved {{ step.source_mtime_ns|minutetime }}; its STEP was exported {{ step.step_mtime_ns|minutetime }}.
+        {% else %}<strong>No STEP copy exists.</strong> Export this file to add it to the mirror.{% endif %}
+      </p>
+      {% endif %}
+
       <section class="part-sheet">
         {% set mesh = part_mesh %}
         <div class="part-preview"{% if mesh %} data-mesh-viewer data-mesh="{{ mesh }}" data-mesh-name="{{ name }}" data-mesh-folder="{{ folder|winpath if folder != '.' else '' }}"{% endif %}>
@@ -115,14 +123,17 @@
           <div><dt>Type</dt><dd>{{ suffix[1:]|upper or 'FILE' }}</dd></div>
           <div><dt>Size</dt><dd>{{ size|filesize }}</dd></div>
           <div><dt>Modified</dt><dd>{{ mtime_ns|filetime }}</dd></div>
-          {% if step %}<div><dt>STEP</dt><dd>{% if step.state == 'missing' %}none{% else %}{{ step.step_mtime_ns|minutetime }}{% if step.state == 'stale' %}, older than the file{% endif %}{% endif %}</dd></div>{% endif %}
+          {% if step %}<div><dt>STEP</dt><dd>{% if step.state == 'missing' %}Missing{% elif step.state == 'stale' %}Stale · {{ step.step_mtime_ns|minutetime }}{% else %}Current · {{ step.step_mtime_ns|minutetime }}{% endif %}</dd></div>{% endif %}
         </dl>
         {% if step and step.state != 'current' %}
-        {% if step.available %}
+        {% if step.blocker_reason %}
+        <p class="part-note step-problem">References <code>{{ step.blocker_name }}</code>: {{ step.blocker_reason }}.</p>
+        <p class="step-export-card"><a class="copy-path" href="{{ step.doctor_url }}">Resolve in Doctor</a></p>
+        {% elif step.available %}
         <form class="step-export-card" method="post" action="{{ url_for('part_step_export', relative_path=path) }}">
           <input type="hidden" name="token" value="{{ form_token }}">
           <input type="hidden" name="origin" value="part">
-          <button class="copy-path" type="submit">Export STEP now</button>
+          <button class="copy-path" type="submit">{{ 'Re-export STEP' if step.state == 'stale' else 'Export STEP' }}</button>
         </form>
         {% else %}<p class="part-note muted step-export-card">Open Inventor to export</p>{% endif %}
         {% endif %}
@@ -140,6 +151,7 @@
         </ul>
         {% endif %}
         <div class="chip-row">
+          {% if from_mirror %}<a class="copy-path" href="{{ url_for('step_mirror_page') }}">Back to STEP mirror</a>{% endif %}
           <a class="copy-path" href="{{ url_for('catalog', relative_folder=folder if folder != '.' else none) }}">Back to folder</a>
           {% if sourcing_add %}<a class="copy-path" href="{{ sourcing_add }}">Add option</a>{% endif %}
           {% if folder_editable %}<a class="copy-path" href="{{ url_for('folder_page', relative_folder=folder) }}">Folder note</a>{% endif %}

@@ -1087,6 +1087,107 @@ class StepMirror:
         if not readme.exists():
             readme.write_text(README_TEXT, encoding="utf-8")
 
+    def current_steps(self, relatives: Iterable[str]) -> frozenset[str]:
+        """Paths whose indexed STEP is current now, for a before-write snapshot."""
+
+        entries = self.index().get("entries", {})
+        current: set[str] = set()
+        for relative in relatives:
+            relative = str(relative).replace("\\", "/").strip("/")
+            entry = entries.get(relative.casefold())
+            if not isinstance(entry, dict) or not self.target(relative).is_file():
+                continue
+            try:
+                stat = (self.workspace / relative).stat()
+            except OSError:
+                continue
+            if _matches(entry, stat.st_mtime_ns, stat.st_size):
+                current.add(relative.casefold())
+        return frozenset(current)
+
+    def carry_forward_rename(
+        self,
+        old_path: str,
+        new_path: str,
+        repaired: Iterable[str],
+        current_before: Iterable[str],
+    ) -> tuple[str, ...]:
+        """Keep geometry-equivalent STEP copies current after a repaired rename.
+
+        A rename does not alter the renamed document's geometry.  Replacing
+        that name in a referring assembly and saving it likewise changes the
+        reference identity, not the assembled geometry.  Inventor has just
+        opened, saved, and reopened every path in ``repaired`` successfully,
+        so their existing STEP copies remain valid.  Move the renamed source's
+        STEP to its new one-to-one mirror path and advance existing index
+        entries for the verified referrers to their new file state.
+
+        ``current_before`` is captured before Inventor writes anything. Nothing
+        is invented: only copies proven current in that snapshot can advance.
+        Returns the paths whose entries advanced.
+        """
+
+        old_path = str(old_path).replace("\\", "/").strip("/")
+        new_path = str(new_path).replace("\\", "/").strip("/")
+        eligible = {str(path).replace("\\", "/").strip("/").casefold() for path in current_before}
+        advanced: list[str] = []
+        with self._lock:
+            index = self._read_index()
+            entries = index.setdefault("entries", {})
+            old_key = old_path.casefold()
+            new_key = new_path.casefold()
+            old_entry = entries.get(old_key)
+            old_step = self.target(old_path)
+            new_step = self.target(new_path)
+            if old_key in eligible and isinstance(old_entry, dict) and old_step.is_file():
+                try:
+                    source_stat = (self.workspace / new_path).stat()
+                    new_step.parent.mkdir(parents=True, exist_ok=True)
+                    os.replace(old_step, new_step)
+                except OSError:
+                    log.warning(
+                        "could not carry STEP mirror rename %s -> %s",
+                        old_path,
+                        new_path,
+                        exc_info=True,
+                    )
+                else:
+                    entries.pop(old_key, None)
+                    entries[new_key] = {
+                        **old_entry,
+                        "path": new_path,
+                        "step": step_relative(new_path),
+                        "source_mtime_ns": source_stat.st_mtime_ns,
+                        "source_size": source_stat.st_size,
+                    }
+                    advanced.append(new_path)
+
+            for relative in repaired:
+                relative = str(relative).replace("\\", "/").strip("/")
+                key = relative.casefold()
+                if key not in eligible:
+                    continue
+                entry = entries.get(key)
+                if not isinstance(entry, dict) or not self.target(relative).is_file():
+                    continue
+                try:
+                    source_stat = (self.workspace / relative).stat()
+                except OSError:
+                    continue
+                entry.update(
+                    path=relative,
+                    step=step_relative(relative),
+                    source_mtime_ns=source_stat.st_mtime_ns,
+                    source_size=source_stat.st_size,
+                )
+                advanced.append(relative)
+
+            if advanced:
+                self._write_index(index)
+                self._index_stamp = None
+                self._generation += 1
+        return tuple(advanced)
+
     def export(
         self,
         session: Session,

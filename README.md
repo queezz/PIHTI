@@ -393,16 +393,24 @@ file you have open in Inventor waits until it is closed, and nothing happens
 while Inventor is closed. An assembly that would make Inventor stop and ask
 (it names a file that exists more than once, or a file no workspace folder
 outside `OldVersions` carries and Inventor would not find as a template or a
-Content Center part) is not opened: it is listed as **Needs Doctor** with a link to
-that name's Doctor page. The check reads names from the assembly's bytes, so
+Content Center part) is not opened: it is listed under **Blocked by references**,
+with the exact referenced name, every matching workspace path, and a direct
+Doctor action. Blocked assemblies are kept out of **Ready to export**, so each
+source appears in one work queue only. After Doctor renames a document and
+Inventor saves and reopens its repaired assemblies, the mirror carries their
+existing geometry-equivalent STEP copies to the verified file state. The
+rename therefore does not manufacture a second wave of stale or blocked work;
+a source that had no STEP before the rename still remains missing. The check reads names from the assembly's bytes, so
 a name it no longer uses can skip it by mistake; `step-mirror export --force`
 exports one such file anyway. A document a timed-out export left open without
 a window is closed at the next export. In the inspector, an Inventor file without a current
 copy shows "3D needs the STEP mirror · export now"; the part page's File card
 shows the copy's time, or none, with the same action. **STEP mirror N / M** in
 the top bar counts the current copies, and the **STEP mirror** tab opens a page
-listing what is missing, what is out of date, what needs Doctor, and the last
-exports. With Inventor open, that
+with direct **Export STEP** and **Re-export STEP** actions for safe files,
+explicit missing/stale timing, blocked references, and the last exports.
+Opening a file from this page keeps the STEP state and its next action visible,
+with a route back to the mirror. With Inventor open, that
 page's **Export fresh STEPs** runs the same batch as `step-mirror sync` in the
 viewer (everything missing or out of date, oldest first, with the same skips)
 while the background export waits; a status line follows it every few seconds
