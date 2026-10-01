@@ -6,6 +6,9 @@ remains authoritative for exact file changes.
 
 ## 2026-10-01
 
+- Shipped `pihti-dedup` 0.30.5: add the target simulation role with an amber
+  colour preset to the STEP viewer, saved metadata and simulation bundles.
+
 - Shipped `pihti-dedup` 0.30.4: the large STEP viewer shares the inspector's
   Y/Z orientation, X/Y/Z section cuts and section-position slider. Orientation
   is remembered per file; sections affect only the displayed view.

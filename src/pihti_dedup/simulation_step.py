@@ -22,6 +22,7 @@ ROLES = {
     "cathode": "#a777db",
     "preanode": "#e9b65c",
     "anode": "#e77a71",
+    "target": "#df935b",
     "ground": "#6aa5cb",
     "floating": "#73c0a2",
     "insulator": "#ded4b6",
