@@ -19,7 +19,7 @@ belongs to the separate pihtivacuum application. Install or refresh this project
 from the repository root with:
 
 ```powershell
-& "$HOME\.venvs\pihti-dedup\Scripts\python.exe" -m pip install -e ".[dev,preview,step,inventor]"
+& "$HOME\.venvs\pihti-dedup\Scripts\python.exe" -m pip install -e ".[dev,preview,step,inventor,simulation]"
 ```
 
 `preview` and `step` are the optional geometry-preview extras. Without them the

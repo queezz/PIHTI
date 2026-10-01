@@ -114,6 +114,7 @@
     <aside class="rail-side rail-context" aria-label="File facts">
       <section class="rail-card context-card">
         <h2>File</h2>
+        {% if suffix in (".ipt", ".iam", ".step", ".stp") %}<a class="copy-path" href="{{ url_for('simulation.page', source=path) }}">Open in STEP viewer</a>{% endif %}
         <p class="context-title">{{ name }}</p>
         <div class="context-path">
           <code title="{{ path|winpath }}">{{ path|winpath }}</code>

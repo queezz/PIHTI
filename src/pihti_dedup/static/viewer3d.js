@@ -48,14 +48,14 @@
   var PRECISION = "#ifdef GL_FRAGMENT_PRECISION_HIGH\nprecision highp float;\n#else\nprecision mediump float;\n#endif";
   var LIGHT_UNIFORMS = [
     "uniform vec3 uKey;", "uniform vec3 uBase;", "uniform float uAmbient;", "uniform float uFill;",
-    "uniform vec4 uClip;", "uniform float uBack;", "varying vec3 vMesh;"
+    "uniform float uPick;", "uniform vec4 uClip;", "uniform float uBack;", "varying vec3 vMesh;"
   ];
   var CLIP_BODY = ["  if (dot(vMesh, uClip.xyz) > uClip.w) discard;"];
   var LIGHT_BODY = [
     "  float shade = gl_FrontFacing ? 1.0 : uBack;",
     "  if (n.z < 0.0) n = -n;",  // two-sided, as the still renderer is
     "  float light = uAmbient + (1.0 - uAmbient) * max(dot(n, uKey), 0.0) + uFill * n.z;",
-    "  gl_FragColor = vec4(min(clamp(light, 0.0, 1.15) * shade * uBase, vec3(1.0)), 1.0);"
+    "  gl_FragColor = vec4(min(clamp(light, 0.0, 1.15) * shade * uBase, vec3(1.0)), 1.0);", "  if (uPick > 0.5) gl_FragColor = vec4(uBase, 1.0);"
   ];
 
   var VERTEX_ATTR = [
@@ -211,7 +211,7 @@
 
   function create(canvas, options) {
     options = options || {};
-    var gl = canvas.getContext("webgl", { antialias: true, alpha: false });
+    var gl = canvas.getContext("webgl", { antialias: !options.onPick, alpha: false });
     if (!gl) return null;
     // The box's background is fixed for the life of this canvas (it is never
     // reparented), so one read at creation is enough.
@@ -316,12 +316,13 @@
       if (!frame) frame = window.requestAnimationFrame(render);
     }
 
-    function render() {
+    function render(pick) {
+      pick = pick === true;
       if (frame) { window.cancelAnimationFrame(frame); }
       frame = 0;
       if (lost || !width || !height) return;
       gl.viewport(0, 0, canvas.width, canvas.height);
-      gl.clearColor(BACKDROP[0], BACKDROP[1], BACKDROP[2], 1);
+      gl.clearColor(pick ? 0 : BACKDROP[0], pick ? 0 : BACKDROP[1], pick ? 0 : BACKDROP[2], 1);
       gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
       if (!buffers) return;
       var axes = basis();
@@ -354,7 +355,19 @@
         gl.vertexAttribPointer(at.normal, 3, gl.FLOAT, false, 0, 0);
         gl.enableVertexAttribArray(at.normal);
       }
-      gl.drawArrays(gl.TRIANGLES, 0, mesh.count * 3);
+      gl.uniform1f(gl.getUniformLocation(program, "uPick"), pick ? 1 : 0);
+      if (pick) gl.disable(gl.DITHER); else gl.enable(gl.DITHER);
+      var baseAt = gl.getUniformLocation(program, "uBase");
+      if (mesh.parts) {
+        mesh.parts.forEach(function (part, index) {
+          if (part.hidden) return;
+          var rgb = part.colour || BASE;
+          if (pick) { var id = index + 1; rgb = [(id & 255) / 255, ((id >> 8) & 255) / 255, ((id >> 16) & 255) / 255]; }
+          else if (mesh.parts.some(function(p){return p.selected;}) && !part.selected) rgb = rgb.map(function(v){return v * 0.45;});
+          gl.uniform3fv(baseAt, rgb);
+          gl.drawArrays(gl.TRIANGLES, part.start, part.count);
+        });
+      } else { gl.uniform3fv(baseAt, BASE); gl.drawArrays(gl.TRIANGLES, 0, mesh.count * 3); }
     }
 
     function release() {
@@ -387,8 +400,18 @@
       var perPixel = 2 * view.halfHeight / height;
       view.target = add(add(view.target, axes.right, -dx * perPixel), axes.up, dy * perPixel);
     }
+    var pickStart = null;
+    canvas.addEventListener("click", function (event) {
+      if (!options.onPick || !mesh || !mesh.parts || !pickStart || Math.hypot(event.clientX - pickStart[0], event.clientY - pickStart[1]) > 4) return;
+      render(true);
+      var box = canvas.getBoundingClientRect(); var pixel = new Uint8Array(4);
+      gl.readPixels(Math.floor((event.clientX-box.left)*canvas.width/box.width), Math.floor((box.bottom-event.clientY)*canvas.height/box.height), 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, pixel);
+      var id = pixel[0] + (pixel[1] << 8) + (pixel[2] << 16) - 1;
+      render(); if (id >= 0 && id < mesh.parts.length) options.onPick(id);
+    });
     canvas.addEventListener("pointerdown", function (event) {
       if (!mesh) return;
+      pickStart = [event.clientX, event.clientY];
       window.cancelAnimationFrame(spin);
       spin = 0;
       var panning = event.button === 2 || event.button === 1 || event.shiftKey;
@@ -481,6 +504,7 @@
         canvas.height = Math.max(1, Math.round(height * ratio));
         draw();
       },
+      setParts: function (parts) { if (mesh) { mesh.parts = parts; draw(); } },
       clear: release,
       home: home,
       // A new up axis returns to that axis's home view.

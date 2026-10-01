@@ -21,6 +21,7 @@
       <a href="{{ url_for('doctor') }}" {% if request.endpoint in ('doctor', 'doctor_name', 'doctor_assembly', 'doctor_standard_parts', 'doctor_repoint') %}class="is-current" aria-current="page"{% endif %}>Doctor</a>
       <a href="{{ url_for('renames') }}" {% if request.endpoint == 'renames' %}class="is-current" aria-current="page"{% endif %}>Renames</a>
       <a href="{{ url_for('removed') }}" {% if request.endpoint == 'removed' %}class="is-current" aria-current="page"{% endif %}>Removed</a>
+      <a href="{{ url_for('simulation.page') }}" {% if request.blueprint == 'simulation' %}class="is-current" aria-current="page"{% endif %}>STEP viewer</a>
       <a href="{{ url_for('step_mirror_page') }}" {% if request.endpoint in ('step_mirror_page', 'step_mirror_batch_start', 'step_mirror_batch_stop') %}class="is-current" aria-current="page"{% endif %}>STEP mirror</a>
     </nav>
     <div class="topbar-meta">

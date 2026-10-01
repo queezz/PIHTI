@@ -1,0 +1,188 @@
+(function () {
+
+  "use strict";
+
+  var page = document.querySelector('[data-simulation]');
+
+  if (!page) return;
+
+  var source = document.getElementById('sim-source'), form = document.getElementById('sim-edit');
+
+  var status = document.getElementById('sim-status'), canvas = document.getElementById('sim-canvas');
+
+  var parts = [], model = null, selected = null, viewer = null, opening = false;
+
+  var sourceName = '', generation = 0;
+
+  function say(text) { status.textContent = text; }
+
+  function colour(hex) { return [1, 3, 5].map(function (i) { return parseInt(hex.slice(i,i+2),16)/255; }); }
+
+  function repaint() {
+
+    if (viewer) viewer.setParts(parts.map(function (p) { return {start:p.start,count:p.count,colour:colour(p.colour),selected:p===selected,hidden:document.getElementById('sim-isolate').checked && p!==selected}; }));
+
+  }
+
+  function list() {
+
+    var area = document.getElementById('sim-parts'), query = document.getElementById('sim-find').value.toLowerCase();
+
+    area.replaceChildren();
+
+    parts.forEach(function (part) {
+
+      if (![part.name,part.original,part.material,part.role,part.occurrence.join('/')].join(' ').toLowerCase().includes(query)) return;
+
+      var button = document.createElement('button'); button.type = 'button'; button.setAttribute('aria-pressed', String(part===selected));
+
+      var swatch = document.createElement('span'); swatch.className='sim-swatch'; swatch.style.backgroundColor=part.colour;
+
+      var text=document.createElement('span'); text.textContent=part.name;
+
+      var detail=document.createElement('small'); detail.textContent=[part.role||'Unassigned',part.material,part.mapped?'Saved':'Unmapped'].filter(Boolean).join(' · ');
+
+      text.appendChild(detail); button.append(swatch,text); button.addEventListener('click',function(){ select(part.id); }); area.appendChild(button);
+
+    });
+
+  }
+
+  function select(id) {
+
+    if(form.dataset.dirty==='true' && !window.confirm('Discard unsaved part edits?')) return;
+
+    form.dataset.dirty='false';
+
+    selected=parts.find(function(p){return p.id===id;}) || null;
+
+    if (!selected) return;
+    document.getElementById('sim-fields').disabled=!selected.stable;
+
+    ['name','material','role','colour'].forEach(function(k){ form.elements[k].value=selected[k]; });
+
+    document.getElementById('sim-original').textContent=selected.occurrence.join(' / ');
+
+    document.getElementById('sim-save').disabled=!selected.stable;
+
+    say(selected.stable ? 'Edit this part, then Save part.' : 'Occurrence has no unique name; name it in Inventor and re-export.');
+
+    list(); repaint();
+
+  }
+
+  async function answer(response) {
+
+    var value=await response.json(); if (!response.ok) throw new Error(value.error||'Request failed'); return value;
+
+  }
+
+  async function open() {
+
+    if (opening || !source.value) return;
+
+    if (form.dataset.dirty==='true' && !window.confirm('Discard unsaved part edits?')) return;
+
+    var ticket=++generation; opening=true; selected=null; document.getElementById('sim-fields').disabled=true; parts=[]; sourceName=source.value;
+
+    document.querySelectorAll('[data-sim-export]').forEach(function(b){b.disabled=true;});
+
+    document.getElementById('sim-save').disabled=true;
+
+    document.getElementById('sim-empty').hidden=false; document.getElementById('sim-empty').textContent='Loading STEP…';
+
+    if(viewer) viewer.clear(); list(); say('Reading STEP…');
+
+    history.replaceState(null,'','/simulation?source='+encodeURIComponent(sourceName));
+
+    try {
+
+      model=await answer(await fetch('/simulation/model?source='+encodeURIComponent(sourceName)));
+
+      var response=await fetch('/simulation/mesh?source='+encodeURIComponent(sourceName)+'&hash='+model.source_hash);
+
+      if(!response.ok) await answer(response);
+
+      var mesh=window.PihtiViewer3D.parse(await response.arrayBuffer());
+
+      if(ticket!==generation) return;
+
+      if(!viewer) viewer=window.PihtiViewer3D.create(canvas,{onPick:select});
+
+      if(!viewer) throw new Error('WebGL is unavailable');
+
+      parts=model.parts; mesh.parts=parts.map(function(p){return {start:p.start,count:p.count,colour:colour(p.colour)};});
+
+      viewer.resize(canvas.parentElement.clientWidth,canvas.parentElement.clientHeight);
+
+      viewer.show(mesh,{up:document.getElementById('sim-up').value});
+
+      document.getElementById('sim-empty').hidden=true;
+
+      form.dataset.dirty='false'; document.getElementById('sim-summary').textContent=parts.length+' parts · mm';
+
+      document.querySelectorAll('[data-sim-export]').forEach(function(b){b.disabled=false;}); list();
+
+      say('Click a part in the model or the parts list.');
+
+    } catch(error) { say(error.message); document.getElementById('sim-empty').textContent=error.message; }
+
+    finally { opening=false; }
+
+  }
+
+  document.getElementById('sim-open').addEventListener('click',open);
+
+  form.addEventListener('input',function(){form.dataset.dirty='true';});
+
+  form.elements.role.addEventListener('change',function(){var option=this.selectedOptions[0];form.elements.colour.value=option.dataset.colour;});
+
+  form.addEventListener('submit',async function(event){
+
+    event.preventDefault(); if(!selected) return;
+
+    var entry={}; ['name','material','role','colour'].forEach(function(k){entry[k]=form.elements[k].value.trim();});
+
+    document.getElementById('sim-save').disabled=true;
+
+    try {
+
+      var value=await answer(await fetch('/simulation/map',{method:'POST',headers:{'Content-Type':'application/json','X-PIHTI-Token':page.dataset.token},body:JSON.stringify({source:sourceName,source_hash:model.source_hash,revision:model.revision,key:selected.key,entry:entry})}));
+
+      model.revision=value.revision; Object.assign(selected,entry,{mapped:true}); form.dataset.dirty='false'; list(); repaint(); say('Part saved.');
+
+    } catch(error){say(error.message);} finally {document.getElementById('sim-save').disabled=!selected.stable;}
+
+  });
+
+  document.querySelectorAll('[data-sim-export]').forEach(function(button){button.addEventListener('click',async function(){
+
+    if(form.dataset.dirty==='true'){say('Save this part before exporting.');return;}
+
+    var data=new FormData(); Object.entries({token:page.dataset.token,source:sourceName,source_hash:model.source_hash,revision:model.revision,purpose:button.dataset.simExport}).forEach(function(pair){data.append(pair[0],pair[1]);});
+
+    button.disabled=true; say('Preparing STEP…');
+
+    try {var response=await fetch('/simulation/export',{method:'POST',body:data});if(!response.ok)await answer(response);var url=URL.createObjectURL(await response.blob());var a=document.createElement('a');a.href=url;a.download=sourceName.split('/').pop().replace(/\.(iam|ipt|step|stp)$/i,'')+'-prepared.zip';a.click();setTimeout(function(){URL.revokeObjectURL(url);},30000);say('Export prepared.');}
+
+    catch(error){say(error.message);}finally{button.disabled=false;}
+
+  });});
+
+  document.getElementById('sim-fit').addEventListener('click',function(){if(viewer)viewer.home();});
+
+  document.getElementById('sim-up').addEventListener('change',function(){if(viewer)viewer.setUp(this.value);});
+
+  document.getElementById('sim-isolate').addEventListener('change',repaint);
+
+  document.getElementById('sim-find').addEventListener('input',list);
+
+  page.addEventListener('keydown',function(event){if(event.key==='Escape'){if(form.dataset.dirty==='true' && !window.confirm('Discard unsaved part edits?'))return;form.dataset.dirty='false';selected=null;form.reset();document.getElementById('sim-original').textContent='Select in the model or parts list.';document.getElementById('sim-fields').disabled=true;document.getElementById('sim-save').disabled=true;document.getElementById('sim-isolate').checked=false;list();repaint();}});
+
+  window.addEventListener('beforeunload',function(event){if(form.dataset.dirty==='true'){event.preventDefault();event.returnValue='';}});
+
+  new ResizeObserver(function(){if(viewer)viewer.resize(canvas.parentElement.clientWidth,canvas.parentElement.clientHeight);}).observe(canvas.parentElement);
+
+  var initial=new URLSearchParams(location.search).get('source'); if(initial){source.value=initial;open();}
+
+})();

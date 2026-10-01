@@ -3297,6 +3297,10 @@ def create_app(
             return Response("invalid form token", status=403)
         return None
 
+    from pihti_dedup.simulation_web import register as register_simulation
+
+    register_simulation(app, root, mirror, _guard)
+
     def _catalog_index(inventory: Inventory) -> list[dict]:
         # Inventories are immutable and swapped whole, so identity is an exact
         # key: the folder tree is rebuilt only when the inventory changed.

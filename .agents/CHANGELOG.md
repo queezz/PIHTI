@@ -4,6 +4,16 @@ Shipped archive milestones only. PIHTI does not yet have a formal release/versio
 contract, so entries are dated rather than assigned software versions. Git history
 remains authoritative for exact file changes.
 
+## 2026-10-01
+
+- Shipped `pihti-dedup` 0.30.0: dedicated STEP viewer with part picking,
+  stable named-occurrence maps, simulation names/materials/electrical roles,
+  role colour presets and individual colours. Prepared AP242 STEP and JSON
+  bundles preserve world geometry in millimetres, report unmatched parts and
+  flatten assembly occurrences into distinct named products. Original Inventor
+  files and the STEP mirror stay read-only. Simulation export requires complete
+  material and role assignments; the repeat-export module reapplies the map.
+
 ## 2026-09-29
 
 - Shipped `pihti-dedup` 0.29.1: a reference repaired manually in Inventor no

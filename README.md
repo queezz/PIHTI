@@ -333,6 +333,46 @@ Pack-and-Go support files under `bellows/Design Data/` and
 viewer. The original `scripts/find_duplicates.py` command remains available for
 the earlier JSON/CSV/Markdown inventory workflow.
 
+### Simulation STEP viewer
+
+Open **STEP viewer** in `lab pihti`, or **Open in STEP viewer** on a part page.
+Choose a mirrored assembly/part or a workspace STEP. A stale mirror must be
+re-exported first. Click a part in 3D or in the searchable list, set its name,
+material and electrical role, choose a colour, then **Save part**. Roles offer
+colour presets; the colour remains editable. Isolate a selected part, change
+Y/Z up, rotate, pan, zoom and fit the model without changing its coordinates.
+
+Install the optional editing dependency with the existing external environment:
+
+```powershell
+& "$env:USERPROFILE\.venvs\pihti-dedup\Scripts\python.exe" -m pip install -e ".[simulation]"
+```
+
+The versioned map is `simulation/parts.json`. It keys the original source and
+named occurrence path; never STEP/gmsh entity numbers. A changed occurrence is
+unmatched and needs mapping again; unnamed or duplicate occurrence paths cannot
+be safely mapped. Inventor renames therefore require a reviewed map update.
+
+**Coloured STEP** downloads a ZIP containing `prepared.step`, `parts.json`
+(the names, roles, materials, original-to-new matches and unmatched report),
+and the saved map. **Simulation bundle** additionally requires a saved name,
+material and role for every part. Roles and materials travel in the JSON report;
+STEP contains product names and colours. Geometry is exported in original world
+coordinates and millimetres, with assembly occurrences flattened to individual
+products. Repeated names are qualified by their original occurrence paths.
+This prepares geometry and metadata; it does not mesh it or assign voltages.
+
+To apply the same map to a later export without opening the browser:
+
+```powershell
+& "$env:USERPROFILE\.venvs\pihti-dedup\Scripts\python.exe" -m pihti_dedup.simulation_step . "C:\exports\new.step" "Plasma Vessel/Plasma-vessel-with-plasma-box.iam" "C:\exports\prepared.zip" --simulation
+```
+
+The source argument must match the source chosen in the viewer. The output must
+be a new file; existing exports are refused. Original STEP and Inventor files
+are never overwritten. On macOS/Linux, use `~/.venvs/pihti-dedup/bin/python`
+with the same module arguments and local export paths.
+
 ### Part catalog and metadata sidecars
 
 The same local server serves a hierarchical catalog at `/catalog`, folder routes

@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+{% block title %}STEP viewer · PIHTI CAD{% endblock %}
+{% block body %}
+<main class="page work-grid two-rail simulation-page" data-simulation data-token="{{ form_token }}">
+  <aside class="rail-side rail-context">
+    <section class="rail-card">
+      <h2>Open STEP</h2>
+      <label class="field">Assembly or part<select id="sim-source"><option value="">Choose a file</option>{% for source in sources %}<option value="{{ source }}">{{ source }}</option>{% endfor %}</select></label>
+      <button type="button" id="sim-open" class="rail-action">Open model</button>
+      <a href="{{ url_for('step_mirror_page') }}">STEP mirror</a>
+    </section>
+    <section class="rail-card">
+      <h2>Selected part</h2>
+      <p id="sim-original" class="rail-note">Select in the model or parts list.</p>
+      <form id="sim-edit"><fieldset id="sim-fields" disabled>
+        <label class="field">Name<input name="name" required maxlength="200"></label>
+        <label class="field">Material<input name="material" maxlength="200" placeholder="e.g. Kapton"></label>
+        <label class="field">Electrical role<select name="role">{% for role, colour in roles.items() %}<option value="{{ role }}" data-colour="{{ colour }}">{{ role or 'Unassigned' }}</option>{% endfor %}</select></label>
+        <label class="field">Colour<input type="color" name="colour" value="#cbd0d6"></label>
+        <button class="rail-action" type="submit" id="sim-save" disabled>Save part</button>
+      </fieldset></form>
+    </section>
+    <section class="rail-card">
+      <h2>Export</h2>
+      <button type="button" class="rail-action" data-sim-export="view" disabled>Coloured STEP</button>
+      <button type="button" class="rail-action" data-sim-export="simulation" disabled>Simulation bundle</button>
+      <p class="rail-note">ZIP: STEP plus names, materials, roles and match report. Simulation needs every part mapped.</p>
+    </section>
+  </aside>
+  <section class="work-main">
+    <header class="page-bar"><strong>STEP viewer</strong><span id="sim-summary" class="muted">Open → select → name & colour → export</span></header>
+    <div class="sim-viewport"><canvas id="sim-canvas" aria-label="STEP assembly, drag to rotate and click to select"></canvas><p id="sim-empty">{% if available %}Choose an assembly or part from the STEP mirror.{% else %}STEP editing needs the simulation extra installed.{% endif %}</p></div>
+    <p class="rail-note">Drag to rotate · wheel to zoom · Shift-drag to pan · double-click to fit</p>
+  </section>
+  <aside class="rail-side rail-tree">
+    <section class="rail-card"><h2>View</h2><button type="button" class="rail-action" id="sim-fit">Fit model</button><label class="field">Up axis<select id="sim-up"><option value="y">Y up</option><option value="z">Z up</option></select></label><label><input type="checkbox" id="sim-isolate"> Selected part only</label></section>
+    <section class="rail-card"><h2>Parts</h2><label class="field">Find parts<input type="search" id="sim-find"></label><div id="sim-parts"></div></section>
+    <section class="rail-card"><h2>Status</h2><p id="sim-status" role="status" aria-live="polite">Ready</p><p class="rail-note">Coordinates: original · mesh/export: mm</p></section>
+  </aside>
+</main>
+<script src="{{ asset_url('simulation.js') }}" defer></script>
+{% endblock %}
