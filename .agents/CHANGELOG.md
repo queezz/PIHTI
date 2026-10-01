@@ -6,6 +6,10 @@ remains authoritative for exact file changes.
 
 ## 2026-10-01
 
+- Shipped `pihti-dedup` 0.30.4: the large STEP viewer shares the inspector's
+  Y/Z orientation, X/Y/Z section cuts and section-position slider. Orientation
+  is remembered per file; sections affect only the displayed view.
+
 - Shipped `pihti-dedup` 0.30.3: inherit solid-body STEP colours on their
   faces, preserving explicit face overrides. This restores the RT-65D colours.
 

@@ -109,12 +109,14 @@
    up (Y for an Inventor file, Z for the rest; a flip is kept per file), and
    a section plane on one of the mesh's own axes with its place across the
    part. The script sets every state; the line keeps its height when idle. #}
-{% macro mesh_tools(idle=false) %}
+{% macro mesh_tools(idle=false, preview=true) %}
 <div class="mesh-tools{% if idle %} is-idle{% endif %}" data-mesh-tools>
+  {% if preview %}
   <span class="mesh-tools-group" role="group" aria-label="Preview">
     <button class="copy-path inspector-flag mesh-tool" type="button" data-mesh-view="still" aria-pressed="false" title="Show the still image; nothing is downloaded">Still</button>
     <button class="copy-path inspector-flag mesh-tool" type="button" data-mesh-view="3d" aria-pressed="true" title="Turn the file in 3D">3D</button>
   </span>
+  {% endif %}
   <span class="mesh-tools-group" role="group" aria-label="Up axis">
     <button class="copy-path inspector-flag mesh-tool" type="button" data-mesh-up="y" aria-pressed="false" title="Y up, as Inventor shows it">Y up</button>
     <button class="copy-path inspector-flag mesh-tool" type="button" data-mesh-up="z" aria-pressed="false" title="Z up">Z up</button>

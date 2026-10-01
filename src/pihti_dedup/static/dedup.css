@@ -448,6 +448,8 @@ a.copy-path { display: inline-block; text-align: center; text-decoration: none; 
 .mesh-tool:disabled:hover { color: var(--muted); border-color: var(--line); background: #0e161f; }
 .mesh-cut-at { flex: 1 1 auto; width: 100%; min-width: 36px; height: 14px; margin: 0 0 0 4px; accent-color: #6d8399; }
 .mesh-cut-at:disabled { opacity: 0.4; }
+.simulation-page .mesh-tools { flex-wrap: wrap; margin: 8px 0; }
+.simulation-page .mesh-tools-section { flex-basis: 100%; }
 /* On the part page the line wraps within the preview's own width, never
    widening it; in the dialog it sits in the head before ×. */
 .part-preview .mesh-tools { width: 0; min-width: 100%; flex-wrap: wrap; row-gap: 5px; }

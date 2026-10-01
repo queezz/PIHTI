@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "_file_tile.html" import mesh_tools %}
 {% block title %}STEP viewer · PIHTI CAD{% endblock %}
 {% block body %}
 <main class="page work-grid two-rail simulation-page" data-simulation data-token="{{ form_token }}">
@@ -38,7 +39,7 @@
     <p class="rail-note">Drag to rotate · wheel to zoom · Shift-drag to pan · double-click to fit</p>
   </section>
   <aside class="rail-side rail-tree">
-    <section class="rail-card"><h2>View</h2><button type="button" class="rail-action" id="sim-fit">Fit model</button><label class="field">Up axis<select id="sim-up"><option value="y">Y up</option><option value="z">Z up</option></select></label><label><input type="checkbox" id="sim-isolate"> Selected part only</label></section>
+    <section class="rail-card"><h2>View</h2><button type="button" class="rail-action" id="sim-fit">Fit model</button>{{ mesh_tools(preview=false) }}<label><input type="checkbox" id="sim-isolate"> Selected part only</label><p class="rail-note">Section cuts the view only. Click the same axis again to cut from the side you are viewing.</p></section>
     <section class="rail-card"><h2>Parts</h2><label class="field">Find parts<input type="search" id="sim-find"></label><div id="sim-parts"></div></section>
     <section class="rail-card"><h2>Status</h2><p id="sim-status" role="status" aria-live="polite">Ready</p><p class="rail-note">Coordinates: original · mesh/export: mm</p></section>
   </aside>

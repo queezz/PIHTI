@@ -1,4 +1,4 @@
-(function () {
+window.addEventListener('DOMContentLoaded', function () {
 
   "use strict";
 
@@ -13,6 +13,31 @@
   var parts = [], model = null, selected = null, viewer = null, opening = false;
 
   var sourceName = '', generation = 0;
+  var meshUp = 'y', section = null, ready = false;
+  function meshUrl() { return '/mesh/' + encodeURIComponent(sourceName); }
+  function syncTools() {
+    tools.set({view:'3d',up:meshUp,ready:ready,section:section});
+  }
+  var tools = window.PihtiMeshTools.bind(page.querySelector('[data-mesh-tools]'), {
+    up: function(axis) {
+      meshUp = axis;
+      if (sourceName) window.PihtiMeshTools.rememberUp(meshUrl(), axis);
+      if (viewer) viewer.setUp(axis);
+      syncTools();
+    },
+    cut: function(axis) {
+      if (!viewer || !ready) return;
+      section = window.PihtiMeshTools.section(viewer, section, axis);
+      viewer.setSection(section);
+      syncTools();
+    },
+    at: function(fraction) {
+      if (!viewer || !section || !ready) return;
+      section.at = fraction;
+      viewer.setSection(section);
+    }
+  });
+  syncTools();
 
   var sources = JSON.parse(document.getElementById('sim-sources').textContent);
   var folder = '', fileFind = document.getElementById('sim-file-find');
@@ -122,6 +147,7 @@
     if (form.dataset.dirty==='true' && !window.confirm('Discard unsaved part edits?')) return;
 
     var ticket=++generation; opening=true; selected=null; document.getElementById('sim-fields').disabled=true; parts=[]; sourceName=source.value;
+    ready=false; section=null; meshUp=window.PihtiMeshTools.upFor(meshUrl()); syncTools();
 
     document.querySelectorAll('[data-sim-export]').forEach(function(b){b.disabled=true;});
 
@@ -153,7 +179,7 @@
 
       viewer.resize(canvas.parentElement.clientWidth,canvas.parentElement.clientHeight);
 
-      viewer.show(mesh,{up:document.getElementById('sim-up').value});
+      viewer.show(mesh,{up:meshUp}); ready=true; syncTools();
 
       document.getElementById('sim-empty').hidden=true;
 
@@ -209,8 +235,6 @@
 
   document.getElementById('sim-fit').addEventListener('click',function(){if(viewer)viewer.home();});
 
-  document.getElementById('sim-up').addEventListener('change',function(){if(viewer)viewer.setUp(this.value);});
-
   document.getElementById('sim-isolate').addEventListener('change',repaint);
 
   document.getElementById('sim-find').addEventListener('input',list);
@@ -226,4 +250,4 @@
   browse(params.get('folder') || (initial ? parent(initial) : ''));
   if(initial){if(!Array.from(source.options).some(function(o){return o.value===initial;}))source.add(new Option(initial,initial));source.value=initial;open();}
 
-})();
+});
