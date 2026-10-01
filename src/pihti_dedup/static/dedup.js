@@ -1061,6 +1061,7 @@ var PihtiEnlarge = (function () {
   var enlargeButton = inspector && inspector.querySelector("[data-inspector-enlarge]");
   var tools = inspector && inspector.querySelector("[data-mesh-tools]");
   var editLink = inspector && inspector.querySelector("[data-inspector-edit]");
+  var stepEditLink = inspector && inspector.querySelector("[data-inspector-step-edit]");
   var shown = null;
   var hoverTimer = null;
 
@@ -1154,6 +1155,11 @@ var PihtiEnlarge = (function () {
       editLink.hidden = !option;
       if (option) editLink.href = tile.getAttribute("href");
       else editLink.removeAttribute("href");
+    }
+    if (stepEditLink) {
+      stepEditLink.hidden = !tile.dataset.stepEdit;
+      if (tile.dataset.stepEdit) stepEditLink.href = tile.dataset.stepEdit;
+      else stepEditLink.removeAttribute("href");
     }
     empty.hidden = true;
     body.hidden = false;

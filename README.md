@@ -336,6 +336,8 @@ the earlier JSON/CSV/Markdown inventory workflow.
 ### Simulation STEP viewer
 
 Open **STEP viewer** in `lab pihti`, or **Open in STEP viewer** on a part page.
+Browse folders or find a file by name/path; **Search all folders** widens the
+search to the workspace. The catalog inspector also offers **Edit in STEP viewer**.
 Choose a mirrored assembly/part or a workspace STEP. A stale mirror must be
 re-exported first. Click a part in 3D or in the searchable list, set its name,
 material and electrical role, choose a colour, then **Save part**. Roles offer
@@ -361,6 +363,10 @@ STEP contains product names and colours. Geometry is exported in original world
 coordinates and millimetres, with assembly occurrences flattened to individual
 products. Repeated names are qualified by their original occurrence paths.
 This prepares geometry and metadata; it does not mesh it or assign voltages.
+
+The catalog inspector, enlarged view and part-page 3D view use the same STEP
+occurrence colours, including saved simulation colours. Without the simulation
+extra, they retain the geometry-only preview. Still thumbnails are unchanged.
 
 To apply the same map to a later export without opening the browser:
 

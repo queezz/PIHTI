@@ -1152,3 +1152,8 @@ a.tree-name:hover { color: var(--accent); text-decoration: underline; }
 #sim-status { font-size: .75rem; line-height: 1.45; }
 
 #sim-fields { border: 0; padding: 0; margin: 0; min-width: 0; }
+#sim-folders { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 8px; }
+#sim-children { display: flex; flex-direction: column; align-items: stretch; gap: 4px; margin: 8px 0; }
+#sim-children button { text-align: left; overflow-wrap: anywhere; }
+#sim-browse { margin-bottom: 12px; }
+#sim-browse summary { cursor: pointer; }

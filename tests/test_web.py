@@ -3992,7 +3992,7 @@ def test_the_packaged_viewer_is_plain_webgl_and_fetches_only_the_shown_file(
     assert 'var MAGIC = "PIHTIMESH";' in viewer
     assert "prefers-reduced-motion: reduce" in viewer
     assert "gl.deleteBuffer" in viewer
-    assert len(viewer.splitlines()) < 560  # up axes and the section plane since 0.25.0
+    assert len(viewer.splitlines()) < 620  # section plane, picking and STEP appearances
     assert "var MESH_DELAY = 150;" in script
     assert "meshAbort.abort()" in script
     assert "viewer.clear()" in script

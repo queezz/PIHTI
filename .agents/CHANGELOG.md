@@ -6,6 +6,11 @@ remains authoritative for exact file changes.
 
 ## 2026-10-01
 
+- Shipped `pihti-dedup` 0.30.1: browse STEP sources by folder and search names
+  or paths, with a direct STEP-edit action in the catalog inspector. Catalog,
+  enlarged and part-page 3D previews show STEP occurrence colours and saved
+  simulation colours through the same reader as the STEP editor.
+
 - Shipped `pihti-dedup` 0.30.0: dedicated STEP viewer with part picking,
   stable named-occurrence maps, simulation names/materials/electrical roles,
   role colour presets and individual colours. Prepared AP242 STEP and JSON

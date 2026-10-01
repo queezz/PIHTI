@@ -14,6 +14,43 @@
 
   var sourceName = '', generation = 0;
 
+  var sources = JSON.parse(document.getElementById('sim-sources').textContent);
+  var folder = '', fileFind = document.getElementById('sim-file-find');
+  var allFolders = document.getElementById('sim-all-folders');
+  function parent(path) { return path.includes('/') ? path.slice(0,path.lastIndexOf('/')) : ''; }
+  function browse(next) {
+    folder = next;
+    var crumbs = document.getElementById('sim-folders'); crumbs.replaceChildren();
+    function door(label, path, area) {
+      var button = document.createElement('button'); button.type='button'; button.className='copy-path'; button.textContent=label;
+      button.addEventListener('click',function(){fileFind.value='';allFolders.checked=false;browse(path);}); area.appendChild(button);
+    }
+    door('Workspace','',crumbs);
+    if(folder) folder.split('/').forEach(function(name,i){door(name,folder.split('/').slice(0,i+1).join('/'),crumbs);});
+    var children = document.getElementById('sim-children'); children.replaceChildren();
+    var prefix = folder ? folder+'/' : '';
+    var names = new Set(); sources.forEach(function(path){if(path.startsWith(prefix)){var rest=path.slice(prefix.length);if(rest.includes('/'))names.add(rest.split('/')[0]);}});
+    Array.from(names).sort().forEach(function(name){door(name,prefix+name,children);});
+    document.getElementById('sim-browse').hidden=!names.size;
+    filterFiles();
+  }
+  function filterFiles() {
+    var selectedSource=source.value, query=fileFind.value.trim().toLowerCase();
+    var matches=sources.filter(function(path){return (allFolders.checked || (query ? path.startsWith(folder ? folder+'/' : '') : parent(path)===folder)) && path.toLowerCase().includes(query);});
+    source.replaceChildren(new Option(matches.length ? 'Choose a file' : 'No matching files',''));
+    matches.forEach(function(path){source.add(new Option(allFolders.checked || query ? path : path.split('/').pop(),path));});
+    if(matches.includes(selectedSource)) source.value=selectedSource;
+    document.getElementById('sim-file-count').textContent=matches.length+(matches.length===1?' file':' files');
+    document.getElementById('sim-open').disabled=!source.value || opening;
+    var url=new URL(location.href); if(folder)url.searchParams.set('folder',folder);else url.searchParams.delete('folder');
+    if(query)url.searchParams.set('find',fileFind.value);else url.searchParams.delete('find');
+    if(allFolders.checked)url.searchParams.set('all','1');else url.searchParams.delete('all');
+    history.replaceState(null,'',url.pathname+url.search);
+  }
+  fileFind.addEventListener('input',filterFiles);
+  allFolders.addEventListener('change',filterFiles);
+  source.addEventListener('change',function(){document.getElementById('sim-open').disabled=!source.value || opening;});
+
   function say(text) { status.textContent = text; }
 
   function colour(hex) { return [1, 3, 5].map(function (i) { return parseInt(hex.slice(i,i+2),16)/255; }); }
@@ -93,7 +130,7 @@
 
     if(viewer) viewer.clear(); list(); say('Reading STEP…');
 
-    history.replaceState(null,'','/simulation?source='+encodeURIComponent(sourceName));
+    var modelUrl=new URL(location.href); modelUrl.searchParams.set('source',sourceName); history.replaceState(null,'',modelUrl.pathname+modelUrl.search);
 
     try {
 
@@ -119,7 +156,7 @@
 
       document.getElementById('sim-empty').hidden=true;
 
-      form.dataset.dirty='false'; document.getElementById('sim-summary').textContent=parts.length+' parts · mm';
+      form.dataset.dirty='false'; document.getElementById('sim-summary').textContent=sourceName.split('/').pop()+' · '+parts.length+' parts · mm'; document.getElementById('sim-summary').title=sourceName;
 
       document.querySelectorAll('[data-sim-export]').forEach(function(b){b.disabled=false;}); list();
 
@@ -127,7 +164,7 @@
 
     } catch(error) { say(error.message); document.getElementById('sim-empty').textContent=error.message; }
 
-    finally { opening=false; }
+    finally { opening=false; document.getElementById('sim-open').disabled=!source.value; }
 
   }
 
@@ -183,6 +220,9 @@
 
   new ResizeObserver(function(){if(viewer)viewer.resize(canvas.parentElement.clientWidth,canvas.parentElement.clientHeight);}).observe(canvas.parentElement);
 
-  var initial=new URLSearchParams(location.search).get('source'); if(initial){source.value=initial;open();}
+  var params=new URLSearchParams(location.search), initial=params.get('source');
+  fileFind.value=params.get('find')||'';allFolders.checked=params.get('all')==='1';
+  browse(params.get('folder') || (initial ? parent(initial) : ''));
+  if(initial){if(!Array.from(source.options).some(function(o){return o.value===initial;}))source.add(new Option(initial,initial));source.value=initial;open();}
 
 })();

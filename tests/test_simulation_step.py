@@ -105,6 +105,11 @@ def test_routes_guard_paths_and_stale_edits(tmp_path, step_mirror_folder):
     client = app.test_client()
     response = client.get("/simulation")
     assert response.status_code == 200 and b"STEP viewer" in response.data
+    assert b'aria-label="STEP folders"' in response.data
+    assert b'id="sim-file-find"' in response.data
+    assert b'<option value="fixture.iam"' not in response.data
+    tile = client.get("/catalog").data
+    assert b'data-step-edit="/simulation?source=fixture.iam"' in tile
     assert client.get("/simulation/model?source=../escape.step").status_code == 404
     model = client.get("/simulation/model?source=fixture.iam").get_json()
     part = model["parts"][0]
@@ -118,6 +123,10 @@ def test_routes_guard_paths_and_stale_edits(tmp_path, step_mirror_folder):
     assert client.post("/simulation/map", json=payload).status_code == 403
     token = {"X-PIHTI-Token": app.config["FORM_TOKEN"]}
     assert client.post("/simulation/map", json=payload, headers=token).status_code == 200
+    appearance = client.get("/simulation/model?source=fixture.iam").get_json()
+    assert appearance["parts"][0]["colour"] == "#33aa77"
+    assert appearance["parts"][0]["start"] == 0
+    assert appearance["parts"][1]["start"] == appearance["parts"][0]["count"]
     assert client.post("/simulation/map", json=payload, headers=token).status_code == 422
     payload["source_hash"] = "stale"
     assert client.post("/simulation/map", json=payload, headers=token).status_code == 409

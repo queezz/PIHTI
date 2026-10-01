@@ -173,7 +173,44 @@
   // lets a caller name a heavy download while it is still in flight; it only
   // fires for the request that actually reaches the network, not a memo hit.
   var memo = new Map();
+  // STEP appearances share the editor's occurrence reader and saved map.
+  // The old geometry-only endpoint remains the fallback without the extra.
+  async function colouredMesh(url, signal, onSize) {
+    var parsed = new URL(url, location.href);
+    var source = decodeURIComponent(parsed.pathname.slice('/mesh/'.length));
+    var response = await fetch('/simulation/model?source='+encodeURIComponent(source), {signal:signal, cache:'no-store'});
+    if (!response.ok) return null;
+    var model = await response.json();
+    var key = 'appearance:'+source+':'+model.source_hash+':'+model.revision;
+    if (memo.has(key)) return memo.get(key);
+    var pending = fetch('/simulation/mesh?source='+encodeURIComponent(source)+'&hash='+model.source_hash, {signal:signal}).then(async function(response){
+      if(!response.ok) throw new Error('STEP changed; reload the preview.');
+      if(onSize)onSize(Number(response.headers.get('content-length'))||0);
+      var mesh=parse(await response.arrayBuffer());
+      mesh.parts=model.parts.map(function(p){return {start:p.start,count:p.count,colour:[1,3,5].map(function(i){return parseInt(p.colour.slice(i,i+2),16)/255;})};});
+      if(needsNormals()) {
+        var normals=new Float32Array(mesh.positions.length), points=mesh.positions;
+        for(var i=0;i<points.length;i+=9){
+          var a=[points[i+3]-points[i],points[i+4]-points[i+1],points[i+5]-points[i+2]];
+          var b=[points[i+6]-points[i],points[i+7]-points[i+1],points[i+8]-points[i+2]];
+          var n=normalize(cross(a,b));
+          normals.set(n,i);normals.set(n,i+3);normals.set(n,i+6);
+        }
+        mesh.normals=normals;
+      }
+      return mesh;
+    });
+    memo.set(key,pending);while(memo.size>MEMO_LIMIT)memo.delete(memo.keys().next().value);
+    pending.catch(function(){if(memo.get(key)===pending)memo.delete(key);});
+    return pending;
+  }
   function fetchMesh(url, signal, onSize) {
+    if (/^\/mesh\/.*\.(iam|ipt|step|stp)\?/i.test(url)) {
+      return colouredMesh(url,signal,onSize).then(function(mesh){return mesh || plainMesh(url,signal,onSize);});
+    }
+    return plainMesh(url,signal,onSize);
+  }
+  function plainMesh(url, signal, onSize) {
     if (needsNormals()) url += (url.indexOf("?") >= 0 ? "&" : "?") + "normals=1";
     if (memo.has(url)) {
       var known = memo.get(url);

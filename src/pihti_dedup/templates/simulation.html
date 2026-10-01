@@ -5,7 +5,12 @@
   <aside class="rail-side rail-context">
     <section class="rail-card">
       <h2>Open STEP</h2>
-      <label class="field">Assembly or part<select id="sim-source"><option value="">Choose a file</option>{% for source in sources %}<option value="{{ source }}">{{ source }}</option>{% endfor %}</select></label>
+      <nav id="sim-folders" aria-label="STEP folders"></nav>
+      <details id="sim-browse"><summary>Browse folders</summary><div id="sim-children"></div></details>
+      <label class="field">Find files<input type="search" id="sim-file-find" placeholder="Name or path"></label>
+      <label><input type="checkbox" id="sim-all-folders"> Search all folders</label>
+      <label class="field">Assembly or part<select id="sim-source"><option value="">Choose a file</option></select></label>
+      <p id="sim-file-count" class="rail-note" role="status"></p>
       <button type="button" id="sim-open" class="rail-action">Open model</button>
       <a href="{{ url_for('step_mirror_page') }}">STEP mirror</a>
     </section>
@@ -38,5 +43,6 @@
     <section class="rail-card"><h2>Status</h2><p id="sim-status" role="status" aria-live="polite">Ready</p><p class="rail-note">Coordinates: original · mesh/export: mm</p></section>
   </aside>
 </main>
+<script id="sim-sources" type="application/json">{{ sources|tojson }}</script>
 <script src="{{ asset_url('simulation.js') }}" defer></script>
 {% endblock %}
