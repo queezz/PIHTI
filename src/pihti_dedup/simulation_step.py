@@ -14,6 +14,7 @@ import tempfile
 import threading
 import zipfile
 from dataclasses import dataclass
+from dataclasses import field as dataclass_field
 from pathlib import Path
 
 ROLES = {
@@ -38,6 +39,7 @@ class Part:
     shape: object
     colour: str
     stable: bool = True
+    face_colours: list[str | None] = dataclass_field(default_factory=list)
 
 
 def _name(label):
@@ -142,10 +144,36 @@ def read_parts(path: Path, source: str) -> list[Part]:
             if found
             else ROLES[""]
         )
+        # Keep face appearances in topology order, independently of the colour
+        # used as the occurrence's editable default.
+        from OCP.TopAbs import TopAbs_FACE
+        from OCP.TopExp import TopExp_Explorer
+
+        face_colours = []
+        faces = TopExp_Explorer(shapes.GetShape_s(definition), TopAbs_FACE)
+        while faces.More():
+            face_colour = Quantity_Color()
+            has_colour = colours.GetColor(
+                faces.Current(), XCAFDoc_ColorSurf, face_colour
+            ) or colours.GetColor(faces.Current(), XCAFDoc_ColorGen, face_colour)
+            face_colours.append(
+                "#{:02x}{:02x}{:02x}".format(
+                    *[round(v * 255) for v in face_colour.Values(Quantity_TOC_sRGB)]
+                )
+                if has_colour
+                else None
+            )
+            faces.Next()
         key = json.dumps([source, occurrence], ensure_ascii=False, separators=(",", ":"))
         result.append(
             Part(
-                key, _name(definition) or original, occurrence, shape, hex_colour, stable and named
+                key,
+                _name(definition) or original,
+                occurrence,
+                shape,
+                hex_colour,
+                stable and named,
+                face_colours,
             )
         )
 
@@ -254,10 +282,12 @@ def mesh(parts):
 
     blocks, ranges, count = [], [], 0
     for part in parts:
-        BRepMesh_IncrementalMesh(part.shape, 0.3, False, 0.5, True)
+        BRepMesh_IncrementalMesh(part.shape, 0.01, False, 0.15, True)
         faces = TopExp_Explorer(part.shape, TopAbs_FACE)
         triangles = []
+        appearances, face_index = [], 0
         while faces.More():
+            start = len(triangles)
             face = TopoDS.Face(faces.Current())
             location = TopLoc_Location()
             poly = BRep_Tool.Triangulation_s(face, location)
@@ -275,9 +305,21 @@ def mesh(parts):
                     )
                     if count + len(triangles) > MAX_TRIANGLES:
                         raise ValueError("assembly is too large for the viewer")
+            face_colour = (
+                part.face_colours[face_index] if face_index < len(part.face_colours) else None
+            )
+            if len(triangles) > start:
+                appearances.append(
+                    {
+                        "start": (count + start) * 3,
+                        "count": (len(triangles) - start) * 3,
+                        "colour": face_colour or part.colour,
+                    }
+                )
+            face_index += 1
             faces.Next()
         block = np.asarray(triangles, dtype="<f4").reshape(-1, 3, 3)
-        ranges.append({"start": count * 3, "count": len(block) * 3})
+        ranges.append({"start": count * 3, "count": len(block) * 3, "appearances": appearances})
         count += len(block)
         blocks.append(block)
     if not count:

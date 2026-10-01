@@ -6,6 +6,10 @@ remains authoritative for exact file changes.
 
 ## 2026-10-01
 
+- Shipped `pihti-dedup` 0.30.2: preserve STEP face colours in the inspector
+  and STEP viewer, while retaining occurrence picking and saved colour overrides.
+  Coloured meshes now use the inspector's fine viewport tessellation.
+
 - Shipped `pihti-dedup` 0.30.1: browse STEP sources by folder and search names
   or paths, with a direct STEP-edit action in the catalog inspector. Catalog,
   enlarged and part-page 3D previews show STEP occurrence colours and saved

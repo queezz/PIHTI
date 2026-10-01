@@ -89,6 +89,11 @@ def register(app, root, mirror, guard):
             rows = prep.public_parts(record[0], mapping)
             for row, span in zip(rows, record[2], strict=True):
                 row.update(span)
+                entry = mapping["parts"].get(row["key"], {}) if row["stable"] else {}
+                if "colour" in entry:
+                    row["appearances"] = [
+                        {**face, "colour": entry["colour"]} for face in span["appearances"]
+                    ]
             return jsonify(
                 parts=rows, source_hash=digest, revision=prep.map_revision(mapping), units="mm"
             )

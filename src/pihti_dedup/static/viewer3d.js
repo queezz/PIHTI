@@ -187,7 +187,7 @@
       if(!response.ok) throw new Error('STEP changed; reload the preview.');
       if(onSize)onSize(Number(response.headers.get('content-length'))||0);
       var mesh=parse(await response.arrayBuffer());
-      mesh.parts=model.parts.map(function(p){return {start:p.start,count:p.count,colour:[1,3,5].map(function(i){return parseInt(p.colour.slice(i,i+2),16)/255;})};});
+      mesh.parts=model.parts.map(function(p){return {start:p.start,count:p.count,appearances:(p.appearances||[p]).map(function(face){return {start:face.start,count:face.count,colour:[1,3,5].map(function(i){return parseInt(face.colour.slice(i,i+2),16)/255;})};})};});
       if(needsNormals()) {
         var normals=new Float32Array(mesh.positions.length), points=mesh.positions;
         for(var i=0;i<points.length;i+=9){
@@ -398,11 +398,13 @@
       if (mesh.parts) {
         mesh.parts.forEach(function (part, index) {
           if (part.hidden) return;
-          var rgb = part.colour || BASE;
+          (pick ? [part] : part.appearances || [part]).forEach(function(face) {
+          var rgb = face.colour || part.colour || BASE;
           if (pick) { var id = index + 1; rgb = [(id & 255) / 255, ((id >> 8) & 255) / 255, ((id >> 16) & 255) / 255]; }
           else if (mesh.parts.some(function(p){return p.selected;}) && !part.selected) rgb = rgb.map(function(v){return v * 0.45;});
           gl.uniform3fv(baseAt, rgb);
-          gl.drawArrays(gl.TRIANGLES, part.start, part.count);
+          gl.drawArrays(gl.TRIANGLES, face.start, face.count);
+          });
         });
       } else { gl.uniform3fv(baseAt, BASE); gl.drawArrays(gl.TRIANGLES, 0, mesh.count * 3); }
     }

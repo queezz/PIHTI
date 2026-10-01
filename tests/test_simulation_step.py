@@ -125,6 +125,7 @@ def test_routes_guard_paths_and_stale_edits(tmp_path, step_mirror_folder):
     assert client.post("/simulation/map", json=payload, headers=token).status_code == 200
     appearance = client.get("/simulation/model?source=fixture.iam").get_json()
     assert appearance["parts"][0]["colour"] == "#33aa77"
+    assert {face["colour"] for face in appearance["parts"][0]["appearances"]} == {"#33aa77"}
     assert appearance["parts"][0]["start"] == 0
     assert appearance["parts"][1]["start"] == appearance["parts"][0]["count"]
     assert client.post("/simulation/map", json=payload, headers=token).status_code == 422
@@ -139,3 +140,39 @@ def test_routes_guard_paths_and_stale_edits(tmp_path, step_mirror_folder):
         ).status_code
         == 403
     )
+
+
+def test_face_appearances_and_viewport_tessellation(tmp_path):
+    pytest.importorskip("OCP")
+    from OCP.BRepPrimAPI import BRepPrimAPI_MakeCylinder
+    from OCP.Quantity import Quantity_Color, Quantity_TOC_sRGB
+    from OCP.STEPCAFControl import STEPCAFControl_Writer
+    from OCP.TopAbs import TopAbs_FACE
+    from OCP.TopExp import TopExp_Explorer
+    from OCP.XCAFDoc import XCAFDoc_ColorSurf, XCAFDoc_DocumentTool
+
+    document = prep._document()
+    tool = XCAFDoc_DocumentTool.ShapeTool_s(document.Main())
+    colours = XCAFDoc_DocumentTool.ColorTool_s(document.Main())
+    shape = BRepPrimAPI_MakeCylinder(10, 20).Shape()
+    tool.AddShape(shape, False)
+    faces = TopExp_Explorer(shape, TopAbs_FACE)
+    expected = ["#ff0000", "#00ff00", "#0000ff"]
+    for value in expected:
+        channels = [int(value[i : i + 2], 16) / 255 for i in (1, 3, 5)]
+        colours.SetColor(
+            faces.Current(), Quantity_Color(*channels, Quantity_TOC_sRGB), XCAFDoc_ColorSurf
+        )
+        faces.Next()
+    path = tmp_path / "coloured.step"
+    writer = STEPCAFControl_Writer()
+    assert writer.Transfer(document)
+    writer.Write(str(path))
+    parts = prep.read_parts(path, "coloured.step")
+    data, spans = prep.mesh(parts)
+    assert {face["colour"] for face in spans[0]["appearances"]} == set(expected)
+    assert sum(face["count"] for face in spans[0]["appearances"]) == spans[0]["count"]
+    from pihti_dedup.mesh_cache import read_header
+
+    # A cylinder at the old 0.5-radian setting had visibly polygonal sides.
+    assert read_header(data)[1] > 150

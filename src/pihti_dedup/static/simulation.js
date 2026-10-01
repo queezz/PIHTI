@@ -54,10 +54,11 @@
   function say(text) { status.textContent = text; }
 
   function colour(hex) { return [1, 3, 5].map(function (i) { return parseInt(hex.slice(i,i+2),16)/255; }); }
+  function appearance(p) { return (p.mapped ? [p] : p.appearances || [p]).map(function(face){return {start:face.start,count:face.count,colour:colour(face.colour)};}); }
 
   function repaint() {
 
-    if (viewer) viewer.setParts(parts.map(function (p) { return {start:p.start,count:p.count,colour:colour(p.colour),selected:p===selected,hidden:document.getElementById('sim-isolate').checked && p!==selected}; }));
+    if (viewer) viewer.setParts(parts.map(function (p) { return {start:p.start,count:p.count,colour:colour(p.colour),appearances:appearance(p),selected:p===selected,hidden:document.getElementById('sim-isolate').checked && p!==selected}; }));
 
   }
 
@@ -148,7 +149,7 @@
 
       if(!viewer) throw new Error('WebGL is unavailable');
 
-      parts=model.parts; mesh.parts=parts.map(function(p){return {start:p.start,count:p.count,colour:colour(p.colour)};});
+      parts=model.parts; mesh.parts=parts.map(function(p){return {start:p.start,count:p.count,colour:colour(p.colour),appearances:appearance(p)};});
 
       viewer.resize(canvas.parentElement.clientWidth,canvas.parentElement.clientHeight);
 
