@@ -176,3 +176,37 @@ def test_face_appearances_and_viewport_tessellation(tmp_path):
 
     # A cylinder at the old 0.5-radian setting had visibly polygonal sides.
     assert read_header(data)[1] > 150
+
+
+def test_solid_colour_inheritance_and_face_override(tmp_path):
+    pytest.importorskip("OCP")
+    from OCP.BRep import BRep_Builder
+    from OCP.BRepPrimAPI import BRepPrimAPI_MakeBox
+    from OCP.Quantity import Quantity_Color, Quantity_TOC_sRGB
+    from OCP.STEPCAFControl import STEPCAFControl_Writer
+    from OCP.TopAbs import TopAbs_FACE
+    from OCP.TopExp import TopExp_Explorer
+    from OCP.TopoDS import TopoDS_Compound
+    from OCP.XCAFDoc import XCAFDoc_ColorSurf, XCAFDoc_DocumentTool
+
+    document = prep._document()
+    tool = XCAFDoc_DocumentTool.ShapeTool_s(document.Main())
+    colours = XCAFDoc_DocumentTool.ColorTool_s(document.Main())
+    body = BRepPrimAPI_MakeBox(2, 3, 4).Shape()
+    compound = TopoDS_Compound()
+    builder = BRep_Builder()
+    builder.MakeCompound(compound)
+    builder.Add(compound, body)
+    tool.AddShape(compound, False)
+    colours.SetColor(body, Quantity_Color(1, 1, 0, Quantity_TOC_sRGB), XCAFDoc_ColorSurf)
+    face = TopExp_Explorer(body, TopAbs_FACE).Current()
+    colours.SetColor(face, Quantity_Color(0, 0, 1, Quantity_TOC_sRGB), XCAFDoc_ColorSurf)
+    path = tmp_path / "body-colours.step"
+    writer = STEPCAFControl_Writer()
+    assert writer.Transfer(document)
+    writer.Write(str(path))
+    parts = prep.read_parts(path, "body-colours.step")
+    assert parts[0].face_colours.count("#ffff00") == 5
+    assert parts[0].face_colours.count("#0000ff") == 1
+    _, ranges = prep.mesh(parts)
+    assert {row["colour"] for row in ranges[0]["appearances"]} == {"#ffff00", "#0000ff"}

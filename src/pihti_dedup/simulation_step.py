@@ -146,9 +146,26 @@ def read_parts(path: Path, source: str) -> list[Part]:
         )
         # Keep face appearances in topology order, independently of the colour
         # used as the occurrence's editable default.
-        from OCP.TopAbs import TopAbs_FACE
+        from OCP.TopAbs import TopAbs_FACE, TopAbs_SOLID
         from OCP.TopExp import TopExp_Explorer
 
+        body_colours = {}
+        bodies = TopExp_Explorer(shapes.GetShape_s(definition), TopAbs_SOLID)
+        while bodies.More():
+            body_colour = Quantity_Color()
+            body = bodies.Current()
+            if colours.GetColor(body, XCAFDoc_ColorSurf, body_colour) or colours.GetColor(
+                body, XCAFDoc_ColorGen, body_colour
+            ):
+                value = "#{:02x}{:02x}{:02x}".format(
+                    *[round(v * 255) for v in body_colour.Values(Quantity_TOC_sRGB)]
+                )
+                body_faces = TopExp_Explorer(body, TopAbs_FACE)
+                while body_faces.More():
+                    body_face = body_faces.Current()
+                    body_colours.setdefault(hash(body_face), []).append((body_face, value))
+                    body_faces.Next()
+            bodies.Next()
         face_colours = []
         faces = TopExp_Explorer(shapes.GetShape_s(definition), TopAbs_FACE)
         while faces.More():
@@ -161,7 +178,14 @@ def read_parts(path: Path, source: str) -> list[Part]:
                     *[round(v * 255) for v in face_colour.Values(Quantity_TOC_sRGB)]
                 )
                 if has_colour
-                else None
+                else next(
+                    (
+                        value
+                        for face, value in body_colours.get(hash(faces.Current()), [])
+                        if face.IsSame(faces.Current())
+                    ),
+                    None,
+                )
             )
             faces.Next()
         key = json.dumps([source, occurrence], ensure_ascii=False, separators=(",", ":"))

@@ -6,6 +6,9 @@ remains authoritative for exact file changes.
 
 ## 2026-10-01
 
+- Shipped `pihti-dedup` 0.30.3: inherit solid-body STEP colours on their
+  faces, preserving explicit face overrides. This restores the RT-65D colours.
+
 - Shipped `pihti-dedup` 0.30.2: preserve STEP face colours in the inspector
   and STEP viewer, while retaining occurrence picking and saved colour overrides.
   Coloured meshes now use the inspector's fine viewport tessellation.
