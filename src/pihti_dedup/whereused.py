@@ -40,8 +40,8 @@ BASE_SKIP_DIRS = frozenset(
 #: `OldVersions/` and Pack-and-Go vendor trees, so a collision check must too.
 RESOLUTION_SKIP_DIRS = BASE_SKIP_DIRS
 #: A referrer, by contrast, is a document the owner would actually open, so save
-#: history is excluded from the where-used answer.
-REFERRER_SKIP_DIRS = BASE_SKIP_DIRS | {"oldversions"}
+#: history and unreviewed staging are excluded from the where-used answer.
+REFERRER_SKIP_DIRS = BASE_SKIP_DIRS | {"oldversions", "staging"}
 
 # The UTF-16LE form of a CAD extension. The interleaved NUL bytes carry no case,
 # so IGNORECASE on the letter bytes alone matches `.IPT` as well as `.ipt`.

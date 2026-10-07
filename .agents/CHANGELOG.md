@@ -6,6 +6,11 @@ remains authoritative for exact file changes.
 
 ## 2026-10-08
 
+- Shipped `pihti-dedup` 0.31.4: exclude ignored staging documents from
+  Doctor/where-used referrers while retaining them in filename-resolution checks.
+- Investigated student merge dependencies, recorded native exceptions for eight
+  indirect/stale names and established assembly/drawing submission acceptance checks.
+
 - Preserve saved vessel/probe simulation preparation, shared CAD components,
   Doctor disposition and completed session evidence. Correct the bellows-probe
   folder spelling by owner request; settled the remaining unused-copy renames

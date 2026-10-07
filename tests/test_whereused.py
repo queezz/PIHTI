@@ -158,3 +158,18 @@ def test_filename_locations_reaches_save_history_because_inventor_does(tmp_path:
 
     assert locations["bearing.ipt"] == ("Live/bearing.ipt", "OldVersions/bearing.ipt")
     assert "notes.md" not in locations
+
+
+def test_staging_cannot_create_doctor_referrers_but_remains_a_resolution_concern(
+    tmp_path: Path,
+) -> None:
+    write_document(tmp_path / "live.iam", "parts\\bearing.ipt")
+    write_document(tmp_path / "staging" / "import.iam", "parts\\missing-import.ipt")
+    (tmp_path / "staging" / "bearing.ipt").write_bytes(b"imported geometry")
+
+    index = build_index(tmp_path)
+
+    assert index.documents == 1
+    assert index.referring("missing-import.ipt") == ()
+    assert index.names_in("staging/import.iam") == ()
+    assert filename_locations(tmp_path)["bearing.ipt"] == ("staging/bearing.ipt",)
