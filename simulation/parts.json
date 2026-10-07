@@ -1,1 +1,311 @@
-{"schema":"pihti-simulation-parts/v1","parts":{}}
+{
+  "schema": "pihti-simulation-parts/v1",
+  "parts": {
+    "[\"Plasma Vessel/pihti-for-simulation-flat.iam\",[\"pihti-for-simulation-flat\",\"ring-pre-anode:79\"]]": {
+      "name": "ring-pre-anode",
+      "material": "",
+      "role": "preanode",
+      "colour": "#e9b65c"
+    },
+    "[\"Plasma Vessel/pihti-for-simulation-flat.iam\",[\"pihti-for-simulation-flat\",\"skirt-lid-for-grooved-targetr:146\"]]": {
+      "name": "skirt-lid-for-grooved-targetr",
+      "material": "SUS",
+      "role": "floating",
+      "colour": "#73c0a2"
+    },
+    "[\"Plasma Vessel/pihti-for-simulation-flat.iam\",[\"pihti-for-simulation-flat\",\"plasma_box:105\"]]": {
+      "name": "plasma_box",
+      "material": "",
+      "role": "floating",
+      "colour": "#73c0a2"
+    },
+    "[\"Plasma Vessel/pihti-for-simulation-flat.iam\",[\"pihti-for-simulation-flat\",\"cathode-box:2\"]]": {
+      "name": "cathode-box",
+      "material": "",
+      "role": "ground",
+      "colour": "#6aa5cb"
+    },
+    "[\"Plasma Vessel/pihti-for-simulation-flat.iam\",[\"pihti-for-simulation-flat\",\"m3-pin-for-cathode-skirt:89\"]]": {
+      "name": "m3-pin-for-cathode-skirt",
+      "material": "",
+      "role": "ground",
+      "colour": "#6aa5cb"
+    },
+    "[\"Plasma Vessel/pihti-for-simulation-flat.iam\",[\"pihti-for-simulation-flat\",\"cathode-screen-v0:80\"]]": {
+      "name": "cathode-screen-v0",
+      "material": "",
+      "role": "ground",
+      "colour": "#6aa5cb"
+    },
+    "[\"Plasma Vessel/pihti-for-simulation-flat.iam\",[\"pihti-for-simulation-flat\",\"HighCurrentFeedRod:38\"]]": {
+      "name": "HighCurrentFeedRod_2",
+      "material": "",
+      "role": "cathode",
+      "colour": "#a777db"
+    },
+    "[\"Plasma Vessel/pihti-for-simulation-flat.iam\",[\"pihti-for-simulation-flat\",\"Cathode-tungsten-wire-v3-filament-solid:104\"]]": {
+      "name": "Cathode-tungsten-wire-v3-filament-solid",
+      "material": "",
+      "role": "cathode",
+      "colour": "#a777db"
+    },
+    "[\"Plasma Vessel/pihti-for-simulation-flat.iam\",[\"pihti-for-simulation-flat\",\"m5-nut:40\"]]": {
+      "name": "m5-nut",
+      "material": "",
+      "role": "cathode",
+      "colour": "#a777db"
+    },
+    "[\"Plasma Vessel/pihti-for-simulation-flat.iam\",[\"pihti-for-simulation-flat\",\"electrode-skirt-short:103\"]]": {
+      "name": "electrode-skirt-short",
+      "material": "",
+      "role": "cathode",
+      "colour": "#a777db"
+    },
+    "[\"Plasma Vessel/pihti-for-simulation-flat.iam\",[\"pihti-for-simulation-flat\",\"m5-nut:42\"]]": {
+      "name": "m5-nut",
+      "material": "",
+      "role": "cathode",
+      "colour": "#a777db"
+    },
+    "[\"Plasma Vessel/pihti-for-simulation-flat.iam\",[\"pihti-for-simulation-flat\",\"m5-nut:41\"]]": {
+      "name": "m5-nut",
+      "material": "",
+      "role": "cathode",
+      "colour": "#a777db"
+    },
+    "[\"Plasma Vessel/pihti-for-simulation-flat.iam\",[\"pihti-for-simulation-flat\",\"HighCurrentFeedRod:34\"]]": {
+      "name": "HighCurrentFeedRod_1",
+      "material": "",
+      "role": "cathode",
+      "colour": "#a777db"
+    },
+    "[\"Plasma Vessel/pihti-for-simulation-flat.iam\",[\"pihti-for-simulation-flat\",\"electrode-skirt-short:102\"]]": {
+      "name": "electrode-skirt-short",
+      "material": "",
+      "role": "cathode",
+      "colour": "#a777db"
+    },
+    "[\"Plasma Vessel/pihti-for-simulation-flat.iam\",[\"pihti-for-simulation-flat\",\"cathode-box-mounting-plate:3\"]]": {
+      "name": "cathode-box-mounting-plate",
+      "material": "",
+      "role": "ground",
+      "colour": "#6aa5cb"
+    },
+    "[\"Plasma Vessel/pihti-for-simulation-flat.iam\",[\"pihti-for-simulation-flat\",\"plasma-box-spacer-6mm:129\"]]": {
+      "name": "plasma-box-spacer-6mm",
+      "material": "",
+      "role": "ground",
+      "colour": "#6aa5cb"
+    },
+    "[\"Plasma Vessel/pihti-for-simulation-flat.iam\",[\"pihti-for-simulation-flat\",\"plasma-box-mica:137\"]]": {
+      "name": "plasma-box-mica",
+      "material": "Kapton",
+      "role": "insulator",
+      "colour": "#ded4b6"
+    },
+    "[\"Plasma Vessel/pihti-for-simulation-flat.iam\",[\"pihti-for-simulation-flat\",\"skirt-cylinder:139\"]]": {
+      "name": "skirt-cylinder",
+      "material": "SUS",
+      "role": "floating",
+      "colour": "#73c0a2"
+    },
+    "[\"Plasma Vessel/pihti-for-simulation-flat.iam\",[\"pihti-for-simulation-flat\",\"anode-disk:161\"]]": {
+      "name": "anode-disk",
+      "material": "",
+      "role": "anode",
+      "colour": "#e77a71"
+    },
+    "[\"Plasma Vessel/pihti-for-simulation-flat.iam\",[\"pihti-for-simulation-flat\",\"anode-m4-threaded-rod:162\"]]": {
+      "name": "anode-m4-threaded-rod",
+      "material": "",
+      "role": "anode",
+      "colour": "#e77a71"
+    },
+    "[\"Plasma Vessel/pihti-for-simulation-flat.iam\",[\"pihti-for-simulation-flat\",\"M4-nut:165\"]]": {
+      "name": "M4-nut",
+      "material": "",
+      "role": "anode",
+      "colour": "#e77a71"
+    },
+    "[\"Plasma Vessel/pihti-for-simulation-flat.iam\",[\"pihti-for-simulation-flat\",\"anode_holder:160\"]]": {
+      "name": "anode_holder",
+      "material": "",
+      "role": "floating",
+      "colour": "#73c0a2"
+    },
+    "[\"Plasma Vessel/pihti-for-simulation-flat.iam\",[\"pihti-for-simulation-flat\",\"ceramic_bushing_M4:164\"]]": {
+      "name": "ceramic_bushing_M4",
+      "material": "",
+      "role": "insulator",
+      "colour": "#ded4b6"
+    },
+    "[\"Plasma Vessel/pihti-for-simulation-flat.iam\",[\"pihti-for-simulation-flat\",\"Cathode-feed-ceramic-sleeve:2\"]]": {
+      "name": "pihti-simulation-ceramic-sleeve-10x6x110_1",
+      "material": "alumina",
+      "role": "insulator",
+      "colour": "#ded4b6"
+    },
+    "[\"Plasma Vessel/pihti-for-simulation-flat.iam\",[\"pihti-for-simulation-flat\",\"electrode-skirt-pipe:81\"]]": {
+      "name": "electrode-skirt-pipe",
+      "material": "SUS",
+      "role": "ground",
+      "colour": "#6aa5cb"
+    },
+    "[\"Plasma Vessel/pihti-for-simulation-flat.iam\",[\"pihti-for-simulation-flat\",\"electrode-skirt-pipe:83\"]]": {
+      "name": "electrode-skirt-pipe_2",
+      "material": "SUS",
+      "role": "ground",
+      "colour": "#6aa5cb"
+    },
+    "[\"Plasma Vessel/pihti-for-simulation-flat.iam\",[\"pihti-for-simulation-flat\",\"HighCurrentFeedRod:30\"]]": {
+      "name": "HighCurrentFeedRod",
+      "material": "copper",
+      "role": "preanode",
+      "colour": "#e9b65c"
+    },
+    "[\"Plasma Vessel/pihti-for-simulation-flat.iam\",[\"pihti-for-simulation-flat\",\"anode-holding-nut:95\"]]": {
+      "name": "anode-holding-nut",
+      "material": "SUS",
+      "role": "preanode",
+      "colour": "#e9b65c"
+    },
+    "[\"Plasma Vessel/pihti-for-simulation-flat.iam\",[\"pihti-for-simulation-flat\",\"m3-pin-for-ring-anode:86\"]]": {
+      "name": "m3-pin-for-ring-anode",
+      "material": "SUS",
+      "role": "preanode",
+      "colour": "#e9b65c"
+    },
+    "[\"Plasma Vessel/pihti-for-simulation-flat.iam\",[\"pihti-for-simulation-flat\",\"Cathode-feed-ceramic-sleeve:1\"]]": {
+      "name": "pihti-simulation-ceramic-sleeve-10x6x110_2",
+      "material": "alumina",
+      "role": "insulator",
+      "colour": "#ded4b6"
+    },
+    "[\"Plasma Vessel/pihti-for-simulation-flat.iam\",[\"pihti-for-simulation-flat\",\"electrode-skirt-pipe:82\"]]": {
+      "name": "electrode-skirt-pipe_1",
+      "material": "SUS",
+      "role": "ground",
+      "colour": "#6aa5cb"
+    },
+    "[\"Plasma Vessel/pihti-for-simulation-flat.iam\",[\"pihti-for-simulation-flat\",\"electrode-aligning-disk:85\"]]": {
+      "name": "electrode-aligning-disk",
+      "material": "SUS",
+      "role": "ground",
+      "colour": "#6aa5cb"
+    },
+    "[\"Plasma Vessel/pihti-for-simulation-flat.iam\",[\"pihti-for-simulation-flat\",\"plasma-box-slit-to-cathode:117\"]]": {
+      "name": "plasma-box-slit-to-cathode",
+      "material": "SUS",
+      "role": "ground",
+      "colour": "#6aa5cb"
+    },
+    "[\"Plasma Vessel/pihti-for-simulation-flat.iam\",[\"pihti-for-simulation-flat\",\"ceramic_washer_M4_v1:142\"]]": {
+      "name": "ceramic_washer_M4_v1",
+      "material": "alumina",
+      "role": "insulator",
+      "colour": "#ded4b6"
+    },
+    "[\"Plasma Vessel/pihti-for-simulation-flat.iam\",[\"pihti-for-simulation-flat\",\"ceramic_bushing_M3-v1:141\"]]": {
+      "name": "ceramic_bushing_M3-v1",
+      "material": "alumina",
+      "role": "insulator",
+      "colour": "#ded4b6"
+    },
+    "[\"Plasma Vessel/pihti-for-simulation-flat.iam\",[\"pihti-for-simulation-flat\",\"quartz-disk-window:121\"]]": {
+      "name": "quartz-disk-window",
+      "material": "quartz",
+      "role": "insulator",
+      "colour": "#ded4b6"
+    },
+    "[\"Plasma Vessel/pihti-for-simulation-flat.iam\",[\"pihti-for-simulation-flat\",\"quartz-disk-window-holder:122\"]]": {
+      "name": "quartz-disk-window-holder",
+      "material": "SUS",
+      "role": "floating",
+      "colour": "#73c0a2"
+    },
+    "[\"Plasma Vessel/pihti-for-simulation-flat.iam\",[\"pihti-for-simulation-flat\",\"boron-window:149\"]]": {
+      "name": "boron-window",
+      "material": "SUS",
+      "role": "floating",
+      "colour": "#73c0a2"
+    },
+    "[\"Plasma Vessel/pihti-for-simulation-flat.iam\",[\"pihti-for-simulation-flat\",\"skirt-base:140\"]]": {
+      "name": "skirt-base",
+      "material": "SUS",
+      "role": "floating",
+      "colour": "#73c0a2"
+    },
+    "[\"Plasma Vessel/pihti-for-simulation-flat.iam\",[\"pihti-for-simulation-flat\",\"probe-gate-spacer-quartz-holder:120\"]]": {
+      "name": "probe-gate-spacer-quartz-holder",
+      "material": "SUS",
+      "role": "floating",
+      "colour": "#73c0a2"
+    },
+    "[\"Plasma Vessel/pihti-for-simulation-flat.iam\",[\"pihti-for-simulation-flat\",\"Ignition-alumina-upper:1\"]]": {
+      "name": "ignition-alumina-tube-upper",
+      "material": "alumina",
+      "role": "insulator",
+      "colour": "#ded4b6"
+    },
+    "[\"Plasma Vessel/pihti-for-simulation-flat.iam\",[\"pihti-for-simulation-flat\",\"Ignition-alumina-lower:1\"]]": {
+      "name": "ignition-alumina-tube-lower",
+      "material": "alumina",
+      "role": "insulator",
+      "colour": "#ded4b6"
+    },
+    "[\"Plasma Vessel/pihti-for-simulation-flat.iam\",[\"pihti-for-simulation-flat\",\"ingnition-help:1\"]]": {
+      "name": "ingnition-help",
+      "material": "tungsten",
+      "role": "preanode",
+      "colour": "#e9b65c"
+    },
+    "[\"Plasma Vessel/pihti-for-simulation-flat.iam\",[\"pihti-for-simulation-flat\",\"mesh:147\"]]": {
+      "name": "mesh",
+      "material": "tungsten wires in SUS ring retainer",
+      "role": "target",
+      "colour": "#df935b"
+    },
+    "[\"Plasma Vessel/pihti-for-simulation-flat.iam\",[\"pihti-for-simulation-flat\",\"boron-under-mesh-plate:148\"]]": {
+      "name": "boron-under-mesh-plate",
+      "material": "boron powder",
+      "role": "target",
+      "colour": "#df935b"
+    },
+    "[\"Plasma Vessel/pihti-for-simulation-flat.iam\",[\"pihti-for-simulation-flat\",\"m3-pin-boron:143\"]]": {
+      "name": "m3-pin-boron",
+      "material": "SUS",
+      "role": "target",
+      "colour": "#df935b"
+    },
+    "[\"Plasma Vessel/pihti-for-simulation-flat.iam\",[\"pihti-for-simulation-flat\",\"M3-nut:144\"]]": {
+      "name": "M3-nut",
+      "material": "SUS",
+      "role": "target",
+      "colour": "#df935b"
+    },
+    "[\"Plasma Vessel/pihti-for-simulation-flat.iam\",[\"pihti-for-simulation-flat\",\"sample-holder-base-hayashi:1\"]]": {
+      "name": "sample-holder-base-hayashi",
+      "material": "SUS",
+      "role": "floating",
+      "colour": "#73c0a2"
+    },
+    "[\"Plasma Vessel/pihti-for-simulation-flat.iam\",[\"pihti-for-simulation-flat\",\"BoronHead:1\",\"HayashiProbeHead:1\"]]": {
+      "name": "HayashiProbeHead",
+      "material": "SUS",
+      "role": "floating",
+      "colour": "#73c0a2"
+    },
+    "[\"Plasma Vessel/pihti-for-simulation-flat.iam\",[\"pihti-for-simulation-flat\",\"BoronHead:1\",\"Shaft:1\"]]": {
+      "name": "Shaft",
+      "material": "SUS",
+      "role": "floating",
+      "colour": "#73c0a2"
+    },
+    "[\"Plasma Vessel/pihti-for-simulation-flat.iam\",[\"pihti-for-simulation-flat\",\"BoronHead:1\",\"Shaft:2\"]]": {
+      "name": "Shaft",
+      "material": "SUS",
+      "role": "floating",
+      "colour": "#73c0a2"
+    }
+  }
+}
