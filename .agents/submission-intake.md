@@ -60,3 +60,23 @@ unsubmitted dependencies and a renamed drawing with obsolete links. Some other
 Doctor rows were staging/indirect-string noise, while two UFC-152 failures followed
 later archive consolidation. These causes must not be blended into one student
 failure count.
+
+## Student notification and correction loop
+
+Use .github/ISSUE_TEMPLATE/missing-cad-dependencies.md to request exact files,
+referring documents, the submission PR/commit and a corrective delivery. Keep a
+single issue linked to the submission PR; close it after native receiving-checkout
+verification, not after a thumbnail loads. Do not blend later archive cleanup
+failures into the contributor's request.
+
+Students run Setup-PIHTI-Viewer.cmd once and Start-PIHTI-Viewer.cmd in their own
+Windows checkout. Check-PIHTI-Submission.cmd creates a native saved-document
+Markdown/JSON report for a chosen folder; attach it to the PR/issue. The command
+does not send messages or change CAD. It reports external dependencies for the
+manifest and refuses to certify owner-open/uninspected documents. See
+docs/contributor/cad-viewer.md for the student-facing instructions.
+
+Prepared current request:
+requests/2026-10-08-boron-probe-missing-dependencies.md. Posting/assigning a request
+is an external notification and requires the owner's direct instruction; it has
+not been sent by the preparation workflow.

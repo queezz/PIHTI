@@ -6,6 +6,10 @@ remains authoritative for exact file changes.
 
 ## 2026-10-08
 
+- Shipped `pihti-dedup` 0.32.0: native submission reports for issue/PR
+  dependency checklists; Windows student setup, local viewer and report launchers;
+  contributor onboarding and GitHub missing-file/PR templates.
+
 - Shipped `pihti-dedup` 0.31.4: exclude ignored staging documents from
   Doctor/where-used referrers while retaining them in filename-resolution checks.
 - Investigated student merge dependencies, recorded native exceptions for eight

@@ -69,6 +69,14 @@ def build_parser() -> argparse.ArgumentParser:
         help="Background snapshot refresh period; 0 validates the disk on every request",
     )
 
+    report = subparsers.add_parser(
+        "submission-report", help="Check saved native dependencies and draft an issue/PR checklist"
+    )
+    report.add_argument("workspace", nargs="?", default=".")
+    report.add_argument("--folder", help="Workspace-relative submission folder")
+    report.add_argument("--markdown", help="Write an issue-ready Markdown report")
+    report.add_argument("--json", help="Write portable native evidence")
+
     cleanup = subparsers.add_parser(
         "merge-cleanup", help="Preview or quarantine exact copies added by a merged PR"
     )
@@ -820,6 +828,27 @@ def main(argv: Sequence[str] | None = None) -> int:
                 encoding="utf-8",
             )
         return 0
+
+    if args.command == "submission-report":
+        from pihti_dedup.submission_report import inspect_submission, render_report, report_status
+
+        folder = args.folder if args.folder is not None else input("Submission folder: ").strip()
+        session = inventor_session.connect()
+        if session is None:
+            print("error: Start Inventor with PIHTI.ipj; install the inventor extra if needed.", file=sys.stderr)
+            return 2
+        try:
+            payload = inspect_submission(workspace, folder, session)
+            text = render_report(payload)
+            if args.markdown:
+                Path(args.markdown).write_text(text, encoding="utf-8")
+            if args.json:
+                Path(args.json).write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+        except (ValueError, OSError, inventor_session.SessionTimeout) as exc:
+            print(f"error: {exc}", file=sys.stderr)
+            return 2
+        print(text)
+        return report_status(payload)
 
     if args.command == "warm-previews":
         try:

@@ -9,6 +9,11 @@ Covers mechanical design from first concept through fabrication drawings.
 
 The project file is `PIHTI.ipj`.
 
+Students using their own Windows checkout can run `Setup-PIHTI-Viewer.cmd` once,
+then double-click `Start-PIHTI-Viewer.cmd`. `Check-PIHTI-Submission.cmd` produces
+a native dependency checklist for a PR or missing-file issue. See
+[local viewer and submission checks](docs/contributor/cad-viewer.md).
+
 ---
 
 ## What is in here

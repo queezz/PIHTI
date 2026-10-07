@@ -1,5 +1,9 @@
 # Contributing Assemblies
 
+Before submitting, run the [native submission check](cad-viewer.md#check-your-submission-before-a-pr)
+and attach its report to the PR. Use a missing-dependency issue when requested files
+must be supplied separately; close it only after receiving-workspace verification.
+
 How to add or modify Inventor assemblies without breaking shared lab geometry.
 
 ---
