@@ -4,6 +4,13 @@ Shipped archive milestones only. PIHTI does not yet have a formal release/versio
 contract, so entries are dated rather than assigned software versions. Git history
 remains authoritative for exact file changes.
 
+## 2026-10-08
+
+- Preserve saved vessel/probe simulation preparation, shared CAD components,
+  Doctor disposition and completed session evidence. Correct the bellows-probe
+  folder spelling by owner request; connected rename/design work remains pending.
+  See log/2026-10-08-tidy-working-tree.md for gates and remaining paths.
+
 ## 2026-10-07
 
 - Shipped `pihti-dedup` 0.31.3: show deferred Doctor assemblies with a
