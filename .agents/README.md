@@ -19,6 +19,7 @@ This is kept separate from `docs/`:
 - `CHANGELOG.md` - shipped archive milestones.
 - `log/` - dated session handoffs going forward.
 - `commit-culture.md` - repository commit contract.
+- `submission-intake.md` - dependency closure and native drawing/assembly checks before merging incoming CAD.
 - `duplicate-inventory-direction.md` - safe duplicate review workflow.
 - `dedup-viewer-design.md` - local duplicate-review viewer architecture.
 - `visual-pass.md` - how a narrated browsing session becomes folder notes,

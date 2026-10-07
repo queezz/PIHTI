@@ -53,6 +53,27 @@ session evidence in `log/`.
 Implemented architecture and baseline: `dedup-viewer-design.md` and
 `log/2026-08-05-pr-orientation-and-dedup-viewer.md`.
 
+## Resolve submitted reference gaps with the recovered native evidence
+
+- Recover the missing dependency package for C70TCK2MBGA.iam
+  (ICF70FLMG4MBA.ipt, WTCK2MB.iam), C25K22A4CU.iam
+  (ICF70F 1個付き 19穴.ipt, W5K22A4CU.iam), and
+  BoronProbe_2026_non-bellows.iam (ICF70-34-hole.ipt). These filenames never
+  entered available Git history; use source/vendor submission evidence rather
+  than a same-looking replacement. Exit: native saved/reopened references resolve
+  with reviewed geometry.
+- Repair or explicitly classify the historical BoronProbe_5_disassembled.idw:
+  a0c5bbe moved it byte-for-byte while renaming its exploded assembly and deleting
+  its old main assembly. Exit: both direct drawing links verified under PIHTI.ipj;
+  preserve the surviving PDF.
+- Verify the two unresolved UFC-152 links in gate_valve_assembly.iam and
+  Plasma-vacuum-vessel-152IC-cross-L255p8.iam through Inventor against the
+  documented consolidation survivor. Exit: native references resolve after
+  save/reopen and reviewed revision/geometry is retained.
+- Before another student CAD merge, follow submission-intake.md. Evidence and
+  attribution: submission-reference-audit.json and
+  log/2026-10-08-student-merge-reference-investigation.md.
+
 ## Submission curation
 
 - Open the three `bellows/*.iam` assemblies in Inventor and identify the primary

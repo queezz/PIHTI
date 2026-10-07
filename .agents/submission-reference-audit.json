@@ -1,0 +1,674 @@
+{
+  "schema": "pihti-merge-reference-investigation/v1",
+  "snapshot": "4b6302ce8a49ebf25b8020aa280d5b8dc06e16af",
+  "merges": [
+    "328d9ba",
+    "2e29170"
+  ],
+  "files": [
+    {
+      "name": "BoronProbe_5_disassembled.iam",
+      "current_locations": [],
+      "history_paths": [
+        "BoronProbe_5/BoronProbe_5_disassembled.iam"
+      ],
+      "referrers": [
+        {
+          "referrer": "BoronProbe_2026/BoronProbe_2026_exploded.iam",
+          "native_direct": [],
+          "native_checked": true,
+          "merge_snapshots": [
+            {
+              "merge": "328d9ba",
+              "referenced_in_bytes": true,
+              "matching_files": []
+            },
+            {
+              "merge": "2e29170",
+              "referenced_in_bytes": true,
+              "matching_files": []
+            }
+          ]
+        },
+        {
+          "referrer": "BoronProbe_2026/BoronProbe_5_disassembled.idw",
+          "native_direct": [],
+          "native_checked": false,
+          "merge_snapshots": [
+            {
+              "merge": "328d9ba",
+              "referenced_in_bytes": true,
+              "matching_files": []
+            },
+            {
+              "merge": "2e29170",
+              "referenced_in_bytes": true,
+              "matching_files": []
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "ICF70-34-hole.ipt",
+      "current_locations": [],
+      "history_paths": [],
+      "referrers": [
+        {
+          "referrer": "BoronProbe_2026/BoronProbe_2026_non-bellows.iam",
+          "native_direct": [
+            {
+              "path_relative": "[outside-workspace]",
+              "missing": true
+            }
+          ],
+          "native_checked": true,
+          "merge_snapshots": [
+            {
+              "merge": "2e29170",
+              "referenced_in_bytes": true,
+              "matching_files": []
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "ICF70FLMG4MBA.ipt",
+      "current_locations": [],
+      "history_paths": [],
+      "referrers": [
+        {
+          "referrer": "BoronProbe_2026/parts/C70TCK2MBGA.iam",
+          "native_direct": [
+            {
+              "path_relative": "[outside-workspace]",
+              "missing": true
+            }
+          ],
+          "native_checked": true,
+          "merge_snapshots": [
+            {
+              "merge": "328d9ba",
+              "referenced_in_bytes": true,
+              "matching_files": []
+            },
+            {
+              "merge": "2e29170",
+              "referenced_in_bytes": true,
+              "matching_files": []
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "ISO 4762 - M4 x 12ISO.ipt",
+      "current_locations": [],
+      "history_paths": [],
+      "referrers": [
+        {
+          "referrer": "staging/hayashi/SpectroscopySystem/Probe/BoronProbe.iam",
+          "native_direct": [],
+          "native_checked": false,
+          "merge_snapshots": []
+        }
+      ]
+    },
+    {
+      "name": "OLED 2.42 12864 v7.iam",
+      "current_locations": [],
+      "history_paths": [],
+      "referrers": [
+        {
+          "referrer": "ElectronicsBox/esp32-ambient-logger/OLED 2.42 12864.iam",
+          "native_direct": [],
+          "native_checked": true,
+          "merge_snapshots": [
+            {
+              "merge": "328d9ba",
+              "referenced_in_bytes": true,
+              "matching_files": []
+            },
+            {
+              "merge": "2e29170",
+              "referenced_in_bytes": true,
+              "matching_files": []
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "probe-head.iam",
+      "current_locations": [],
+      "history_paths": [],
+      "referrers": [
+        {
+          "referrer": "staging/hayashi/SpectroscopySystem/Probe/BoronProbe.iam",
+          "native_direct": [],
+          "native_checked": false,
+          "merge_snapshots": []
+        }
+      ]
+    },
+    {
+      "name": "WTCK2MB.iam",
+      "current_locations": [],
+      "history_paths": [],
+      "referrers": [
+        {
+          "referrer": "BoronProbe_2026/parts/C70TCK2MBGA.iam",
+          "native_direct": [
+            {
+              "path_relative": "[outside-workspace]",
+              "missing": true
+            }
+          ],
+          "native_checked": true,
+          "merge_snapshots": [
+            {
+              "merge": "328d9ba",
+              "referenced_in_bytes": true,
+              "matching_files": []
+            },
+            {
+              "merge": "2e29170",
+              "referenced_in_bytes": true,
+              "matching_files": []
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "WTCK2MB_1.ipt",
+      "current_locations": [],
+      "history_paths": [],
+      "referrers": [
+        {
+          "referrer": "BoronProbe_2026/parts/C70TCK2MBGA.iam",
+          "native_direct": [],
+          "native_checked": true,
+          "merge_snapshots": [
+            {
+              "merge": "328d9ba",
+              "referenced_in_bytes": true,
+              "matching_files": []
+            },
+            {
+              "merge": "2e29170",
+              "referenced_in_bytes": true,
+              "matching_files": []
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "WTCK2MB_2.ipt",
+      "current_locations": [],
+      "history_paths": [],
+      "referrers": [
+        {
+          "referrer": "BoronProbe_2026/parts/C70TCK2MBGA.iam",
+          "native_direct": [],
+          "native_checked": true,
+          "merge_snapshots": [
+            {
+              "merge": "328d9ba",
+              "referenced_in_bytes": true,
+              "matching_files": []
+            },
+            {
+              "merge": "2e29170",
+              "referenced_in_bytes": true,
+              "matching_files": []
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "WTCK2MB_3.ipt",
+      "current_locations": [],
+      "history_paths": [],
+      "referrers": [
+        {
+          "referrer": "BoronProbe_2026/parts/C70TCK2MBGA.iam",
+          "native_direct": [],
+          "native_checked": true,
+          "merge_snapshots": [
+            {
+              "merge": "328d9ba",
+              "referenced_in_bytes": true,
+              "matching_files": []
+            },
+            {
+              "merge": "2e29170",
+              "referenced_in_bytes": true,
+              "matching_files": []
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "WTCK2MB_4.ipt",
+      "current_locations": [],
+      "history_paths": [],
+      "referrers": [
+        {
+          "referrer": "BoronProbe_2026/parts/C70TCK2MBGA.iam",
+          "native_direct": [],
+          "native_checked": true,
+          "merge_snapshots": [
+            {
+              "merge": "328d9ba",
+              "referenced_in_bytes": true,
+              "matching_files": []
+            },
+            {
+              "merge": "2e29170",
+              "referenced_in_bytes": true,
+              "matching_files": []
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "WTCK2MB_5.ipt",
+      "current_locations": [],
+      "history_paths": [],
+      "referrers": [
+        {
+          "referrer": "BoronProbe_2026/parts/C70TCK2MBGA.iam",
+          "native_direct": [],
+          "native_checked": true,
+          "merge_snapshots": [
+            {
+              "merge": "328d9ba",
+              "referenced_in_bytes": true,
+              "matching_files": []
+            },
+            {
+              "merge": "2e29170",
+              "referenced_in_bytes": true,
+              "matching_files": []
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "WTCK2MB_6.ipt",
+      "current_locations": [],
+      "history_paths": [],
+      "referrers": [
+        {
+          "referrer": "BoronProbe_2026/parts/C70TCK2MBGA.iam",
+          "native_direct": [],
+          "native_checked": true,
+          "merge_snapshots": [
+            {
+              "merge": "328d9ba",
+              "referenced_in_bytes": true,
+              "matching_files": []
+            },
+            {
+              "merge": "2e29170",
+              "referenced_in_bytes": true,
+              "matching_files": []
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "ICF70F 1個付き 19穴.ipt",
+      "current_locations": [],
+      "history_paths": [],
+      "referrers": [
+        {
+          "referrer": "BoronProbe_2026/parts/C25K22A4CU.iam",
+          "native_direct": [
+            {
+              "path_relative": "[outside-workspace]",
+              "missing": true
+            }
+          ],
+          "native_checked": true,
+          "merge_snapshots": [
+            {
+              "merge": "328d9ba",
+              "referenced_in_bytes": true,
+              "matching_files": []
+            },
+            {
+              "merge": "2e29170",
+              "referenced_in_bytes": true,
+              "matching_files": []
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "W5K22A4CU.iam",
+      "current_locations": [],
+      "history_paths": [],
+      "referrers": [
+        {
+          "referrer": "BoronProbe_2026/parts/C25K22A4CU.iam",
+          "native_direct": [
+            {
+              "path_relative": "[outside-workspace]",
+              "missing": true
+            }
+          ],
+          "native_checked": true,
+          "merge_snapshots": [
+            {
+              "merge": "328d9ba",
+              "referenced_in_bytes": true,
+              "matching_files": []
+            },
+            {
+              "merge": "2e29170",
+              "referenced_in_bytes": true,
+              "matching_files": []
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "board.ipt",
+      "current_locations": [
+        "ElectronicsBox/esp32-ambient-logger/STEPs/Adafruit_MAX31855/Adafruit_MAX31855/Board.ipt",
+        "ElectronicsBox/esp32-ambient-logger/STEPs/TP4056_Charging_Module_Type_C/board.ipt"
+      ],
+      "history_paths": [
+        "ElectronicsBox/esp32-ambient-logger/STEPs/Adafruit_MAX31855/Adafruit_MAX31855/Board.ipt",
+        "ElectronicsBox/esp32-ambient-logger/STEPs/TP4056_Charging_Module_Type_C/board.ipt"
+      ],
+      "referrers": [
+        {
+          "referrer": "ElectronicsBox/esp32-ambient-logger/STEPs/Adafruit_MAX31855-headerless.iam",
+          "native_direct": [
+            {
+              "path_relative": "ElectronicsBox/esp32-ambient-logger/STEPs/Adafruit_MAX31855/Adafruit_MAX31855/Board.ipt",
+              "missing": false
+            }
+          ],
+          "native_checked": true,
+          "merge_snapshots": [
+            {
+              "merge": "328d9ba",
+              "referenced_in_bytes": true,
+              "matching_files": [
+                "ElectronicsBox/esp32-ambient-logger/STEPs/Adafruit_MAX31855/Adafruit_MAX31855/Board.ipt",
+                "ElectronicsBox/esp32-ambient-logger/STEPs/TP4056_Charging_Module_Type_C/board.ipt"
+              ]
+            },
+            {
+              "merge": "2e29170",
+              "referenced_in_bytes": true,
+              "matching_files": [
+                "ElectronicsBox/esp32-ambient-logger/STEPs/Adafruit_MAX31855/Adafruit_MAX31855/Board.ipt",
+                "ElectronicsBox/esp32-ambient-logger/STEPs/TP4056_Charging_Module_Type_C/board.ipt"
+              ]
+            }
+          ]
+        },
+        {
+          "referrer": "ElectronicsBox/esp32-ambient-logger/STEPs/Adafruit_MAX31855.iam",
+          "native_direct": [
+            {
+              "path_relative": "ElectronicsBox/esp32-ambient-logger/STEPs/Adafruit_MAX31855/Adafruit_MAX31855/Board.ipt",
+              "missing": false
+            }
+          ],
+          "native_checked": true,
+          "merge_snapshots": [
+            {
+              "merge": "328d9ba",
+              "referenced_in_bytes": true,
+              "matching_files": [
+                "ElectronicsBox/esp32-ambient-logger/STEPs/Adafruit_MAX31855/Adafruit_MAX31855/Board.ipt",
+                "ElectronicsBox/esp32-ambient-logger/STEPs/TP4056_Charging_Module_Type_C/board.ipt"
+              ]
+            },
+            {
+              "merge": "2e29170",
+              "referenced_in_bytes": true,
+              "matching_files": [
+                "ElectronicsBox/esp32-ambient-logger/STEPs/Adafruit_MAX31855/Adafruit_MAX31855/Board.ipt",
+                "ElectronicsBox/esp32-ambient-logger/STEPs/TP4056_Charging_Module_Type_C/board.ipt"
+              ]
+            }
+          ]
+        },
+        {
+          "referrer": "ElectronicsBox/esp32-ambient-logger/STEPs/TP4056_Charging_Module_Type_C.iam",
+          "native_direct": [
+            {
+              "path_relative": "[outside-workspace]",
+              "missing": true
+            }
+          ],
+          "native_checked": true,
+          "merge_snapshots": [
+            {
+              "merge": "328d9ba",
+              "referenced_in_bytes": true,
+              "matching_files": [
+                "ElectronicsBox/esp32-ambient-logger/STEPs/Adafruit_MAX31855/Adafruit_MAX31855/Board.ipt",
+                "ElectronicsBox/esp32-ambient-logger/STEPs/TP4056_Charging_Module_Type_C/board.ipt"
+              ]
+            },
+            {
+              "merge": "2e29170",
+              "referenced_in_bytes": true,
+              "matching_files": [
+                "ElectronicsBox/esp32-ambient-logger/STEPs/Adafruit_MAX31855/Adafruit_MAX31855/Board.ipt",
+                "ElectronicsBox/esp32-ambient-logger/STEPs/TP4056_Charging_Module_Type_C/board.ipt"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "UFC-152.ipt",
+      "current_locations": [
+        "Plasma Vessel/Plasma-vacuum-cross/UFC-152.ipt"
+      ],
+      "history_paths": [
+        "Plasma Vessel/Plasma-vacuum-cross/UFC-152.ipt",
+        "Plasma Vessel_2026/Plasma-vacuum-vessel/UFC-152.ipt",
+        "Plasma Vessel_2026/gate_valve/UFC-152.ipt"
+      ],
+      "referrers": [
+        {
+          "referrer": "Plasma Vessel/PIHTI-for-Boron.iam",
+          "native_direct": [
+            {
+              "path_relative": "Plasma Vessel/Plasma-vacuum-cross/UFC-152.ipt",
+              "missing": false
+            }
+          ],
+          "native_checked": true,
+          "merge_snapshots": [
+            {
+              "merge": "328d9ba",
+              "referenced_in_bytes": true,
+              "matching_files": [
+                "Plasma Vessel/Plasma-vacuum-cross/UFC-152.ipt",
+                "Plasma Vessel_2026/Plasma-vacuum-vessel/UFC-152.ipt",
+                "Plasma Vessel_2026/gate_valve/UFC-152.ipt"
+              ]
+            },
+            {
+              "merge": "2e29170",
+              "referenced_in_bytes": true,
+              "matching_files": [
+                "Plasma Vessel/Plasma-vacuum-cross/UFC-152.ipt",
+                "Plasma Vessel_2026/Plasma-vacuum-vessel/UFC-152.ipt",
+                "Plasma Vessel_2026/gate_valve/UFC-152.ipt"
+              ]
+            }
+          ]
+        },
+        {
+          "referrer": "Plasma Vessel/Plasma-vacuum-cross/Plasma-vacuum-vessel-152IC-cross.iam",
+          "native_direct": [
+            {
+              "path_relative": "Plasma Vessel/Plasma-vacuum-cross/UFC-152.ipt",
+              "missing": false
+            }
+          ],
+          "native_checked": true,
+          "merge_snapshots": [
+            {
+              "merge": "328d9ba",
+              "referenced_in_bytes": true,
+              "matching_files": [
+                "Plasma Vessel/Plasma-vacuum-cross/UFC-152.ipt",
+                "Plasma Vessel_2026/Plasma-vacuum-vessel/UFC-152.ipt",
+                "Plasma Vessel_2026/gate_valve/UFC-152.ipt"
+              ]
+            },
+            {
+              "merge": "2e29170",
+              "referenced_in_bytes": true,
+              "matching_files": [
+                "Plasma Vessel/Plasma-vacuum-cross/UFC-152.ipt",
+                "Plasma Vessel_2026/Plasma-vacuum-vessel/UFC-152.ipt",
+                "Plasma Vessel_2026/gate_valve/UFC-152.ipt"
+              ]
+            }
+          ]
+        },
+        {
+          "referrer": "Plasma Vessel_2026/gate_valve/gate_valve_assembly.iam",
+          "native_direct": [
+            {
+              "path_relative": "[outside-workspace]",
+              "missing": true
+            }
+          ],
+          "native_checked": true,
+          "merge_snapshots": [
+            {
+              "merge": "328d9ba",
+              "referenced_in_bytes": true,
+              "matching_files": [
+                "Plasma Vessel/Plasma-vacuum-cross/UFC-152.ipt",
+                "Plasma Vessel_2026/Plasma-vacuum-vessel/UFC-152.ipt",
+                "Plasma Vessel_2026/gate_valve/UFC-152.ipt"
+              ]
+            },
+            {
+              "merge": "2e29170",
+              "referenced_in_bytes": true,
+              "matching_files": [
+                "Plasma Vessel/Plasma-vacuum-cross/UFC-152.ipt",
+                "Plasma Vessel_2026/Plasma-vacuum-vessel/UFC-152.ipt",
+                "Plasma Vessel_2026/gate_valve/UFC-152.ipt"
+              ]
+            }
+          ]
+        },
+        {
+          "referrer": "Plasma Vessel_2026/Plasma-vacuum-vessel/Plasma-vacuum-vessel-152IC-cross-L205p8.iam",
+          "native_direct": [
+            {
+              "path_relative": "Plasma Vessel/Plasma-vacuum-cross/UFC-152.ipt",
+              "missing": false
+            }
+          ],
+          "native_checked": true,
+          "merge_snapshots": [
+            {
+              "merge": "328d9ba",
+              "referenced_in_bytes": true,
+              "matching_files": [
+                "Plasma Vessel/Plasma-vacuum-cross/UFC-152.ipt",
+                "Plasma Vessel_2026/Plasma-vacuum-vessel/UFC-152.ipt",
+                "Plasma Vessel_2026/gate_valve/UFC-152.ipt"
+              ]
+            },
+            {
+              "merge": "2e29170",
+              "referenced_in_bytes": true,
+              "matching_files": [
+                "Plasma Vessel/Plasma-vacuum-cross/UFC-152.ipt",
+                "Plasma Vessel_2026/Plasma-vacuum-vessel/UFC-152.ipt",
+                "Plasma Vessel_2026/gate_valve/UFC-152.ipt"
+              ]
+            }
+          ]
+        },
+        {
+          "referrer": "Plasma Vessel_2026/Plasma-vacuum-vessel/Plasma-vacuum-vessel-152IC-cross-L255p8.iam",
+          "native_direct": [
+            {
+              "path_relative": "Plasma Vessel/Plasma-vacuum-cross/UFC-152.ipt",
+              "missing": false
+            },
+            {
+              "path_relative": "[outside-workspace]",
+              "missing": true
+            }
+          ],
+          "native_checked": true,
+          "merge_snapshots": [
+            {
+              "merge": "328d9ba",
+              "referenced_in_bytes": true,
+              "matching_files": [
+                "Plasma Vessel/Plasma-vacuum-cross/UFC-152.ipt",
+                "Plasma Vessel_2026/Plasma-vacuum-vessel/UFC-152.ipt",
+                "Plasma Vessel_2026/gate_valve/UFC-152.ipt"
+              ]
+            },
+            {
+              "merge": "2e29170",
+              "referenced_in_bytes": true,
+              "matching_files": [
+                "Plasma Vessel/Plasma-vacuum-cross/UFC-152.ipt",
+                "Plasma Vessel_2026/Plasma-vacuum-vessel/UFC-152.ipt",
+                "Plasma Vessel_2026/gate_valve/UFC-152.ipt"
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "scope_note": "Available local Git refs, merge trees, saved-file strings and native Inventor 2027.1 descriptors. Not a remote/student workstation search. Ignored staging appeared in the old reference index; its source files are not curated or added.",
+  "drawing_native": {
+    "path": "BoronProbe_2026/BoronProbe_5_disassembled.idw",
+    "missing_direct": [
+      "BoronProbe_5.iam",
+      "BoronProbe_5_disassembled.iam"
+    ],
+    "history": "a0c5bbe deletes the original main assembly and renames the disassembled assembly byte-for-byte to BoronProbe_2026/BoronProbe_2026_exploded.iam; drawing moved byte-for-byte with stale links"
+  },
+  "later_curation": {
+    "commit": "6df56ca",
+    "date": "2026-08-17",
+    "removed": [
+      "Plasma Vessel_2026/Plasma-vacuum-vessel/UFC-152.ipt",
+      "Plasma Vessel_2026/gate_valve/UFC-152.ipt"
+    ],
+    "survivor": "Plasma Vessel/Plasma-vacuum-cross/UFC-152.ipt",
+    "decision_record": "manual-consolidation group 3a70e239a738c9f0, 2026-08-06; different revisions retained in recovery history",
+    "native_missing_in": [
+      "Plasma Vessel_2026/Plasma-vacuum-vessel/Plasma-vacuum-vessel-152IC-cross-L255p8.iam",
+      "Plasma Vessel_2026/gate_valve/gate_valve_assembly.iam"
+    ]
+  }
+}
