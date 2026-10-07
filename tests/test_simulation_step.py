@@ -210,3 +210,86 @@ def test_solid_colour_inheritance_and_face_override(tmp_path):
     assert parts[0].face_colours.count("#0000ff") == 1
     _, ranges = prep.mesh(parts)
     assert {row["colour"] for row in ranges[0]["appearances"]} == {"#ffff00", "#0000ff"}
+
+
+def test_display_cache_survives_eviction_restart_and_map_edit(tmp_path, monkeypatch):
+    from pihti_dedup.web import create_app
+
+    reads = []
+    meshes = []
+
+    def parts(path, source):
+        reads.append(source)
+        return [prep.Part(source, source, [source], object(), "#ff0000")]
+
+    def mesh(value):
+        meshes.append(value[0].key)
+        return b"cached geometry", [
+            {"start": 0, "count": 3, "appearances": [{"start": 0, "count": 3, "colour": "#ff0000"}]}
+        ]
+
+    monkeypatch.setattr(prep, "read_parts", parts)
+    monkeypatch.setattr(prep, "mesh", mesh)
+    for name in ("a.step", "b.step", "c.step"):
+        (tmp_path / name).write_text(name)
+    client = create_app(tmp_path).test_client()
+    first = client.get("/simulation/model?source=a.step")
+    assert first.status_code == 200
+    for name in ("b.step", "c.step", "a.step"):
+        assert client.get("/simulation/model?source=" + name).status_code == 200
+    assert reads == meshes == ["a.step", "b.step", "c.step"]
+    client = create_app(tmp_path).test_client()
+    reused = client.get("/simulation/model?source=a.step")
+    assert reused.get_json() == first.get_json()
+    assert (
+        client.get(
+            "/simulation/model?source=a.step", headers={"If-None-Match": reused.headers["ETag"]}
+        ).status_code
+        == 304
+    )
+    model = reused.get_json()
+    binary = client.get("/simulation/mesh?source=a.step&hash=" + model["source_hash"])
+    assert binary.data == b"cached geometry"
+    assert "immutable" in binary.headers["Cache-Control"]
+    prep.save_entry(
+        tmp_path,
+        "a.step",
+        {"name": "changed", "material": "", "role": "", "colour": "#00ff00"},
+        model["revision"],
+    )
+    changed = client.get("/simulation/model?source=a.step")
+    assert changed.get_json()["parts"][0]["appearances"][0]["colour"] == "#00ff00"
+    assert changed.headers["ETag"] != reused.headers["ETag"]
+    assert len(meshes) == 3
+    (tmp_path / "a.step").write_text("new source")
+    assert client.get("/simulation/model?source=a.step").status_code == 200
+    assert len(meshes) == 4
+    assert (
+        client.get("/simulation/mesh?source=a.step&hash=" + model["source_hash"]).status_code == 409
+    )
+
+
+def test_oversized_display_refusal_survives_restart(tmp_path, monkeypatch):
+    from pihti_dedup import mesh_cache
+    from pihti_dedup.web import create_app
+
+    source = tmp_path / "large.step"
+    source.write_text("large")
+    builds = []
+    monkeypatch.setattr(prep, "read_parts", lambda path, source: [])
+
+    def refuse(parts):
+        builds.append(1)
+        raise ValueError("assembly is too large for the viewer")
+
+    monkeypatch.setattr(prep, "mesh", refuse)
+    for _ in range(2):
+        client = create_app(tmp_path).test_client()
+        assert client.get("/simulation/model?source=large.step").status_code == 422
+    assert len(builds) == 1
+    monkeypatch.setattr(mesh_cache, "MAX_TRIANGLES", mesh_cache.MAX_TRIANGLES + 1)
+    assert client.get("/simulation/model?source=large.step").status_code == 422
+    assert len(builds) == 2
+    source.write_text("changed large")
+    assert client.get("/simulation/model?source=large.step").status_code == 422
+    assert len(builds) == 3

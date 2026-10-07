@@ -1630,7 +1630,7 @@ def create_app(
         # Last-Modified, so a conditional request is exact rather than
         # optimistic. A rendered STEP costs seconds; making the browser refetch
         # 280 of them on every catalog visit would defeat the disk cache.
-        if request.endpoint in {"preview_image", "mesh_file", "git_history_preview", "sourcing_file"}:
+        if request.endpoint in {"preview_image", "mesh_file", "git_history_preview", "sourcing_file", "simulation.model", "simulation.mesh"}:
             return response
         if request.endpoint == "static" and response.status_code == 200:
             filename = request.view_args.get("filename", "") if request.view_args else ""

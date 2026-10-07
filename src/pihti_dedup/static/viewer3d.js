@@ -178,7 +178,7 @@
   async function colouredMesh(url, signal, onSize) {
     var parsed = new URL(url, location.href);
     var source = decodeURIComponent(parsed.pathname.slice('/mesh/'.length));
-    var response = await fetch('/simulation/model?source='+encodeURIComponent(source), {signal:signal, cache:'no-store'});
+    var response = await fetch('/simulation/model?source='+encodeURIComponent(source), {signal:signal});
     if (!response.ok) return null;
     var model = await response.json();
     var key = 'appearance:'+source+':'+model.source_hash+':'+model.revision;

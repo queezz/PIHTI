@@ -6,6 +6,10 @@ remains authoritative for exact file changes.
 
 ## 2026-10-07
 
+- Shipped `pihti-dedup` 0.31.1: persist coloured inspector geometry and
+  oversized-model refusals across navigation and restarts; keep saved overrides
+  live while allowing browser reuse of unchanged mesh payloads.
+
 - Shipped `pihti-dedup` 0.31.0: keep STEP exports in place, show progress,
   and add reversible Doctor-later dispositions that expire on assembly changes.
 

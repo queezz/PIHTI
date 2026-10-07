@@ -372,6 +372,13 @@ coordinates and millimetres, with assembly occurrences flattened to individual
 products. Repeated names are qualified by their original occurrence paths.
 This prepares geometry and metadata; it does not mesh it or assign voltages.
 
+Coloured STEP geometry and occurrence spans are cached on this machine under
+`appearance-meshes/` beside the preview and mesh caches. They survive navigation,
+in-memory eviction and service restarts. Changing the STEP rebuilds the cache;
+saved colour overrides are applied immediately without rebuilding geometry.
+An oversized model's refusal is also cached until its STEP or triangle limit
+changes, so hovering it does not repeat the same expensive failed build.
+
 The catalog inspector, enlarged view and part-page 3D view use the same STEP
 occurrence colours, including saved simulation colours. Without the simulation
 extra, they retain the geometry-only preview. Still thumbnails are unchanged.

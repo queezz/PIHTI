@@ -5,18 +5,37 @@ from __future__ import annotations
 import hashlib
 import importlib.util
 import io
+import json
+import tempfile
 from collections import OrderedDict
 from pathlib import Path
 
 from flask import Blueprint, abort, jsonify, render_template, request, send_file
 
-from pihti_dedup import __version__
+from pihti_dedup import __version__, mesh_cache
 from pihti_dedup import simulation_step as prep
+from pihti_dedup.cache_root import cache_root
+
+
+class DisplayRefusal(ValueError):
+    """A file-state-specific geometry limit already measured on this machine."""
+
+
+def _store_display(target, payload):
+    target.parent.mkdir(parents=True, exist_ok=True)
+    with tempfile.NamedTemporaryFile(dir=target.parent, delete=False) as stream:
+        temporary = Path(stream.name)
+        stream.write(payload)
+    try:
+        temporary.replace(target)
+    finally:
+        temporary.unlink(missing_ok=True)
 
 
 def register(app, root, mirror, guard):
     views = Blueprint("simulation", __name__)
     cache = OrderedDict()
+    display_store = cache_root(root) / "appearance-meshes"
 
     def source_path(source):
         if not source or "\\" in source:
@@ -37,8 +56,80 @@ def register(app, root, mirror, guard):
             return path
         abort(404)
 
-    def load(source, with_mesh=False):
+    def load(source, with_mesh=False, payload=True):
         path = source_path(source)
+        if with_mesh:
+            # Display geometry survives navigation, the two-shape OCC LRU and
+            # service restarts. Saved overrides are applied separately below.
+            stat = path.stat()
+            stamp = hashlib.sha256(
+                f"appearance-v1:{mesh_cache.MAX_TRIANGLES}:{source}:{path}:{stat.st_mtime_ns}:{stat.st_size}".encode()
+            ).hexdigest()
+            metadata = display_store / stamp[:2] / (stamp + ".json")
+            binary = metadata.with_suffix(".mesh")
+            try:
+                saved = json.loads(metadata.read_text(encoding="utf-8"))
+                if "error" in saved:
+                    raise DisplayRefusal(saved["error"])
+                parts = [prep.Part(shape=None, **part) for part in saved["parts"]]
+                if not binary.is_file():
+                    raise ValueError("missing cached mesh")
+                return [parts, binary.read_bytes() if payload else None, saved["ranges"]], saved[
+                    "digest"
+                ]
+            except DisplayRefusal:
+                raise
+            except (OSError, ValueError, KeyError, TypeError):
+                pass
+            # Single flight: another inspector may have finished while we waited.
+            with prep.OCC_LOCK:
+                if metadata.is_file():
+                    try:
+                        saved = json.loads(metadata.read_text(encoding="utf-8"))
+                        if "error" in saved:
+                            raise DisplayRefusal(saved["error"])
+                        if not binary.is_file():
+                            raise ValueError("missing cached mesh")
+                        parts = [prep.Part(shape=None, **part) for part in saved["parts"]]
+                        return [
+                            parts,
+                            binary.read_bytes() if payload else None,
+                            saved["ranges"],
+                        ], saved["digest"]
+                    except DisplayRefusal:
+                        raise
+                    except (OSError, ValueError, KeyError, TypeError):
+                        pass
+                record, digest = load(source)
+                try:
+                    data, ranges = prep.mesh(record[0])
+                except ValueError as exc:
+                    if str(exc) == "assembly is too large for the viewer":
+                        _store_display(metadata, json.dumps({"error": str(exc)}).encode())
+                    raise
+                after = path.stat()
+                if (after.st_mtime_ns, after.st_size) != (stat.st_mtime_ns, stat.st_size):
+                    raise ValueError("STEP changed. Reload the model.")
+                saved = {
+                    "digest": digest,
+                    "ranges": ranges,
+                    "parts": [
+                        {
+                            "key": p.key,
+                            "original": p.original,
+                            "occurrence": p.occurrence,
+                            "colour": p.colour,
+                            "stable": p.stable,
+                        }
+                        for p in record[0]
+                    ],
+                }
+                for target, payload in (
+                    (binary, data),
+                    (metadata, json.dumps(saved).encode("utf-8")),
+                ):
+                    _store_display(target, payload)
+                return [record[0], data, ranges], digest
         digest = hashlib.sha256(path.read_bytes()).hexdigest()
         key = (source, digest)
         with prep.OCC_LOCK:
@@ -48,8 +139,6 @@ def register(app, root, mirror, guard):
                     cache.popitem(last=False)
             cache.move_to_end(key)
             record = cache[key]
-            if with_mesh and record[1] is None:
-                record[1], record[2] = prep.mesh(record[0])
             return record, digest
 
     @views.get("/simulation")
@@ -84,7 +173,7 @@ def register(app, root, mirror, guard):
     def model():
         try:
             source = request.args.get("source", "")
-            record, digest = load(source, True)
+            record, digest = load(source, True, payload=False)
             mapping = prep.read_map(root)
             rows = prep.public_parts(record[0], mapping)
             for row, span in zip(rows, record[2], strict=True):
@@ -94,9 +183,12 @@ def register(app, root, mirror, guard):
                     row["appearances"] = [
                         {**face, "colour": entry["colour"]} for face in span["appearances"]
                     ]
-            return jsonify(
+            response = jsonify(
                 parts=rows, source_hash=digest, revision=prep.map_revision(mapping), units="mm"
             )
+            response.set_etag(hashlib.sha256(response.get_data()).hexdigest())
+            response.headers["Cache-Control"] = "private, no-cache"
+            return response.make_conditional(request)
         except (ValueError, OSError, ImportError) as exc:
             return jsonify(error=str(exc)), 422
 
@@ -106,7 +198,10 @@ def register(app, root, mirror, guard):
             record, digest = load(request.args.get("source", ""), True)
             if request.args.get("hash") != digest:
                 return jsonify(error="STEP changed. Reload the model."), 409
-            return send_file(io.BytesIO(record[1]), mimetype="application/octet-stream")
+            response = send_file(io.BytesIO(record[1]), mimetype="application/octet-stream")
+            response.set_etag(digest + "-appearance-v1")
+            response.headers["Cache-Control"] = "private, max-age=31536000, immutable"
+            return response.make_conditional(request)
         except (ValueError, OSError, ImportError) as exc:
             return jsonify(error=str(exc)), 422
 
