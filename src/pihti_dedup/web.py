@@ -3313,7 +3313,7 @@ def create_app(
 
     from pihti_dedup.simulation_web import register as register_simulation
 
-    register_simulation(app, root, mirror, _guard)
+    register_simulation(app, root, mirror, _guard, background=refresh_seconds > 0)
 
     def _catalog_index(inventory: Inventory) -> list[dict]:
         # Inventories are immutable and swapped whole, so identity is an exact

@@ -173,13 +173,31 @@
   // lets a caller name a heavy download while it is still in flight; it only
   // fires for the request that actually reaches the network, not a memo hit.
   var memo = new Map();
+  async function fetchDisplayModel(source, signal) {
+    while (true) {
+      var response = await fetch('/simulation/model?source='+encodeURIComponent(source), {signal:signal});
+      if (response.status !== 202) return response;
+      await new Promise(function(resolve, reject) {
+        var timer = setTimeout(done, 1000);
+        function done() { if(signal)signal.removeEventListener('abort', abort); resolve(); }
+        function abort() { clearTimeout(timer); signal.removeEventListener('abort', abort); reject(new DOMException('Aborted', 'AbortError')); }
+        if(signal) { signal.addEventListener('abort', abort); if(signal.aborted)abort(); }
+      });
+    }
+  }
   // STEP appearances share the editor's occurrence reader and saved map.
   // The old geometry-only endpoint remains the fallback without the extra.
   async function colouredMesh(url, signal, onSize) {
     var parsed = new URL(url, location.href);
     var source = decodeURIComponent(parsed.pathname.slice('/mesh/'.length));
-    var response = await fetch('/simulation/model?source='+encodeURIComponent(source), {signal:signal});
-    if (!response.ok) return null;
+    var response = await fetchDisplayModel(source, signal);
+    if (!response.ok) {
+      var failure = await response.json();
+      if (failure.error && /too large|timed out|preparation failed/.test(failure.error)) {
+        var refusal = new Error(failure.error); refusal.reason = failure.error; throw refusal;
+      }
+      return null;
+    }
     var model = await response.json();
     var key = 'appearance:'+source+':'+model.source_hash+':'+model.revision;
     if (memo.has(key)) return memo.get(key);
@@ -576,5 +594,5 @@
     };
   }
 
-  window.PihtiViewer3D = { supported: supported, create: create, fetchMesh: fetchMesh, parse: parse };
+  window.PihtiViewer3D = { supported: supported, create: create, fetchMesh: fetchMesh, fetchDisplayModel: fetchDisplayModel, parse: parse };
 })();

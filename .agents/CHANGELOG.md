@@ -6,6 +6,10 @@ remains authoritative for exact file changes.
 
 ## 2026-10-07
 
+- Shipped `pihti-dedup` 0.31.2: prepare cold coloured STEP geometry in a
+  bounded low-priority worker process while Catalog stays responsive. Oversized
+  assemblies keep the still image without a second geometry-only tessellation.
+
 - Shipped `pihti-dedup` 0.31.1: persist coloured inspector geometry and
   oversized-model refusals across navigation and restarts; keep saved overrides
   live while allowing browser reuse of unchanged mesh payloads.

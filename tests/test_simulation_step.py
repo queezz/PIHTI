@@ -293,3 +293,87 @@ def test_oversized_display_refusal_survives_restart(tmp_path, monkeypatch):
     source.write_text("changed large")
     assert client.get("/simulation/model?source=large.step").status_code == 422
     assert len(builds) == 3
+
+
+def test_background_display_does_not_wait_for_geometry(tmp_path, monkeypatch):
+    import threading
+
+    from pihti_dedup.display_worker import DisplayJobs
+    from pihti_dedup.web import create_app
+
+    entered, release = threading.Event(), threading.Event()
+
+    def slow(self, source):
+        entered.set()
+        assert release.wait(5)
+        return "STEP display preparation timed out; use the still preview"
+
+    monkeypatch.setattr(DisplayJobs, "_run", slow)
+    (tmp_path / "large.step").write_text("synthetic")
+    app = create_app(tmp_path, refresh_seconds=60, session_factory=lambda: None)
+    try:
+        client = app.test_client()
+        response = client.get("/simulation/model?source=large.step")
+        assert response.status_code == 202 and response.get_json()["pending"]
+        assert entered.wait(1)
+        # The geometry worker is still blocked: Catalog must finish anyway.
+        assert client.get("/catalog").status_code == 200
+        assert not release.is_set()
+        release.set()
+        jobs = app.extensions["pihti_display_jobs"]
+        next(iter(jobs.jobs.values())).result(timeout=2)
+        assert client.get("/simulation/model?source=large.step").status_code == 422
+    finally:
+        release.set()
+        app.extensions["pihti_display_jobs"].close()
+
+
+def test_isolated_worker_writes_reusable_geometry(tmp_path):
+    import time
+
+    from flask import Flask
+
+    from pihti_dedup.simulation_web import register
+    from pihti_dedup.step_mirror import StepMirror
+
+    fixture_step(tmp_path / "worker.step")
+    app = Flask(__name__)
+    register(app, tmp_path, StepMirror(tmp_path), lambda request: None, background=True)
+    try:
+        client = app.test_client()
+        response = client.get("/simulation/model?source=worker.step")
+        assert response.status_code == 202
+        deadline = time.monotonic() + 15
+        while response.status_code == 202 and time.monotonic() < deadline:
+            time.sleep(0.05)
+            response = client.get("/simulation/model?source=worker.step")
+        assert response.status_code == 200, response.get_json()
+        model = response.get_json()
+        assert len(model["parts"]) == 2
+        assert (
+            client.get(
+                "/simulation/mesh?source=worker.step&hash=" + model["source_hash"]
+            ).status_code
+            == 200
+        )
+    finally:
+        app.extensions["pihti_display_jobs"].close()
+
+
+def test_worker_stop_kills_windows_launcher_tree(monkeypatch):
+    from pihti_dedup import display_worker
+
+    class Process:
+        pid = 12345
+
+        def poll(self):
+            return None
+
+    calls = []
+    monkeypatch.setattr(display_worker.sys, "platform", "win32")
+    monkeypatch.setattr(display_worker.subprocess, "CREATE_NO_WINDOW", 0, raising=False)
+    monkeypatch.setattr(
+        display_worker.subprocess, "run", lambda command, **kwargs: calls.append(command)
+    )
+    display_worker._stop(Process())
+    assert calls == [["taskkill", "/PID", "12345", "/T", "/F"]]

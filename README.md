@@ -378,6 +378,12 @@ in-memory eviction and service restarts. Changing the STEP rebuilds the cache;
 saved colour overrides are applied immediately without rebuilding geometry.
 An oversized model's refusal is also cached until its STEP or triangle limit
 changes, so hovering it does not repeat the same expensive failed build.
+On the live viewer, cold coloured geometry is prepared in a separate process
+at low priority on Windows. One job runs at a time, with at most one waiting;
+the inspector keeps its still image while polling for completion. Catalog
+navigation does not wait for that tessellation. Jobs time out after two minutes,
+and an oversized coloured model keeps its still instead of attempting another
+geometry-only tessellation.
 
 The catalog inspector, enlarged view and part-page 3D view use the same STEP
 occurrence colours, including saved simulation colours. Without the simulation

@@ -15,6 +15,7 @@ from flask import Blueprint, abort, jsonify, render_template, request, send_file
 from pihti_dedup import __version__, mesh_cache
 from pihti_dedup import simulation_step as prep
 from pihti_dedup.cache_root import cache_root
+from pihti_dedup.display_worker import DisplayJobs, DisplayPending
 
 
 class DisplayRefusal(ValueError):
@@ -32,10 +33,12 @@ def _store_display(target, payload):
         temporary.unlink(missing_ok=True)
 
 
-def register(app, root, mirror, guard):
+def register(app, root, mirror, guard, *, background=False):
     views = Blueprint("simulation", __name__)
     cache = OrderedDict()
     display_store = cache_root(root) / "appearance-meshes"
+    jobs = DisplayJobs(root, mirror.root) if background else None
+    app.extensions["pihti_display_jobs"] = jobs
 
     def source_path(source):
         if not source or "\\" in source:
@@ -56,7 +59,7 @@ def register(app, root, mirror, guard):
             return path
         abort(404)
 
-    def load(source, with_mesh=False, payload=True):
+    def load(source, with_mesh=False, payload=True, prepared=False):
         path = source_path(source)
         if with_mesh:
             # Display geometry survives navigation, the two-shape OCC LRU and
@@ -81,6 +84,14 @@ def register(app, root, mirror, guard):
                 raise
             except (OSError, ValueError, KeyError, TypeError):
                 pass
+            if jobs is not None:
+                if prepared:
+                    raise ValueError("STEP display cache could not be read")
+                jobs.prepare(stamp, source)
+                # A completed worker writes the same persistent display cache.
+                if not metadata.is_file():
+                    raise ValueError("STEP changed. Reload the model.")
+                return load(source, with_mesh=True, payload=payload, prepared=True)
             # Single flight: another inspector may have finished while we waited.
             with prep.OCC_LOCK:
                 if metadata.is_file():
@@ -189,6 +200,12 @@ def register(app, root, mirror, guard):
             response.set_etag(hashlib.sha256(response.get_data()).hexdigest())
             response.headers["Cache-Control"] = "private, no-cache"
             return response.make_conditional(request)
+        except DisplayPending:
+            response = jsonify(pending=True)
+            response.status_code = 202
+            response.headers["Retry-After"] = "1"
+            response.headers["Cache-Control"] = "no-store"
+            return response
         except (ValueError, OSError, ImportError) as exc:
             return jsonify(error=str(exc)), 422
 
@@ -202,6 +219,12 @@ def register(app, root, mirror, guard):
             response.set_etag(digest + "-appearance-v1")
             response.headers["Cache-Control"] = "private, max-age=31536000, immutable"
             return response.make_conditional(request)
+        except DisplayPending:
+            response = jsonify(pending=True)
+            response.status_code = 202
+            response.headers["Retry-After"] = "1"
+            response.headers["Cache-Control"] = "no-store"
+            return response
         except (ValueError, OSError, ImportError) as exc:
             return jsonify(error=str(exc)), 422
 
