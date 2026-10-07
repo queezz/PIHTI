@@ -1516,6 +1516,7 @@ def create_app(
         if merges_snapshot is not None:
             return merges_snapshot.get()
         return tuple(merge_reader(root))
+
     app.jinja_env.filters["filesize"] = _filesize
     app.jinja_env.filters["winpath"] = _windows_path
     app.jinja_env.filters["filetime"] = _filetime
@@ -1763,6 +1764,9 @@ def create_app(
         return ""
 
     def _doctor_queue_context(notice: str = "", *, failed: bool = False) -> dict:
+        from pihti_dedup import doctor_later
+
+        later = doctor_later.active(root)
         inventory = cache.get(include_vendor=False)
         index = _current_index()
         locations = _current_locations()
@@ -1777,7 +1781,7 @@ def create_app(
         assembly_problems = {
             path: step_mirror.reference_problems(names, locations, (), renamed, retired, outside)
             for path, names in index.document_names.items()
-            if Path(path).suffix.casefold() == ".iam"
+            if Path(path).suffix.casefold() == ".iam" and path.casefold() not in later
         }
 
         # Missing file: the old name of a rename still open, carried by no
@@ -1805,6 +1809,14 @@ def create_app(
             }
         missing_items = []
         for item in missing.values():
+            item = {
+                **item,
+                "referrers": tuple(
+                    path for path in item["referrers"] if path.casefold() not in later
+                ),
+            }
+            if not item["referrers"]:
+                continue
             candidates = _repoint_candidates(item["name"], locations, ledger)
             obvious = len(item["referrers"]) == 1 and len(candidates) == 1
             missing_items.append(
@@ -1859,6 +1871,8 @@ def create_app(
         assembly_views = []
         for path, names in index.document_names.items():
             if Path(path).suffix.casefold() != ".iam":
+                continue
+            if path.casefold() in later:
                 continue
             missing_keys = {
                 name.casefold()
@@ -4651,12 +4665,14 @@ def create_app(
 
     @app.get("/step-mirror")
     def step_mirror_page():
+        from pihti_dedup import doctor_later
+
         inventory = cache.get(include_vendor=False, hash_files=False)
         status = mirror.status(inventory)
         session = _session()
         job = app.extensions.get("pihti_step_mirror_job")
         needs_doctor = mirror.needs_doctor(status)
-        blocked_paths = {entry.path.casefold() for entry in needs_doctor}
+        blocked_paths = {entry.path.casefold() for entry in needs_doctor} | status.doctor_later
         ready_missing = tuple(
             item for item in status.missing if item.path.casefold() not in blocked_paths
         )
@@ -4695,6 +4711,7 @@ def create_app(
             status=status,
             needs_doctor=needs_doctor,
             doctor_rows=doctor_rows,
+            doctor_later=list(doctor_later.active(root).values()),
             ready_missing=ready_missing,
             ready_stale=ready_stale,
             location=str(mirror.root),
@@ -4727,7 +4744,9 @@ def create_app(
                 code = "absent"
             else:
                 code = None if mirror_batch.start(session) else "running"
-        return redirect(url_for("step_mirror_page", batch=code, _anchor="mirror-batch"))
+        if request.headers.get("Accept") == "application/json":
+            return jsonify({**mirror_batch.status(), "notice": BATCH_NOTICES.get(code, "")})
+        return redirect(url_for("step_mirror_page", batch=code))
 
     @app.post("/step-mirror/stop")
     def step_mirror_batch_stop():
@@ -4738,7 +4757,43 @@ def create_app(
             return guard
         # A stopping batch says so on its own status line; no notice needed.
         code = None if mirror_batch.stop() else "idle"
-        return redirect(url_for("step_mirror_page", batch=code, _anchor="mirror-batch"))
+        if request.headers.get("Accept") == "application/json":
+            return jsonify({**mirror_batch.status(), "notice": BATCH_NOTICES.get(code, "")})
+        return redirect(url_for("step_mirror_page", batch=code))
+
+    @app.post("/step-mirror/doctor-later")
+    def step_mirror_doctor_later():
+        from flask import abort
+
+        from pihti_dedup import doctor_later
+
+        guard = _guard(request)
+        if guard is not None:
+            return guard
+        relative = request.form.get("path", "")
+        inventory = cache.get(include_vendor=False, hash_files=False)
+        item = mirror.status(inventory).item(relative)
+        if item is None or Path(relative).suffix.casefold() != ".iam":
+            abort(404)
+        if request.form.get("action") == "restore":
+            blocker = None
+        elif request.form.get("action") == "defer":
+            blocker = mirror.blocker(relative)
+            if blocker is None:
+                abort(409)
+            if str(item.source_mtime_ns) != request.form.get("mtime") or str(
+                item.source_size
+            ) != request.form.get("size"):
+                abort(409)
+            live = (root / item.path).stat()
+            if live.st_mtime_ns != item.source_mtime_ns or live.st_size != item.source_size:
+                abort(409)
+        else:
+            abort(400)
+        doctor_later.set_later(root, relative, blocker)
+        return redirect(
+            url_for("step_mirror_page", _anchor="sec-later" if blocker else "sec-doctor")
+        )
 
     @app.get("/step-mirror/status")
     def step_mirror_status():

@@ -335,6 +335,14 @@ the earlier JSON/CSV/Markdown inventory workflow.
 
 ### Simulation STEP viewer
 
+On **STEP mirror**, **Export fresh STEPs** runs in place; the progress bar
+tracks files processed alongside the status numbers. **Doctor later** defers
+a blocked assembly from the active Doctor queue and automatic exports.
+Use **Review now** in the **Doctor later** section to bring it back. Saving a
+changed assembly also brings it back automatically. The disposition is stored
+in `.agents/doctor-later.json`; it does not repair references or permit a
+blocked assembly to open in Inventor.
+
 Open **STEP viewer** in `lab pihti`, or **Open in STEP viewer** on a part page.
 Browse folders or find a file by name/path; **Search all folders** widens the
 search to the workspace. The catalog inspector also offers **Edit in STEP viewer**.

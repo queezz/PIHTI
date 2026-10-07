@@ -477,6 +477,11 @@ a.copy-path { display: inline-block; text-align: center; text-decoration: none; 
 .mirror-batch-form { display: flex; align-items: center; gap: 8px; margin: 0 0 9px; }
 .mirror-batch-count { color: var(--dim); font-size: 0.64rem; font-variant-numeric: tabular-nums; }
 .mirror-batch-line { font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.mirror-progress { display:block; width:100%; height:8px; margin:0 0 12px; accent-color:var(--accent); }
+.mirror-batch-line { min-height:2.5em; }
+.mirror-batch-line[hidden] { display:block !important; visibility:hidden; }
+.mirror-batch { overflow-anchor:none; }
+.mirror-actions { flex-wrap:wrap; gap:4px; }
 .rail-note.mirror-batch-last { margin: 0 0 9px; overflow-wrap: anywhere; }
 .mirror-notice { color: var(--muted); }
 .inspector-title { flex: none; margin: 6px 0 2px; font-size: 0.8rem; overflow-wrap: anywhere; }

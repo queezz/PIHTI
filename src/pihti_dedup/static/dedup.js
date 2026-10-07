@@ -2313,6 +2313,7 @@ var PihtiEnlarge = (function () {
   var last = box.querySelector("[data-batch-last]");
   var start = box.querySelector("[data-batch-start]");
   var stop = box.querySelector("[data-batch-stop]");
+  var progress = box.querySelector("[data-batch-progress]");
   var POLL_MS = 3000;
   var failures = 0;
 
@@ -2324,11 +2325,17 @@ var PihtiEnlarge = (function () {
   }
 
   function apply(status) {
+    var scrollX = window.scrollX, scrollY = window.scrollY;
     box.dataset.batchState = status.state;
     var notice = box.querySelector("[data-batch-notice]");
     if (notice && !status.running) notice.hidden = true;
     line.textContent = status.line || "";
     line.hidden = !status.line;
+    if (progress) {
+      progress.max = status.total || 1;
+      progress.value = status.done || 0;
+      progress.style.visibility = status.total ? "visible" : "hidden";
+    }
     last.textContent = status.last ? "Not exported: " + status.last : "";
     last.hidden = !status.last;
     if (stop) stop.hidden = status.state !== "running";
@@ -2340,6 +2347,8 @@ var PihtiEnlarge = (function () {
       var cell = document.querySelector('[data-mirror-count="' + name + '"]');
       if (cell) cell.textContent = status.counts[name];
     });
+    window.scrollTo({left:scrollX, top:scrollY, behavior:"instant"});
+    window.requestAnimationFrame(function() { window.scrollTo({left:scrollX, top:scrollY, behavior:"instant"}); });
   }
 
   function poll() {
@@ -2359,6 +2368,28 @@ var PihtiEnlarge = (function () {
       });
   }
 
+  [start, stop].forEach(function(form) {
+    if (!form) return;
+    form.addEventListener("submit", async function(event) {
+      event.preventDefault();
+      var actionX = window.scrollX, actionY = window.scrollY;
+      var button = form.querySelector("button");
+      button.disabled = true;
+      try {
+        var response = await fetch(form.action, {method:"POST", body:new FormData(form), headers:{Accept:"application/json"}, credentials:"same-origin"});
+        if (!response.ok) throw new Error("Export request failed (" + response.status + "). Try again.");
+        var status = await response.json();
+        apply(status);
+        if (status.notice) { line.textContent = status.notice; line.hidden = false; }
+        if (status.running) window.setTimeout(poll, POLL_MS);
+      } catch (error) { line.textContent = error.message; line.hidden = false; }
+      finally {
+        button.disabled = false;
+        window.scrollTo({left:actionX, top:actionY, behavior:"instant"});
+        window.requestAnimationFrame(function() { window.scrollTo({left:actionX, top:actionY, behavior:"instant"}); });
+      }
+    });
+  });
   var state = box.dataset.batchState;
   if (state === "running" || state === "stopping") window.setTimeout(poll, POLL_MS);
 })();

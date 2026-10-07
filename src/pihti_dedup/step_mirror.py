@@ -609,6 +609,7 @@ class MirrorStatus:
 
     root: Path
     items: tuple[MirrorItem, ...]
+    doctor_later: frozenset[str] = frozenset()
 
     def _in(self, state: str) -> tuple[MirrorItem, ...]:
         chosen = [item for item in self.items if item.state == state]
@@ -635,7 +636,11 @@ class MirrorStatus:
     def queue(self) -> tuple[MirrorItem, ...]:
         """Every stale or missing document, oldest source first: the export order."""
 
-        waiting = [item for item in self.items if item.state != CURRENT]
+        waiting = [
+            item
+            for item in self.items
+            if item.state != CURRENT and item.path.casefold() not in self.doctor_later
+        ]
         waiting.sort(key=lambda item: (item.source_mtime_ns, item.path.casefold()))
         return tuple(waiting)
 
@@ -1061,8 +1066,11 @@ class StepMirror:
         process changes.
         """
 
+        from pihti_dedup import doctor_later
+
+        later = frozenset(doctor_later.active(self.workspace))
         with self._lock:
-            key = (self._stamp(), self._generation)
+            key = (self._stamp(), self._generation, later)
             memo = self._memo
             if memo is not None and memo[0] is inventory and memo[1] == key:
                 return memo[2]
@@ -1072,7 +1080,7 @@ class StepMirror:
             for record in inventory.records
             if in_scope(record.path)
         )
-        status = MirrorStatus(root=self.root, items=items)
+        status = MirrorStatus(root=self.root, items=items, doctor_later=later)
         with self._lock:
             self._memo = (inventory, key, status)
         return status

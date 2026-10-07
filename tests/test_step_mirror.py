@@ -1257,7 +1257,7 @@ def test_the_project_file_names_its_content_center_and_library_folders(
     # The live PIHTI.ipj names libraries only, no folder: nothing is invented.
     bare = tmp_path / "bare.ipj"
     bare.write_bytes(
-        "<?xml version=\"1.0\"?><InventorProject><FolderOptions><ContentCenterFolder>"
+        '<?xml version="1.0"?><InventorProject><FolderOptions><ContentCenterFolder>'
         "<ContentCenterConfig/></ContentCenterFolder></FolderOptions></InventorProject>".encode()
     )
     assert step_mirror.project_folders(bare) == (None, ())
@@ -1914,6 +1914,63 @@ def mirror_card(html: str) -> str:
     return html.split('id="mirror-batch"', 1)[1].split("</section>", 1)[0]
 
 
+def test_doctor_later_is_reversible_and_expires_on_source_change(tmp_path):
+    from pihti_dedup import doctor_later
+
+    root = make_workspace(tmp_path / "PIHTI")
+    source = root / "Frame/frame.iam"
+    source.write_bytes(reference_bytes("student-missing.ipt"))
+    viewer = create_app(root)
+    client = viewer.test_client()
+    token = viewer.config["FORM_TOKEN"]
+    mirror = viewer.extensions["pihti_step_mirror"]
+    item = mirror.status(inventory_of(root)).item("Frame/frame.iam")
+    data = {
+        "token": token,
+        "path": item.path,
+        "action": "defer",
+        "mtime": str(item.source_mtime_ns),
+        "size": str(item.source_size),
+    }
+    assert "Doctor later" in client.get("/step-mirror").get_data(as_text=True)
+    assert client.post("/step-mirror/doctor-later", data={}).status_code == 403
+    assert client.post("/step-mirror/doctor-later", data={**data, "mtime": "0"}).status_code == 409
+    assert client.post("/step-mirror/doctor-later", data=data).status_code == 302
+    assert "frame/frame.iam" in doctor_later.active(root)
+    assert "Frame/frame.iam" not in [i.path for i in mirror.status(inventory_of(root)).queue]
+    assert mirror.blocker("Frame/frame.iam") is not None
+    page = client.get("/step-mirror").get_data(as_text=True)
+    assert "Review now" in page
+    assert "student-missing.ipt" not in client.get("/doctor").get_data(as_text=True)
+    assert (
+        client.post("/step-mirror/doctor-later", data={**data, "action": "restore"}).status_code
+        == 302
+    )
+    assert not doctor_later.active(root)
+    assert "Frame/frame.iam" in [i.path for i in mirror.status(inventory_of(root)).queue]
+    client.post("/step-mirror/doctor-later", data=data)
+    source.write_bytes(source.read_bytes() + b"changed")
+    assert not doctor_later.active(root)
+    with pytest.raises(ValueError):
+        doctor_later.set_later(root, "../escape.iam", ("missing", "missing"))
+
+
+def test_batch_actions_return_json_without_navigation(tmp_path):
+    root = make_workspace(tmp_path / "PIHTI")
+    viewer = create_app(root)
+    client = viewer.test_client()
+    response = client.post(
+        "/step-mirror/export",
+        data={"token": viewer.config["FORM_TOKEN"]},
+        headers={"Accept": "application/json"},
+    )
+    assert response.status_code == 200
+    assert response.get_json()["notice"] == "Inventor is not running; nothing started."
+    assert "Location" not in response.headers
+    page = client.get("/step-mirror").get_data(as_text=True)
+    assert 'aria-label="STEP export progress"' in page
+
+
 def test_without_inventor_the_page_asks_for_it_and_starts_nothing(
     tmp_path: Path, step_mirror_folder: Path
 ) -> None:
@@ -1929,7 +1986,7 @@ def test_without_inventor_the_page_asks_for_it_and_starts_nothing(
     assert client.post("/step-mirror/export", data={}).status_code == 403
     done = client.post("/step-mirror/export", data={"token": token})
     assert done.status_code == 302
-    assert done.headers["Location"] == "/step-mirror?batch=absent#mirror-batch"
+    assert done.headers["Location"] == "/step-mirror?batch=absent"
     page = client.get("/step-mirror?batch=absent").get_data(as_text=True)
     assert "Inventor is not running; nothing started." in mirror_card(page)
     assert viewer.extensions["pihti_step_mirror_batch"].status()["state"] == "idle"
@@ -1955,7 +2012,7 @@ def test_the_page_starts_a_batch_and_reports_it_as_json(tmp_path: Path) -> None:
     assert idle["counts"] == {"current": 0, "stale": 0, "missing": 4, "total": 4}
 
     done = client.post("/step-mirror/export", data={"token": token})
-    assert done.status_code == 302 and done.headers["Location"] == "/step-mirror#mirror-batch"
+    assert done.status_code == 302 and done.headers["Location"] == "/step-mirror"
     assert batch.wait(10)
 
     status = client.get("/step-mirror/status").get_json()
@@ -1987,18 +2044,18 @@ def test_the_page_answers_a_second_start_and_a_stop_with_a_notice(tmp_path: Path
     batch.per_file_timeout = 5.0
 
     assert client.post("/step-mirror/stop", data={"token": token}).headers["Location"] == (
-        "/step-mirror?batch=idle#mirror-batch"
+        "/step-mirror?batch=idle"
     )
     try:
         client.post("/step-mirror/export", data={"token": token})
         wait_for(lambda: hanging(app, "old.ipt"))
         page = mirror_card(client.get("/step-mirror").get_data(as_text=True))
         assert 'data-batch-state="running"' in page and "Exporting 1 of 4 · old.ipt" in page
-        assert re.search(r'<form[^>]*data-batch-start hidden>', page)
+        assert re.search(r"<form[^>]*data-batch-start hidden>", page)
         assert 'action="/step-mirror/stop"' in page and "Stop after this file" in page
 
         again = client.post("/step-mirror/export", data={"token": token})
-        assert again.headers["Location"] == "/step-mirror?batch=running#mirror-batch"
+        assert again.headers["Location"] == "/step-mirror?batch=running"
         assert "A batch is already running." in client.get("/step-mirror?batch=running").get_data(
             as_text=True
         )
@@ -2011,7 +2068,7 @@ def test_the_page_answers_a_second_start_and_a_stop_with_a_notice(tmp_path: Path
         assert "STEP not exported: the batch export is running" in busy.get_data(as_text=True)
 
         stop = client.post("/step-mirror/stop", data={"token": token})
-        assert stop.headers["Location"] == "/step-mirror#mirror-batch"
+        assert stop.headers["Location"] == "/step-mirror"
         assert client.get("/step-mirror/status").get_json()["state"] == "stopping"
     finally:
         app.release.set()

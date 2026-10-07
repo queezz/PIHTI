@@ -4,6 +4,11 @@ Shipped archive milestones only. PIHTI does not yet have a formal release/versio
 contract, so entries are dated rather than assigned software versions. Git history
 remains authoritative for exact file changes.
 
+## 2026-10-07
+
+- Shipped `pihti-dedup` 0.31.0: keep STEP exports in place, show progress,
+  and add reversible Doctor-later dispositions that expire on assembly changes.
+
 ## 2026-10-01
 
 - Shipped `pihti-dedup` 0.30.5: add the target simulation role with an amber
