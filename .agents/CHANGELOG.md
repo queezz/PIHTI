@@ -8,7 +8,9 @@ remains authoritative for exact file changes.
 
 - Preserve saved vessel/probe simulation preparation, shared CAD components,
   Doctor disposition and completed session evidence. Correct the bellows-probe
-  folder spelling by owner request; connected rename/design work remains pending.
+  folder spelling by owner request; settled the remaining unused-copy renames
+  through native Inventor checks and retired the owner-confirmed superseded
+  original assembly. The working tree is clean.
   See log/2026-10-08-tidy-working-tree.md for gates and remaining paths.
 
 ## 2026-10-07
