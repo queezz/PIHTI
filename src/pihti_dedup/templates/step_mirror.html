@@ -62,8 +62,9 @@
         <header><div><h2>Doctor later</h2><small class="problem-kind">Left out of automatic exports until reviewed or the assembly changes</small></div><strong>{{ doctor_later|length }}</strong></header>
         <div class="doctor-list">
           {% for entry in doctor_later %}
-          <article class="doctor-row mirror-row">
-            <span class="mirror-file"><strong>{{ entry.path|winpath }}</strong></span>
+          <article class="doctor-row mirror-row mirror-action-row">
+            <a class="doctor-preview-stack" href="{{ url_for('part_page', relative_path=entry.path, **{'from': 'step-mirror'}) }}" aria-label="Open {{ entry.path|winpath }}"><img src="{{ preview_url(entry.path) }}" alt="" loading="lazy" decoding="async" width="64" height="48"></a>
+            <span class="mirror-file"><a href="{{ url_for('part_page', relative_path=entry.path, **{'from': 'step-mirror'}) }}"><strong>{{ entry.path.rsplit('/', 1)[-1] }}</strong></a><small>{{ entry.path.rsplit('/', 1)[0]|winpath if '/' in entry.path else '.' }}</small></span>
             <span class="mirror-diagnosis"><small>{{ entry.reason }}</small></span>
             <form method="post" action="{{ url_for('step_mirror_doctor_later') }}">
               <input type="hidden" name="token" value="{{ form_token }}">

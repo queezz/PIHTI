@@ -6,6 +6,9 @@ remains authoritative for exact file changes.
 
 ## 2026-10-07
 
+- Shipped `pihti-dedup` 0.31.3: show deferred Doctor assemblies with a
+  preview thumbnail, linked filename and separate folder line.
+
 - Shipped `pihti-dedup` 0.31.2: prepare cold coloured STEP geometry in a
   bounded low-priority worker process while Catalog stays responsive. Oversized
   assemblies keep the still image without a second geometry-only tessellation.
