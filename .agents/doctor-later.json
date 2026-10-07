@@ -1,0 +1,12 @@
+{
+  "version": 1,
+  "assemblies": {
+    "boronprobe_2026/parts/c25k22a4cu.iam": {
+      "path": "BoronProbe_2026/parts/C25K22A4CU.iam",
+      "mtime_ns": 1782101737000000000,
+      "size": 204800,
+      "reference": "ICF70F 1個付き 19穴.ipt",
+      "reason": "ICF70F 1個付き 19穴.ipt is missing"
+    }
+  }
+}
