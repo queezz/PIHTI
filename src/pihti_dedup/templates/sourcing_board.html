@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+{% from "_sourcing_nav.html" import folder_rail, option_rail %}
+{% block title %}Brainstorm · {{ name }} · PIHTI{% endblock %}
+{% block body %}
+<main class="page sourcing-workspace" data-sourcing-workspace>
+  {% if toast %}<div class="operation-toast" role="status" data-sourcing-toast>{{ toast }}</div>{% endif %}
+  <div class="work-grid two-rail catalog-grid">
+    <div class="work-main catalog-main">
+      <header class="page-bar"><nav class="breadcrumbs" aria-label="Breadcrumb"><a href="{{ url_for('sourcing_all') }}">Sourcing</a><span>/</span><a href="{{ url_for('sourcing_folder', relative_folder=path) }}">{{ path|winpath }}</a><span>/</span><strong>Brainstorm</strong></nav></header>
+      <section class="part-card sourcing-editor">
+        <h2>Brainstorm · {{ name }}</h2>
+        <p class="editor-hint">Collect possibilities here. Paste links, write a few words, or drop pictures. Save with Ctrl+S.</p>
+        {% if error %}<p class="metadata-error" role="alert">{{ error }}</p>{% endif %}
+        <form id="sourcing-form" method="post" data-live-note-form data-preview-folder="{{ path }}" data-sourcing-edit-form data-board-form data-save-error="{{ 'true' if error else 'false' }}">
+          <input type="hidden" name="token" value="{{ form_token }}"><input type="hidden" name="revision" value="{{ revision }}">
+          <div class="sourcing-quick-link" data-board-link-helper hidden>
+            <label class="field"><span>Item / idea · optional</span><input type="text" data-board-label placeholder="e.g. Small bellows" autocomplete="off"></label>
+            <label class="field"><span>Link</span><input type="url" data-board-url placeholder="Paste a product URL" autocomplete="off"></label>
+            <button class="button" type="button" data-board-add-link>Add link</button>
+          </div>
+          <p class="editor-hint" data-board-link-status aria-live="polite"></p>
+          <div class="sourcing-notes-head"><h3>Ideas &amp; references</h3><div class="sourcing-note-modes" role="group" aria-label="Notes view" data-sourcing-note-modes hidden>
+            <button class="button" type="button" data-sourcing-note-mode="read">Read</button><button class="button" type="button" data-sourcing-note-mode="write">Write</button><button class="button" type="button" data-sourcing-note-mode="split">Split</button>
+          </div></div>
+          <div class="sourcing-write" data-sourcing-notes>
+            <section class="sourcing-pane" data-sourcing-write-pane>
+              <label for="board-body">Freeform board</label>
+              <textarea id="board-body" name="body" rows="16" data-live-note-input data-attach-input data-board-input data-attach-url="{{ url_for('sourcing_attach', relative_folder=path) }}" placeholder="Paste a batch of links here, or write a short list of ideas…">{{ body }}</textarea>
+              <small data-attach-status aria-live="polite"></small>
+            </section>
+            <section class="sourcing-pane" data-sourcing-read-pane data-board-preview tabindex="0" aria-label="Board · paste links or drop pictures here"><p class="editor-hint">Click here to paste more links or pictures, or drop images here.</p><div class="markdown-body sourcing-prose" data-note-preview-body>{{ preview_html }}</div><p class="part-note muted" data-sourcing-notes-empty{% if body %} hidden{% endif %}>Your ideas will appear here.</p></section>
+          </div>
+          <small data-live-note-status aria-live="polite"></small>
+          <details class="sourcing-secondary sourcing-storage"><summary>Markdown file</summary><code>{{ path|winpath }}\sourcing\_brainstorm.md</code></details>
+          <noscript><button class="button primary" type="submit">Save board</button></noscript>
+        </form>
+      </section>
+    </div>
+    {{ option_rail(option_nav, option_problems, path, name, '', false, '', back_url, '', true, error, true) }}
+    {{ folder_rail(sourcing_folders, path) }}
+  </div>
+</main>
+<dialog class="sourcing-image-dialog" data-sourcing-image-dialog aria-label="Reference image"><header><strong data-sourcing-image-label>Reference</strong><button class="button" type="button" data-sourcing-image-prev aria-label="Previous reference">←</button><button class="button" type="button" data-sourcing-image-next aria-label="Next reference">→</button><button class="button" type="button" data-sourcing-image-close>Close</button></header><img alt="" data-sourcing-image></dialog>
+{% endblock %}

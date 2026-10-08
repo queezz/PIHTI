@@ -61,6 +61,7 @@ from pihti_dedup.sidecar import FENCE, SidecarError, split_frontmatter
 SOURCING_DIR = "sourcing"
 ATTACHMENTS_DIR = "attachments"
 NOTE_SUFFIX = ".md"
+BRAINSTORM_FILENAME = "_brainstorm.md"
 STATUS_VALUES = ("candidate", "quoted", "ordered", "received", "rejected")
 #: Furthest along first: the order a folder's option cards are shown in.
 STATUS_ORDER = ("received", "ordered", "quoted", "candidate", "rejected")
@@ -287,7 +288,8 @@ def read_folder_options(
     except OSError:
         return options, problems
     for entry in entries:
-        if entry.suffix.casefold() != NOTE_SUFFIX or not entry.is_file():
+        if (entry.name.casefold() == BRAINSTORM_FILENAME
+                or entry.suffix.casefold() != NOTE_SUFFIX or not entry.is_file()):
             continue
         slug = entry.stem
         try:

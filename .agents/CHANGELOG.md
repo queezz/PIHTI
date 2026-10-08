@@ -6,6 +6,10 @@ remains authoritative for exact file changes.
 
 ## 2026-10-08
 
+- Shipped `pihti-dedup` 0.34.0: Markdown brainstorm boards inside design
+  folders, with batch URL paste, named-link capture, image paste/drop,
+  live preview and Ctrl+S. Boards stay separate from detailed sourcing options.
+
 - Shipped `pihti-dedup` 0.33.0: folder-focused sourcing workspaces with a
   persistent option rail, local Find, Add and Save; compact archive overview;
   clearer fields, folded CAD links, Read/Write/Split notes, and an enlarged

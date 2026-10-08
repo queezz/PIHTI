@@ -658,6 +658,17 @@ catalog**, or **Back to the file** when opened from a part page, returns to
 the design context; Escape does the same. Leaving with unsaved edits prompts
 before discarding them.
 
+**Brainstorm board** in the left rail opens a freeform scratchpad for that
+design folder. Paste a batch of URLs to make clickable links automatically,
+or use the optional item name and link helper; press Enter to add another.
+Paste or drop pictures into the board, and use Read/Write/Split to browse or
+edit. **Save board** or Ctrl+S writes ordinary Markdown to
+`<folder>/sourcing/_brainstorm.md`, with pictures in the same attachments
+folder as sourcing options. The board has no required purchasing fields and
+does not count as an option. Unsaved drafts and conflicting disk edits receive
+the same protection as options. Individual options remain available in the rail
+when an idea needs more detail.
+
 Name, status, price, supplier, and product link lead the detail pane. Part
 number, date, and the searchable CAD-file checklist sit behind disclosures.
 Existing notes open in **Read**; **Write** edits the Markdown and **Split**

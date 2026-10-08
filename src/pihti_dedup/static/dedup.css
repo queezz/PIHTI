@@ -1230,3 +1230,8 @@ a.tree-name:hover { color: var(--accent); text-decoration: underline; }
 #sim-children button { text-align: left; overflow-wrap: anywhere; }
 #sim-browse { margin-bottom: 12px; }
 #sim-browse summary { cursor: pointer; }
+
+.sourcing-quick-link { display: grid; grid-template-columns: 1fr 2fr auto; gap: 12px; align-items: end; }
+.sourcing-quick-link[hidden] { display: none; }
+.sourcing-quick-link .field { min-width: 0; }
+@media (max-width: 1100px) { .sourcing-quick-link { grid-template-columns: 1fr; } }

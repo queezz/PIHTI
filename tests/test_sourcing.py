@@ -11,6 +11,7 @@ from pihti_dedup.sourcing import (
     SourcingError,
     format_option,
     parse_option,
+    read_folder_options,
     rewrite_obsidian_embeds,
     save_attachment,
 )
@@ -688,3 +689,44 @@ def test_folder_workspace_keeps_broken_notes_reachable_without_replacing_them(tm
     assert response.status_code == 200 and "This note does not parse" in response.get_data(as_text=True)
     assert path.read_text(encoding="utf-8") == "not frontmatter\n"
     assert 'form="sourcing-form"' not in response.get_data(as_text=True)
+
+
+def test_brainstorm_board_is_plain_markdown_and_protects_conflicting_edits(tmp_path: Path) -> None:
+    root = make_workspace(tmp_path)
+    app = create_app(root)
+    client = app.test_client()
+    route = "/sourcing/bellows/board"
+    html = client.get(route).get_data(as_text=True)
+    revision = re.search(r'name="revision" value="([^"]+)"', html).group(1)
+    data = {"token": app.config["FORM_TOKEN"], "revision": revision,
+            "body": "# Ideas\n\n[Rail](<https://example.com/a(b)>)\n"}
+    assert client.post(route, data={**data, "token": "wrong"}).status_code == 403
+    assert client.post(route, data=data, environ_base={"REMOTE_ADDR": "192.0.2.1"}).status_code == 403
+    assert client.post(route, data=data).status_code == 302
+    board = root / "bellows" / "sourcing" / "_brainstorm.md"
+    assert board.read_text(encoding="utf-8") == data["body"]
+    assert read_folder_options(root / "bellows", "bellows") == ([], [])
+    assert not check_notes(root).in_category(SOURCING)
+    assert client.get("/sourcing/bellows").location.endswith("/sourcing/bellows/board")
+    saved = client.get(route).get_data(as_text=True)
+    assert 'href="https://example.com/a(b)"' in saved
+    board.write_text("Changed externally", encoding="utf-8")
+    conflict = client.post(route, data=data)
+    assert conflict.status_code == 409
+    assert "nothing was saved" in conflict.get_data(as_text=True)
+    assert board.read_text(encoding="utf-8") == "Changed externally"
+    assert client.get("/sourcing").get_data(as_text=True).count('href="/sourcing/bellows/board"') >= 1
+    for bad in ("/sourcing/missing/board", "/sourcing/bellows/sourcing/board"):
+        assert client.get(bad).status_code == 404
+
+
+def test_brainstorm_board_renders_local_attachments_without_option_frontmatter(tmp_path: Path) -> None:
+    root = make_workspace(tmp_path)
+    attach(root, "bellows", "idea.png", PNG)
+    (root / "bellows" / "sourcing" / "_brainstorm.md").write_text(
+        "![Idea](attachments/idea.png)\n\n<script>alert(1)</script>", encoding="utf-8")
+    client = create_app(root).test_client()
+    html = client.get("/sourcing/bellows/board").get_data(as_text=True)
+    assert 'src="/sourcing-file/bellows/sourcing/attachments/idea.png?v=' in html
+    assert "<script>alert(1)</script>" not in html
+    assert read_folder_options(root / "bellows", "bellows") == ([], [])

@@ -2265,9 +2265,18 @@ var PihtiEnlarge = (function () {
 
   function take(files) {
     files.forEach(function (file) {
-      queue = queue.then(function () { return upload(file); });
+      form.dataset.attachPending = String(Number(form.dataset.attachPending || 0) + 1);
+      queue = queue.then(function () { return upload(file); }).finally(function () {
+        form.dataset.attachPending = String(Number(form.dataset.attachPending) - 1);
+      });
     });
   }
+  form.addEventListener("submit", function (event) {
+    if (Number(form.dataset.attachPending || 0)) {
+      event.preventDefault();
+      say("Wait for the pictures to finish attaching, then save.");
+    }
+  });
 
   input.addEventListener("paste", function (event) {
     var files = Array.from(event.clipboardData ? event.clipboardData.files : []);
@@ -2288,6 +2297,26 @@ var PihtiEnlarge = (function () {
     input.focus();
     take(files);
   });
+  var boardPreview = document.querySelector("[data-board-preview]");
+  if (boardPreview) {
+    boardPreview.addEventListener("paste", function (event) {
+      var files = Array.from(event.clipboardData ? event.clipboardData.files : []);
+      if (!files.length) return;
+      event.preventDefault();
+      input.selectionStart = input.selectionEnd = input.value.length;
+      take(files);
+    });
+    boardPreview.addEventListener("dragover", function (event) {
+      if (event.dataTransfer && Array.from(event.dataTransfer.types || []).includes("Files")) event.preventDefault();
+    });
+    boardPreview.addEventListener("drop", function (event) {
+      var files = Array.from(event.dataTransfer ? event.dataTransfer.files : []);
+      if (!files.length) return;
+      event.preventDefault();
+      input.selectionStart = input.selectionEnd = input.value.length;
+      take(files);
+    });
+  }
 })();
 
 (function () {
@@ -2306,6 +2335,56 @@ var PihtiEnlarge = (function () {
 (function () {
   "use strict";
   var workspace = document.querySelector(".sourcing-workspace");
+  var boardInput = document.querySelector("[data-board-input]");
+  if (boardInput) {
+    var boardForm = boardInput.form;
+    var helper = boardForm.querySelector("[data-board-link-helper]");
+    var label = boardForm.querySelector("[data-board-label]");
+    var urlInput = boardForm.querySelector("[data-board-url]");
+    var boardStatus = boardForm.querySelector("[data-board-link-status]");
+    helper.hidden = false;
+    function boardInsert(text, append) {
+      if (append) {
+        boardInput.value = boardInput.value.trimEnd() + (boardInput.value.trim() ? "\n\n" : "") + text + "\n";
+        boardInput.selectionStart = boardInput.selectionEnd = boardInput.value.length;
+      } else boardInput.setRangeText(text, boardInput.selectionStart, boardInput.selectionEnd, "end");
+      boardInput.dispatchEvent(new Event("input", { bubbles: true }));
+    }
+    function addBoardLink() {
+      var value = urlInput.value.trim();
+      var parsed;
+      try { parsed = new URL(value); } catch (_) { boardStatus.textContent = "Paste a full https:// product link."; urlInput.focus(); return; }
+      if (!/^https?:$/.test(parsed.protocol)) { boardStatus.textContent = "Use an http:// or https:// link."; return; }
+      var title = (label.value.trim() || parsed.hostname).replace(/([\\\[\]])/g, "\\$1");
+      boardInsert("- [" + title + "](<" + value.replace(/</g, "%3C").replace(/>/g, "%3E") + ">)", true);
+      label.value = ""; urlInput.value = ""; label.focus();
+      boardStatus.textContent = "Link added to your draft. Save board when ready.";
+    }
+    boardForm.querySelector("[data-board-add-link]").addEventListener("click", addBoardLink);
+    helper.addEventListener("keydown", function (event) {
+      if (event.key === "Enter") { event.preventDefault(); addBoardLink(); }
+    });
+    function pasteBoard(event) {
+      if (!event.clipboardData || event.clipboardData.files.length) return;
+      var text = event.clipboardData.getData("text/plain");
+      var converted = text.split("\n").map(function (line) {
+        if (/\]\(|<https?:\/\//.test(line)) return line;
+        return line.replace(/https?:\/\/[^\s<>]+/g, function (value) { return "<" + value + ">"; });
+      }).join("\n");
+      var append = event.currentTarget !== boardInput;
+      if (converted === text && !append) return;
+      event.preventDefault(); boardInsert(converted, append);
+      boardStatus.textContent = "Pasted links are clickable. Save board when ready.";
+    }
+    boardInput.addEventListener("paste", pasteBoard);
+    boardForm.querySelector("[data-board-preview]").addEventListener("paste", pasteBoard);
+    document.addEventListener("keydown", function (event) {
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "s") {
+        event.preventDefault(); boardForm.requestSubmit();
+      }
+    });
+  }
+
   if (!workspace) return;
 
   document.addEventListener("keydown", function (event) {
@@ -2329,7 +2408,7 @@ var PihtiEnlarge = (function () {
   if (form) {
     form.addEventListener("input", updateDirty);
     form.addEventListener("change", updateDirty);
-    form.addEventListener("submit", function () { submitting = true; });
+    form.addEventListener("submit", function (event) { submitting = !event.defaultPrevented; });
     window.addEventListener("beforeunload", function (event) {
       if (submitting || !dirty()) return;
       event.preventDefault();
@@ -2365,7 +2444,8 @@ var PihtiEnlarge = (function () {
   });
   if (form) form.addEventListener("change", function () {
     var names = Array.from(form.querySelectorAll('input[name="for"]:checked')).map(function (input) { return input.value; });
-    workspace.querySelector("[data-sourcing-for-summary]").textContent = "· " + (names.join(", ") || "None");
+    var summary = workspace.querySelector("[data-sourcing-for-summary]");
+    if (summary) summary.textContent = "· " + (names.join(", ") || "None");
   });
 
   var modes = workspace.querySelector("[data-sourcing-note-modes]");
@@ -2384,7 +2464,7 @@ var PihtiEnlarge = (function () {
     var button = event.target.closest("[data-sourcing-note-mode]");
     if (button) setMode(button.dataset.sourcingNoteMode);
   });
-  setMode(form.dataset.creating === "true" ? "write" : "read");
+  setMode(form.hasAttribute("data-board-form") && !form.querySelector('[name="body"]').value.trim() ? "write" : form.dataset.creating === "true" ? "write" : "read");
 
   var preview = workspace.querySelector("[data-note-preview-body]");
   var dialog = document.querySelector("[data-sourcing-image-dialog]");

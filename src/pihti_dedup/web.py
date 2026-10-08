@@ -18,7 +18,17 @@ from pathlib import Path
 from typing import Callable
 from urllib.parse import quote
 
-from flask import Flask, Response, jsonify, redirect, render_template, request, send_file, url_for
+from flask import (
+    Flask,
+    Response,
+    abort,
+    jsonify,
+    redirect,
+    render_template,
+    request,
+    send_file,
+    url_for,
+)
 from markupsafe import escape
 
 from pihti_dedup import __version__, geometry_preview, inventor_session, mesh_cache, step_mirror
@@ -108,6 +118,7 @@ from pihti_dedup.sidecar import (
 from pihti_dedup.snapshots import Snapshot, Ticker, is_due
 from pihti_dedup.sourcing import (
     ATTACHMENT_TYPES,
+    BRAINSTORM_FILENAME,
     IMAGE_EXTENSIONS,
     MAX_ATTACHMENT_BYTES,
     STATUS_VALUES,
@@ -4314,7 +4325,8 @@ def create_app(
             "form_token": app.config["FORM_TOKEN"],
             "statuses": STATUS_VALUES,
             "sourcing_folders": [
-                {"name": item["name"], "count": len(index["folders"].get(item["name"], ([], []))[0])}
+                {"name": item["name"], "count": len(index["folders"].get(item["name"], ([], []))[0]),
+                 "board": (root / item["name"] / "sourcing" / BRAINSTORM_FILENAME).is_file()}
                 for item in _catalog_index(inventory)
                 if item["name"] != "." and not is_sourcing_path(item["name"])
             ],
@@ -4380,6 +4392,8 @@ def create_app(
         slug = selected.slug if selected else (Path(problems[0].relative_path).stem if problems else None)
         if slug:
             return redirect(url_for("sourcing_edit", relative_folder=found[1], slug=slug))
+        if (sourcing_dir(found[0]) / BRAINSTORM_FILENAME).is_file():
+            return redirect(url_for("sourcing_board", relative_folder=found[1]))
         return redirect(url_for("sourcing_new", relative_folder=found[1]))
 
     def _revision(text: str) -> str:
@@ -4527,6 +4541,55 @@ def create_app(
             back_name=back.rsplit("/", 1)[-1],
             back_url=_sourcing_back(name, back),
         ), status_code
+
+    @app.route("/sourcing/<path:relative_folder>/board", methods=["GET", "POST"])
+    def sourcing_board(relative_folder: str):
+        """A plain Markdown scratchpad beside a design folder's sourcing options."""
+        if request.method == "POST":
+            guard = _guard(request)
+            if guard is not None:
+                return guard
+        found = _sourcing_target(relative_folder)
+        if found is None:
+            abort(404)
+        target, name = found
+        board = sourcing_dir(target) / BRAINSTORM_FILENAME
+        if not board.resolve().is_relative_to(target.resolve()):
+            abort(404)
+        try:
+            original = board.read_text(encoding="utf-8") if board.exists() else ""
+        except (OSError, UnicodeDecodeError):
+            return Response("The board could not be read; nothing was replaced.", status=409)
+        body = original
+        error = ""
+        status = 200
+        if request.method == "POST":
+            body = request.form.get("body", "")
+            if request.form.get("revision", "") != _revision(original):
+                error = "The board changed on disk. Your draft is below; nothing was saved."
+                status = 409
+            else:
+                try:
+                    board.parent.mkdir(parents=True, exist_ok=True)
+                    board.write_text(body, encoding="utf-8")
+                except OSError:
+                    error = "Could not save the board. Your draft is below."
+                    status = 500
+                else:
+                    _forget_sourcing()
+                    return redirect(url_for("sourcing_board", relative_folder=name, saved="1"))
+        inventory = cache.get(include_vendor=False, hash_files=False)
+        index = _sourcing_index(inventory)
+        options, problems = read_folder_options(target, name)
+        return render_template(
+            "sourcing_board.html", **_sourcing_shell(inventory, name),
+            name=target.name, path=name, body=body, error=error,
+            revision=request.form.get("revision", "") if error else _revision(original),
+            preview_html=_render_sourcing(body, name),
+            option_nav=[_option_tile(option, index) for option in by_status(options)],
+            option_problems=problems, back_url=_sourcing_back(name, ""),
+            toast="Board saved" if request.args.get("saved") == "1" else "",
+        ), status
 
     @app.post("/sourcing/<path:relative_folder>/attach")
     def sourcing_attach(relative_folder: str):
