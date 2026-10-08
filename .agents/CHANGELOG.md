@@ -6,6 +6,11 @@ remains authoritative for exact file changes.
 
 ## 2026-10-08
 
+- Shipped `pihti-dedup` 0.34.4: clearly label rename previews before any files
+  change. When the checked assemblies use another copy, show a neutral ready
+  state and Confirm rename instead of suggesting a failure or manual repointing.
+  Keep Inventor's reference check and ledger accounting on confirmation.
+
 - Shipped `pihti-dedup` 0.34.3: compact folder cards with one name, inline
   Copy path and a single file count; additional subfolder files appear only
   when present. Remove duplicate path text and count rows. Group sourcing

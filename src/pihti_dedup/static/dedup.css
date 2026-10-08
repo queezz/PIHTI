@@ -819,6 +819,8 @@ a.tree-name:hover { color: var(--accent); text-decoration: underline; }
 .rename-warning p { margin: 8px 0 0; color: var(--muted); font-size: 0.74rem; line-height: 1.5; }
 .rename-warning ul { margin: 7px 0 0; padding-left: 18px; color: var(--muted); font-size: 0.72rem; }
 .rename-warning form { margin-top: 11px; }
+.repair-confirm.is-ready { border-color: #315b49; background: #101d18; }
+.repair-confirm.is-ready strong { color: #65c99c; }
 .repair-actions { display: flex; flex-wrap: wrap; gap: 9px; margin-top: 11px; }
 .repair-actions form { margin: 0; }
 .rename-form .repair-check { flex-basis: 100%; margin: 0; }

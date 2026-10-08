@@ -1426,6 +1426,11 @@ def create_app(
             "unchanged": unchanged,
             "target_open": preview.target_open,
             "collision": plan.needs_confirmation,
+            "no_repair_needed": not preview.target_open
+            and all(
+                not item.open_in_inventor and not item.error and not item.matches
+                for item in preview.referrers
+            ),
         }
 
     def _rename_notice(entry_id: str) -> dict | None:

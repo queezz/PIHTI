@@ -11,7 +11,7 @@ from pathlib import Path
 import pytest
 from inventor_fake import FakeDocument, FakeInventor, fake_session, key, reference_bytes
 
-from pihti_dedup import step_mirror
+from pihti_dedup import inventor_session, step_mirror
 from pihti_dedup.renames import (
     REPOINT_NOTE,
     RenameEntry,
@@ -526,6 +526,83 @@ def test_a_suggested_name_that_exists_is_refused_by_the_collision_guard(tmp_path
     assert refused.status_code == 400
     assert "already exists in the workspace" in refused.get_data(as_text=True)
     assert app.log == [] and read_ledger(root) == ()
+
+
+@pytest.mark.parametrize("blocked", ["open", "error"])
+def test_unchecked_referrer_does_not_offer_ready_rename(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, blocked: str
+) -> None:
+    root, app = rkc_workspace(tmp_path)
+    flask_app, client = client_for(root, app)
+    monkeypatch.setattr(
+        inventor_session,
+        "plan_repair",
+        lambda *_args, **_kwargs: inventor_session.RepairPlan(
+            "2027.1",
+            "RKC CONTROLLER.ipt",
+            (
+                inventor_session.ReferrerPlan(
+                    root / "Box/TempController/TempController.iam",
+                    open_in_inventor=blocked == "open",
+                    error="Cannot inspect references" if blocked == "error" else "",
+                ),
+            ),
+        ),
+    )
+    html = client.post(
+        "/doctor/name/RKC%20CONTROLLER.ipt",
+        data={
+            "token": flask_app.config["FORM_TOKEN"],
+            "relative_path": "Box/TempController-v2/RKC CONTROLLER.ipt",
+            "new_name": "RKC CONTROLLER v2",
+            "repair": "1",
+        },
+    ).get_data(as_text=True)
+    assert "No files have changed yet." in html
+    assert "Ready to rename to" not in html
+    assert "No assembly references need changing." not in html
+    assert ">Confirm rename</button>" not in html
+    assert "Rename only; repoint by hand" in html
+    assert read_ledger(root) == ()
+
+
+def test_unused_copy_rename_needs_no_manual_repointing(tmp_path: Path) -> None:
+    root, app = rkc_workspace(tmp_path)
+    (root / "Box/TempController-v2/TempController-v2.iam").unlink()
+    assembly = root / "Box/TempController/TempController.iam"
+    original_assembly = assembly.read_bytes()
+    flask_app, client = client_for(root, app)
+    url = "/doctor/name/RKC%20CONTROLLER.ipt"
+    form = {
+        "token": flask_app.config["FORM_TOKEN"],
+        "relative_path": "Box/TempController-v2/RKC CONTROLLER.ipt",
+        "new_name": "RKC CONTROLLER v2",
+        "repair": "1",
+    }
+
+    preview = client.post(url, data=form)
+    html = preview.get_data(as_text=True)
+    assert preview.status_code == 409
+    assert 'repair-confirm is-ready" role="status"' in html
+    assert "Ready to rename to RKC CONTROLLER v2.ipt" in html
+    assert "No files have changed yet." in html
+    assert "No assembly references need changing." in html
+    assert ">Confirm rename</button>" in html
+    assert "Rename only; repoint by hand" not in html
+    assert "fix in Inventor 2027.1" not in html
+    assert 'name="repair" value="1"' in html
+    assert 'name="confirm_repair" value="1"' in html
+    assert read_ledger(root) == ()
+    assert (root / form["relative_path"]).is_file()
+
+    done = client.post(url, data={**form, "confirm_repair": "1", "confirm_collision": "1"})
+    assert done.status_code == 302
+    (entry,) = read_ledger(root)
+    assert entry.repaired == ()
+    assert entry.not_applicable == ("Box/TempController/TempController.iam",)
+    assert entry.settled and entry.will_prompt is False
+    assert assembly.read_bytes() == original_assembly
+    assert (root / "Box/TempController-v2/RKC CONTROLLER v2.ipt").is_file()
 
 
 # ---- the pure pieces ------------------------------------------------------------
