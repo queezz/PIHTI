@@ -306,6 +306,12 @@
       "material": "SUS",
       "role": "floating",
       "colour": "#73c0a2"
+    },
+    "[\"bellows-probe/mizuno-probe-head.iam\",[\"mizuno-probe-head\",\"substrate:1\"]]": {
+      "name": "substrate",
+      "material": "",
+      "role": "",
+      "colour": "#d53939"
     }
   }
 }
