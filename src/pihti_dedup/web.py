@@ -4307,11 +4307,17 @@ def create_app(
         return url_for("catalog", relative_folder=relative_folder, _anchor=anchor, **extra)
 
     def _sourcing_shell(inventory: Inventory, current: str) -> dict:
+        index = _sourcing_index(inventory)
         return {
             "version": __version__,
             "tree": folder_tree(_catalog_index(inventory), current=current),
             "form_token": app.config["FORM_TOKEN"],
             "statuses": STATUS_VALUES,
+            "sourcing_folders": [
+                {"name": item["name"], "count": len(index["folders"].get(item["name"], ([], []))[0])}
+                for item in _catalog_index(inventory)
+                if item["name"] != "." and not is_sourcing_path(item["name"])
+            ],
         }
 
     def _sourcing_crumbs(folder: str, *tail: dict) -> list[dict]:
@@ -4320,7 +4326,7 @@ def create_app(
             {
                 "name": "Sourcing",
                 "path": folder,
-                "url": url_for("catalog", relative_folder=folder, _anchor="sourcing"),
+                "url": url_for("sourcing_folder", relative_folder=folder),
             }
         )
         crumbs.extend(tail)
@@ -4328,20 +4334,18 @@ def create_app(
 
     @app.get("/sourcing")
     def sourcing_all():
+        folder = request.args.get("folder", "")
+        if folder:
+            return sourcing_folder(folder)
         inventory = cache.get(include_vendor=False, hash_files=False)
         index = _sourcing_index(inventory)
         options = [option for items, _ in index["folders"].values() for option in items]
         problems = [problem for _, items in index["folders"].values() for problem in items]
         groups = []
-        for status in STATUS_VALUES:
-            members = sorted(
-                (option for option in options if option.status == status),
-                key=lambda option: option.folder.casefold(),
-            )
-            members.sort(key=lambda option: (option.date, option.mtime_ns), reverse=True)
+        for folder, (members, _) in sorted(index["folders"].items(), key=lambda item: item[0].casefold()):
             if members:
                 groups.append(
-                    {"status": status, "cards": [_option_card(o, index) for o in members]}
+                    {"folder": folder, "cards": [_option_tile(o, index) for o in by_status(members)]}
                 )
         return render_template(
             "sourcing.html",
@@ -4361,15 +4365,22 @@ def create_app(
 
     @app.get("/sourcing/<path:relative_folder>")
     def sourcing_folder(relative_folder: str):
-        """The old folder page: its options now sit under the catalog folder's files."""
+        """Open this design folder's sourcing workspace, including an empty folder."""
 
         found = _sourcing_target(relative_folder)
         if found is None:
             return render_template(
                 "_not_found.html", version=__version__, path=relative_folder
             ), 404
+        options, problems = read_folder_options(*found)
         saved = request.args.get("saved", "")
-        return redirect(_sourcing_back(found[1], "", saved if is_slug(saved) else ""))
+        selected = next((option for option in options if option.slug == saved), None)
+        if selected is None and options:
+            selected = by_status(options)[0]
+        slug = selected.slug if selected else (Path(problems[0].relative_path).stem if problems else None)
+        if slug:
+            return redirect(url_for("sourcing_edit", relative_folder=found[1], slug=slug))
+        return redirect(url_for("sourcing_new", relative_folder=found[1]))
 
     def _revision(text: str) -> str:
         return hashlib.sha256(text.encode("utf-8")).hexdigest()[:16]
@@ -4460,7 +4471,8 @@ def create_app(
                 finally:
                     _forget_sourcing()
                 if not error:
-                    return redirect(_sourcing_back(name, back, written))
+                    return redirect(url_for("sourcing_edit", relative_folder=name, slug=written,
+                                            saved="1", back=back or None))
             if status_code == 200:
                 status_code = 400
         elif request.method == "POST":
@@ -4484,6 +4496,8 @@ def create_app(
             return "" if item is None else str(item)
 
         crumb_name = "New option" if path is None else (value("title") or str(slug))
+        index = _sourcing_index(inventory)
+        folder_options, folder_problems = read_folder_options(target, name)
         return render_template(
             "sourcing_edit.html",
             **_sourcing_shell(inventory, name),
@@ -4505,7 +4519,10 @@ def create_app(
             body=body,
             preview_html=_render_sourcing(body, name),
             revision=_revision(existing_text) if path is not None else "",
-            option_count=len(read_folder_options(target, name)[0]),
+            option_count=len(folder_options),
+            option_nav=[_option_tile(option, index) for option in by_status(folder_options)],
+            option_problems=folder_problems,
+            toast=f"Saved: {value('title')}" if request.args.get("saved") == "1" and not error else "",
             back=back,
             back_name=back.rsplit("/", 1)[-1],
             back_url=_sourcing_back(name, back),

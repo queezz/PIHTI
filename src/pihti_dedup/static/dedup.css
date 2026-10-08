@@ -1134,6 +1134,72 @@ a.tree-name:hover { color: var(--accent); text-decoration: underline; }
 .sourcing-save { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--line-soft); }
 .sourcing-save small { color: var(--dim); font-size: 0.65rem; }
 .sourcing-raw { margin: 11px 0 0; padding: 10px; border: 1px solid var(--line-soft); border-radius: 7px; color: var(--muted); background: #0d141c; font-size: 0.72rem; white-space: pre-wrap; overflow-wrap: anywhere; }
+/* Sourcing keeps the catalog's shared rail tracks. Options are the left
+   control surface; the right rail changes design folder, never CAD scope. */
+.sourcing-workspace .field { color: var(--muted); font-size: 0.78rem; }
+.sourcing-workspace .button { font-size: 0.8rem; }
+.sourcing-workspace .rail-card > h2 { font-size: 0.72rem; }
+.sourcing-workspace .field input, .sourcing-workspace .field select { min-width: 0; width: 100%; height: 36px; font-size: 0.88rem; }
+.sourcing-workspace .part-card > h2 { color: var(--text); font-size: 1.12rem; text-transform: none; letter-spacing: normal; }
+.sourcing-primary-fields { gap: 12px; }
+.sourcing-primary-fields .sourcing-link-field { grid-column: 1 / -1; }
+.sourcing-link-field > span { display: flex; justify-content: space-between; gap: 12px; }
+.sourcing-link-field a { color: var(--accent); text-decoration: none; }
+.sourcing-secondary { padding: 12px 0; border-bottom: 1px solid var(--line-soft); }
+.sourcing-secondary summary { color: var(--muted); font-size: 0.82rem; cursor: pointer; overflow-wrap: anywhere; }
+.sourcing-secondary summary:hover { color: var(--text); }
+.sourcing-secondary summary span { color: var(--text); }
+.sourcing-secondary .sourcing-choices { margin-top: 12px; gap: 8px 14px; }
+.sourcing-secondary .sourcing-choices label { font-size: 0.82rem; }
+.sourcing-notes-head { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; margin-top: 18px; }
+.sourcing-notes-head h3 { margin: 0; color: var(--text); font-size: 0.94rem; }
+.sourcing-note-modes { display: flex; gap: 4px; }
+.sourcing-note-modes .button { padding: 5px 10px; }
+.sourcing-note-modes [aria-pressed="true"] { color: var(--accent); border-color: var(--accent); background: rgba(115, 181, 255, 0.1); }
+.sourcing-write[data-mode="read"], .sourcing-write[data-mode="write"] { grid-template-columns: minmax(0, 1fr); }
+.sourcing-workspace .sourcing-pane > .markdown-body { min-height: 0; border: 0; background: transparent; padding: 0; font-size: 0.9rem; }
+.sourcing-workspace .sourcing-pane h3 { color: var(--muted); }
+.sourcing-workspace .sourcing-pane textarea { min-height: 16rem; font-size: 0.86rem; }
+.sourcing-workspace [data-live-note-status] { display: block; min-height: 1.5em; color: var(--muted); font-size: 0.75rem; }
+.sourcing-storage { margin-top: 12px; border-top: 1px solid var(--line-soft); border-bottom: 0; }
+.sourcing-storage code { display: block; margin: 8px 0; color: var(--muted); font-size: 0.75rem; overflow-wrap: anywhere; }
+.sourcing-work-actions { display: flex; flex-wrap: wrap; gap: 6px; }
+.sourcing-dirty { min-height: 1.4em; margin: 8px 0 0; color: var(--muted); font-size: 0.76rem; }
+.sourcing-dirty.is-dirty { color: var(--hero); }
+.sourcing-add { display: block; margin-top: 10px; text-align: center; }
+.sourcing-option-rail > .rail-card:first-child { position: sticky; top: 0; z-index: 2; }
+.sourcing-add[aria-current] { color: var(--accent); border-color: var(--accent); }
+.sourcing-option-find { margin: 10px 0; }
+.sourcing-option-list { display: flex; flex-direction: column; gap: 6px; }
+.sourcing-option-row { display: flex; align-items: center; gap: 10px; padding: 10px; border: 1px solid var(--line); border-radius: 6px; color: var(--text); background: #0d141c; text-decoration: none; }
+.sourcing-option-row:hover, .sourcing-option-row:focus-visible { border-color: var(--accent); }
+.sourcing-option-row[aria-current] { border-color: var(--accent); background: rgba(115, 181, 255, 0.09); }
+.sourcing-option-row img, .sourcing-overview-row img { flex: none; width: 56px; height: 56px; border-radius: 4px; object-fit: contain; background: var(--mesh-backdrop); }
+.sourcing-option-row > span { min-width: 0; }
+.sourcing-option-row strong { display: block; font-size: 0.9rem; overflow-wrap: anywhere; }
+.sourcing-option-row small { display: flex; flex-wrap: wrap; align-items: center; gap: 7px; margin-top: 5px; color: var(--muted); font-size: 0.78rem; }
+.sourcing-folder-go { margin-top: 8px; }
+.sourcing-folder-links { display: flex; flex-direction: column; gap: 4px; margin: 14px 0; }
+.sourcing-folder-links a { display: flex; justify-content: space-between; gap: 8px; padding: 7px 9px; border: 1px solid var(--line); border-radius: 5px; color: var(--muted); font-size: 0.83rem; text-decoration: none; overflow-wrap: anywhere; }
+.sourcing-folder-links a:hover, .sourcing-folder-links [aria-current] { color: var(--accent); border-color: var(--accent); }
+.sourcing-workspace .sourcing-group { padding: 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel); gap: 0; }
+.sourcing-workspace .sourcing-group > .grid-label { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; font-size: 0.8rem; }
+.sourcing-workspace .sourcing-group > .grid-label .sourcing-folder { margin: 0; font: inherit; font-weight: 650; }
+.sourcing-workspace .sourcing-group > .grid-label .copy-path { margin-left: auto; }
+.sourcing-overview-row { display: flex; align-items: center; gap: 12px; padding: 12px 0; border-top: 1px solid var(--line-soft); color: var(--text); text-decoration: none; }
+.sourcing-overview-row:hover { background: rgba(115, 181, 255, 0.045); }
+.sourcing-overview-name { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.sourcing-overview-name strong { font-size: 0.94rem; }
+.sourcing-overview-name small { display: block; margin-top: 4px; color: var(--muted); font-size: 0.78rem; }
+.sourcing-overview-price { color: var(--text); font-size: 0.88rem; font-variant-numeric: tabular-nums; }
+.sourcing-reference { display: inline-flex; max-width: 100%; width: min(18rem, calc((100% - 48px) / 3)); margin: 8px 10px 8px 0 !important; vertical-align: top; }
+.sourcing-workspace .sourcing-reference img { width: 100%; height: min(14rem, 20vh); max-height: none; object-fit: contain; cursor: zoom-in; margin: 0; }
+.sourcing-reference img:focus-visible { outline: 2px solid var(--accent); }
+.sourcing-image-dialog { max-width: 92vw; max-height: 94vh; padding: 14px; border: 1px solid var(--line); border-radius: 9px; color: var(--text); background: var(--panel); }
+.sourcing-image-dialog::backdrop { background: rgba(0, 0, 0, 0.75); }
+.sourcing-image-dialog header { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
+.sourcing-image-dialog header strong { flex: 1; }
+.sourcing-image-dialog img { display: block; max-width: 86vw; max-height: 78vh; object-fit: contain; }
 @media (max-width: 1200px) {
   .sourcing-write { grid-template-columns: minmax(0, 1fr); }
   .sourcing-fields { grid-template-columns: repeat(2, minmax(0, 1fr)); }

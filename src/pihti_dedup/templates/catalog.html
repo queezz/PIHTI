@@ -198,7 +198,7 @@
         {% if sourcing_line %}
         <p class="sourcing-rail" data-sourcing-rail>
           <span class="sourcing-rail-label">Sourcing</span>
-          {% if sourcing_line.summary %}<a href="#sourcing">{{ sourcing_line.summary }}</a>
+          {% if sourcing_line.summary %}<a href="{{ url_for('sourcing_folder', relative_folder=path) }}">{{ sourcing_line.summary }}</a>
           {% else %}<span class="sourcing-rail-empty">None yet</span>{% endif %}
           <a class="copy-path sourcing-rail-add" href="{{ sourcing_line.add_url }}">Add option</a>
         </p>

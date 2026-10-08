@@ -1,35 +1,23 @@
 {% extends "base.html" %}
-{% from "_folder_tree.html" import tree_rail, catalog_bar %}
+{% from "_folder_tree.html" import catalog_bar %}
+{% from "_sourcing_nav.html" import folder_rail %}
 {% from "_file_tile.html" import badge %}
 {% block title %}Sourcing · PIHTI{% endblock %}
 
-{# One option: its words, its status as a badge, its facts, then the prose
-   with its pictures and PDF links. Edit is a quiet link at the head. #}
+{# The archive is an index, not a stack of full notes. The whole row opens
+   the option in its design folder's sourcing workspace. #}
 {% macro option_card(card) %}
 {% set option = card.option %}
-<article class="sourcing-card" id="{{ card.anchor }}" data-filter-item data-status="{{ option.status }}">
-  <header class="sourcing-card-head">
-    <h2>{{ option.title }}</h2>
-    {{ badge('sourcing-' ~ option.status, option.status, 'Status: ' ~ option.status) }}
-    <a class="copy-path sourcing-edit" href="{{ card.edit_url }}" title="Edit {{ option.relative_path|winpath }}">Edit</a>
-  </header>
-  <a class="sourcing-folder" href="{{ card.folder_url }}" title="Open {{ option.folder|winpath }}">{{ option.folder|winpath }}</a>
-  {% if option.vendor or option.part_number or option.price or option.date or option.url or card.for_links %}
-  <dl class="sourcing-facts">
-    {% if option.vendor %}<div><dt>Vendor</dt><dd>{{ option.vendor }}</dd></div>{% endif %}
-    {% if option.part_number %}<div><dt>Part number</dt><dd>{{ option.part_number }}</dd></div>{% endif %}
-    {% if option.price %}<div><dt>Price</dt><dd>{{ option.price }}</dd></div>{% endif %}
-    {% if option.date %}<div><dt>Date</dt><dd>{{ option.date }}</dd></div>{% endif %}
-    {% if option.url %}<div><dt>Link</dt><dd><a href="{{ option.url }}" rel="noopener noreferrer" target="_blank" title="{{ option.url }}">{{ option.host }}</a></dd></div>{% endif %}
-    {% if card.for_links %}<div><dt>For</dt><dd>{% for item in card.for_links %}{% if item.url %}<a href="{{ item.url }}">{{ item.name }}</a>{% else %}<span class="sourcing-missing" title="Not in this folder">{{ item.name }}</span>{% endif %}{% if not loop.last %}, {% endif %}{% endfor %}</dd></div>{% endif %}
-  </dl>
-  {% endif %}
-  {% if card.html %}<div class="markdown-body sourcing-prose">{{ card.html }}</div>{% endif %}
-</article>
+<a class="sourcing-overview-row" href="{{ card.edit_url }}" data-filter-item data-status="{{ option.status }}">
+  <img src="{{ card.picture }}" alt="" loading="lazy">
+  <span class="sourcing-overview-name"><strong>{{ option.title }}</strong><small>{{ option.vendor or option.host }}{% if option.part_number %} · {{ option.part_number }}{% endif %}</small>{% if option.for_files %}<small>{{ option.for_files|join(', ') }}</small>{% endif %}</span>
+  <span class="sourcing-overview-price">{{ option.price }}</span>
+  {{ badge('sourcing-' ~ option.status, option.status, 'Status: ' ~ option.status) }}
+</a>
 {% endmacro %}
 
 {% block body %}
-<main class="page">
+<main class="page sourcing-workspace">
   <div class="work-grid two-rail catalog-grid">
     <div class="work-main catalog-main">
       {{ catalog_bar(breadcrumbs, placeholder='Filter options') }}
@@ -37,7 +25,7 @@
       <section class="sourcing-list" data-filter-list aria-label="Sourcing options in the archive">
         {% for group in groups %}
         <div class="sourcing-group" data-filter-group>
-          <p class="grid-label"><strong>{{ group.status }}</strong> · {{ group.cards|length }}</p>
+          <p class="grid-label"><a class="sourcing-folder" href="{{ url_for('sourcing_folder', relative_folder=group.folder) }}">{{ group.folder|winpath }}</a><span>{{ group.cards|length }} options</span><a class="copy-path" href="{{ url_for('sourcing_new', relative_folder=group.folder) }}">Add option</a></p>
           {% for card in group.cards %}{{ option_card(card) }}{% endfor %}
         </div>
         {% endfor %}
@@ -53,14 +41,14 @@
         {% if not groups and not problems %}
         <div class="no-results">
           <strong>No sourcing options yet.</strong>
-          <span>Add one in a catalog folder.</span>
+          <span>Choose a design folder to add its first option.</span>
         </div>
         {% endif %}
       </section>
     </div>
 
     <aside class="rail-side rail-context" aria-label="Sourcing scope">
-      <section class="rail-card context-card catalog-context">
+      <section class="rail-card context-card">
         <h2>Sourcing</h2>
         <p class="context-title">Whole archive</p>
         <dl class="scope-list">
@@ -81,7 +69,7 @@
       {% endif %}
     </aside>
 
-    {{ tree_rail(tree) }}
+    {{ folder_rail(sourcing_folders) }}
   </div>
 </main>
 {% endblock %}

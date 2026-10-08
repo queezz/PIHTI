@@ -2298,8 +2298,139 @@ var PihtiEnlarge = (function () {
   if (!toast) return;
   var url = new URL(window.location.href);
   url.searchParams.delete("option");
+  url.searchParams.delete("saved");
   window.history.replaceState(null, "", url.pathname + url.search + url.hash);
   window.setTimeout(function () { toast.remove(); }, 8000);
+})();
+
+(function () {
+  "use strict";
+  var workspace = document.querySelector(".sourcing-workspace");
+  if (!workspace) return;
+
+  document.addEventListener("keydown", function (event) {
+    if (event.key !== "Escape" || event.defaultPrevented || document.querySelector("dialog[open]")) return;
+    var exit = workspace.querySelector("[data-sourcing-exit]");
+    if (exit) window.location.assign(exit.href);
+  });
+
+  var form = workspace.querySelector("[data-sourcing-edit-form]");
+  var dirtyStatus = workspace.querySelector("[data-sourcing-dirty]");
+  var submitting = false;
+  function signature() { return JSON.stringify(Array.from(new FormData(form).entries())); }
+  var initial = form ? signature() : "";
+  function dirty() { return form && (form.dataset.saveError === "true" || signature() !== initial); }
+  function updateDirty() {
+    if (!dirtyStatus) return;
+    var changed = dirty();
+    dirtyStatus.textContent = changed ? "Unsaved changes" : (form.dataset.creating === "true" ? "New option · not saved yet" : "All changes saved");
+    dirtyStatus.classList.toggle("is-dirty", Boolean(changed));
+  }
+  if (form) {
+    form.addEventListener("input", updateDirty);
+    form.addEventListener("change", updateDirty);
+    form.addEventListener("submit", function () { submitting = true; });
+    window.addEventListener("beforeunload", function (event) {
+      if (submitting || !dirty()) return;
+      event.preventDefault();
+      event.returnValue = "";
+    });
+    updateDirty();
+  }
+
+  var folderForm = workspace.querySelector("[data-sourcing-folder-form]");
+  var folderSelect = workspace.querySelector("[data-sourcing-folder-select]");
+  if (folderForm && folderSelect) {
+    folderSelect.addEventListener("change", function () { folderForm.requestSubmit(); });
+    workspace.querySelector(".sourcing-folder-go").hidden = true;
+  }
+
+  var find = workspace.querySelector("[data-sourcing-option-find]");
+  if (find) find.addEventListener("input", function () {
+    var term = find.value.trim().toLocaleLowerCase();
+    var visible = 0;
+    workspace.querySelectorAll("[data-sourcing-option]").forEach(function (row) {
+      row.hidden = row.textContent.toLocaleLowerCase().indexOf(term) < 0;
+      if (!row.hidden) visible += 1;
+    });
+    workspace.querySelector("[data-sourcing-option-empty]").hidden = visible !== 0;
+  });
+
+  var cadFind = workspace.querySelector("[data-sourcing-cad-find]");
+  if (cadFind) cadFind.addEventListener("input", function () {
+    var term = cadFind.value.trim().toLocaleLowerCase();
+    workspace.querySelectorAll(".sourcing-choices label").forEach(function (row) {
+      row.hidden = row.textContent.toLocaleLowerCase().indexOf(term) < 0;
+    });
+  });
+  if (form) form.addEventListener("change", function () {
+    var names = Array.from(form.querySelectorAll('input[name="for"]:checked')).map(function (input) { return input.value; });
+    workspace.querySelector("[data-sourcing-for-summary]").textContent = "· " + (names.join(", ") || "None");
+  });
+
+  var modes = workspace.querySelector("[data-sourcing-note-modes]");
+  var notes = workspace.querySelector("[data-sourcing-notes]");
+  if (!form || !notes) return;
+  function setMode(mode) {
+    notes.dataset.mode = mode;
+    notes.querySelector("[data-sourcing-write-pane]").hidden = mode === "read";
+    notes.querySelector("[data-sourcing-read-pane]").hidden = mode === "write";
+    modes.querySelectorAll("[data-sourcing-note-mode]").forEach(function (button) {
+      button.setAttribute("aria-pressed", String(button.dataset.sourcingNoteMode === mode));
+    });
+  }
+  modes.hidden = false;
+  modes.addEventListener("click", function (event) {
+    var button = event.target.closest("[data-sourcing-note-mode]");
+    if (button) setMode(button.dataset.sourcingNoteMode);
+  });
+  setMode(form.dataset.creating === "true" ? "write" : "read");
+
+  var preview = workspace.querySelector("[data-note-preview-body]");
+  var dialog = document.querySelector("[data-sourcing-image-dialog]");
+  var images = [];
+  var selected = 0;
+  function decorateReferences() {
+    images = Array.from(preview.querySelectorAll("img"));
+    images.forEach(function (img) {
+      img.tabIndex = 0;
+      img.setAttribute("role", "button");
+      img.setAttribute("aria-label", "Enlarge reference: " + (img.alt || "image"));
+      var paragraph = img.parentElement;
+      if (paragraph.tagName === "P" && paragraph.children.length === 1 && !paragraph.textContent.trim()) paragraph.classList.add("sourcing-reference");
+    });
+    var empty = workspace.querySelector("[data-sourcing-notes-empty]");
+    if (empty) empty.hidden = Boolean(form.querySelector('[name="body"]').value.trim());
+  }
+  decorateReferences();
+  new MutationObserver(decorateReferences).observe(preview, { childList: true, subtree: true });
+  function showImage(index) {
+    selected = (index + images.length) % images.length;
+    var img = images[selected];
+    var enlarged = dialog.querySelector("[data-sourcing-image]");
+    enlarged.src = img.src;
+    enlarged.alt = img.alt;
+    dialog.querySelector("[data-sourcing-image-label]").textContent = "Reference " + (selected + 1) + " / " + images.length;
+    dialog.querySelector("[data-sourcing-image-prev]").disabled = images.length < 2;
+    dialog.querySelector("[data-sourcing-image-next]").disabled = images.length < 2;
+    if (!dialog.open) dialog.showModal();
+  }
+  preview.addEventListener("click", function (event) {
+    var index = images.indexOf(event.target);
+    if (index >= 0) { event.preventDefault(); showImage(index); }
+  });
+  preview.addEventListener("keydown", function (event) {
+    var index = images.indexOf(event.target);
+    if (index >= 0 && (event.key === "Enter" || event.key === " ")) { event.preventDefault(); showImage(index); }
+  });
+  dialog.querySelector("[data-sourcing-image-close]").addEventListener("click", function () { dialog.close(); });
+  dialog.querySelector("[data-sourcing-image-prev]").addEventListener("click", function () { showImage(selected - 1); });
+  dialog.querySelector("[data-sourcing-image-next]").addEventListener("click", function () { showImage(selected + 1); });
+  dialog.addEventListener("click", function (event) { if (event.target === dialog) dialog.close(); });
+  dialog.addEventListener("keydown", function (event) {
+    if (event.key === "ArrowLeft") { event.preventDefault(); showImage(selected - 1); }
+    if (event.key === "ArrowRight") { event.preventDefault(); showImage(selected + 1); }
+  });
 })();
 
 (function () {

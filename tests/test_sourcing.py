@@ -273,7 +273,7 @@ def test_new_then_edit_round_trips_through_the_form(tmp_path: Path) -> None:
     created = client.post("/sourcing/bellows/new", data=fields)
     assert created.status_code == 302
     assert created.headers["Location"].endswith(
-        "/catalog/bellows?option=edge-welded-bellows-40-mm#option-edge-welded-bellows-40-mm"
+        "/sourcing/bellows/edge-welded-bellows-40-mm/edit?saved=1"
     )
     path = root / "bellows" / "sourcing" / "edge-welded-bellows-40-mm.md"
     assert path.read_text(encoding="utf-8") == (
@@ -314,6 +314,7 @@ def test_new_then_edit_round_trips_through_the_form(tmp_path: Path) -> None:
         data={**fields, "revision": "0" * 16, "status": "ordered"},
     )
     assert stale.status_code == 409 and "changed on disk" in stale.get_data(as_text=True)
+    assert 'data-save-error="true"' in stale.get_data(as_text=True)
     saved = client.post(
         "/sourcing/bellows/edge-welded-bellows-40-mm/edit",
         data={**fields, "revision": revision, "status": "ordered", "for": ["bellows.iam", "flange.ipt"]},
@@ -369,8 +370,7 @@ def test_the_folder_card_has_one_sourcing_line_in_both_states(tmp_path: Path) ->
     assert '<span class="sourcing-rail-empty">None yet</span>' in line(empty)
     assert add.format("PALP") in line(empty) and add.format("bellows") in line(some)
     # A count that jumps to the section on the same page; nothing links away.
-    assert '<a href="#sourcing">3 options · 1 quoted · 1 ordered</a>' in line(some)
-    assert 'href="/sourcing/bellows"' not in some
+    assert '<a href="/sourcing/bellows">3 options · 1 quoted · 1 ordered</a>' in line(some)
     assert "data-sourcing-rail" not in root_page
     # Inside the folder card, below the note, above the inspector.
     context = some.split('<aside class="rail-side rail-context"', 1)[1]
@@ -405,7 +405,7 @@ def test_a_file_named_in_for_gets_a_sourced_badge_and_an_inspector_fact(tmp_path
     assert "<span>2 sourcing options</span>" in part
 
 
-def test_the_archive_page_groups_every_option_by_status(tmp_path: Path) -> None:
+def test_the_archive_page_groups_compact_options_by_design_folder(tmp_path: Path) -> None:
     root = make_workspace(tmp_path)
     write_note(root, "bellows", "a", note_text("Bellows A", "ordered", date="2026-09-20"))
     write_note(root, "bellows", "b", note_text("Bellows B", "candidate"))
@@ -414,11 +414,10 @@ def test_the_archive_page_groups_every_option_by_status(tmp_path: Path) -> None:
 
     html = client.get("/sourcing").get_data(as_text=True)
 
-    labels = re.findall(r'<p class="grid-label"><strong>([a-z]+)</strong> · (\d+)</p>', html)
-    assert labels == [("candidate", "1"), ("ordered", "2")]
-    ordered = html.split("<strong>ordered</strong>", 1)[1]
-    assert ordered.index("Clamp C") < ordered.index("Bellows A")  # newest first
-    assert '<a class="sourcing-folder" href="/catalog/PALP#option-c"' in html
+    assert html.index("Bellows A") < html.index("Bellows B") < html.index("Clamp C")
+    assert '<a class="sourcing-folder" href="/sourcing/PALP"' in html
+    assert html.count('class="sourcing-overview-row"') == 3
+    assert 'class="markdown-body sourcing-prose"' not in html
     assert 'data-status-filter="ordered" aria-pressed="false"' in html
     assert 'data-status-filter="quoted"' not in html  # no row for an empty status
     assert '>Sourcing</a>' in html.split('<nav class="topnav"', 1)[1].split("</nav>", 1)[0]
@@ -624,7 +623,7 @@ def test_the_part_page_lists_the_files_options_and_adds_for_it(tmp_path: Path) -
     assert 'name="for" value="bellows.iam" checked>' in form
     assert 'name="for" value="flange.ipt">' in form
     assert '<input type="hidden" name="back" value="bellows/bellows.iam">' in form
-    assert '<a class="button" href="/part/bellows/bellows.iam">Cancel</a>' in form
+    assert '<a class="button" data-sourcing-exit href="/part/bellows/bellows.iam">Back to bellows.iam</a>' in form
     assert "Back to bellows.iam" in form
     saved = client.post(
         "/sourcing/bellows/new",
@@ -637,15 +636,15 @@ def test_the_part_page_lists_the_files_options_and_adds_for_it(tmp_path: Path) -
         },
     )
     assert saved.status_code == 302
-    assert saved.headers["Location"].endswith("/part/bellows/bellows.iam?option=third-rails")
+    assert saved.headers["Location"].endswith("/sourcing/bellows/third-rails/edit?saved=1&back=bellows/bellows.iam")
     assert "Saved: Third rails" in client.get(saved.headers["Location"]).get_data(as_text=True)
     # A back path outside the workspace is ignored: the folder's section instead.
     stray = client.get("/sourcing/bellows/new?back=../outside.txt").get_data(as_text=True)
     assert 'name="back"' not in stray
-    assert '<a class="button" href="/catalog/bellows#sourcing">Cancel</a>' in stray
+    assert '<a class="button" data-sourcing-exit href="/catalog/bellows#sourcing">Back to catalog</a>' in stray
 
 
-def test_the_old_folder_page_redirects_to_the_catalog_section(tmp_path: Path) -> None:
+def test_the_folder_page_opens_its_selected_option_or_new_form(tmp_path: Path) -> None:
     root = make_workspace(tmp_path)
     write_note(root, "bellows", "a", note_text("A", "quoted"))
     client = create_app(root).test_client()
@@ -653,11 +652,39 @@ def test_the_old_folder_page_redirects_to_the_catalog_section(tmp_path: Path) ->
     plain = client.get("/sourcing/bellows")
     saved = client.get("/sourcing/bellows?saved=a")
 
-    assert plain.status_code == 302 and plain.headers["Location"].endswith("/catalog/bellows#sourcing")
-    assert saved.headers["Location"].endswith("/catalog/bellows?option=a#option-a")
+    assert plain.status_code == 302 and plain.headers["Location"].endswith("/sourcing/bellows/a/edit")
+    assert saved.headers["Location"].endswith("/sourcing/bellows/a/edit")
+    assert client.get("/sourcing/PALP").headers["Location"].endswith("/sourcing/PALP/new")
+    assert client.get("/sourcing?folder=PALP").headers["Location"].endswith("/sourcing/PALP/new")
     assert client.get("/sourcing/nowhere").status_code == 404
     assert client.get("/sourcing/bellows/sourcing").status_code == 404
     # The editor and the archive-wide list stay.
     assert client.get("/sourcing/bellows/a/edit").status_code == 200
     assert client.get("/sourcing/bellows/new").status_code == 200
     assert client.get("/sourcing").status_code == 200
+
+
+def test_option_navigation_stays_in_its_folder_and_preserves_part_context(tmp_path: Path) -> None:
+    root = make_workspace(tmp_path)
+    write_note(root, "bellows", "a", note_text("First rails", "quoted"))
+    write_note(root, "bellows", "b", note_text("Second rails", "candidate"))
+    write_note(root, "PALP", "c", note_text("Unrelated clamp", "ordered"))
+    client = create_app(root).test_client()
+    html = client.get("/sourcing/bellows/a/edit?back=bellows/bellows.iam").get_data(as_text=True)
+    nav = html.split('<nav class="sourcing-option-list"', 1)[1].split("</nav>", 1)[0]
+    assert "First rails" in nav and "Second rails" in nav and "Unrelated clamp" not in nav
+    assert 'href="/sourcing/bellows/b/edit?back=bellows/bellows.iam"' in nav
+    assert 'data-sourcing-option aria-current="page"' in nav
+    assert 'form="sourcing-form"' in html
+    assert 'data-creating="false"' in html
+    assert 'data-sourcing-image-dialog' in html
+
+
+def test_folder_workspace_keeps_broken_notes_reachable_without_replacing_them(tmp_path: Path) -> None:
+    root = make_workspace(tmp_path)
+    path = write_note(root, "bellows", "broken", "not frontmatter\n")
+    client = create_app(root).test_client()
+    response = client.get("/sourcing/bellows", follow_redirects=True)
+    assert response.status_code == 200 and "This note does not parse" in response.get_data(as_text=True)
+    assert path.read_text(encoding="utf-8") == "not frontmatter\n"
+    assert 'form="sourcing-form"' not in response.get_data(as_text=True)

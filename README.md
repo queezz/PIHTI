@@ -643,14 +643,27 @@ run furthest along first (received, ordered, quoted, candidate), newest first
 within each; rejected ones fold into one "N rejected" row that opens in place.
 Hovering or arrowing onto a tile shows its facts in the inspector (vendor,
 part number, price, status, the link, the files); a click opens its editor.
-The folder card's Sourcing line gives the count and **Add option**. A file's
-own page lists its options in the File card, wherever the notes sit, with
-**Add option** pre-set to that file; Save and Cancel return to the page you
-came from. A file named in `for` gets a `sourced` badge. **Sourcing** in the
-top bar lists every option in the archive by status, with a Status filter;
-the old `/sourcing/<folder>` address now lands on the folder's section.
-The editor has the fields, the folder's CAD files as checkboxes, and the note
-text beside a live preview. Paste or drop a picture or a PDF (up to 25 MB)
+The folder card's Sourcing line opens that design folder's sourcing workspace;
+**Add option** starts a new option there. A file's own page lists its options
+in the File card, wherever the notes sit, with **Add option** pre-set to that
+file. A file named in `for` gets a `sourced` badge.
+
+**Sourcing** in the top bar shows a compact overview grouped by design folder,
+with a Status filter. Choose an option to open its workspace: the left rail
+keeps the folder's options, local Find, **Add option**, and **Save option**
+within reach; the right rail switches design folders, including folders with
+no options yet. `/sourcing/<folder>` opens the first option, or a new form
+when the folder is empty. Saving stays on the selected option. **Back to
+catalog**, or **Back to the file** when opened from a part page, returns to
+the design context; Escape does the same. Leaving with unsaved edits prompts
+before discarding them.
+
+Name, status, price, supplier, and product link lead the detail pane. Part
+number, date, and the searchable CAD-file checklist sit behind disclosures.
+Existing notes open in **Read**; **Write** edits the Markdown and **Split**
+shows its live preview alongside it. Reference pictures appear as compact
+thumbnails; press one to enlarge it and browse with the arrow keys. Close or
+Escape returns to the option. Paste or drop a picture or a PDF (up to 25 MB)
 into the text to attach it: it is saved under `sourcing/attachments/` with a
 timestamped name and its link goes in at the cursor. Saving writes the note
 and never commits it. Deleting an option or an attachment is not built;

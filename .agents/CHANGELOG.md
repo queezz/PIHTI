@@ -6,6 +6,12 @@ remains authoritative for exact file changes.
 
 ## 2026-10-08
 
+- Shipped `pihti-dedup` 0.33.0: folder-focused sourcing workspaces with a
+  persistent option rail, local Find, Add and Save; compact archive overview;
+  clearer fields, folded CAD links, Read/Write/Split notes, and an enlarged
+  reference-image viewer. Saves stay in the workspace and navigation protects
+  unsaved edits.
+
 - Shipped `pihti-dedup` 0.32.0: native submission reports for issue/PR
   dependency checklists; Windows student setup, local viewer and report launchers;
   contributor onboarding and GitHub missing-file/PR templates.

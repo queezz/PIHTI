@@ -2589,7 +2589,9 @@ def test_styles_indent_the_folder_tree_and_scroll_only_the_tree_inside_its_pinne
     ) in style
     assert f".rail-context {{ height: {ceiling}; }}" in style
     assert "padding: var(--content-pad) 0 var(--page-foot);" in style
-    assert re.search(r"max-height:\s*\d", style) is None
+    # Viewport-relative image dialogs are responsive; fixed pixel ceilings
+    # are the rail failure this guard is intended to catch.
+    assert re.search(r"max-height:\s*\d+(?:\.\d+)?px", style) is None
     # The tree card and the shell's right rail; the left rail is exactly its height.
     assert style.count("max-height: calc(") == 2
     assert style.count(ceiling) == 3

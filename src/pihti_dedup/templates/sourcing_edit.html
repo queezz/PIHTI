@@ -1,91 +1,90 @@
 {% extends "base.html" %}
-{% from "_folder_tree.html" import tree_rail, catalog_bar %}
+{% from "_sourcing_nav.html" import folder_rail, option_rail %}
 {% block title %}{% if creating %}New option{% else %}{{ values.title or slug }}{% endif %} · {{ name }} · PIHTI{% endblock %}
 
 {% block body %}
-<main class="page">
+<main class="page sourcing-workspace" data-sourcing-workspace>
+  {% if toast %}<div class="operation-toast" role="status" data-sourcing-toast>{{ toast }}</div>{% endif %}
   <div class="work-grid two-rail catalog-grid">
     <div class="work-main catalog-main">
-      {{ catalog_bar(breadcrumbs, filter=false) }}
+      <header class="page-bar"><nav class="breadcrumbs" aria-label="Breadcrumb">
+        <a href="{{ url_for('sourcing_all') }}">Sourcing</a><span aria-hidden="true">/</span>
+        <a href="{{ url_for('sourcing_folder', relative_folder=path) }}">{{ path|winpath }}</a><span aria-hidden="true">/</span>
+        <strong aria-current="page">{% if creating %}New option{% else %}{{ values.title or slug }}{% endif %}</strong>
+      </nav></header>
 
       <section class="part-card sourcing-editor">
-        <h2>{% if creating %}New sourcing option{% else %}Sourcing option <code>{{ note_name|winpath }}</code>{% endif %}</h2>
+        <h2>{% if creating %}New sourcing option{% else %}{{ values.title or slug }}{% endif %}</h2>
         {% if error %}<p class="metadata-error" role="alert">{{ error }}</p>{% endif %}
-
         {% if broken %}
         <p class="metadata-error" role="alert">This note does not parse: {{ broken }}. Repair it in a text editor; saving this form would replace it.</p>
         <pre class="sourcing-raw">{{ raw_text }}</pre>
         {% else %}
-        <form method="post" class="sourcing-form" data-live-note-form data-preview-folder="{{ path }}">
+        <form id="sourcing-form" method="post" class="sourcing-form" data-live-note-form data-preview-folder="{{ path }}" data-sourcing-edit-form data-creating="{{ 'true' if creating else 'false' }}" data-save-error="{{ 'true' if error else 'false' }}">
           <input type="hidden" name="token" value="{{ form_token }}">
           {% if revision %}<input type="hidden" name="revision" value="{{ revision }}">{% endif %}
           {% if back %}<input type="hidden" name="back" value="{{ back }}">{% endif %}
-          <div class="sourcing-fields">
-            <label class="field wide"><span>Title</span><input name="title" type="text" value="{{ values.title }}" required autocomplete="off"></label>
-            <label class="field"><span>Status</span>
-              <select name="status" required>
-                {% for status in statuses %}<option value="{{ status }}"{% if values.status == status %} selected{% endif %}>{{ status }}</option>{% endfor %}
-              </select>
-            </label>
-            <label class="field"><span>Date</span><input name="date" type="{{ 'date' if not values.date or values.date|length == 10 else 'text' }}" value="{{ values.date }}"></label>
-            <label class="field"><span>Vendor</span><input name="vendor" type="text" value="{{ values.vendor }}" autocomplete="off"></label>
-            <label class="field"><span>Part number</span><input name="part_number" type="text" value="{{ values.part_number }}" autocomplete="off" spellcheck="false"></label>
-            <label class="field"><span>Price</span><input name="price" type="text" value="{{ values.price }}" autocomplete="off"></label>
-            <label class="field wide"><span>Link</span><input name="url" type="url" value="{{ values.url }}" placeholder="https://" autocomplete="off" spellcheck="false"></label>
+          <div class="sourcing-fields sourcing-primary-fields">
+            <label class="field wide"><span>Option name</span><input name="title" type="text" value="{{ values.title }}" placeholder="What are you considering?" required autocomplete="off"></label>
+            <label class="field"><span>Status</span><select name="status" required>{% for status in statuses %}<option value="{{ status }}"{% if values.status == status %} selected{% endif %}>{{ status }}</option>{% endfor %}</select></label>
+            <label class="field"><span>Price · include currency</span><input name="price" type="text" value="{{ values.price }}" placeholder="e.g. 15,000 JPY" autocomplete="off"></label>
+            <label class="field"><span>Supplier</span><input name="vendor" type="text" value="{{ values.vendor }}" autocomplete="off"></label>
+            <label class="field sourcing-link-field"><span>Product link{% if values.url %}<a href="{{ values.url }}" target="_blank" rel="noopener noreferrer">Open supplier ↗</a>{% endif %}</span><input name="url" type="url" value="{{ values.url }}" placeholder="https://" autocomplete="off" spellcheck="false"></label>
           </div>
 
-          <fieldset class="sourcing-for">
-            <legend>For</legend>
-            {% if choices %}
-            <div class="sourcing-choices">
-              {% for choice in choices %}<label><input type="checkbox" name="for" value="{{ choice.name }}"{% if choice.checked %} checked{% endif %}><span>{{ choice.name }}</span>{% if not choice.present %}<em>not in this folder</em>{% endif %}</label>{% endfor %}
+          <details class="sourcing-secondary">
+            <summary>Part number &amp; date{% if values.part_number %} · {{ values.part_number }}{% endif %}{% if values.date %} · {{ values.date }}{% endif %}</summary>
+            <div class="sourcing-fields">
+              <label class="field"><span>Part number</span><input name="part_number" type="text" value="{{ values.part_number }}" autocomplete="off" spellcheck="false"></label>
+              <label class="field"><span>Date</span><input name="date" type="{{ 'date' if not values.date or values.date|length == 10 else 'text' }}" value="{{ values.date }}"></label>
             </div>
-            {% else %}
-            <p class="part-note muted">No CAD files sit directly in this folder.</p>
-            {% endif %}
-          </fieldset>
+          </details>
+          <details class="sourcing-secondary"{% if creating and choices|selectattr('checked')|list %} open{% endif %}>
+            <summary>Linked CAD files <span data-sourcing-for-summary>{% set chosen = choices|selectattr('checked')|list %}{% if chosen %}· {% for choice in chosen %}{{ choice.name }}{% if not loop.last %}, {% endif %}{% endfor %}{% else %}· None{% endif %}</span></summary>
+            <fieldset class="sourcing-for">
+              <legend class="sr-only">Linked CAD files</legend>
+              {% if choices %}
+              <label class="field"><span class="sr-only">Find a CAD file</span><input type="search" placeholder="Find a CAD file" data-sourcing-cad-find autocomplete="off"></label>
+              <div class="sourcing-choices">
+                {% for choice in choices %}<label><input type="checkbox" name="for" value="{{ choice.name }}"{% if choice.checked %} checked{% endif %}><span>{{ choice.name }}</span>{% if not choice.present %}<em>not in this folder</em>{% endif %}</label>{% endfor %}
+              </div>
+              {% else %}<p class="part-note muted">No CAD files sit directly in this folder.</p>{% endif %}
+            </fieldset>
+          </details>
 
-          <div class="sourcing-write">
-            <section class="sourcing-pane">
-              <h3><label for="sourcing-body">Notes</label></h3>
+          <div class="sourcing-notes-head">
+            <h3>Notes &amp; references</h3>
+            <div class="sourcing-note-modes" role="group" aria-label="Notes view" data-sourcing-note-modes hidden>
+              <button class="button" type="button" data-sourcing-note-mode="read" aria-pressed="false">Read</button>
+              <button class="button" type="button" data-sourcing-note-mode="write" aria-pressed="false">Write</button>
+              <button class="button" type="button" data-sourcing-note-mode="split" aria-pressed="false">Split</button>
+            </div>
+          </div>
+          <div class="sourcing-write" data-sourcing-notes>
+            <section class="sourcing-pane" data-sourcing-write-pane>
+              <h3><label for="sourcing-body">Write notes</label></h3>
               <p class="editor-hint">Paste or drop a picture or a PDF to attach it.</p>
-              <textarea id="sourcing-body" name="body" rows="16" data-live-note-input data-attach-input data-attach-url="{{ url_for('sourcing_attach', relative_folder=path) }}">{{ body }}</textarea>
+              <textarea id="sourcing-body" name="body" rows="12" data-live-note-input data-attach-input data-attach-url="{{ url_for('sourcing_attach', relative_folder=path) }}">{{ body }}</textarea>
               <small class="sourcing-attach-status" data-attach-status aria-live="polite"></small>
             </section>
-            <section class="sourcing-pane" aria-labelledby="sourcing-preview-title">
-              <h3 id="sourcing-preview-title">Preview</h3>
+            <section class="sourcing-pane" data-sourcing-read-pane aria-label="Rendered notes">
               <div class="markdown-body sourcing-prose" data-note-preview-body>{{ preview_html }}</div>
+              {% if not body %}<p class="part-note muted" data-sourcing-notes-empty>No notes yet. Use Write to add your thinking, pictures, or quotes.</p>{% endif %}
             </section>
           </div>
-
-          <div class="sourcing-save">
-            <button class="button primary" type="submit">Save</button>
-            <a class="button" href="{{ back_url }}">Cancel</a>
-            <small data-live-note-status aria-live="polite"></small>
-          </div>
+          <small data-live-note-status aria-live="polite"></small>
+          <details class="sourcing-secondary sourcing-storage"><summary>Note file</summary><code>{% if note_name %}{{ note_name|winpath }}{% else %}{{ path|winpath }}\sourcing\{% endif %}</code><button class="copy-path" type="button" data-copy-text="{{ absolute_path|winpath }}">Copy folder path</button></details>
+          <noscript><div class="sourcing-save"><button class="button primary" type="submit">Save option</button></div></noscript>
         </form>
         {% endif %}
       </section>
     </div>
-
-    <aside class="rail-side rail-context" aria-label="Sourcing scope">
-      <section class="rail-card context-card catalog-context">
-        <h2>Sourcing</h2>
-        <p class="context-title">{{ name }}</p>
-        <div class="context-path">
-          <code title="{{ path|winpath }}\sourcing">{{ path|winpath }}\sourcing</code>
-          <button class="copy-path" type="button" data-copy-text="{{ absolute_path|winpath }}" title="Paste into Explorer's address bar">Copy path</button>
-        </div>
-        <dl class="scope-list">
-          <div><dt>Options</dt><dd>{{ option_count }}</dd></div>
-        </dl>
-        <div class="sourcing-rail-actions">
-          <a class="button" href="{{ back_url }}">{% if back %}Back to {{ back_name }}{% else %}Back to folder{% endif %}</a>
-        </div>
-      </section>
-    </aside>
-
-    {{ tree_rail(tree) }}
+    {{ option_rail(option_nav, option_problems, path, name, slug, creating, back, back_url, back_name, not broken, error) }}
+    {{ folder_rail(sourcing_folders, path) }}
   </div>
 </main>
+<dialog class="sourcing-image-dialog" data-sourcing-image-dialog aria-label="Reference image">
+  <header><strong data-sourcing-image-label>Reference</strong><button class="button" type="button" data-sourcing-image-prev aria-label="Previous reference">←</button><button class="button" type="button" data-sourcing-image-next aria-label="Next reference">→</button><button class="button" type="button" data-sourcing-image-close>Close</button></header>
+  <img alt="" data-sourcing-image>
+</dialog>
 {% endblock %}
