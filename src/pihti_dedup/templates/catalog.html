@@ -185,23 +185,18 @@
           <div><dt>Below here</dt><dd>{{ subtree_count }}</dd></div>
         </dl>
         <div class="note-rail" data-note-rail>
-          {% if note_rail_html %}
-          <div class="note-rail-body markdown-body" data-note-rail-body>{{ note_rail_html }}</div>
-          <button class="button note-rail-open" type="button" data-dialog-open="folder-note-dialog" data-note-view="reader" aria-haspopup="dialog" aria-controls="folder-note-dialog">Read the whole note</button>
-          {% else %}
-          <p class="note-rail-empty">No note yet</p>
-          <button class="button note-rail-open" type="button" data-dialog-open="folder-note-dialog" data-note-view="editor" aria-haspopup="dialog" aria-controls="folder-note-dialog">Write one</button>
-          {% endif %}
+          {% if note_overview %}<p class="folder-overview" data-folder-overview>{{ note_overview }}</p>{% endif %}
+          <button class="button note-rail-open" type="button" data-dialog-open="folder-note-dialog" data-note-view="{{ 'reader' if note_rail_html else 'editor' }}" aria-haspopup="dialog" aria-controls="folder-note-dialog">{{ 'Read the whole note' if note_rail_html else 'Write one' }}</button>
         </div>
-        {# One line at one height whether or not the folder has options; it
-           takes its room from the note budget, so the card never grows. #}
         {% if sourcing_line %}
-        <p class="sourcing-rail" data-sourcing-rail>
-          <span class="sourcing-rail-label">Sourcing</span>
-          {% if sourcing_line.summary %}<a href="{{ url_for('sourcing_folder', relative_folder=path) }}">{{ sourcing_line.summary }}</a>
-          {% else %}<span class="sourcing-rail-empty">None yet</span>{% endif %}
-          <a class="copy-path sourcing-rail-add" href="{{ sourcing_line.add_url }}">Add option</a>
-        </p>
+        <div class="sourcing-rail" data-sourcing-rail>
+          <a class="button primary sourcing-rail-open" href="{{ url_for('sourcing_folder', relative_folder=path) }}"><strong>Open sourcing</strong><span aria-hidden="true">→</span></a>
+          <p class="sourcing-rail-summary">{{ sourcing_line.summary or 'No options yet' }}</p>
+          <div class="sourcing-rail-actions">
+            <a class="button" href="{{ url_for('sourcing_board', relative_folder=path) }}">Brainstorm board</a>
+            <a class="button sourcing-rail-add" href="{{ sourcing_line.add_url }}">+ Add option</a>
+          </div>
+        </div>
         {% endif %}
         {% endif %}
       </section>

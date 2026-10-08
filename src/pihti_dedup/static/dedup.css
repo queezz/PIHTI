@@ -344,43 +344,19 @@ a.copy-path { display: inline-block; text-align: center; text-decoration: none; 
   -webkit-box-orient: vertical; -webkit-line-clamp: 8;
 }
 .rail-context .catalog-description.is-cut { -webkit-mask-image: linear-gradient(#000 60%, transparent); mask-image: linear-gradient(#000 60%, transparent); }
-/* The folder note in the rail: its authored part, rendered, inside one fixed
-   budget on every folder, so the inspector below never moves with the note.
-   The budget is 8rem on any window taller than about 860px and 4rem at 800px
-   or less; the room it gives up goes to the inspector's preview, the same
-   trade on every folder. The summary sentence comes first; a note that does
-   not fit is cut with a fade and the button opens the reader. */
-.note-rail { height: clamp(4rem, calc(100vh - 46rem), 8rem); display: flex; flex-direction: column; gap: 8px; padding-top: 9px; border-top: 1px solid var(--line-soft); }
-.note-rail-body { position: relative; flex: 1 1 auto; min-height: 0; overflow: hidden; }
-.note-rail .note-rail-body { font-size: 0.72rem; line-height: 1.45; }
-.note-rail .note-rail-body p, .note-rail .note-rail-body ul, .note-rail .note-rail-body ol { margin-bottom: 6px; }
-.note-rail .note-rail-body h2, .note-rail .note-rail-body h3, .note-rail .note-rail-body h4 { margin: 8px 0 4px; font-size: 0.74rem; }
-.note-rail-body.is-cut::after {
-  content: ""; position: absolute; right: 0; bottom: 0; left: 0; height: 2.4rem;
-  background: linear-gradient(rgba(17, 25, 35, 0), var(--panel)); pointer-events: none;
-}
-.note-rail-empty { flex: 1 1 auto; margin: 0; color: var(--dim); font-size: 0.72rem; }
-.note-rail-open { flex: none; align-self: flex-start; padding: 4px 9px; }
-/* The folder's Sourcing line, under the note: one line at one height whether
-   or not the folder has options. The card keeps its height; the note budget
-   above gives the line its room. */
-.sourcing-rail { flex: none; display: flex; align-items: baseline; gap: 8px; height: 1.25rem; margin: 6px 0 0; overflow: hidden; color: var(--dim); font-size: 0.72rem; line-height: 1.25rem; white-space: nowrap; }
-.sourcing-rail-label { flex: none; font-size: 0.62rem; font-weight: 650; letter-spacing: 0.09em; text-transform: uppercase; }
-.sourcing-rail a { min-width: 0; overflow: hidden; text-overflow: ellipsis; color: var(--accent); }
-.sourcing-rail a:hover { color: var(--text); }
-.sourcing-rail .sourcing-rail-add { flex: none; align-self: center; min-width: 0; margin-left: auto; padding: 0 7px; color: var(--muted); font-size: 0.62rem; line-height: 1.1rem; }
-/* The left rail is exactly as tall as the room between the sticky offset and
-   the page foot, like the tree card. Three stations, none of which moves with
-   what a page shows: the folder card on top at one height (the head plus the
-   note budget, the same for the root, a folder, and a search), the legend on
-   the bottom edge (every mark on every page, so one height), and the
-   inspector filling the space between them. The inspector's preview keeps at
-   least 240px on any window 800px tall or more; only its fact list scrolls. */
+/* A brief plain-text overview; full Markdown stays in the note reader. */
+.folder-overview { margin: 0; color: var(--text); font-size: 0.84rem; line-height: 1.55; overflow-wrap: anywhere; }
+.note-rail { display: flex; flex-direction: column; gap: 10px; padding-top: 12px; }
+.note-rail-open { width: 100%; }
+.sourcing-rail { padding-top: 12px; border-top: 1px solid var(--line-soft); margin-top: 12px; }
+.sourcing-rail-open { display: flex; justify-content: space-between; align-items: center; width: 100%; padding: 10px 12px; font-size: 0.9rem; color: var(--accent); border-color: var(--accent); background: rgba(115, 181, 255, 0.09); }
+.sourcing-rail-summary { margin: 8px 0; color: var(--muted); font-size: 0.76rem; }
+.sourcing-rail .sourcing-rail-actions { display: flex; gap: 8px; }
+.sourcing-rail .sourcing-rail-actions > a { flex: 1; text-align: center; }
 .rail-context { height: calc(100vh - var(--bar-height) - var(--content-pad) - var(--page-foot) - 1px); }
 .rail-context > .rail-card { flex: none; }
-.rail-context > .catalog-context { height: calc(10.5rem + clamp(4rem, calc(100vh - 46rem), 8rem)); display: flex; flex-direction: column; overflow: hidden; }
+.rail-context > .catalog-context { display: flex; flex-direction: column; }
 .catalog-context > * { flex: none; }
-.catalog-context > .note-rail { flex: 1 1 auto; min-height: 0; }
 .catalog-context > .catalog-description { flex: 0 1 auto; min-height: 0; }
 .rail-context > .inspector { flex: 1 1 0; min-height: 0; display: flex; flex-direction: column; overflow: hidden; padding: 10px 12px; }
 .rail-context > .signal-legend { margin-top: auto; padding: 5px 10px; }

@@ -1167,8 +1167,7 @@ def test_catalog_root_and_folder_cards_promote_readme_summaries(tmp_path: Path) 
     assert '<p class="catalog-description">Curated plasma hardware from concept through fabrication outputs.</p>' in landing
     assert 'class="folder-card has-summary" href="/catalog/Plasma%20Vessel"' in landing
     assert 'class="folder-summary">Holds the plasma box inside the full vacuum vessel assembly.</small>' in landing
-    rail_note = folder.split('<div class="note-rail-body markdown-body" data-note-rail-body>', 1)[1]
-    assert rail_note.startswith("<p>Holds the plasma box inside the full vacuum vessel assembly.</p>")
+    assert 'data-folder-overview>Holds the plasma box inside the full vacuum vessel assembly.</p>' in folder
 
 
 def test_part_page_shows_iproperties_and_flags_a_part_number_mismatch(
@@ -1710,7 +1709,7 @@ def test_catalog_header_is_one_compact_line_and_the_note_sits_behind_a_toggle(
         '<button class="button note-rail-open" type="button" data-dialog-open="folder-note-dialog"'
         ' data-note-view="reader"' in context
     )
-    assert '<p>PAEK bearing stack for the rotating head.</p>' in context
+    assert 'data-folder-overview>PAEK bearing stack for the rotating head.</p>' in context
     # The whole note is inside the modal: its reader, the preview, the raw editor.
     assert main.count("PAEK bearing stack for the rotating head.") == 3
     assert main.index('id="folder-note-dialog"') > main.index("data-thumb-grid")
@@ -1947,8 +1946,8 @@ def test_the_catalog_renders_a_folder_note_and_strips_markdown_from_the_excerpt(
     html = client.get("/catalog/BoronProbe/parts").get_data(as_text=True)
 
     assert "<strong>PAEK</strong>" in html
-    rail = html.split("data-note-rail-body>", 1)[1].split("</div>", 1)[0]
-    assert rail == "<p>The <strong>PAEK</strong> bearing stack.</p>"  # rendered in the rail
+    rail = html.split("data-folder-overview>", 1)[1].split("</p>", 1)[0]
+    assert rail == "The PAEK bearing stack."  # brief plain-text overview
     assert 'data-dialog-open="folder-note-dialog"' in html
     assert 'id="folder-note-dialog"' in html
     assert 'id="catalog-folder-note-text"' in html
@@ -2567,7 +2566,6 @@ def test_styles_indent_the_folder_tree_and_scroll_only_the_tree_inside_its_pinne
     assert ".dialog-close-x" in style
     assert ".thumb-tile.has-metadata" in style
     assert ".folder-card.has-summary" in style
-    assert ".note-rail { height: clamp(4rem, calc(100vh - 46rem), 8rem);" in style
     assert "grid-template-columns: minmax(0, 1.08fr) minmax(0, 0.92fr)" in style
     # The owner once rejected inner scrolling; on 2026-09-24 he ruled a pinned
     # rail the priority ("not nailed, hate it"). So each catalog rail stops
@@ -3087,7 +3085,7 @@ def test_hero_styles_pin_the_file_tile_width_and_every_mark_is_a_badge(tmp_path:
     # The hero card's folder links prefetch like every other folder link.
     assert "a.hero-folder, a.hero-open-folder" in script
 
-def test_the_folder_note_rail_renders_the_authored_part_in_a_fixed_budget(tmp_path: Path) -> None:
+def test_folder_card_has_a_brief_plain_overview_and_a_full_note_reader(tmp_path: Path) -> None:
     root = make_workspace(tmp_path)
     (root / "BoronProbe" / "parts" / "README.md").write_text(
         "# parts\n\nThe **PAEK** bearing stack.\n\n## Servicing\n\n- clean the ceramics\n\n"
@@ -3108,26 +3106,14 @@ def test_the_folder_note_rail_renders_the_authored_part_in_a_fixed_budget(tmp_pa
     generated = client.get("/catalog/Plasma%20Vessel/parts").get_data(as_text=True)
     missing = client.get("/catalog/BoronProbe_2026/parts").get_data(as_text=True)
 
-    rail = authored.split("data-note-rail-body>", 1)[1].split("</div>", 1)[0]
-    assert rail.startswith("<p>The <strong>PAEK</strong> bearing stack.</p>")
-    assert "<h2>Servicing</h2>" in rail and "clean the ceramics" in rail
-    assert "Main Assembly" not in rail and "Generated CAD inventory" not in rail
-    assert "<h1>" not in rail  # the rail already names the folder
+    overview = authored.split("data-folder-overview>", 1)[1].split("</p>", 1)[0]
+    assert overview == "The PAEK bearing stack."
+    assert "<strong>" not in overview and "Servicing" not in overview
+    reader = authored.split('data-note-read>', 1)[1] if 'data-note-read>' in authored else authored
+    assert "clean the ceramics" in reader
     for page in (generated, missing):
-        note = page.split('<div class="note-rail" data-note-rail>', 1)[1].split("</div>", 1)[0]
-        assert '<p class="note-rail-empty">No note yet</p>' in note
-        assert 'data-note-view="editor"' in note and ">Write one</button>" in note
-
-    # One fixed budget: the Note card never grows, so the inspector below it
-    # sits at the same place whatever the note's length.
-    style = client.get("/static/dedup.css").get_data(as_text=True)
-    budget = style.split(".note-rail {", 1)[1].split("}", 1)[0]
-    # 8rem on any desktop window taller than ~860px, 4rem at 800px or less;
-    # one budget for every folder.
-    assert "height: clamp(4rem, calc(100vh - 46rem), 8rem);" in budget
-    assert "max-height" not in budget
-    body_rule = style.split(".note-rail-body {", 1)[1].split("}", 1)[0]
-    assert "overflow: hidden;" in body_rule and "min-height: 0;" in body_rule
+        assert "data-folder-overview" not in page
+        assert 'data-note-view="editor"' in page and ">Write one</button>" in page
 
     def skeleton(html: str) -> list[str]:
         context = html.split('<aside class="rail-side rail-context"', 1)[1].split("</aside>", 1)[0]
@@ -3332,9 +3318,7 @@ def test_one_legend_of_every_mark_closes_the_left_rail_on_every_page(tmp_path: P
     # bottom edge, the inspector filling the space between.
     ceiling = "calc(100vh - var(--bar-height) - var(--content-pad) - var(--page-foot) - 1px)"
     assert f".rail-context {{ height: {ceiling}; }}" in style
-    assert (
-        ".rail-context > .catalog-context { height: calc(10.5rem + clamp(4rem, calc(100vh - 46rem), 8rem));"
-    ) in style
+    assert ".rail-context > .catalog-context { display: flex; flex-direction: column; }" in style
     assert ".rail-context > .inspector { flex: 1 1 0; min-height: 0;" in style
     assert ".rail-context > .signal-legend { margin-top: auto;" in style
     # The legend is one compact wrapping row beside its heading, not two

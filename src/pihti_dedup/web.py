@@ -3750,6 +3750,7 @@ def create_app(
             "note_text": note_text,
             "note_html": render_markdown(note_text),
             "note_rail_html": render_markdown(authored_part(note_text)),
+            "note_overview": note_excerpt(authored_part(note_text), limit=240),
             "note_error": None,
             "note_draft": None,
             "note_dialog_open": _flag(request.args.get("saved")),

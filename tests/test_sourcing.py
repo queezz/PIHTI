@@ -352,36 +352,20 @@ def test_a_note_that_does_not_parse_is_shown_not_overwritten(tmp_path: Path) -> 
 # ---- where sourcing shows up ------------------------------------------------
 
 
-def test_the_folder_card_has_one_sourcing_line_in_both_states(tmp_path: Path) -> None:
+def test_folder_sourcing_actions_open_the_workspace_board_and_new_option(tmp_path: Path) -> None:
     root = make_workspace(tmp_path)
     write_note(root, "bellows", "a", note_text("Bellows A", "quoted", "bellows.iam"))
-    write_note(root, "bellows", "b", note_text("Bellows B", "candidate"))
-    write_note(root, "bellows", "c", note_text("Bellows C", "ordered"))
     client = create_app(root).test_client()
-
-    def line(html: str) -> str:
-        return html.split('<p class="sourcing-rail" data-sourcing-rail>', 1)[1].split("</p>", 1)[0]
-
-    empty = client.get("/catalog/PALP").get_data(as_text=True)
-    some = client.get("/catalog/bellows").get_data(as_text=True)
-    root_page = client.get("/catalog").get_data(as_text=True)
-    style = client.get("/static/dedup.css").get_data(as_text=True)
-
-    add = '<a class="copy-path sourcing-rail-add" href="/sourcing/{}/new">Add option</a>'
-    assert '<span class="sourcing-rail-empty">None yet</span>' in line(empty)
-    assert add.format("PALP") in line(empty) and add.format("bellows") in line(some)
-    # A count that jumps to the section on the same page; nothing links away.
-    assert '<a href="/sourcing/bellows">3 options · 1 quoted · 1 ordered</a>' in line(some)
-    assert "data-sourcing-rail" not in root_page
-    # Inside the folder card, below the note, above the inspector.
-    context = some.split('<aside class="rail-side rail-context"', 1)[1]
-    assert context.index("data-note-rail") < context.index("data-sourcing-rail") < context.index("data-inspector")
-    # One height in both states; the card keeps its own height, so nothing below it moves.
-    rule = style.split(".sourcing-rail {", 1)[1].split("}", 1)[0]
-    assert "height: 1.25rem;" in rule and "white-space: nowrap;" in rule and "overflow: hidden;" in rule
-    assert (
-        ".rail-context > .catalog-context { height: calc(10.5rem + clamp(4rem, calc(100vh - 46rem), 8rem));"
-    ) in style
+    for folder in ("bellows", "PALP"):
+        html = client.get(f"/catalog/{folder}").get_data(as_text=True)
+        rail = html.split('data-sourcing-rail>', 1)[1].split('data-note-rail>', 1)[0]
+        assert f'href="/sourcing/{folder}"><strong>Open sourcing</strong>' in rail
+        assert f'href="/sourcing/{folder}/board">Brainstorm board</a>' in rail
+        assert f'href="/sourcing/{folder}/new">+ Add option</a>' in rail
+        assert rail.index('Open sourcing') < rail.index('Brainstorm board')
+    assert "1 option" in client.get("/catalog/bellows").get_data(as_text=True)
+    assert "No options yet" in client.get("/catalog/PALP").get_data(as_text=True)
+    assert "data-sourcing-rail" not in client.get("/catalog").get_data(as_text=True)
 
 
 def test_a_file_named_in_for_gets_a_sourced_badge_and_an_inspector_fact(tmp_path: Path) -> None:

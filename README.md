@@ -517,13 +517,15 @@ meaning beside each, and the **Legend** at the bottom of the left rail always
 shows all nine in one compact row, in the same order, on every catalog and
 part page; hover a badge there for its meaning.
 
-The folder note shows in the left rail as rendered Markdown. Only the part
-you wrote is shown, not the generated inventory lists, and it sits in the same
-fixed space on every folder. A longer note fades out. **Read the whole note**
-opens the note in a reader, and **Edit** beside the × switches to the raw
-editor with a live preview. Save returns to the same folder and reopens the
-reader with feedback. Close it with ×, **Close**, Escape, or the backdrop. A
-folder without a note shows **Write one**, which opens the editor directly.
+The folder card shows a brief plain-text overview from the first authored
+paragraph (up to 240 characters), without a faded Markdown preview. Details
+and generated inventory lists remain in the full note. **Read the whole note**
+opens the reader, and **Edit** beside its × switches to the raw editor with
+live preview. Save returns to the same folder and reopens the reader with
+feedback. Close with ×, **Close**, Escape, or the backdrop. A folder without
+authored prose shows **Write one**, which opens the editor directly. The rail's
+prominent **Open sourcing** action opens the folder workspace, with direct
+**Brainstorm board** and **Add option** actions beside it.
 The optional full-page editor has the catalog's breadcrumb line and tree, and
 chips back to the current folder and its parent.
 

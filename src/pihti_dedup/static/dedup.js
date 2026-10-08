@@ -650,10 +650,9 @@
     });
   });
 
-  // The rail shows as much of the note (or the root's summary) as its fixed
-  // budget holds; a longer text is cut with a fade rather than growing the card.
+  // The workspace root's summary retains its bounded description treatment.
   function markCuts() {
-    document.querySelectorAll("[data-note-rail-body], .rail-context .catalog-description").forEach(function (body) {
+    document.querySelectorAll(".rail-context .catalog-description").forEach(function (body) {
       body.classList.toggle("is-cut", body.scrollHeight > body.clientHeight + 1);
     });
   }
