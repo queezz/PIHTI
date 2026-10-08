@@ -6,6 +6,10 @@ remains authoritative for exact file changes.
 
 ## 2026-10-08
 
+- Shipped `pihti-dedup` 0.34.2: restore the folder description as the card’s
+  primary content; place sourcing and brainstorm navigation in a separate
+  compact card, with the option count inline.
+
 - Shipped `pihti-dedup` 0.34.1: prominent folder sourcing actions and
   brief plain-text folder overviews, replacing the clipped Markdown
   rail preview. The existing full note reader/editor remains one button away.

@@ -188,18 +188,16 @@
           {% if note_overview %}<p class="folder-overview" data-folder-overview>{{ note_overview }}</p>{% endif %}
           <button class="button note-rail-open" type="button" data-dialog-open="folder-note-dialog" data-note-view="{{ 'reader' if note_rail_html else 'editor' }}" aria-haspopup="dialog" aria-controls="folder-note-dialog">{{ 'Read the whole note' if note_rail_html else 'Write one' }}</button>
         </div>
-        {% if sourcing_line %}
-        <div class="sourcing-rail" data-sourcing-rail>
-          <a class="button primary sourcing-rail-open" href="{{ url_for('sourcing_folder', relative_folder=path) }}"><strong>Open sourcing</strong><span aria-hidden="true">→</span></a>
-          <p class="sourcing-rail-summary">{{ sourcing_line.summary or 'No options yet' }}</p>
-          <div class="sourcing-rail-actions">
-            <a class="button" href="{{ url_for('sourcing_board', relative_folder=path) }}">Brainstorm board</a>
-            <a class="button sourcing-rail-add" href="{{ sourcing_line.add_url }}">+ Add option</a>
-          </div>
-        </div>
-        {% endif %}
         {% endif %}
       </section>
+      {% if not query and path != '.' and sourcing_line %}
+      <section class="rail-card sourcing-folder-tools" aria-label="Folder sourcing">
+        <div class="sourcing-rail" data-sourcing-rail>
+          <a class="button sourcing-rail-open" href="{{ url_for('sourcing_folder', relative_folder=path) }}"><span>Sourcing <small>· {{ sourcing_line.count }}</small></span><span aria-hidden="true">→</span></a>
+          <a class="button sourcing-rail-board" href="{{ url_for('sourcing_board', relative_folder=path) }}">Brainstorm board</a>
+        </div>
+      </section>
+      {% endif %}
       {% if files or hero_files or (sourcing and sourcing.count) %}
       <section class="rail-card inspector" data-inspector aria-label="File inspector">
         <div class="inspector-head">

@@ -3709,7 +3709,8 @@ def create_app(
         if current != "." and not query and not is_sourcing_path(current):
             options, problems = sourcing_index["folders"].get(current, ([], []))
             add_url = url_for("sourcing_new", relative_folder=current)
-            sourcing_line = {"summary": summary_line(options, problems), "add_url": add_url}
+            sourcing_line = {"summary": summary_line(options, problems), "add_url": add_url,
+                             "count": len(options)}
             tiles = [_option_tile(option, sourcing_index) for option in by_status(options)]
             sourcing = {
                 "count": len(options),

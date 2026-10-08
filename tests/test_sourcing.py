@@ -352,19 +352,18 @@ def test_a_note_that_does_not_parse_is_shown_not_overwritten(tmp_path: Path) -> 
 # ---- where sourcing shows up ------------------------------------------------
 
 
-def test_folder_sourcing_actions_open_the_workspace_board_and_new_option(tmp_path: Path) -> None:
+def test_folder_sourcing_actions_open_the_workspace_and_board(tmp_path: Path) -> None:
     root = make_workspace(tmp_path)
     write_note(root, "bellows", "a", note_text("Bellows A", "quoted", "bellows.iam"))
     client = create_app(root).test_client()
     for folder in ("bellows", "PALP"):
         html = client.get(f"/catalog/{folder}").get_data(as_text=True)
         rail = html.split('data-sourcing-rail>', 1)[1].split('data-note-rail>', 1)[0]
-        assert f'href="/sourcing/{folder}"><strong>Open sourcing</strong>' in rail
+        assert f'href="/sourcing/{folder}"><span>Sourcing <small>' in rail
         assert f'href="/sourcing/{folder}/board">Brainstorm board</a>' in rail
-        assert f'href="/sourcing/{folder}/new">+ Add option</a>' in rail
-        assert rail.index('Open sourcing') < rail.index('Brainstorm board')
-    assert "1 option" in client.get("/catalog/bellows").get_data(as_text=True)
-    assert "No options yet" in client.get("/catalog/PALP").get_data(as_text=True)
+        assert rail.index('Sourcing <small>') < rail.index('Brainstorm board')
+    assert "Sourcing <small>· 1</small>" in client.get("/catalog/bellows").get_data(as_text=True)
+    assert "Sourcing <small>· 0</small>" in client.get("/catalog/PALP").get_data(as_text=True)
     assert "data-sourcing-rail" not in client.get("/catalog").get_data(as_text=True)
 
 

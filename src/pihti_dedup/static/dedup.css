@@ -345,14 +345,15 @@ a.copy-path { display: inline-block; text-align: center; text-decoration: none; 
 }
 .rail-context .catalog-description.is-cut { -webkit-mask-image: linear-gradient(#000 60%, transparent); mask-image: linear-gradient(#000 60%, transparent); }
 /* A brief plain-text overview; full Markdown stays in the note reader. */
-.folder-overview { margin: 0; color: var(--text); font-size: 0.84rem; line-height: 1.55; overflow-wrap: anywhere; }
+.folder-overview { margin: 0; color: var(--text); font-size: 0.94rem; line-height: 1.55; overflow-wrap: anywhere; }
 .note-rail { display: flex; flex-direction: column; gap: 10px; padding-top: 12px; }
 .note-rail-open { width: 100%; }
-.sourcing-rail { padding-top: 12px; border-top: 1px solid var(--line-soft); margin-top: 12px; }
-.sourcing-rail-open { display: flex; justify-content: space-between; align-items: center; width: 100%; padding: 10px 12px; font-size: 0.9rem; color: var(--accent); border-color: var(--accent); background: rgba(115, 181, 255, 0.09); }
-.sourcing-rail-summary { margin: 8px 0; color: var(--muted); font-size: 0.76rem; }
-.sourcing-rail .sourcing-rail-actions { display: flex; gap: 8px; }
-.sourcing-rail .sourcing-rail-actions > a { flex: 1; text-align: center; }
+.sourcing-rail { display: grid; grid-template-columns: 1.2fr 1fr; gap: 8px; }
+.rail-context > .sourcing-folder-tools { padding: 10px 12px; }
+.sourcing-rail .button { min-width: 0; padding: 7px 10px; font-size: 0.78rem; font-weight: 400; }
+.sourcing-rail-open { display: flex; justify-content: space-between; align-items: center; color: var(--accent); }
+.sourcing-rail-open small { color: var(--muted); font-size: inherit; }
+.sourcing-rail-board { text-align: center; }
 .rail-context { height: calc(100vh - var(--bar-height) - var(--content-pad) - var(--page-foot) - 1px); }
 .rail-context > .rail-card { flex: none; }
 .rail-context > .catalog-context { display: flex; flex-direction: column; }

@@ -523,9 +523,9 @@ and generated inventory lists remain in the full note. **Read the whole note**
 opens the reader, and **Edit** beside its × switches to the raw editor with
 live preview. Save returns to the same folder and reopens the reader with
 feedback. Close with ×, **Close**, Escape, or the backdrop. A folder without
-authored prose shows **Write one**, which opens the editor directly. The rail's
-prominent **Open sourcing** action opens the folder workspace, with direct
-**Brainstorm board** and **Add option** actions beside it.
+authored prose shows **Write one**, which opens the editor directly. A separate compact card below the folder description holds the rail's
+**Sourcing** action shows the option count and opens the folder workspace;
+**Brainstorm board** sits beside it. Add new options inside that workspace.
 The optional full-page editor has the catalog's breadcrumb line and tree, and
 chips back to the current folder and its parent.
 
