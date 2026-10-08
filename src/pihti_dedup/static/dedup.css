@@ -344,6 +344,11 @@ a.copy-path { display: inline-block; text-align: center; text-decoration: none; 
   -webkit-box-orient: vertical; -webkit-line-clamp: 8;
 }
 .rail-context .catalog-description.is-cut { -webkit-mask-image: linear-gradient(#000 60%, transparent); mask-image: linear-gradient(#000 60%, transparent); }
+.folder-context-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.catalog-context .folder-context-title { margin: 0; font-size: 1rem; font-weight: 650; line-height: 1.3; letter-spacing: normal; text-transform: none; color: var(--text); overflow-wrap: anywhere; }
+.folder-context-head .copy-path { flex: none; }
+.folder-file-count { margin: 8px 0 0; color: var(--muted); font-size: 0.76rem; }
+.folder-file-count span { color: var(--dim); }
 /* A brief plain-text overview; full Markdown stays in the note reader. */
 .folder-overview { margin: 0; color: var(--text); font-size: 0.94rem; line-height: 1.55; overflow-wrap: anywhere; }
 .note-rail { display: flex; flex-direction: column; gap: 10px; padding-top: 12px; }
@@ -1140,12 +1145,19 @@ a.tree-name:hover { color: var(--accent); text-decoration: underline; }
 .sourcing-workspace [data-live-note-status] { display: block; min-height: 1.5em; color: var(--muted); font-size: 0.75rem; }
 .sourcing-storage { margin-top: 12px; border-top: 1px solid var(--line-soft); border-bottom: 0; }
 .sourcing-storage code { display: block; margin: 8px 0; color: var(--muted); font-size: 0.75rem; overflow-wrap: anywhere; }
-.sourcing-work-actions { display: flex; flex-wrap: wrap; gap: 6px; }
-.sourcing-dirty { min-height: 1.4em; margin: 8px 0 0; color: var(--muted); font-size: 0.76rem; }
+.sourcing-workspace .sourcing-action-card > h2 { color: var(--text); font-size: 1rem; letter-spacing: normal; text-transform: none; overflow-wrap: anywhere; }
+.sourcing-context-nav { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 12px; }
+.sourcing-context-nav .button { min-width: 0; text-align: center; overflow-wrap: anywhere; }
+.sourcing-context-nav [aria-current] { border-color: var(--accent); color: var(--accent); }
+.sourcing-save-state { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--line-soft); }
+.sourcing-save-state > .button { width: 100%; }
+.sourcing-save-state > .button:disabled { opacity: 0.55; cursor: default; }
+.sourcing-dirty { min-height: 1.4em; margin: 6px 0 0; color: var(--muted); font-size: 0.76rem; }
 .sourcing-dirty.is-dirty { color: var(--hero); }
-.sourcing-add { display: block; margin-top: 10px; text-align: center; }
+.sourcing-options-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.sourcing-options-head > h2 { margin: 0; color: var(--muted); font-size: 0.72rem; }
+.sourcing-options-head .button { padding: 5px 9px; }
 .sourcing-option-rail > .rail-card:first-child { position: sticky; top: 0; z-index: 2; }
-.sourcing-add[aria-current] { color: var(--accent); border-color: var(--accent); }
 .sourcing-option-find { margin: 10px 0; }
 .sourcing-option-list { display: flex; flex-direction: column; gap: 6px; }
 .sourcing-option-row { display: flex; align-items: center; gap: 10px; padding: 10px; border: 1px solid var(--line); border-radius: 6px; color: var(--text); background: #0d141c; text-decoration: none; }

@@ -1,5 +1,4 @@
 {% extends "base.html" %}
-{% from "_folder_tree.html" import catalog_bar %}
 {% from "_sourcing_nav.html" import folder_rail %}
 {% from "_file_tile.html" import badge %}
 {% block title %}Sourcing · PIHTI{% endblock %}
@@ -20,8 +19,6 @@
 <main class="page sourcing-workspace">
   <div class="work-grid two-rail catalog-grid">
     <div class="work-main catalog-main">
-      {{ catalog_bar(breadcrumbs, placeholder='Filter options') }}
-
       <section class="sourcing-list" data-filter-list aria-label="Sourcing options in the archive">
         {% for group in groups %}
         <div class="sourcing-group" data-filter-group>
@@ -47,26 +44,20 @@
       </section>
     </div>
 
-    <aside class="rail-side rail-context" aria-label="Sourcing scope">
-      <section class="rail-card context-card">
-        <h2>Sourcing</h2>
-        <p class="context-title">Whole archive</p>
-        <dl class="scope-list">
-          <div><dt>Options</dt><dd>{{ option_count }}</dd></div>
-          <div><dt>Folders</dt><dd>{{ folder_count }}</dd></div>
-        </dl>
-      </section>
-      {% if option_count %}
-      <section class="rail-card sourcing-status" aria-label="Status">
-        <h2>Status</h2>
+    <aside class="rail-side rail-context" aria-label="Sourcing filters">
+      <section class="rail-card sourcing-status">
+        <h2>Find options</h2>
+        <label class="field sourcing-option-find"><span class="sr-only">Find a sourcing option</span><input type="search" data-filter-search placeholder="Name, supplier or CAD file" autocomplete="off"></label>
+        {% if option_count %}
+        <h3 class="micro-heading">Status</h3>
         <div class="status-filter" role="group" aria-label="Show options by status">
           <button class="status-choice" type="button" data-status-filter="" aria-pressed="true"><span>All</span><strong>{{ option_count }}</strong></button>
           {% for status in statuses if counts[status] %}
           <button class="status-choice" type="button" data-status-filter="{{ status }}" aria-pressed="false">{{ badge('sourcing-' ~ status, status, 'Show ' ~ status ~ ' only') }}<strong>{{ counts[status] }}</strong></button>
           {% endfor %}
         </div>
+        {% endif %}
       </section>
-      {% endif %}
     </aside>
 
     {{ folder_rail(sourcing_folders) }}

@@ -26,18 +26,19 @@
 
 {% macro option_rail(options, problems, folder, name, slug, creating, back, back_url, back_name, editable=true, save_error=false, board=false) %}
 <aside class="rail-side rail-context sourcing-option-rail" aria-label="Sourcing options">
-  <section class="rail-card">
-    <h2>Sourcing · {{ name }}</h2>
-    <div class="sourcing-work-actions">
-      {% if editable %}<button class="button primary" type="submit" form="sourcing-form">Save {{ 'board' if board else 'option' }}</button>{% endif %}
+  <section class="rail-card sourcing-action-card">
+    <h2>{{ name }}</h2>
+    <nav class="sourcing-context-nav" aria-label="Design folder navigation">
       <a class="button" data-sourcing-exit href="{{ back_url }}">{% if back %}Back to {{ back_name }}{% else %}Back to catalog{% endif %}</a>
+      <a class="button" href="{{ url_for('sourcing_board', relative_folder=folder) }}"{% if board %} aria-current="page"{% endif %}>Brainstorm board</a>
+    </nav>
+    <div class="sourcing-save-state">
+      {% if editable %}<button class="button primary" type="submit" form="sourcing-form" data-sourcing-save title="{{ 'Save the board text and references' if board else 'Save this item’s fields and notes' }}">{{ 'Save board' if board else 'Create option' if creating else 'Save changes' }}</button>{% endif %}
+      <p class="sourcing-dirty" data-sourcing-dirty role="status">{% if save_error %}Unsaved changes{% elif not editable %}Note needs repair{% elif creating %}Draft · not created{% else %}Changes saved{% endif %}</p>
     </div>
-    <p class="sourcing-dirty" data-sourcing-dirty role="status">{% if save_error %}Unsaved changes{% elif not editable %}Note needs repair{% elif creating %}New option · not saved yet{% else %}All changes saved{% endif %}</p>
-    <a class="button sourcing-add{% if creating %} is-current{% endif %}" href="{{ url_for('sourcing_new', relative_folder=folder, back=back or none) }}"{% if creating %} aria-current="page"{% endif %}>+ Add option</a>
-    <a class="button sourcing-add" href="{{ url_for('sourcing_board', relative_folder=folder) }}"{% if board %} aria-current="page"{% endif %}>Brainstorm board</a>
   </section>
   <section class="rail-card">
-    <h2>Options · {{ options|length }}</h2>
+    <div class="sourcing-options-head"><h2>Options · {{ options|length }}</h2><a class="button{% if creating %} is-current{% endif %}" href="{{ url_for('sourcing_new', relative_folder=folder, back=back or none) }}"{% if creating %} aria-current="page"{% endif %}>+ New option</a></div>
     <label class="field sourcing-option-find"><span class="sr-only">Find an option in this folder</span><input type="search" placeholder="Find an option" data-sourcing-option-find autocomplete="off"></label>
     <nav class="sourcing-option-list" aria-label="Options in {{ name }}">
       {% for card in options %}{% set option = card.option %}

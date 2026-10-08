@@ -174,16 +174,11 @@
         {% endfor %}
         {% if workspace_summary %}<p class="catalog-description">{{ workspace_summary }}</p>{% endif %}
         {% else %}
-        <h2>Folder</h2>
-        <p class="context-title">{{ name }}</p>
-        <div class="context-path">
-          <code title="{{ path|winpath }}">{{ path|winpath }}</code>
+        <div class="folder-context-head">
+          <h2 class="folder-context-title" title="{{ path|winpath }}">{{ name }}</h2>
           <button class="copy-path" type="button" data-copy-text="{{ absolute_path|winpath }}" title="Paste into Inventor's address bar">Copy path</button>
         </div>
-        <dl class="scope-list">
-          <div><dt>Files here</dt><dd>{{ direct_count }}</dd></div>
-          <div><dt>Below here</dt><dd>{{ subtree_count }}</dd></div>
-        </dl>
+        <p class="folder-file-count">{{ direct_count }} file{{ '' if direct_count == 1 else 's' }}{% if subtree_count > direct_count %} here <span>· {{ subtree_count - direct_count }} in subfolders</span>{% endif %}</p>
         <div class="note-rail" data-note-rail>
           {% if note_overview %}<p class="folder-overview" data-folder-overview>{{ note_overview }}</p>{% endif %}
           <button class="button note-rail-open" type="button" data-dialog-open="folder-note-dialog" data-note-view="{{ 'reader' if note_rail_html else 'editor' }}" aria-haspopup="dialog" aria-controls="folder-note-dialog">{{ 'Read the whole note' if note_rail_html else 'Write one' }}</button>

@@ -2401,7 +2401,9 @@ var PihtiEnlarge = (function () {
   function updateDirty() {
     if (!dirtyStatus) return;
     var changed = dirty();
-    dirtyStatus.textContent = changed ? "Unsaved changes" : (form.dataset.creating === "true" ? "New option · not saved yet" : "All changes saved");
+    dirtyStatus.textContent = changed ? "Unsaved changes" : (form.dataset.creating === "true" ? "Draft · not created" : "Changes saved");
+    var save = workspace.querySelector("[data-sourcing-save]");
+    if (save) save.disabled = !changed && form.dataset.creating !== "true";
     dirtyStatus.classList.toggle("is-dirty", Boolean(changed));
   }
   if (form) {

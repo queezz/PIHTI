@@ -517,7 +517,9 @@ meaning beside each, and the **Legend** at the bottom of the left rail always
 shows all nine in one compact row, in the same order, on every catalog and
 part page; hover a badge there for its meaning.
 
-The folder card shows a brief plain-text overview from the first authored
+The folder card names the folder once, with Copy path alongside it and one
+compact file count; additional files in subfolders appear only when present.
+It shows a brief plain-text overview from the first authored
 paragraph (up to 240 characters), without a faded Markdown preview. Details
 and generated inventory lists remain in the full note. **Read the whole note**
 opens the reader, and **Edit** beside its × switches to the raw editor with
@@ -651,8 +653,10 @@ in the File card, wherever the notes sit, with **Add option** pre-set to that
 file. A file named in `for` gets a `sourced` badge.
 
 **Sourcing** in the top bar shows a compact overview grouped by design folder,
-with a Status filter. Choose an option to open its workspace: the left rail
-keeps the folder's options, local Find, **Add option**, and **Save option**
+with Find and Status filters together in the left rail. Choose an option to open its workspace: the left rail
+keeps folder navigation and **Save changes** together; its status sits directly
+below the save button, which enables when an item changes. **Create option**
+saves a new item, and **New option** sits beside the searchable options list. All stay
 within reach; the right rail switches design folders, including folders with
 no options yet. `/sourcing/<folder>` opens the first option, or a new form
 when the folder is empty. Saving stays on the selected option. **Back to

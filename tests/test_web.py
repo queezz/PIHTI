@@ -1702,8 +1702,8 @@ def test_catalog_header_is_one_compact_line_and_the_note_sits_behind_a_toggle(
     assert ">Folder</p>" not in html
     assert "catalog-section" not in html
     # Folder facts, the copyable path, and the Note toggle live in the left rail.
-    assert "<dt>Files here</dt><dd>1</dd>" in context
-    assert "<dt>Below here</dt><dd>1</dd>" in context
+    assert 'class="folder-file-count">1 file</p>' in context
+    assert "Below here" not in context and "Files here" not in context
     assert f'data-copy-text="{root / "BoronProbe" / "parts"}"' in context
     assert (
         '<button class="button note-rail-open" type="button" data-dialog-open="folder-note-dialog"'

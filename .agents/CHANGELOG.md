@@ -6,6 +6,13 @@ remains authoritative for exact file changes.
 
 ## 2026-10-08
 
+- Shipped `pihti-dedup` 0.34.3: compact folder cards with one name, inline
+  Copy path and a single file count; additional subfolder files appear only
+  when present. Remove duplicate path text and count rows. Group sourcing
+  navigation separately from Save changes and its status; put New option beside
+  the options list. Remove redundant sourcing-overview breadcrumbs and group
+  Find with status filters in the left rail.
+
 - Shipped `pihti-dedup` 0.34.2: restore the folder description as the card’s
   primary content; place sourcing and brainstorm navigation in a separate
   compact card, with the option count inline.
