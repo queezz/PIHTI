@@ -20,6 +20,8 @@ This is kept separate from `docs/`:
 - `log/` - dated session handoffs going forward.
 - `commit-culture.md` - repository commit contract.
 - `submission-intake.md` - dependency closure and native drawing/assembly checks before merging incoming CAD.
+- [inventor-how-tos.md](inventor-how-tos.md) - verified background COM recipes,
+  rigid joints, flexible assemblies, safe copies, workspace fasteners and checks.
 - `duplicate-inventory-direction.md` - safe duplicate review workflow.
 - `dedup-viewer-design.md` - local duplicate-review viewer architecture.
 - `visual-pass.md` - how a narrated browsing session becomes folder notes,

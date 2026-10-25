@@ -63,6 +63,11 @@ words go into folder notes and file sidecars, nothing is inferred, and
 `pihti-dedup notes check .` gates the result. Shipped milestones belong in
 `.agents/CHANGELOG.md`; session evidence belongs in `.agents/log/`.
 
+Before native Inventor assembly editing or COM automation, read
+`.agents/inventor-how-tos.md` for verified recipes and known failure modes.
+Its part-specific dimensions and face indices are examples to remeasure,
+not defaults to apply to an edited model.
+
 ## Invariants
 
 - Open `PIHTI.ipj` before opening Inventor assemblies or parts.
