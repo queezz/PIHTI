@@ -6,6 +6,11 @@ remains authoritative for exact file changes.
 
 ## 2026-10-26
 
+- Reused the complete proven rear panel face and all four finished openings
+  in the removable-panel variant. Native solid comparison matches the ready
+  part, while retaining the new ears and documenting their existing root
+  clearance contacts separately.
+
 - Switched removable-panel fastening to M3 screws directly into printed
   spacers, removed the eight inserts and added adjustable 2.5 mm starting
   pilots. Preserved the owner's finished edges and proven OLED fit.

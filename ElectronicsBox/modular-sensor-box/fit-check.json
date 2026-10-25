@@ -20,11 +20,33 @@
   "back_removal": [
     {
       "travel_mm": 0,
-      "contacts": []
+      "contacts": [
+        {
+          "one": "sensor-box-back-panel",
+          "two": "temp-logger-base-plate-v2:2",
+          "volume_mm3": 23.759250099373745
+        },
+        {
+          "one": "sensor-box-back-panel",
+          "two": "temp-logger-base-plate-v2:1",
+          "volume_mm3": 23.758876864526947
+        }
+      ]
     },
     {
       "travel_mm": 2,
-      "contacts": []
+      "contacts": [
+        {
+          "one": "sensor-box-back-panel",
+          "two": "temp-logger-base-plate-v2:2",
+          "volume_mm3": 0.10012469453248878
+        },
+        {
+          "one": "sensor-box-back-panel",
+          "two": "temp-logger-base-plate-v2:1",
+          "volume_mm3": 0.10012352566906392
+        }
+      ]
     },
     {
       "travel_mm": 10,
@@ -66,34 +88,6 @@
       "Z": [
         -15.000000000000004,
         15.000000000000009
-      ]
-    },
-    "ESP32 USB access profile": {
-      "X": [
-        -6.28,
-        7.720000000000001
-      ],
-      "Y": [
-        -45.0,
-        -45.0
-      ],
-      "Z": [
-        16.66,
-        23.66
-      ]
-    },
-    "Micro SD removal access profile": {
-      "X": [
-        -21.25,
-        -1.25
-      ],
-      "Y": [
-        -45.0,
-        -45.0
-      ],
-      "Z": [
-        -10.5,
-        -0.5
       ]
     }
   },
@@ -308,19 +302,35 @@
         11778
       ],
       [
-        "ESP32 USB access",
-        11778
-      ],
-      [
-        "Micro SD removal access",
-        11778
-      ],
-      [
         "Fillet3",
         11778
       ],
       [
         "Chamfer2",
+        11778
+      ],
+      [
+        "Exact ready opening 1",
+        11778
+      ],
+      [
+        "Exact ready opening 2",
+        11778
+      ],
+      [
+        "Exact ready opening 3",
+        11778
+      ],
+      [
+        "Exact ready opening 4",
+        11778
+      ],
+      [
+        "Ready panel openings with original edge finishes",
+        11778
+      ],
+      [
+        "Ready panel inner perimeter chamfer 0.5 mm",
         11778
       ]
     ],
@@ -502,5 +512,43 @@
     ]
   },
   "unchanged_referenced_file_hashes_checked": 141,
-  "owner_finished_panels_unchanged_in_this_change": true
+  "owner_finished_panels_unchanged_in_this_change": true,
+  "ready_rear_panel_transfer": {
+    "source": "ElectronicsBox/esp32-ambient-logger/temp-logger-back-plate-v2.ipt",
+    "method": "Exact native BRep opening tooling, including original fillets/chamfers; no new opening dimensions",
+    "openings": 4,
+    "source_region_volume_mm3": 8154.973608621214,
+    "new_region_volume_mm3": 8154.973608621212,
+    "common_region_volume_mm3": 8154.973608621214,
+    "opening_region_symmetric_difference_mm3": -1.8189894035458565e-12,
+    "unchanged_reference_hashes": 142,
+    "source_unchanged": true,
+    "owner_mount_finishing_preserved": true,
+    "includes": [
+      "USB",
+      "SD",
+      "DC power",
+      "thermocouple"
+    ],
+    "hardware_scope": "Thermocouple and DC hardware remain excluded; all ready-panel apertures retained as requested.",
+    "whole_flat_panel_symmetric_difference_mm3": 3.637978807091713e-12,
+    "whole_flat_panel_source_volume_mm3": 11950.000875394273,
+    "whole_flat_panel_new_volume_mm3": 11950.000875394278,
+    "inner_perimeter_chamfer_mm": 0.5,
+    "outside_aperture_region_before_perimeter_match_symmetric_difference_mm3": 0.0,
+    "mount_preservation_note": "Original root finishing preserved; subsequent added perimeter chamfer only changes the flat plate, y >= 0 in part coordinates."
+  },
+  "rear_withdrawal_clear_at_all_checked_positions": false,
+  "known_rear_ear_root_contacts": [
+    {
+      "one": "sensor-box-back-panel",
+      "two": "temp-logger-base-plate-v2:2",
+      "volume_mm3": 23.759250099373745
+    },
+    {
+      "one": "sensor-box-back-panel",
+      "two": "temp-logger-base-plate-v2:1",
+      "volume_mm3": 23.758876864526947
+    }
+  ]
 }

@@ -12,9 +12,8 @@ intentional wire space and must remain (owner, 2026-10-26).
 One, two or three interaction buttons may later control the screen or change
 pages. Button selection, button openings and printed covers are deferred.
 The front now carries the existing OLED and its mount. Rear openings provide
-ESP32 USB and micro-SD card access. Other instrument connectors remain to be
-laid out; the panels are not a complete replacement for the old logger's
-thermocouple/power connector arrangement.
+the original USB, SD, power and thermocouple openings, with their proven edge
+finishes. Power and thermocouple hardware remain excluded from the fixture.
 
 ## Prototype mounting design
 
@@ -62,20 +61,25 @@ gap remains clear.
   30 x 30 mm opening, 2 mm corner radii and 0.5 mm entry chamfers, matching
   the original panel. No OLED or mount geometry was changed. Do not enlarge
   this opening for clearance (owner, 2026-10-26).
-- The rear USB opening is 14 x 7 mm, centred at assembly x = 0.72 mm,
-  z = 20.16 mm, aligned with the measured ESP32 USB-C connector.
-- The rear SD removal opening is 20 x 10 mm, centred at x = -11.25 mm,
-  z = -5.5 mm. The modeled card clears it through a 20 mm withdrawal,
-  ending fully outside the rear panel.
-- Rear openings are square-edged. Physical access with the selected USB cable,
-  finger access and printing tolerances still need hardware checks.
+- The complete flat rear face is transferred from
+  `../esp32-ambient-logger/temp-logger-back-plate-v2.ipt`, including all four
+  original openings, their chamfers and fillets, and both perimeter finishes.
+  The source is the owner's printed, working panel (owner, 2026-10-26).
+  Do not replace those openings with estimated rectangles or resize their fits.
+- Exact native solid cutters preserve the original opening surfaces in the
+  new part; the consumed `Exact ready opening` features and their final cut
+  are a geometry snapshot of the ready panel. The new removable ears and their
+  owner finishing are retained. The source panel is not modified.
+- A native solid intersection comparison confirms the entire flat face matches
+  the source within 0.000001 mm3. The modeled SD card clears the original SD
+  opening through a 20 mm withdrawal, ending fully outside the rear panel.
 
 ## Files and reuse
 
 | File | Role |
 | --- | --- |
 | `sensor-box-front-panel.ipt` | OLED opening and short mounting returns |
-| `sensor-box-back-panel.ipt` | USB and SD access openings |
+| `sensor-box-back-panel.ipt` | Proven ready-panel face and openings with removable ears |
 | `sensor-box-upper-mount-spacer.ipt` | Upper rod spacer and panel receiver; four instances |
 | `sensor-box-lower-mount-spacer.ipt` | Lower rod spacer and panel receiver; four instances |
 | `SensorBox-panel-fit.iam` | Mechanical inspection fixture using shared existing parts |
@@ -115,9 +119,14 @@ Native checks and dimensions are recorded in `fit-check.json`.
 
 - All new part features are healthy; the saved fit assembly reopens with
   resolved references. Original logger CAD files remain unchanged.
-- Revised panel withdrawal was checked at 0, 2, 10 and 30 mm outward, with
-  panel screws removed and the sandwich left fixed. The OLED, mount and M2
-  screws travel together with the front panel in this check.
+- Panel withdrawal was checked at 0, 2, 10 and 30 mm outward, with panel screws
+  removed and the sandwich left fixed. The OLED, mount and M2 screws travel
+  with the front panel, which remains clear.
+- The owner's existing 3 mm rear ear-root chamfers contact the upper/lower
+  sandwich plates near the seated position, about 23.76 mm3 per plate. These
+  contacts lie on the inward ears, outside the copied face, and were preserved.
+  The rear panel is clear at 10 and 30 mm withdrawal. Review the ear roots
+  before printing; the proven face/opening geometry does not need alteration.
 - SD withdrawal was checked at 0, 5, 10 and 20 mm through the rear opening.
 - The new mounts clear the existing internal boards. The unchanged sleeve
   clears the assembled frame, panels, hardware and retained electronics at
