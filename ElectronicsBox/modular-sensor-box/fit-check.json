@@ -100,7 +100,7 @@
   "date": "2026-10-26",
   "status": "prototype; physical print and connector access not tested",
   "assembly": "SensorBox-panel-fit.iam",
-  "occurrences": 56,
+  "occurrences": 48,
   "active_project": "PIHTI.ipj",
   "reopened_native_references_resolve": true,
   "original_logger_source_hashes_unchanged": 320,
@@ -112,7 +112,10 @@
     "upper": 17.49,
     "lower": 24
   },
-  "spacer_features_per_part": 3,
+  "spacer_features_per_part": {
+    "upper": 5,
+    "lower": 6
+  },
   "front_return_length_mm": 8,
   "rear_return_length_mm": 16,
   "return_thickness_mm": 3.3,
@@ -122,53 +125,10 @@
   "sleeve_center_y_mm": 2.8,
   "sleeve_interferences": [],
   "new_part_interferences": [],
-  "intentional_insert_fit_contacts": [
-    {
-      "one": "lower mount 26.5 38.5",
-      "two": "Panel insert 1 45 -20",
-      "volume_mm3": 9.345190946871917
-    },
-    {
-      "one": "lower mount 26.5 -38.5",
-      "two": "Panel insert 1 -32 -20",
-      "volume_mm3": 9.34519094687198
-    },
-    {
-      "one": "lower mount -26.5 38.5",
-      "two": "Panel insert -1 45 -20",
-      "volume_mm3": 9.345190946877576
-    },
-    {
-      "one": "lower mount -26.5 -38.5",
-      "two": "Panel insert -1 -32 -20",
-      "volume_mm3": 9.345190946877638
-    },
-    {
-      "one": "upper mount 26.5 38.5",
-      "two": "Panel insert 1 45 20",
-      "volume_mm3": 9.345190946871927
-    },
-    {
-      "one": "upper mount 26.5 -38.5",
-      "two": "Panel insert 1 -32 20",
-      "volume_mm3": 9.345190946871991
-    },
-    {
-      "one": "upper mount -26.5 38.5",
-      "two": "Panel insert -1 45 20",
-      "volume_mm3": 9.34519094687758
-    },
-    {
-      "one": "upper mount -26.5 -38.5",
-      "two": "Panel insert -1 -32 20",
-      "volume_mm3": 9.345190946877638
-    }
-  ],
   "references": [
     "ContentCenter/Fastners/M2x4-SHCS.ipt",
     "ContentCenter/Fastners/M3-nut.ipt",
     "ContentCenter/Fastners/M3x8-BHCS.ipt",
-    "ContentCenter/Fastners/brass-insert-m3x5.ipt",
     "ElectronicsBox/esp32-ambient-logger/STEPs/DS3231 RTC/DS2321 RTC.ipt",
     "ElectronicsBox/esp32-ambient-logger/STEPs/ESP32-DevkitC32U.iam",
     "ElectronicsBox/esp32-ambient-logger/STEPs/ESP32-DevkitC32U/32E_thermal_pad.STEP.ipt",
@@ -354,6 +314,14 @@
       [
         "Micro SD removal access",
         11778
+      ],
+      [
+        "Fillet3",
+        11778
+      ],
+      [
+        "Chamfer2",
+        11778
       ]
     ],
     "sensor-box-front-panel.ipt": [
@@ -382,10 +350,6 @@
         11778
       ],
       [
-        "Return root fillets",
-        11778
-      ],
-      [
         "M3 panel clearance 33.3",
         11778
       ],
@@ -408,6 +372,14 @@
       [
         "Original OLED opening entry chamfers 0.5 mm",
         11778
+      ],
+      [
+        "Fillet4",
+        11778
+      ],
+      [
+        "Chamfer3",
+        11778
       ]
     ],
     "sensor-box-lower-mount-spacer.ipt": [
@@ -420,7 +392,19 @@
         11778
       ],
       [
-        "Straight 4.6 mm insert bore",
+        "Straight M3 plastic screw pilot",
+        11778
+      ],
+      [
+        "Fillet1",
+        11778
+      ],
+      [
+        "Chamfer1",
+        11778
+      ],
+      [
+        "Chamfer2",
         11778
       ]
     ],
@@ -434,7 +418,15 @@
         11778
       ],
       [
-        "Straight 4.6 mm insert bore",
+        "Straight M3 plastic screw pilot",
+        11778
+      ],
+      [
+        "Fillet1",
+        11778
+      ],
+      [
+        "Chamfer1",
         11778
       ]
     ]
@@ -449,5 +441,66 @@
     "source_mount_nominal_overlap_mm3": 44.628686837681244,
     "restored_mount_nominal_overlap_mm3": 44.62868683766513,
     "note": "Original proven snug fit retained intentionally; this contact is not a new clearance defect."
-  }
+  },
+  "panel_fastening": "M3 screws directly into printed plastic; no heat-set inserts",
+  "panel_screw_pilot_mm": 2.5,
+  "pilot_status": "Starting nominal diameter; validate with actual print and screw.",
+  "retained_screw_count": 8,
+  "insert_occurrences": 0,
+  "intentional_screw_vs_plastic_contacts": [
+    {
+      "one": "lower mount 26.5 38.5",
+      "two": "Panel screw 1 45 -20",
+      "volume_mm3": 8.934520529844663
+    },
+    {
+      "one": "lower mount 26.5 -38.5",
+      "two": "Panel screw 1 -32 -20",
+      "volume_mm3": 8.934520529844596
+    },
+    {
+      "one": "lower mount -26.5 38.5",
+      "two": "Panel screw -1 45 -20",
+      "volume_mm3": 8.934491198622434
+    },
+    {
+      "one": "lower mount -26.5 -38.5",
+      "two": "Panel screw -1 -32 -20",
+      "volume_mm3": 8.934491198622464
+    },
+    {
+      "one": "upper mount 26.5 38.5",
+      "two": "Panel screw 1 45 20",
+      "volume_mm3": 8.934520529844482
+    },
+    {
+      "one": "upper mount 26.5 -38.5",
+      "two": "Panel screw 1 -32 20",
+      "volume_mm3": 8.934520529844596
+    },
+    {
+      "one": "upper mount -26.5 38.5",
+      "two": "Panel screw -1 45 20",
+      "volume_mm3": 8.934491198622375
+    },
+    {
+      "one": "upper mount -26.5 -38.5",
+      "two": "Panel screw -1 -32 20",
+      "volume_mm3": 8.93449119862246
+    }
+  ],
+  "mount_vs_other_components_interferences": [],
+  "owner_spacer_finishing_preserved": {
+    "upper": [
+      "Fillet1",
+      "Chamfer1"
+    ],
+    "lower": [
+      "Fillet1",
+      "Chamfer1",
+      "Chamfer2"
+    ]
+  },
+  "unchanged_referenced_file_hashes_checked": 141,
+  "owner_finished_panels_unchanged_in_this_change": true
 }

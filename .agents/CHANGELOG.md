@@ -6,6 +6,10 @@ remains authoritative for exact file changes.
 
 ## 2026-10-26
 
+- Switched removable-panel fastening to M3 screws directly into printed
+  spacers, removed the eight inserts and added adjustable 2.5 mm starting
+  pilots. Preserved the owner's finished edges and proven OLED fit.
+
 - Simplified sensor-box spacers to plain blocks and straight bores, shortened
   the front returns using the wire-gap space, restored the shared OLED and
   added aligned rear USB/SD access. Native panel and SD withdrawal checks pass;
@@ -31,7 +35,7 @@ remains authoritative for exact file changes.
   the options list. Remove redundant sourcing-overview breadcrumbs and group
   Find with status filters in the left rail.
 
-- Shipped `pihti-dedup` 0.34.2: restore the folder description as the card’s
+- Shipped `pihti-dedup` 0.34.2: restore the folder description as the cardâ€™s
   primary content; place sourcing and brainstorm navigation in a separate
   compact card, with the option count inline.
 
@@ -251,7 +255,7 @@ remains authoritative for exact file changes.
   F on the shown tile, opens a window-sized dialog with the same mesh, no
   second download, on its own camera: drag turns, the wheel zooms to the
   pointer, right- or Shift-drag pans, double-click refits, and a window resize
-  refits. Escape, ×, or a click outside closes it and returns focus to where
+  refits. Escape, Ã—, or a click outside closes it and returns focus to where
   it was opened; the small view keeps its own camera.
 - Shipped `pihti-dedup` 0.24.2: `step-mirror sync` no longer stops the whole
   batch on the first file Inventor is slow to answer for. After a timeout it
@@ -259,7 +263,7 @@ remains authoritative for exact file changes.
   one file (left as `timeout`) instead of abandoning everything still queued.
   Only a session that genuinely stops answering (a modal dialog left open)
   still stops the batch, and the CLI now says so on its own line
-  (`stopped: Inventor is not answering (a dialog may be open) · N not
+  (`stopped: Inventor is not answering (a dialog may be open) Â· N not
   started`, exit 1); a batch that runs to the end with some failures lists
   them by path and outcome after the counts.
   The viewport also tessellates STEP finely now (a bolt thread that looked
@@ -297,7 +301,7 @@ remains authoritative for exact file changes.
   derives a flat normal on the GPU from screen-space derivatives instead;
   `?normals=1` still serves the older payload for one that cannot), which
   lifts the cap from 400,000 to 2,000,000 triangles, and above about 5 MB in
-  flight the inspector names the download ("Loading 3D · N MB") beside the
+  flight the inspector names the download ("Loading 3D Â· N MB") beside the
   still image while it waits.
 
 ## 2026-09-24
@@ -308,8 +312,8 @@ remains authoritative for exact file changes.
   now `clamp(4rem, calc(100vh - 46rem), 8rem)`; the inspector keeps a preview
   area at least 240 px tall on any window 800 px tall or more, which the 3D
   view fills, with the file's facts scrolling below it. At 1920 wide the 3D
-  view is 383×240 at 900 px tall (none before), 383×331 at 1000 px (383×127
-  before), and 383×143 at 700 px. Previews and meshes move out of the
+  view is 383Ã—240 at 900 px tall (none before), 383Ã—331 at 1000 px (383Ã—127
+  before), and 383Ã—143 at 700 px. Previews and meshes move out of the
   workspace and out of Dropbox to a machine-local cache root,
   `%LOCALAPPDATA%\pihti-dedup\<workspace-id>\` (`~/.cache/pihti-dedup/...`
   elsewhere, `PIHTI_DEDUP_CACHE_ROOT` to override); a root that resolves into
@@ -332,7 +336,7 @@ remains authoritative for exact file changes.
   A same-name group with mixed bytes shows each identical set as its own
   group with the guarded Delete; a member whose bytes match nothing is not
   listed, and same-name/different-bytes groups move to Doctor, counted in the
-  rail as "N name clashes → Doctor". Doctor's name session leads each member
+  rail as "N name clashes â†’ Doctor". Doctor's name session leads each member
   with the rename and its Inventor repair; consolidating different-byte
   revisions stays behind a closed "Consolidate after comparing in Inventor"
   section, and "Keep only this" / "Quarantine this" are gone. `.newVer` files
@@ -354,7 +358,7 @@ remains authoritative for exact file changes.
   referrer whose matching descriptors all resolved to another file keeping
   the old name (`no-descriptor`) was counted as unrepaired; it is not
   applicable to the rename and no longer blocks `settled`, `will_prompt`, the
-  CLI exit code, or the web toast — it is reported as "uses another file with
+  CLI exit code, or the web toast â€” it is reported as "uses another file with
   this name" instead of "not repaired". Every workspace-taking subcommand
   (`scan`, `serve`, `merge-cleanup`, `warm-previews`, `meta seed`,
   `standard-parts`, `notes check`, `rename`) now refuses a folder without an
@@ -514,7 +518,7 @@ remains authoritative for exact file changes.
   verification. `pihti-dedup serve --refresh-seconds N` sets the period; `0`
   restores the previous validate-on-every-request behaviour, which is also
   the default for `create_app()` in tests. The directory walk itself was
-  rewritten on `os.scandir` with string paths (130 ms → 38 ms on the
+  rewritten on `os.scandir` with string paths (130 ms â†’ 38 ms on the
   1,182-file workspace), and the where-used walk got the same treatment.
 
 ## 2026-08-06
@@ -544,7 +548,7 @@ remains authoritative for exact file changes.
   chosen survivor. **Quarantine this** removes only its row; **Keep only this**
   revalidates the survivor and every candidate, then moves the non-survivors
   and their metadata sidecars to the sibling `PIHTI-quarantine/runs` store, and
-  records old path → survivor, hashes, possible filename-based referrers, and
+  records old path â†’ survivor, hashes, possible filename-based referrers, and
   recovery manifest in a durable consolidation ledger. The searchable
   **Removed** view answers later missing-path questions, old part URLs explain
   where the file went, and a guarded Restore action returns the complete event
@@ -586,9 +590,9 @@ remains authoritative for exact file changes.
   repository README's opening purpose statement.
 
 - Shipped `pihti-dedup` 0.8.0: folder notes on Catalog routes are now a
-  one-click modal instead of a disclosure → folder page → raw-editor chain.
+  one-click modal instead of a disclosure â†’ folder page â†’ raw-editor chain.
   Rendered Markdown and the token-protected editor sit side by side, generated
-  inventories are readable in place, and ×, **Close**, backdrop click, and
+  inventories are readable in place, and Ã—, **Close**, backdrop click, and
   Escape all dismiss the modal. Save returns to the same Catalog folder and
   automatically reopens the modal with success or validation feedback; the
   dedicated folder page remains an optional full-page link with breadcrumb and
@@ -601,8 +605,8 @@ remains authoritative for exact file changes.
   README generator now refreshes every file that still carries its ownership
   marker, including old generated files that no longer meet today's creation
   heuristic, while marker-free authored notes remain immutable. Its template is
-  now a clean generated inventory—title, explanation, main assembly, assemblies,
-  and parts—without empty Purpose/Notes/Status headings. A guarded
+  now a clean generated inventoryâ€”title, explanation, main assembly, assemblies,
+  and partsâ€”without empty Purpose/Notes/Status headings. A guarded
   `--refresh-only` mode migrated all 36 generated folder READMEs and `INDEX.md`
   without creating new documents. Staging, caches, save history, `Design Data/`,
   and `Templates/` are explicitly excluded.
@@ -611,8 +615,8 @@ remains authoritative for exact file changes.
   sizing, heading hierarchy, line length, spacing, and a contained note surface.
   The raw editor explains the small amount of Markdown structure it needs and
   supplies a valid empty-note example. The hand-authored `bellows/README.md`
-  was normalized from six unstructured lines—which Markdown correctly collapsed
-  into one paragraph—into a heading, purpose paragraph, and labelled fact list.
+  was normalized from six unstructured linesâ€”which Markdown correctly collapsed
+  into one paragraphâ€”into a heading, purpose paragraph, and labelled fact list.
 
 - Shipped `pihti-dedup` 0.7.0: the Catalog is now a folder-first browser instead
   of one 1,218-tile document sorted by full path. `/catalog` shows the immediate
@@ -639,8 +643,8 @@ remains authoritative for exact file changes.
   about 1.8 s to rehash the archive.
 
 - Shipped `pihti-dedup` 0.6.0: the CAD files Inventor never embedded a thumbnail
-  into now have previews. About 250 files in this workspace — 166 STL, 57
-  STEP/STP, 22 3MF, 6 DWG — showed a grey placeholder in the catalog, the part
+  into now have previews. About 250 files in this workspace â€” 166 STL, 57
+  STEP/STP, 22 3MF, 6 DWG â€” showed a grey placeholder in the catalog, the part
   page, and the duplicate rows. STL, STEP, and 3MF are now rendered by an
   in-house numpy z-buffer rasterizer (STEP tessellated through the optional
   `cascadio` extra, staged via an ASCII temp path because OpenCascade cannot
@@ -658,9 +662,9 @@ remains authoritative for exact file changes.
 
 - Shipped `pihti-dedup` 0.5.0: notes are shown rendered instead of as raw text.
   Sidecar prose on a part page, the folder page's note, and an authored folder
-  note in a catalog section are rendered server-side with `python-markdown` —
+  note in a catalog section are rendered server-side with `python-markdown` â€”
   tables, fenced code, and sane lists, the same engine family as the MkDocs
-  site — and the raw textarea moved behind an "Edit raw text" toggle beside it.
+  site â€” and the raw textarea moved behind an "Edit raw text" toggle beside it.
   The token-protected save flow is untouched, so the file on disk is still
   exactly what the owner types. Catalog section excerpts are reduced to plain
   text before truncation, so `**bold**` reads as `bold` in a header; a
@@ -674,28 +678,28 @@ remains authoritative for exact file changes.
 
 - Shipped `pihti-dedup` 0.4.1: the folder-note editor was showing a generated
   `README.md`'s leading comment ("Do not edit by hand; re-run the script to
-  refresh") right next to the editor's own invitation to edit and save it —
+  refresh") right next to the editor's own invitation to edit and save it â€”
   the wording predated the 0.4.0 contract where editing (by hand or through the
   editor) claims the file as a manual note. The catalog and `/folder/<path>`
   textareas now strip that leading comment block for display when the loaded
   README is still generated, reusing the same stripping `write_folder_note()`
-  already applies on save, and both hint labels read "Generated index — edit
+  already applies on save, and both hint labels read "Generated index â€” edit
   and save to make it your folder note; the generator will then leave this
   file alone." `scripts/generate_readmes.py`'s own comment and blockquote got
   the same correction; the guard only matches the marker's first line, so all
-  existing generated READMEs — old or new wording — are still recognised and
+  existing generated READMEs â€” old or new wording â€” are still recognised and
   never rewritten.
 - Shipped `pihti-dedup` 0.4.0: renaming a CAD file now comes with the memo it
   needs. A new where-used index reads the UTF-16LE reference strings embedded in
   every `.iam`/`.idw`/`.ipn` and answers "which documents name this file?" for
   the whole workspace in well under a second. The part page renames a file in
-  place — extension enforced, sidecar carried along — and refuses a new name
+  place â€” extension enforced, sidecar carried along â€” and refuses a new name
   that already exists anywhere in the workspace. When the *old* name survives
   elsewhere, the rename stops and names the assemblies that would silently
   rebind to the wrong file, because `UsingUniqueFilenames=Yes` gives no dialog
   in that case; proceeding takes an explicit second confirmation. Every rename
   appends to the Git-tracked `.agents/rename-ledger.jsonl`, and a new `/renames`
-  page turns it into a worklist: old → new, the folder and full Windows paths
+  page turns it into a worklist: old â†’ new, the folder and full Windows paths
   with copy buttons for Inventor's resolve dialog, the referring assemblies as a
   checklist, a clear "Inventor will ask" versus "Inventor will NOT ask" split,
   and a settled toggle written back to the ledger. Folder notes arrived on the
@@ -715,8 +719,8 @@ remains authoritative for exact file changes.
   pages report part number, description, material, designer, subtype, and the
   saving Inventor build, flag a Part Number that disagrees with the filename, and
   withhold mass properties unless Inventor's own validity flag vouches for its
-  cached values. Added portable metadata sidecars — `<cad filename>.md` with YAML
-  frontmatter plus prose — seeded from iProperties one file at a time in the
+  cached values. Added portable metadata sidecars â€” `<cad filename>.md` with YAML
+  frontmatter plus prose â€” seeded from iProperties one file at a time in the
   viewer or in bulk with `meta seed --dry|--apply`. Sidecar writes reuse the
   localhost-and-token boundary, refuse frontmatter that does not parse, and are
   never committed automatically.

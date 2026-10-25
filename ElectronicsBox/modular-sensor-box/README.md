@@ -23,10 +23,10 @@ thermocouple/power connector arrangement.
 - Four inward returns attach each panel with side-access M3 screws. No panel
   fixing passes through the front or rear face. The sleeve covers the screw
   heads when installed.
-- New upper and lower mount spacers are plain 7 x 13 mm rectangular blocks,
-  each with one rod bore and one straight transverse insert bore. There are
-  no steps, collar recesses, chamfers or fillets on these spacers. Queezz will
-  add edge treatment for printing and strength (owner, 2026-10-26).
+- New upper and lower mount spacers use 7 x 13 mm rectangular blocks,
+  each with one rod bore and one straight transverse screw pilot. There are
+  no steps or collar recesses. Queezz added the printing/strength fillets and
+  chamfers; those finishing features are preserved (owner, 2026-10-26).
   The spacers include the clamped thickness formerly
   supplied by the captured panel ears. Removing a panel therefore does not
   release the sandwich.
@@ -36,13 +36,17 @@ thermocouple/power connector arrangement.
 - Panel screw axes are at x = +/-33.3 mm, z = +/-20 mm, with y = 45 mm at
   the front and -32 mm at the rear. Front blocks face outward into the corner
   wire-gap space so the front returns can be shorter; rear blocks face inward.
-  Both ends reuse the same upper/lower parts. Insert axes are offset 6.5 mm
+  Both ends reuse the same upper/lower parts. Panel screw axes are offset 6.5 mm
   from the sandwich rod axes, keeping their bores separate.
-- Hardware is referenced directly from `ContentCenter/Fastners`: eight
-  `M3x8-BHCS.ipt` screws and eight `brass-insert-m3x5.ipt` inserts.
-- Insert pilots are plain, prototype 4.6 mm through bores.
-  Validate the pilot with the actual inserts and printing process before
-  printing a complete set. Insert interference in CAD is intentional.
+- Panel hardware is referenced directly from `ContentCenter/Fastners`: eight
+  `M3x8-BHCS.ipt` screws, driven directly into the printed plastic. No heat-set
+  inserts are used (owner, 2026-10-26).
+- Plain screw pilots start at 2.5 mm diameter, controlled by the named
+  `panel_screw_pilot` parameter in each spacer. This is a test-print starting
+  value, to tune for the print and actual screw. Nominal screw/pilot overlap
+  represents the thread formed in plastic, not a clearance fit.
+- Queezz prefers a quick replacement spacer print if its plastic thread wears
+  out, rather than retaining inserts (owner, 2026-10-26).
 
 The front inner face remains at y = 50 mm; the rear inner face is at
 y = -45 mm. The shelf ends at y = 45 mm, preserving the 5 mm front wire gap.
@@ -90,7 +94,7 @@ the ADC/divider board and instrument-specific cutouts remain to be designed.
 
 Dimensions and feature sketches are native Inventor features. Panel width,
 height, face thickness and screw clearance have named parameters. Mount
-spacer length, rod clearance and insert diameters also have named parameters.
+spacer length, rod clearance and screw pilot diameter also have named parameters.
 The return profiles and offsets remain separately editable; changing the
 box envelope requires reviewing those sketches and the fit assembly too.
 
@@ -118,10 +122,10 @@ Native checks and dimensions are recorded in `fit-check.json`.
 - The new mounts clear the existing internal boards. The unchanged sleeve
   clears the assembled frame, panels, hardware and retained electronics at
   a measured sleeve centre of y = 2.8 mm.
-- Intentional insert/pilot interference, existing simplified nut/rod overlap
+- Intentional screw/plastic contact, existing simplified nut/rod overlap
   and the original snug OLED seat are distinguished from new collisions.
   The OLED mount's nominal contact matches the original assembly.
-- Physical printing, insert installation, wiring clearance and tool use
+- Physical printing, plastic-thread durability, wiring clearance and tool use
   have not yet been verified on hardware.
 
 ![Panel mounting fit fixture](panel-fit.png)
@@ -130,4 +134,4 @@ Native checks and dimensions are recorded in `fit-check.json`.
 
 ![USB and SD rear access](rear-access.png)
 
-![Plain spacer before owner edge finishing](plain-spacer.png)
+![Owner-finished spacer with direct screw pilot](plain-spacer.png)
