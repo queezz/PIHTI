@@ -1,0 +1,393 @@
+{
+  "date": "2026-10-26",
+  "status": "prototype; print-fit not yet verified",
+  "active_project": "PIHTI.ipj",
+  "assembly": "SensorBox-panel-fit.iam",
+  "occurrences": 50,
+  "reopened_native_references_resolve": true,
+  "source_files_unchanged": 320,
+  "source_live_dirty_state_preserved": true,
+  "source_relationship_health_preserved": true,
+  "shared_electronics_poses_preserved": [
+    "TempLoggerRev1:1",
+    "ESP32-DevkitC32U:1",
+    "DS2321 RTC:1",
+    "Product_TF Micro SD Card Memory Modul :1"
+  ],
+  "panel_size_mm": [
+    74,
+    60,
+    3
+  ],
+  "front_wire_gap_mm": 5,
+  "sleeve_center_y_mm": 2.8,
+  "sleeve_interferences": [],
+  "panel_withdrawal": [
+    {
+      "panel": "sensor-box-front-panel",
+      "travel_mm": 0,
+      "hits": []
+    },
+    {
+      "panel": "sensor-box-front-panel",
+      "travel_mm": 0.5,
+      "hits": []
+    },
+    {
+      "panel": "sensor-box-front-panel",
+      "travel_mm": 2,
+      "hits": []
+    },
+    {
+      "panel": "sensor-box-front-panel",
+      "travel_mm": 5,
+      "hits": []
+    },
+    {
+      "panel": "sensor-box-front-panel",
+      "travel_mm": 10,
+      "hits": []
+    },
+    {
+      "panel": "sensor-box-front-panel",
+      "travel_mm": 15,
+      "hits": []
+    },
+    {
+      "panel": "sensor-box-front-panel",
+      "travel_mm": 22,
+      "hits": []
+    },
+    {
+      "panel": "sensor-box-front-panel",
+      "travel_mm": 30,
+      "hits": []
+    },
+    {
+      "panel": "sensor-box-back-panel",
+      "travel_mm": 0,
+      "hits": []
+    },
+    {
+      "panel": "sensor-box-back-panel",
+      "travel_mm": 0.5,
+      "hits": []
+    },
+    {
+      "panel": "sensor-box-back-panel",
+      "travel_mm": 2,
+      "hits": []
+    },
+    {
+      "panel": "sensor-box-back-panel",
+      "travel_mm": 5,
+      "hits": []
+    },
+    {
+      "panel": "sensor-box-back-panel",
+      "travel_mm": 10,
+      "hits": []
+    },
+    {
+      "panel": "sensor-box-back-panel",
+      "travel_mm": 15,
+      "hits": []
+    },
+    {
+      "panel": "sensor-box-back-panel",
+      "travel_mm": 22,
+      "hits": []
+    },
+    {
+      "panel": "sensor-box-back-panel",
+      "travel_mm": 30,
+      "hits": []
+    }
+  ],
+  "new_mounts_vs_existing_board_context": [],
+  "feature_health": {
+    "sensor-box-back-panel.ipt": [
+      [
+        "Panel face",
+        11778
+      ],
+      [
+        "Panel corner radius 5 mm",
+        11778
+      ],
+      [
+        "Left lower removable return",
+        11778
+      ],
+      [
+        "Left upper removable return",
+        11778
+      ],
+      [
+        "Right lower removable return",
+        11778
+      ],
+      [
+        "Right upper removable return",
+        11778
+      ],
+      [
+        "Return root fillets",
+        11778
+      ],
+      [
+        "M3 panel clearance 33.3",
+        11778
+      ],
+      [
+        "M3 panel clearance -30.3",
+        11778
+      ],
+      [
+        "External face perimeter chamfer 0.5 mm",
+        11778
+      ]
+    ],
+    "sensor-box-front-panel.ipt": [
+      [
+        "Panel face",
+        11778
+      ],
+      [
+        "Panel corner radius 5 mm",
+        11778
+      ],
+      [
+        "Left lower removable return",
+        11778
+      ],
+      [
+        "Left upper removable return",
+        11778
+      ],
+      [
+        "Right lower removable return",
+        11778
+      ],
+      [
+        "Right upper removable return",
+        11778
+      ],
+      [
+        "Return root fillets",
+        11778
+      ],
+      [
+        "M3 panel clearance 33.3",
+        11778
+      ],
+      [
+        "M3 panel clearance -30.3",
+        11778
+      ],
+      [
+        "External face perimeter chamfer 0.5 mm",
+        11778
+      ]
+    ],
+    "sensor-box-lower-mount-spacer.ipt": [
+      [
+        "Spacer core including former ear thickness",
+        11778
+      ],
+      [
+        "Panel mounting wing",
+        11778
+      ],
+      [
+        "M3 sandwich rod clearance",
+        11778
+      ],
+      [
+        "M3 insert pilot 4.6 mm through",
+        11778
+      ],
+      [
+        "Insert collar seat -3.5",
+        11778
+      ],
+      [
+        "Insert collar seat 3.5",
+        11778
+      ]
+    ],
+    "sensor-box-upper-mount-spacer.ipt": [
+      [
+        "Spacer core including former ear thickness",
+        11778
+      ],
+      [
+        "Panel mounting wing",
+        11778
+      ],
+      [
+        "M3 sandwich rod clearance",
+        11778
+      ],
+      [
+        "M3 insert pilot 4.6 mm through",
+        11778
+      ],
+      [
+        "Insert collar seat -3.5",
+        11778
+      ],
+      [
+        "Insert collar seat 3.5",
+        11778
+      ]
+    ]
+  },
+  "references": [
+    "ContentCenter/Fastners/M3-nut.ipt",
+    "ContentCenter/Fastners/M3x8-BHCS.ipt",
+    "ContentCenter/Fastners/brass-insert-m3x5.ipt",
+    "ElectronicsBox/esp32-ambient-logger/STEPs/DS3231 RTC/DS2321 RTC.ipt",
+    "ElectronicsBox/esp32-ambient-logger/STEPs/ESP32-DevkitC32U.iam",
+    "ElectronicsBox/esp32-ambient-logger/STEPs/ESP32-DevkitC32U/32E_thermal_pad.STEP.ipt",
+    "ElectronicsBox/esp32-ambient-logger/STEPs/ESP32-DevkitC32U/Board~QTmk.ipt",
+    "ElectronicsBox/esp32-ambient-logger/STEPs/ESP32-DevkitC32U/BottomSilkscreen~QTmk.ipt",
+    "ElectronicsBox/esp32-ambient-logger/STEPs/ESP32-DevkitC32U/C0201_20210301.STEP^C0201_20210301.STEP_Submodel-C0201_part_DesignRootModel_ESP32-WROOM-32UE(2).ipt",
+    "ElectronicsBox/esp32-ambient-logger/STEPs/ESP32-DevkitC32U/C0201_20210301.STEP^Submodel-C0201_part_DesignRootModel_ESP32-WROOM-32UE(2)_ESP32-WROOM-32UE-1..iam",
+    "ElectronicsBox/esp32-ambient-logger/STEPs/ESP32-DevkitC32U/C0201_20210301.STEP^Submodel-C0201_part_DesignRootModel_ESP32-WROOM-32UE(2)_ESP32-WROOM-32UE-10.iam",
+    "ElectronicsBox/esp32-ambient-logger/STEPs/ESP32-DevkitC32U/C0201_20210301.STEP^Submodel-C0201_part_DesignRootModel_ESP32-WROOM-32UE(2)_ESP32-WROOM-32UE-11.iam",
+    "ElectronicsBox/esp32-ambient-logger/STEPs/ESP32-DevkitC32U/C0201_20210301.STEP^Submodel-C0201_part_DesignRootModel_ESP32-WROOM-32UE(2)_ESP32-WROOM-32UE-12.iam",
+    "ElectronicsBox/esp32-ambient-logger/STEPs/ESP32-DevkitC32U/C0201_20210301.STEP^Submodel-C0201_part_DesignRootModel_ESP32-WROOM-32UE(2)_ESP32-WROOM-32UE-13.iam",
+    "ElectronicsBox/esp32-ambient-logger/STEPs/ESP32-DevkitC32U/C0201_20210301.STEP^Submodel-C0201_part_DesignRootModel_ESP32-WROOM-32UE(2)_ESP32-WROOM-32UE-14.iam",
+    "ElectronicsBox/esp32-ambient-logger/STEPs/ESP32-DevkitC32U/C0201_20210301.STEP^Submodel-C0201_part_DesignRootModel_ESP32-WROOM-32UE(2)_ESP32-WROOM-32UE-2..iam",
+    "ElectronicsBox/esp32-ambient-logger/STEPs/ESP32-DevkitC32U/C0201_20210301.STEP^Submodel-C0201_part_DesignRootModel_ESP32-WROOM-32UE(2)_ESP32-WROOM-32UE-3..iam",
+    "ElectronicsBox/esp32-ambient-logger/STEPs/ESP32-DevkitC32U/C0201_20210301.STEP^Submodel-C0201_part_DesignRootModel_ESP32-WROOM-32UE(2)_ESP32-WROOM-32UE-4..iam",
+    "ElectronicsBox/esp32-ambient-logger/STEPs/ESP32-DevkitC32U/C0201_20210301.STEP^Submodel-C0201_part_DesignRootModel_ESP32-WROOM-32UE(2)_ESP32-WROOM-32UE-5..iam",
+    "ElectronicsBox/esp32-ambient-logger/STEPs/ESP32-DevkitC32U/C0201_20210301.STEP^Submodel-C0201_part_DesignRootModel_ESP32-WROOM-32UE(2)_ESP32-WROOM-32UE-6..iam",
+    "ElectronicsBox/esp32-ambient-logger/STEPs/ESP32-DevkitC32U/C0201_20210301.STEP^Submodel-C0201_part_DesignRootModel_ESP32-WROOM-32UE(2)_ESP32-WROOM-32UE-7..iam",
+    "ElectronicsBox/esp32-ambient-logger/STEPs/ESP32-DevkitC32U/C0201_20210301.STEP^Submodel-C0201_part_DesignRootModel_ESP32-WROOM-32UE(2)_ESP32-WROOM-32UE-8..iam",
+    "ElectronicsBox/esp32-ambient-logger/STEPs/ESP32-DevkitC32U/C0201_20210301.STEP^Submodel-C0201_part_DesignRootModel_ESP32-WROOM-32UE(2)_ESP32-WROOM-32UE-9..iam",
+    "ElectronicsBox/esp32-ambient-logger/STEPs/ESP32-DevkitC32U/C0201_20210301.STEP^Submodel-C0201_part_DesignRootModel_ESP32-WROOM-32UE(2)_ESP32-WROOM-32UE.ST.iam",
+    "ElectronicsBox/esp32-ambient-logger/STEPs/ESP32-DevkitC32U/C0402_20210301.STEP^C0402_20210301.STEP_Submodel-C0402_part_DesignRootModel_ESP32-WROOM-32UE(2).ipt",
+    "ElectronicsBox/esp32-ambient-logger/STEPs/ESP32-DevkitC32U/C0402_20210301.STEP^Submodel-C0402_part_DesignRootModel_ESP32-WROOM-32UE(2)_ESP32-WROOM-32UE.ST.iam",
+    "ElectronicsBox/esp32-ambient-logger/STEPs/ESP32-DevkitC32U/C0603~C0603_L1.6-W0.8-H0.8~QTmk.ipt",
+    "ElectronicsBox/esp32-ambient-logger/STEPs/ESP32-DevkitC32U/C1~C0603~C0603_L1.6-W0.8-H0.8~QTmk.iam",
+    "ElectronicsBox/esp32-ambient-logger/STEPs/ESP32-DevkitC32U/C2~C0603~C0603_L1.6-W0.8-H0.8~QTmk.iam",
+    "ElectronicsBox/esp32-ambient-logger/STEPs/ESP32-DevkitC32U/C3~C0603~C0603_L1.6-W0.8-H0.8~QTmk.iam",
+    "ElectronicsBox/esp32-ambient-logger/STEPs/ESP32-DevkitC32U/CN1~HDR-TH_19P-P2.54-V-M~HDR-TH_19P-P2.54-M-LI-1X19P~QTmk (1).iam",
+    "ElectronicsBox/esp32-ambient-logger/STEPs/ESP32-DevkitC32U/CN1~HDR-TH_19P-P2.54-V-M~HDR-TH_19P-P2.54-M-LI-1X19P~QTmk.iam",
+    "ElectronicsBox/esp32-ambient-logger/STEPs/ESP32-DevkitC32U/DFN1006.STEP^DFN1006.STEP_Submodel-SOD882_part_DesignRootModel_ESP32-WROOM-32UE(2)_ESP32-WROOM-.ipt",
+    "ElectronicsBox/esp32-ambient-logger/STEPs/ESP32-DevkitC32U/DFN1006.STEP^Submodel-SOD882_part_DesignRootModel_ESP32-WROOM-32UE(2)_ESP32-WROOM-32UE.STEP.iam",
+    "ElectronicsBox/esp32-ambient-logger/STEPs/ESP32-DevkitC32U/DesignRootModel^ESP32-WROOM-32UE(2)_ESP32-WROOM-32UE.STEP.iam",
+    "ElectronicsBox/esp32-ambient-logger/STEPs/ESP32-DevkitC32U/ESP32-WROOM-32UE 3D Model v1.iam",
+    "ElectronicsBox/esp32-ambient-logger/STEPs/ESP32-DevkitC32U/ESP32-WROOM-32UE(2)^ESP32-WROOM-32UE.STEP.iam",
+    "ElectronicsBox/esp32-ambient-logger/STEPs/ESP32-DevkitC32U/ESP32-WROOM-32UE_20210903.STEP.iam",
+    "ElectronicsBox/esp32-ambient-logger/STEPs/ESP32-DevkitC32U/ESP32-WROOM-32U_Shieldingcase_20210312.STEP.ipt",
+    "ElectronicsBox/esp32-ambient-logger/STEPs/ESP32-DevkitC32U/ESP32_5x5_20210301.STEP^ESP32_5x5_20210301.STEP_Submodel-QFN48EB_0P35_5_part_DesignRootModel_ES.ipt",
+    "ElectronicsBox/esp32-ambient-logger/STEPs/ESP32-DevkitC32U/ESP32_5x5_20210301.STEP^Submodel-QFN48EB_0P35_5_part_DesignRootModel_ESP32-WROOM-32UE(2)_ESP32-.iam",
+    "ElectronicsBox/esp32-ambient-logger/STEPs/ESP32-DevkitC32U/HDR-TH_19P-P2.54-V-M~HDR-TH_19P-P2.54-M-LI-1X19P~QTmk.ipt",
+    "ElectronicsBox/esp32-ambient-logger/STEPs/ESP32-DevkitC32U/I-IPEX.ipt",
+    "ElectronicsBox/esp32-ambient-logger/STEPs/ESP32-DevkitC32U/L0201_20210301.STEP^L0201_20210301.STEP_Submodel-L0201_part_DesignRootModel_ESP32-WROOM-32UE(2).ipt",
+    "ElectronicsBox/esp32-ambient-logger/STEPs/ESP32-DevkitC32U/L0201_20210301.STEP^Submodel-L0201_part_DesignRootModel_ESP32-WROOM-32UE(2)_ESP32-WROOM-32UE-1..iam",
+    "ElectronicsBox/esp32-ambient-logger/STEPs/ESP32-DevkitC32U/L0201_20210301.STEP^Submodel-L0201_part_DesignRootModel_ESP32-WROOM-32UE(2)_ESP32-WROOM-32UE.ST.iam",
+    "ElectronicsBox/esp32-ambient-logger/STEPs/ESP32-DevkitC32U/LED0603-RD_RED~LED0603-RD_RED~QTmk.ipt",
+    "ElectronicsBox/esp32-ambient-logger/STEPs/ESP32-DevkitC32U/LED1~LED0603-RD_RED~LED0603-RD_RED~QTmk.iam",
+    "ElectronicsBox/esp32-ambient-logger/STEPs/ESP32-DevkitC32U/Part62.ipt",
+    "ElectronicsBox/esp32-ambient-logger/STEPs/ESP32-DevkitC32U/Q1~SOT-23-3_L2.9-W1.3-P1.90-LS2.4-BR~SOT-23-3P_L2.9-W1.3-H1.0-LS2.4-P0.95~QTmk.iam",
+    "ElectronicsBox/esp32-ambient-logger/STEPs/ESP32-DevkitC32U/Q2~SOT-23-3_L2.9-W1.3-P1.90-LS2.4-BR~SOT-23-3P_L2.9-W1.3-H1.0-LS2.4-P0.95~QTmk.iam",
+    "ElectronicsBox/esp32-ambient-logger/STEPs/ESP32-DevkitC32U/QFN-28_L5.0-W5.0-P0.50-TL-EP3.3~QFN-28_L5.0-W5.0-H0.9-P0.50~QTmk.ipt",
+    "ElectronicsBox/esp32-ambient-logger/STEPs/ESP32-DevkitC32U/R0201_20210301.STEP^R0201_20210301.STEP_Submodel-R0201_part_DesignRootModel_ESP32-WROOM-32UE(2).ipt",
+    "ElectronicsBox/esp32-ambient-logger/STEPs/ESP32-DevkitC32U/R0201_20210301.STEP^Submodel-R0201_part_DesignRootModel_ESP32-WROOM-32UE(2)_ESP32-WROOM-32UE-1..iam",
+    "ElectronicsBox/esp32-ambient-logger/STEPs/ESP32-DevkitC32U/R0201_20210301.STEP^Submodel-R0201_part_DesignRootModel_ESP32-WROOM-32UE(2)_ESP32-WROOM-32UE-2..iam",
+    "ElectronicsBox/esp32-ambient-logger/STEPs/ESP32-DevkitC32U/R0201_20210301.STEP^Submodel-R0201_part_DesignRootModel_ESP32-WROOM-32UE(2)_ESP32-WROOM-32UE.ST.iam",
+    "ElectronicsBox/esp32-ambient-logger/STEPs/ESP32-DevkitC32U/R0402~R0402_L1.0-W0.5-H0.4~QTmk.ipt",
+    "ElectronicsBox/esp32-ambient-logger/STEPs/ESP32-DevkitC32U/R10~R0402~R0402_L1.0-W0.5-H0.4~QTmk.iam",
+    "ElectronicsBox/esp32-ambient-logger/STEPs/ESP32-DevkitC32U/R11~R0402~R0402_L1.0-W0.5-H0.4~QTmk.iam",
+    "ElectronicsBox/esp32-ambient-logger/STEPs/ESP32-DevkitC32U/R12~R0402~R0402_L1.0-W0.5-H0.4~QTmk.iam",
+    "ElectronicsBox/esp32-ambient-logger/STEPs/ESP32-DevkitC32U/R13~R0402~R0402_L1.0-W0.5-H0.4~QTmk.iam",
+    "ElectronicsBox/esp32-ambient-logger/STEPs/ESP32-DevkitC32U/R14~R0402~R0402_L1.0-W0.5-H0.4~QTmk (1).iam",
+    "ElectronicsBox/esp32-ambient-logger/STEPs/ESP32-DevkitC32U/R14~R0402~R0402_L1.0-W0.5-H0.4~QTmk (2).iam",
+    "ElectronicsBox/esp32-ambient-logger/STEPs/ESP32-DevkitC32U/R14~R0402~R0402_L1.0-W0.5-H0.4~QTmk.iam",
+    "ElectronicsBox/esp32-ambient-logger/STEPs/ESP32-DevkitC32U/R1~R0402~R0402_L1.0-W0.5-H0.4~QTmk.iam",
+    "ElectronicsBox/esp32-ambient-logger/STEPs/ESP32-DevkitC32U/R2~R0402~R0402_L1.0-W0.5-H0.4~QTmk.iam",
+    "ElectronicsBox/esp32-ambient-logger/STEPs/ESP32-DevkitC32U/R3~R0402~R0402_L1.0-W0.5-H0.4~QTmk.iam",
+    "ElectronicsBox/esp32-ambient-logger/STEPs/ESP32-DevkitC32U/R4~R0402~R0402_L1.0-W0.5-H0.4~QTmk.iam",
+    "ElectronicsBox/esp32-ambient-logger/STEPs/ESP32-DevkitC32U/R5~R0402~R0402_L1.0-W0.5-H0.4~QTmk.iam",
+    "ElectronicsBox/esp32-ambient-logger/STEPs/ESP32-DevkitC32U/R6~R0402~R0402_L1.0-W0.5-H0.4~QTmk.iam",
+    "ElectronicsBox/esp32-ambient-logger/STEPs/ESP32-DevkitC32U/R7~R0402~R0402_L1.0-W0.5-H0.4~QTmk.iam",
+    "ElectronicsBox/esp32-ambient-logger/STEPs/ESP32-DevkitC32U/R8~R0402~R0402_L1.0-W0.5-H0.4~QTmk.iam",
+    "ElectronicsBox/esp32-ambient-logger/STEPs/ESP32-DevkitC32U/R9~R0402~R0402_L1.0-W0.5-H0.4~QTmk.iam",
+    "ElectronicsBox/esp32-ambient-logger/STEPs/ESP32-DevkitC32U/SOIC8_208_20210301.STEP^SOIC8_208_20210301.STEP_Submodel-SOP8_1P27_6P6_part_DesignRootModel_ESP.ipt",
+    "ElectronicsBox/esp32-ambient-logger/STEPs/ESP32-DevkitC32U/SOIC8_208_20210301.STEP^Submodel-SOP8_1P27_6P6_part_DesignRootModel_ESP32-WROOM-32UE(2)_ESP32-W.iam",
+    "ElectronicsBox/esp32-ambient-logger/STEPs/ESP32-DevkitC32U/SOT-223-3_L6.5-W3.4-P2.30-LS7.0-BR~SOT-223-4P_L6.5-W3.5-H1.6-LS7.0-P2.30~QTmk.ipt",
+    "ElectronicsBox/esp32-ambient-logger/STEPs/ESP32-DevkitC32U/SOT-23-3_L2.9-W1.3-P1.90-LS2.4-BR~SOT-23-3P_L2.9-W1.3-H1.0-LS2.4-P0.95~QTmk.ipt",
+    "ElectronicsBox/esp32-ambient-logger/STEPs/ESP32-DevkitC32U/SW-SMD_L3.9-W3.0-P4.45~SW-SMD_L3.9-W2.9-H2.0-LS4.8~QTmk.ipt",
+    "ElectronicsBox/esp32-ambient-logger/STEPs/ESP32-DevkitC32U/SW1~SW-SMD_L3.9-W3.0-P4.45~SW-SMD_L3.9-W2.9-H2.0-LS4.8~QTmk.iam",
+    "ElectronicsBox/esp32-ambient-logger/STEPs/ESP32-DevkitC32U/SW2~SW-SMD_L3.9-W3.0-P4.45~SW-SMD_L3.9-W2.9-H2.0-LS4.8~QTmk.iam",
+    "ElectronicsBox/esp32-ambient-logger/STEPs/ESP32-DevkitC32U/Submodel-C0201_part^DesignRootModel_ESP32-WROOM-32UE(2)_ESP32-WROOM-32UE-1.STEP.iam",
+    "ElectronicsBox/esp32-ambient-logger/STEPs/ESP32-DevkitC32U/Submodel-C0201_part^DesignRootModel_ESP32-WROOM-32UE(2)_ESP32-WROOM-32UE-10.STEP.iam",
+    "ElectronicsBox/esp32-ambient-logger/STEPs/ESP32-DevkitC32U/Submodel-C0201_part^DesignRootModel_ESP32-WROOM-32UE(2)_ESP32-WROOM-32UE-11.STEP.iam",
+    "ElectronicsBox/esp32-ambient-logger/STEPs/ESP32-DevkitC32U/Submodel-C0201_part^DesignRootModel_ESP32-WROOM-32UE(2)_ESP32-WROOM-32UE-12.STEP.iam",
+    "ElectronicsBox/esp32-ambient-logger/STEPs/ESP32-DevkitC32U/Submodel-C0201_part^DesignRootModel_ESP32-WROOM-32UE(2)_ESP32-WROOM-32UE-13.STEP.iam",
+    "ElectronicsBox/esp32-ambient-logger/STEPs/ESP32-DevkitC32U/Submodel-C0201_part^DesignRootModel_ESP32-WROOM-32UE(2)_ESP32-WROOM-32UE-14.STEP.iam",
+    "ElectronicsBox/esp32-ambient-logger/STEPs/ESP32-DevkitC32U/Submodel-C0201_part^DesignRootModel_ESP32-WROOM-32UE(2)_ESP32-WROOM-32UE-2.STEP.iam",
+    "ElectronicsBox/esp32-ambient-logger/STEPs/ESP32-DevkitC32U/Submodel-C0201_part^DesignRootModel_ESP32-WROOM-32UE(2)_ESP32-WROOM-32UE-3.STEP.iam",
+    "ElectronicsBox/esp32-ambient-logger/STEPs/ESP32-DevkitC32U/Submodel-C0201_part^DesignRootModel_ESP32-WROOM-32UE(2)_ESP32-WROOM-32UE-4.STEP.iam",
+    "ElectronicsBox/esp32-ambient-logger/STEPs/ESP32-DevkitC32U/Submodel-C0201_part^DesignRootModel_ESP32-WROOM-32UE(2)_ESP32-WROOM-32UE-5.STEP.iam",
+    "ElectronicsBox/esp32-ambient-logger/STEPs/ESP32-DevkitC32U/Submodel-C0201_part^DesignRootModel_ESP32-WROOM-32UE(2)_ESP32-WROOM-32UE-6.STEP.iam",
+    "ElectronicsBox/esp32-ambient-logger/STEPs/ESP32-DevkitC32U/Submodel-C0201_part^DesignRootModel_ESP32-WROOM-32UE(2)_ESP32-WROOM-32UE-7.STEP.iam",
+    "ElectronicsBox/esp32-ambient-logger/STEPs/ESP32-DevkitC32U/Submodel-C0201_part^DesignRootModel_ESP32-WROOM-32UE(2)_ESP32-WROOM-32UE-8.STEP.iam",
+    "ElectronicsBox/esp32-ambient-logger/STEPs/ESP32-DevkitC32U/Submodel-C0201_part^DesignRootModel_ESP32-WROOM-32UE(2)_ESP32-WROOM-32UE-9.STEP.iam",
+    "ElectronicsBox/esp32-ambient-logger/STEPs/ESP32-DevkitC32U/Submodel-C0201_part^DesignRootModel_ESP32-WROOM-32UE(2)_ESP32-WROOM-32UE.STEP.iam",
+    "ElectronicsBox/esp32-ambient-logger/STEPs/ESP32-DevkitC32U/Submodel-C0402_part^DesignRootModel_ESP32-WROOM-32UE(2)_ESP32-WROOM-32UE.STEP.iam",
+    "ElectronicsBox/esp32-ambient-logger/STEPs/ESP32-DevkitC32U/Submodel-L0201_part^DesignRootModel_ESP32-WROOM-32UE(2)_ESP32-WROOM-32UE-1.STEP.iam",
+    "ElectronicsBox/esp32-ambient-logger/STEPs/ESP32-DevkitC32U/Submodel-L0201_part^DesignRootModel_ESP32-WROOM-32UE(2)_ESP32-WROOM-32UE.STEP.iam",
+    "ElectronicsBox/esp32-ambient-logger/STEPs/ESP32-DevkitC32U/Submodel-QFN48EB_0P35_5_part^DesignRootModel_ESP32-WROOM-32UE(2)_ESP32-WROOM-32UE.STEP.iam",
+    "ElectronicsBox/esp32-ambient-logger/STEPs/ESP32-DevkitC32U/Submodel-R0201_part^DesignRootModel_ESP32-WROOM-32UE(2)_ESP32-WROOM-32UE-1.STEP.iam",
+    "ElectronicsBox/esp32-ambient-logger/STEPs/ESP32-DevkitC32U/Submodel-R0201_part^DesignRootModel_ESP32-WROOM-32UE(2)_ESP32-WROOM-32UE-2.STEP.iam",
+    "ElectronicsBox/esp32-ambient-logger/STEPs/ESP32-DevkitC32U/Submodel-R0201_part^DesignRootModel_ESP32-WROOM-32UE(2)_ESP32-WROOM-32UE.STEP.iam",
+    "ElectronicsBox/esp32-ambient-logger/STEPs/ESP32-DevkitC32U/Submodel-SOD882_part^DesignRootModel_ESP32-WROOM-32UE(2)_ESP32-WROOM-32UE.STEP.iam",
+    "ElectronicsBox/esp32-ambient-logger/STEPs/ESP32-DevkitC32U/Submodel-SOP8_1P27_6P6_part^DesignRootModel_ESP32-WROOM-32UE(2)_ESP32-WROOM-32UE.STEP.iam",
+    "ElectronicsBox/esp32-ambient-logger/STEPs/ESP32-DevkitC32U/Submodel-XTAL3225_part^DesignRootModel_ESP32-WROOM-32UE(2)_ESP32-WROOM-32UE.STEP.iam",
+    "ElectronicsBox/esp32-ambient-logger/STEPs/ESP32-DevkitC32U/TopSilkscreen~QTmk.ipt",
+    "ElectronicsBox/esp32-ambient-logger/STEPs/ESP32-DevkitC32U/U2~SOT-223-3_L6.5-W3.4-P2.30-LS7.0-BR~SOT-223-4P_L6.5-W3.5-H1.6-LS7.0-P2.30~QTmk.iam",
+    "ElectronicsBox/esp32-ambient-logger/STEPs/ESP32-DevkitC32U/U3~QFN-28_L5.0-W5.0-P0.50-TL-EP3.3~QFN-28_L5.0-W5.0-H0.9-P0.50~QTmk.iam",
+    "ElectronicsBox/esp32-ambient-logger/STEPs/ESP32-DevkitC32U/USB-C_SMD-TYPE-C-31-M-12~USB-C_SMD-TYPE-C-31-M-12~QTmk.ipt",
+    "ElectronicsBox/esp32-ambient-logger/STEPs/ESP32-DevkitC32U/USBC1~USB-C_SMD-TYPE-C-31-M-12~USB-C_SMD-TYPE-C-31-M-12~QTmk.iam",
+    "ElectronicsBox/esp32-ambient-logger/STEPs/ESP32-DevkitC32U/XTAL3225_20210301.STEP^Submodel-XTAL3225_part_DesignRootModel_ESP32-WROOM-32UE(2)_ESP32-WROOM-3.iam",
+    "ElectronicsBox/esp32-ambient-logger/STEPs/ESP32-DevkitC32U/XTAL3225_20210301.STEP^XTAL3225_20210301.STEP_Submodel-XTAL3225_part_DesignRootModel_ESP32-WROO.ipt",
+    "ElectronicsBox/esp32-ambient-logger/STEPs/ESP32-DevkitC32U/pad.STEP.ipt",
+    "ElectronicsBox/esp32-ambient-logger/STEPs/ESP32-DevkitC32U/uid__1081685072^DesignRootModel_ESP32-WROOM-32UE(2)_ESP32-WROOM-32UE.STEP.ipt",
+    "ElectronicsBox/esp32-ambient-logger/STEPs/Product_TF Micro SD Card Memory Modul .iam",
+    "ElectronicsBox/esp32-ambient-logger/STEPs/Product_TF Micro SD Card Memory Modul Arduino/Product_TF Micro SD Card Memory Modul Arduino/1 Pin 2.54 mm Right Angle Single Row P.ipt",
+    "ElectronicsBox/esp32-ambient-logger/STEPs/Product_TF Micro SD Card Memory Modul Arduino/Product_TF Micro SD Card Memory Modul Arduino/LVC125A.ipt",
+    "ElectronicsBox/esp32-ambient-logger/STEPs/Product_TF Micro SD Card Memory Modul Arduino/Product_TF Micro SD Card Memory Modul Arduino/PCB.ipt",
+    "ElectronicsBox/esp32-ambient-logger/STEPs/Product_TF Micro SD Card Memory Modul Arduino/Product_TF Micro SD Card Memory Modul Arduino/cap_603.ipt",
+    "ElectronicsBox/esp32-ambient-logger/STEPs/Product_TF Micro SD Card Memory Modul Arduino/Product_TF Micro SD Card Memory Modul Arduino/cap_603_1.ipt",
+    "ElectronicsBox/esp32-ambient-logger/STEPs/Product_TF Micro SD Card Memory Modul Arduino/Product_TF Micro SD Card Memory Modul Arduino/nano - reg.ipt",
+    "ElectronicsBox/esp32-ambient-logger/STEPs/Product_TF Micro SD Card Memory Modul Arduino/Product_TF Micro SD Card Memory Modul Arduino/res_603.ipt",
+    "ElectronicsBox/esp32-ambient-logger/STEPs/Product_TF Micro SD Card Memory Modul Arduino/Product_TF Micro SD Card Memory Modul Arduino/sd.ipt",
+    "ElectronicsBox/esp32-ambient-logger/STEPs/Product_TF Micro SD Card Memory Modul Arduino/Product_TF Micro SD Card Memory Modul Arduino/slot.ipt",
+    "ElectronicsBox/esp32-ambient-logger/TempLoggerRev1.iam",
+    "ElectronicsBox/esp32-ambient-logger/TempLoggerRev1/JST_XH_B2B-XH-A_1x02_P2.50mm_Vertical.ipt",
+    "ElectronicsBox/esp32-ambient-logger/TempLoggerRev1/JST_XH_B4B-XH-A_1x04_P2.50mm_Vertical.ipt",
+    "ElectronicsBox/esp32-ambient-logger/TempLoggerRev1/JST_XH_B6B-XH-A_1x06_P2.50mm_Vertical.ipt",
+    "ElectronicsBox/esp32-ambient-logger/TempLoggerRev1/PinSocket_1x19_P2.54mm_Vertical.ipt",
+    "ElectronicsBox/esp32-ambient-logger/TempLoggerRev1/esp32breakout_PCB.ipt",
+    "ElectronicsBox/esp32-ambient-logger/TempLoggerRev1/esp32breakout_silkscreen.ipt",
+    "ElectronicsBox/esp32-ambient-logger/enclosure.ipt",
+    "ElectronicsBox/esp32-ambient-logger/m3-60-pin.ipt",
+    "ElectronicsBox/esp32-ambient-logger/shaft-10mm.ipt",
+    "ElectronicsBox/esp32-ambient-logger/temp-logger-base-plate-v2.ipt",
+    "ElectronicsBox/esp32-ambient-logger/temp-logger-shelf-v2.ipt",
+    "ElectronicsBox/modular-sensor-box/sensor-box-back-panel.ipt",
+    "ElectronicsBox/modular-sensor-box/sensor-box-front-panel.ipt",
+    "ElectronicsBox/modular-sensor-box/sensor-box-lower-mount-spacer.ipt",
+    "ElectronicsBox/modular-sensor-box/sensor-box-upper-mount-spacer.ipt"
+  ],
+  "expected_interferences": {
+    "heat_set_insert_vs_pilot": "Eight intentional insert press/heat fits; 4.6 mm pilot needs print validation with actual inserts.",
+    "sandwich_nut_vs_rod": "Existing simplified threaded hardware overlap retained."
+  },
+  "scope": "One common grounded fit fixture, not two finished instrument assemblies. Display, connector and button cutouts deferred."
+}

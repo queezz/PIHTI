@@ -4,6 +4,14 @@ Shipped archive milestones only. PIHTI does not yet have a formal release/versio
 contract, so entries are dated rather than assigned software versions. Git history
 remains authoritative for exact file changes.
 
+## 2026-10-26
+
+- Added a native removable-panel prototype for humidity and ADC/divider boxes
+  in `ElectronicsBox/modular-sensor-box`: independent front/rear blanks, mount
+  spacers and a fit fixture sharing the current enclosure, frame and selected
+  electronics. Preserved the front wire gap; button and instrument cutouts
+  remain deferred. Native sleeve and panel withdrawal checks passed.
+
 ## 2026-10-08
 
 - Shipped `pihti-dedup` 0.34.4: clearly label rename previews before any files
