@@ -6,6 +6,11 @@ remains authoritative for exact file changes.
 
 ## 2026-10-26
 
+- Simplified sensor-box spacers to plain blocks and straight bores, shortened
+  the front returns using the wire-gap space, restored the shared OLED and
+  added aligned rear USB/SD access. Native panel and SD withdrawal checks pass;
+  spacer edge finishing is left to the owner.
+
 - Added a native removable-panel prototype for humidity and ADC/divider boxes
   in `ElectronicsBox/modular-sensor-box`: independent front/rear blanks, mount
   spacers and a fit fixture sharing the current enclosure, frame and selected

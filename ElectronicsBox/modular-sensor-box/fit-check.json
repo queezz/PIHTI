@@ -1,249 +1,171 @@
 {
+  "front_removal": [
+    {
+      "travel_mm": 0,
+      "contacts": []
+    },
+    {
+      "travel_mm": 2,
+      "contacts": []
+    },
+    {
+      "travel_mm": 10,
+      "contacts": []
+    },
+    {
+      "travel_mm": 30,
+      "contacts": []
+    }
+  ],
+  "back_removal": [
+    {
+      "travel_mm": 0,
+      "contacts": []
+    },
+    {
+      "travel_mm": 2,
+      "contacts": []
+    },
+    {
+      "travel_mm": 10,
+      "contacts": []
+    },
+    {
+      "travel_mm": 30,
+      "contacts": []
+    }
+  ],
+  "sd_card_withdrawal": [
+    {
+      "travel_mm": 0,
+      "contacts": []
+    },
+    {
+      "travel_mm": 5,
+      "contacts": []
+    },
+    {
+      "travel_mm": 10,
+      "contacts": []
+    },
+    {
+      "travel_mm": 20,
+      "contacts": []
+    }
+  ],
+  "opening_bounds_mm": {
+    "Original 30 mm OLED opening": {
+      "X": [
+        -20.891061812211845,
+        9.108938187788155
+      ],
+      "Y": [
+        50.0,
+        50.0
+      ],
+      "Z": [
+        -15.000000000000004,
+        15.000000000000009
+      ]
+    },
+    "ESP32 USB access profile": {
+      "X": [
+        -6.28,
+        7.720000000000001
+      ],
+      "Y": [
+        -45.0,
+        -45.0
+      ],
+      "Z": [
+        16.66,
+        23.66
+      ]
+    },
+    "Micro SD removal access profile": {
+      "X": [
+        -21.25,
+        -1.25
+      ],
+      "Y": [
+        -45.0,
+        -45.0
+      ],
+      "Z": [
+        -10.5,
+        -0.5
+      ]
+    }
+  },
   "date": "2026-10-26",
-  "status": "prototype; print-fit not yet verified",
-  "active_project": "PIHTI.ipj",
+  "status": "prototype; physical print and connector access not tested",
   "assembly": "SensorBox-panel-fit.iam",
-  "occurrences": 50,
+  "occurrences": 56,
+  "active_project": "PIHTI.ipj",
   "reopened_native_references_resolve": true,
-  "source_files_unchanged": 320,
-  "source_live_dirty_state_preserved": true,
-  "source_relationship_health_preserved": true,
-  "shared_electronics_poses_preserved": [
-    "TempLoggerRev1:1",
-    "ESP32-DevkitC32U:1",
-    "DS2321 RTC:1",
-    "Product_TF Micro SD Card Memory Modul :1"
+  "original_logger_source_hashes_unchanged": 320,
+  "spacer_cross_section_mm": [
+    7,
+    13
   ],
-  "panel_size_mm": [
-    74,
-    60,
-    3
-  ],
+  "spacer_lengths_mm": {
+    "upper": 17.49,
+    "lower": 24
+  },
+  "spacer_features_per_part": 3,
+  "front_return_length_mm": 8,
+  "rear_return_length_mm": 16,
+  "return_thickness_mm": 3.3,
+  "front_screw_y_mm": 45,
+  "rear_screw_y_mm": -32,
   "front_wire_gap_mm": 5,
   "sleeve_center_y_mm": 2.8,
   "sleeve_interferences": [],
-  "panel_withdrawal": [
+  "new_part_interferences": [],
+  "intentional_insert_fit_contacts": [
     {
-      "panel": "sensor-box-front-panel",
-      "travel_mm": 0,
-      "hits": []
+      "one": "lower mount 26.5 38.5",
+      "two": "Panel insert 1 45 -20",
+      "volume_mm3": 9.345190946871917
     },
     {
-      "panel": "sensor-box-front-panel",
-      "travel_mm": 0.5,
-      "hits": []
+      "one": "lower mount 26.5 -38.5",
+      "two": "Panel insert 1 -32 -20",
+      "volume_mm3": 9.34519094687198
     },
     {
-      "panel": "sensor-box-front-panel",
-      "travel_mm": 2,
-      "hits": []
+      "one": "lower mount -26.5 38.5",
+      "two": "Panel insert -1 45 -20",
+      "volume_mm3": 9.345190946877576
     },
     {
-      "panel": "sensor-box-front-panel",
-      "travel_mm": 5,
-      "hits": []
+      "one": "lower mount -26.5 -38.5",
+      "two": "Panel insert -1 -32 -20",
+      "volume_mm3": 9.345190946877638
     },
     {
-      "panel": "sensor-box-front-panel",
-      "travel_mm": 10,
-      "hits": []
+      "one": "upper mount 26.5 38.5",
+      "two": "Panel insert 1 45 20",
+      "volume_mm3": 9.345190946871927
     },
     {
-      "panel": "sensor-box-front-panel",
-      "travel_mm": 15,
-      "hits": []
+      "one": "upper mount 26.5 -38.5",
+      "two": "Panel insert 1 -32 20",
+      "volume_mm3": 9.345190946871991
     },
     {
-      "panel": "sensor-box-front-panel",
-      "travel_mm": 22,
-      "hits": []
+      "one": "upper mount -26.5 38.5",
+      "two": "Panel insert -1 45 20",
+      "volume_mm3": 9.34519094687758
     },
     {
-      "panel": "sensor-box-front-panel",
-      "travel_mm": 30,
-      "hits": []
-    },
-    {
-      "panel": "sensor-box-back-panel",
-      "travel_mm": 0,
-      "hits": []
-    },
-    {
-      "panel": "sensor-box-back-panel",
-      "travel_mm": 0.5,
-      "hits": []
-    },
-    {
-      "panel": "sensor-box-back-panel",
-      "travel_mm": 2,
-      "hits": []
-    },
-    {
-      "panel": "sensor-box-back-panel",
-      "travel_mm": 5,
-      "hits": []
-    },
-    {
-      "panel": "sensor-box-back-panel",
-      "travel_mm": 10,
-      "hits": []
-    },
-    {
-      "panel": "sensor-box-back-panel",
-      "travel_mm": 15,
-      "hits": []
-    },
-    {
-      "panel": "sensor-box-back-panel",
-      "travel_mm": 22,
-      "hits": []
-    },
-    {
-      "panel": "sensor-box-back-panel",
-      "travel_mm": 30,
-      "hits": []
+      "one": "upper mount -26.5 -38.5",
+      "two": "Panel insert -1 -32 20",
+      "volume_mm3": 9.345190946877638
     }
   ],
-  "new_mounts_vs_existing_board_context": [],
-  "feature_health": {
-    "sensor-box-back-panel.ipt": [
-      [
-        "Panel face",
-        11778
-      ],
-      [
-        "Panel corner radius 5 mm",
-        11778
-      ],
-      [
-        "Left lower removable return",
-        11778
-      ],
-      [
-        "Left upper removable return",
-        11778
-      ],
-      [
-        "Right lower removable return",
-        11778
-      ],
-      [
-        "Right upper removable return",
-        11778
-      ],
-      [
-        "Return root fillets",
-        11778
-      ],
-      [
-        "M3 panel clearance 33.3",
-        11778
-      ],
-      [
-        "M3 panel clearance -30.3",
-        11778
-      ],
-      [
-        "External face perimeter chamfer 0.5 mm",
-        11778
-      ]
-    ],
-    "sensor-box-front-panel.ipt": [
-      [
-        "Panel face",
-        11778
-      ],
-      [
-        "Panel corner radius 5 mm",
-        11778
-      ],
-      [
-        "Left lower removable return",
-        11778
-      ],
-      [
-        "Left upper removable return",
-        11778
-      ],
-      [
-        "Right lower removable return",
-        11778
-      ],
-      [
-        "Right upper removable return",
-        11778
-      ],
-      [
-        "Return root fillets",
-        11778
-      ],
-      [
-        "M3 panel clearance 33.3",
-        11778
-      ],
-      [
-        "M3 panel clearance -30.3",
-        11778
-      ],
-      [
-        "External face perimeter chamfer 0.5 mm",
-        11778
-      ]
-    ],
-    "sensor-box-lower-mount-spacer.ipt": [
-      [
-        "Spacer core including former ear thickness",
-        11778
-      ],
-      [
-        "Panel mounting wing",
-        11778
-      ],
-      [
-        "M3 sandwich rod clearance",
-        11778
-      ],
-      [
-        "M3 insert pilot 4.6 mm through",
-        11778
-      ],
-      [
-        "Insert collar seat -3.5",
-        11778
-      ],
-      [
-        "Insert collar seat 3.5",
-        11778
-      ]
-    ],
-    "sensor-box-upper-mount-spacer.ipt": [
-      [
-        "Spacer core including former ear thickness",
-        11778
-      ],
-      [
-        "Panel mounting wing",
-        11778
-      ],
-      [
-        "M3 sandwich rod clearance",
-        11778
-      ],
-      [
-        "M3 insert pilot 4.6 mm through",
-        11778
-      ],
-      [
-        "Insert collar seat -3.5",
-        11778
-      ],
-      [
-        "Insert collar seat 3.5",
-        11778
-      ]
-    ]
-  },
   "references": [
+    "ContentCenter/Fastners/M2x4-SHCS.ipt",
     "ContentCenter/Fastners/M3-nut.ipt",
     "ContentCenter/Fastners/M3x8-BHCS.ipt",
     "ContentCenter/Fastners/brass-insert-m3x5.ipt",
@@ -358,6 +280,7 @@
     "ElectronicsBox/esp32-ambient-logger/STEPs/ESP32-DevkitC32U/XTAL3225_20210301.STEP^XTAL3225_20210301.STEP_Submodel-XTAL3225_part_DesignRootModel_ESP32-WROO.ipt",
     "ElectronicsBox/esp32-ambient-logger/STEPs/ESP32-DevkitC32U/pad.STEP.ipt",
     "ElectronicsBox/esp32-ambient-logger/STEPs/ESP32-DevkitC32U/uid__1081685072^DesignRootModel_ESP32-WROOM-32UE(2)_ESP32-WROOM-32UE.STEP.ipt",
+    "ElectronicsBox/esp32-ambient-logger/STEPs/OLED-128x64-0.96.ipt",
     "ElectronicsBox/esp32-ambient-logger/STEPs/Product_TF Micro SD Card Memory Modul .iam",
     "ElectronicsBox/esp32-ambient-logger/STEPs/Product_TF Micro SD Card Memory Modul Arduino/Product_TF Micro SD Card Memory Modul Arduino/1 Pin 2.54 mm Right Angle Single Row P.ipt",
     "ElectronicsBox/esp32-ambient-logger/STEPs/Product_TF Micro SD Card Memory Modul Arduino/Product_TF Micro SD Card Memory Modul Arduino/LVC125A.ipt",
@@ -377,6 +300,7 @@
     "ElectronicsBox/esp32-ambient-logger/TempLoggerRev1/esp32breakout_silkscreen.ipt",
     "ElectronicsBox/esp32-ambient-logger/enclosure.ipt",
     "ElectronicsBox/esp32-ambient-logger/m3-60-pin.ipt",
+    "ElectronicsBox/esp32-ambient-logger/oled-screen-mount.ipt",
     "ElectronicsBox/esp32-ambient-logger/shaft-10mm.ipt",
     "ElectronicsBox/esp32-ambient-logger/temp-logger-base-plate-v2.ipt",
     "ElectronicsBox/esp32-ambient-logger/temp-logger-shelf-v2.ipt",
@@ -385,9 +309,145 @@
     "ElectronicsBox/modular-sensor-box/sensor-box-lower-mount-spacer.ipt",
     "ElectronicsBox/modular-sensor-box/sensor-box-upper-mount-spacer.ipt"
   ],
-  "expected_interferences": {
-    "heat_set_insert_vs_pilot": "Eight intentional insert press/heat fits; 4.6 mm pilot needs print validation with actual inserts.",
-    "sandwich_nut_vs_rod": "Existing simplified threaded hardware overlap retained."
+  "feature_health": {
+    "sensor-box-back-panel.ipt": [
+      [
+        "Panel face",
+        11778
+      ],
+      [
+        "Panel corner radius 5 mm",
+        11778
+      ],
+      [
+        "Left lower removable return",
+        11778
+      ],
+      [
+        "Left upper removable return",
+        11778
+      ],
+      [
+        "Right lower removable return",
+        11778
+      ],
+      [
+        "Right upper removable return",
+        11778
+      ],
+      [
+        "M3 panel clearance 33.3",
+        11778
+      ],
+      [
+        "M3 panel clearance -30.3",
+        11778
+      ],
+      [
+        "External face perimeter chamfer 0.5 mm",
+        11778
+      ],
+      [
+        "ESP32 USB access",
+        11778
+      ],
+      [
+        "Micro SD removal access",
+        11778
+      ]
+    ],
+    "sensor-box-front-panel.ipt": [
+      [
+        "Panel face",
+        11778
+      ],
+      [
+        "Panel corner radius 5 mm",
+        11778
+      ],
+      [
+        "Left lower removable return",
+        11778
+      ],
+      [
+        "Left upper removable return",
+        11778
+      ],
+      [
+        "Right lower removable return",
+        11778
+      ],
+      [
+        "Right upper removable return",
+        11778
+      ],
+      [
+        "Return root fillets",
+        11778
+      ],
+      [
+        "M3 panel clearance 33.3",
+        11778
+      ],
+      [
+        "M3 panel clearance -30.3",
+        11778
+      ],
+      [
+        "External face perimeter chamfer 0.5 mm",
+        11778
+      ],
+      [
+        "Original OLED opening",
+        11778
+      ],
+      [
+        "Original OLED opening corner radius 2 mm",
+        11778
+      ],
+      [
+        "Original OLED opening entry chamfers 0.5 mm",
+        11778
+      ]
+    ],
+    "sensor-box-lower-mount-spacer.ipt": [
+      [
+        "Plain rectangular spacer block",
+        11778
+      ],
+      [
+        "M3 sandwich rod clearance",
+        11778
+      ],
+      [
+        "Straight 4.6 mm insert bore",
+        11778
+      ]
+    ],
+    "sensor-box-upper-mount-spacer.ipt": [
+      [
+        "Plain rectangular spacer block",
+        11778
+      ],
+      [
+        "M3 sandwich rod clearance",
+        11778
+      ],
+      [
+        "Straight 4.6 mm insert bore",
+        11778
+      ]
+    ]
   },
-  "scope": "One common grounded fit fixture, not two finished instrument assemblies. Display, connector and button cutouts deferred."
+  "original_oled_fit_preserved": {
+    "opening_mm": [
+      30,
+      30
+    ],
+    "corner_radius_mm": 2,
+    "entry_chamfers_mm": 0.5,
+    "source_mount_nominal_overlap_mm3": 44.628686837681244,
+    "restored_mount_nominal_overlap_mm3": 44.62868683766513,
+    "note": "Original proven snug fit retained intentionally; this contact is not a new clearance defect."
+  }
 }
