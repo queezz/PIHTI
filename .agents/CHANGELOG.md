@@ -6,6 +6,10 @@ remains authoritative for exact file changes.
 
 ## 2026-10-26
 
+- Centred the OLED holder sleeve on the proven screw-hole pattern, correcting
+  unequal side borders while preserving all five owner-added finishing features,
+  hole locations and the viewing aperture. Finished print exports remain unchanged.
+
 - Added a full OLED holder sleeve trial with holder-aligned sidewalls, a
   panel-parallel rear edge and the original tilted display face. Friction
   pads engage the printed holder; the low viewing lip and existing fits remain.

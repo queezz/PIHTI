@@ -14,7 +14,7 @@
     {
       "one": "OLED sleeve trial",
       "two": "oled-screen-mount:1",
-      "volume_mm3": 1.1249999999999996
+      "volume_mm3": 0.5462112883481303
     }
   ],
   "key_parameters": {
@@ -28,7 +28,9 @@
     "window_width": "22,4 mm",
     "window_height": "12 mm",
     "top_edge_radius": "0,6 mm",
-    "fit_interference": "0,05 mm"
+    "fit_interference": "0,05 mm",
+    "holder_oled_offset": "1,05 mm",
+    "sleeve_center_x": "-holder_oled_offset"
   },
   "feature_health": [
     [
@@ -90,11 +92,29 @@
     [
       "Holder grip lead ins",
       11778
+    ],
+    [
+      "Chamfer3",
+      11778
+    ],
+    [
+      "Fillet5",
+      11778
+    ],
+    [
+      "Chamfer5",
+      11778
+    ],
+    [
+      "Chamfer4",
+      11778
+    ],
+    [
+      "Fillet6",
+      11778
     ]
   ],
   "existing_parts_unchanged": true,
-  "zero_interference_contacts": [],
-  "lip_parameter_test_mm": 0.6,
   "installation_travel": [
     {
       "offset_mm": 0,
@@ -102,7 +122,7 @@
         {
           "one": "OLED sleeve trial",
           "two": "oled-screen-mount:1",
-          "volume_mm3": 1.1249999999999754
+          "volume_mm3": 0.5462112883481303
         }
       ]
     },
@@ -112,7 +132,7 @@
         {
           "one": "OLED sleeve trial",
           "two": "oled-screen-mount:1",
-          "volume_mm3": 1.1249999999999754
+          "volume_mm3": 0.5462112883481303
         }
       ]
     },
@@ -122,7 +142,7 @@
         {
           "one": "OLED sleeve trial",
           "two": "oled-screen-mount:1",
-          "volume_mm3": 1.1249999999999734
+          "volume_mm3": 0.5462112883481302
         }
       ]
     },
@@ -132,7 +152,7 @@
         {
           "one": "OLED sleeve trial",
           "two": "oled-screen-mount:1",
-          "volume_mm3": 1.1249999999999754
+          "volume_mm3": 0.5462112883481041
         }
       ]
     },
@@ -142,7 +162,7 @@
         {
           "one": "OLED sleeve trial",
           "two": "oled-screen-mount:1",
-          "volume_mm3": 1.0347349789331985
+          "volume_mm3": 0.5330696623232509
         }
       ]
     },
@@ -152,7 +172,7 @@
         {
           "one": "OLED sleeve trial",
           "two": "oled-screen-mount:1",
-          "volume_mm3": 0.4515173113635176
+          "volume_mm3": 0.2516296668229443
         }
       ]
     },
@@ -169,5 +189,22 @@
       "contacts": []
     }
   ],
-  "finished_print_manifest_sources_and_meshes_unchanged": true
+  "finished_print_manifest_sources_and_meshes_unchanged": true,
+  "symmetry_correction": {
+    "measured_oled_center_in_holder_x_mm": -1.05,
+    "sleeve_center_in_holder_x_mm": -1.0500000000000025,
+    "outer_width_mm": 34.2,
+    "outer_depth_mm": 32.1,
+    "left_and_right_border_mm": 5.900000000000002,
+    "owner_finishing_preserved": [
+      "Chamfer3",
+      "Fillet5",
+      "Chamfer5",
+      "Chamfer4",
+      "Fillet6"
+    ],
+    "datum": "existing proven M2 screw-hole pattern; owner confirms physical holder symmetric",
+    "holder_pad_contact_positions_preserved": true
+  },
+  "parameter_test_note": "Earlier zero-pad and lip perturbation checks predate owner finishing. A zero-pad trial after finishing did not regenerate; restored 0.05 mm fit and all 20 final features are healthy."
 }
