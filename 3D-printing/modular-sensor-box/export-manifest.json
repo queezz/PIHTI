@@ -15,7 +15,7 @@
   "front_ear_thickness_mm": 4,
   "rear_ear_thickness_mm": 4,
   "orientation": "Front and back panels lie outside-face down on Z=0 with ears up. Other files retain native CAD orientation and placement.",
-  "enclosure": "Exported separately as the original named solid bodies: case, retainer and grip.",
+  "enclosure": "Case and grip bodies together in modular-box-case.stl, preserving the original multibody layout for the owner fuzzy-skin workflow. Retainer is separate.",
   "files": [
     {
       "file": "sensor-box-front-panel.stl",
@@ -491,49 +491,68 @@
       "file": "modular-box-case.stl",
       "source": "ElectronicsBox/esp32-ambient-logger/enclosure.ipt",
       "source_sha256": "73d54465075fb74d53bc47b5ba84db88abd0b32f78a77472d010f9e91b5f1ac1",
-      "body": "case",
       "quantity_per_box": 1,
       "native_bounds_mm": [
         [
-          -33.1,
+          -34.099999999999994,
           -40.50000000000001,
           0.0
         ],
         [
-          33.10000000000001,
+          34.099999999999994,
           40.099999999999994,
           110.0
         ]
       ],
-      "native_volume_mm3": 87748.5537002735,
-      "stl_sha256": "238f92042668e0b8ae379df6623d236da83d247d2d03ce2d6f01fd06f1e6f6db",
-      "bytes": 8067484,
+      "native_volume_mm3": 91616.10526827247,
+      "stl_sha256": "22c28e4c96aba36e8a9c54886d352ac6b4617cd9f092b94290c062fdd4eb2ed6",
+      "bytes": 8270684,
       "verification": {
-        "triangles": 161348,
-        "watertight": true,
+        "triangles": 165412,
+        "source_body_meshes": {
+          "case": {
+            "triangles": 161348,
+            "watertight": true,
+            "consistent_winding": true,
+            "mesh_volume_mm3": 87739.46002456093
+          },
+          "grip": {
+            "triangles": 4064,
+            "watertight": true,
+            "consistent_winding": true,
+            "mesh_volume_mm3": 3864.502554993782
+          }
+        },
         "consistent_winding": true,
         "positive_volume": true,
         "mesh_bounds_mm": [
           [
-            -33.099998474121094,
+            -34.099998474121094,
             -40.5,
             0.0
           ],
           [
-            33.099998474121094,
+            34.099998474121094,
             40.099998474121094,
             110.0
           ]
         ],
         "dimensions_mm": [
-          66.19999694824219,
+          68.19999694824219,
           80.5999984741211,
           110.0
         ],
-        "max_bounds_difference_mm": 1.5258789147765128e-06,
-        "mesh_volume_mm3": 87739.46002456093,
-        "relative_volume_difference": 0.00010363334014183618
-      }
+        "max_bounds_difference_mm": 1.5258789005656581e-06,
+        "mesh_volume_mm3": 91603.96257955475,
+        "relative_volume_difference": 0.00013253880070720843,
+        "combined_welded_mesh_watertight": false,
+        "multibody_note": "Each source body is watertight. Welding their touching coordinates during validation creates non-manifold shared edges; the saved STL deliberately retains the original two closed body meshes."
+      },
+      "bodies": [
+        "case",
+        "grip"
+      ],
+      "body_handling": "Both original closed body meshes in one STL, in original positions, for grip fuzzy-skin assignment. Stored triangles are unchanged; bodies are not Boolean-unioned."
     },
     {
       "file": "modular-box-retainer.stl",
@@ -582,56 +601,8 @@
         "mesh_volume_mm3": 2507.3831724168126,
         "relative_volume_difference": 6.114347069691823e-05
       }
-    },
-    {
-      "file": "modular-box-grip.stl",
-      "source": "ElectronicsBox/esp32-ambient-logger/enclosure.ipt",
-      "source_sha256": "73d54465075fb74d53bc47b5ba84db88abd0b32f78a77472d010f9e91b5f1ac1",
-      "body": "grip",
-      "quantity_per_box": 1,
-      "native_bounds_mm": [
-        [
-          -34.099999999999994,
-          20.099999999999994,
-          4.0
-        ],
-        [
-          34.099999999999994,
-          30.099999999999998,
-          106.0
-        ]
-      ],
-      "native_volume_mm3": 3867.5515679989635,
-      "stl_sha256": "227cc5173b1dfcf216258217d47bb0eed76df7a4b9090d6887d0a3c53312906b",
-      "bytes": 203284,
-      "verification": {
-        "triangles": 4064,
-        "watertight": true,
-        "consistent_winding": true,
-        "positive_volume": true,
-        "mesh_bounds_mm": [
-          [
-            -34.099998474121094,
-            20.100000381469727,
-            4.0
-          ],
-          [
-            34.099998474121094,
-            30.100000381469727,
-            106.0
-          ]
-        ],
-        "dimensions_mm": [
-          68.19999694824219,
-          10.0,
-          102.0
-        ],
-        "max_bounds_difference_mm": 1.5258789005656581e-06,
-        "mesh_volume_mm3": 3864.502554993782,
-        "relative_volume_difference": 0.0007883574275802636
-      }
     }
   ],
   "native_bounds_method": "Inventor SurfaceBody.PreciseRangeBox",
-  "verification": "All files validated; both panel STL orientations were corrected by a rigid rotation and translation without remeshing or changing CAD."
+  "verification": "Ten STL files validated. All original body meshes are closed and consistently wound. The case file contains two touching body meshes, not a Boolean union."
 }

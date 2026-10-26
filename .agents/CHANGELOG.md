@@ -6,6 +6,9 @@ remains authoritative for exact file changes.
 
 ## 2026-10-26
 
+- Kept grips inside the multibody case STL for the owner's fuzzy-skin workflow,
+  removed the separate grip print and refreshed the complete print ZIP.
+
 - Corrected both panel STL orientations to lie outside-face down at Z = 0,
   ears up. Updated the validated print ZIP without changing CAD or mesh detail.
 
