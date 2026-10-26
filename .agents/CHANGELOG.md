@@ -6,6 +6,10 @@ remains authoritative for exact file changes.
 
 ## 2026-10-27
 
+- Corrected the downloaded OLED to the proven mount's 21 x 23 mm hole pattern
+  and centred its PCB on the unchanged mount. Aligned four screws and the cover
+  window/pockets, retaining snug-fit features; refreshed the face-down print ZIP.
+
 - Centred the owner's snug OLED sleeve grips and enlarged all four side knobs
   another 0.5 mm inward per side. Added matching 1 mm internal top/bottom stops
   to take up vertical play. Both grip openings are 28.6 mm. Refreshed the validated

@@ -605,10 +605,10 @@
     {
       "file": "sensor-box-oled-sleeve.stl",
       "source": "ElectronicsBox/modular-sensor-box/sensor-box-oled-sleeve-trial.ipt",
-      "source_sha256": "ad224123eace1fa0b1f9d56b84e560f2d02a054b750526b4b47401e5ce232bfb",
+      "source_sha256": "40df0a8c03c8bec537410114f8dfb9496cc730e4dadb434b37e723060bac9329",
       "body": null,
       "quantity_per_box": 1,
-      "status": "owner-fit revision: 28.6 mm horizontal grip opening, 28.6 mm vertical opening; physical retest pending",
+      "status": "window and screw pockets matched to mount-corrected OLED; snug-fit knobs/stops retained; physical retest pending",
       "native_bounds_mm": [
         [
           -15.800000000000008,
@@ -622,7 +622,7 @@
         ]
       ],
       "native_volume_mm3": 1878.7021721788706,
-      "stl_sha256": "170258a44901dbf159f7335267dc7f8b91535ef5ecdbc04ce57962c7f772373e",
+      "stl_sha256": "76d19866028a65e7298ed712a076ac25af69677fb93b408de6a9432ac2d49f0a",
       "bytes": 278284,
       "orientation": "Display outer face down at Z=0; hollow holder cavity and grips upward.",
       "native_to_print_transform_mm": [
@@ -674,9 +674,9 @@
           15.541579246520998
         ],
         "max_bounds_difference_mm": 6.229137134994289e-07,
-        "mesh_volume_mm3": 1878.6245361139052,
-        "relative_volume_difference": 4.13243068087677e-05,
-        "flat_bed_contact_area_mm2": 674.4807889755125
+        "mesh_volume_mm3": 1878.6245319986745,
+        "relative_volume_difference": 4.132649727341709e-05,
+        "flat_bed_contact_area_mm2": 674.4807784268396
       }
     }
   ],

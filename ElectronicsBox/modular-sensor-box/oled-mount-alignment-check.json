@@ -1,0 +1,148 @@
+{
+  "datum": "Unchanged printed oled-screen-mount, Sketch3 holes and sloping seating face",
+  "mount_hole_pitch_mm": [
+    21,
+    23
+  ],
+  "downloaded_old_hole_pitch_mm": [
+    23.1,
+    23.56
+  ],
+  "oled_pcb_outline_mm": [
+    26.7,
+    27.86
+  ],
+  "pcb_bottom_centre_in_mount_mm": [
+    2.220446049250313e-15,
+    0.0,
+    10.540446486006978
+  ],
+  "max_hole_axis_position_error_mm": 1.8841109504205298e-14,
+  "oled_world_translation_mm": [
+    0.06577848345503456,
+    0.023941410032781718,
+    -1.0499999999999936
+  ],
+  "mount_source_unchanged": true,
+  "source_oled": "ElectronicsBox/esp32-ambient-logger/STEPs/OLED-128x64-0.96.ipt",
+  "source_corrected_features": [
+    [
+      "Body1",
+      11778
+    ],
+    [
+      "Body2",
+      11778
+    ],
+    [
+      "Body3",
+      11778
+    ],
+    [
+      "Body4",
+      11778
+    ],
+    [
+      "Body5",
+      11778
+    ],
+    [
+      "Body6",
+      11778
+    ],
+    [
+      "Body7",
+      11778
+    ],
+    [
+      "Body8",
+      11778
+    ],
+    [
+      "Left lower hole matched to printed mount",
+      11778
+    ],
+    [
+      "Left upper hole matched to printed mount",
+      11778
+    ],
+    [
+      "Left upper copper pad matched to hole",
+      11778
+    ],
+    [
+      "Right lower hole matched to printed mount",
+      11778
+    ],
+    [
+      "Right upper hole matched to printed mount",
+      11778
+    ],
+    [
+      "Right upper copper pad matched to hole",
+      11778
+    ]
+  ],
+  "source_oled_body_count": 8,
+  "assembly_screws_repositioned": 4,
+  "owner_cover_mates_preserved": [
+    [
+      "Mate:1",
+      11778
+    ],
+    [
+      "Mate:2",
+      11778
+    ],
+    [
+      "Mate:3",
+      11778
+    ]
+  ],
+  "cover_update": {
+    "window_and_terminal_shift_mm": -0.4032108077345353,
+    "window_centre_y_mm": 1.5267891922654648,
+    "pockets_match_corrected_screws": true,
+    "preserved_dimensions_mm": {
+      "outer_width": 31.6,
+      "outer_depth": 32.2,
+      "side_grip_span": 28.6,
+      "vertical_grip_span": 28.599999999999998,
+      "cover_top": 2.765,
+      "window_width": 22.4,
+      "window_height": 12.000000000000002
+    },
+    "healthy_features": 21,
+    "owner_mates_preserved": true
+  },
+  "cover_contacts": [],
+  "native_cover_and_oled_features_healthy": true,
+  "preserved_mount_sha256": "0e0f96d9e60bca410820181a2ce3bd6b8ea4b3f2bcd90b0e0d100c02caeb90ef",
+  "seated_pcb_screw_contacts_note": "Small PCB/copper seating contacts, 0.0138\u20130.0286 mm3, remain with M2 screws; bores and axes align exactly.",
+  "active_screen_to_window_centre_error_mm": [
+    -3.108624468950438e-14,
+    -1.509903313490213e-14
+  ],
+  "corrected_native_hole_centres_mm": [
+    [
+      -44.830390627575994,
+      -15.8739870340356
+    ],
+    [
+      -23.830390627576,
+      -15.8739870340356
+    ],
+    [
+      -23.830390627576,
+      7.12601296596436
+    ],
+    [
+      -44.830390627575994,
+      7.12601296596436
+    ]
+  ],
+  "native_hole_pitch_verified_mm": [
+    21.0,
+    23.0
+  ]
+}

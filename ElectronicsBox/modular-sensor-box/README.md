@@ -178,9 +178,9 @@ centred side opening. Stops span 22 mm across and use the existing pad station
 and height. All existing owner features, hole pockets and screen opening remain.
 
 All 21 current features are healthy. Native sketch coordinates verify mirrored
-side grips and top/bottom stops. The current mate-controlled assembly has source-holder and M2 contacts.
-Owner mates were preserved; the fixture does not establish physical clearance.
-The next print remains the decisive fit check. Earlier CAD and photo assumptions are
+side grips and top/bottom stops. The corrected OLED and current cover have no cover contacts in the native
+assembly check. Owner cover mates were preserved. The next print remains the
+decisive friction-fit check. Earlier CAD and photo assumptions are
 historical evidence in `oled-sleeve-trial-check.json`.
 
 The high-resolution `sensor-box-oled-sleeve.stl` and complete ZIP in the linked
@@ -190,6 +190,32 @@ is retained as a separate part for historical comparison; it is not printed.
 ![Current sleeve, exterior](oled-sleeve-trial-oblique.png)
 
 ![Symmetric internal grips and vertical play stops](oled-sleeve-trial-inside.png)
+
+## OLED reference model corrected to the proven mount
+
+The printed `oled-screen-mount` and its holes are authoritative (owner,
+2026-10-27). Its native hole pattern measures 21 x 23 mm; the downloaded OLED
+had 23.1 x 23.56 mm pitch with a vertically biased pattern. The earlier image
+measurements used that downloaded pitch and are superseded by the mount.
+
+The shared imported OLED part now has four native hole corrections and two
+matching upper copper-pad corrections. Its PCB outline, active screen,
+connector and all eight bodies remain. The PCB is centred on the sloping mount
+seat, with its underside on that plane. All four bore axes match the mount
+within numerical precision. The four M2 screws follow those corrected axes.
+
+The cover's aperture and terminal pocket moved 0.40321 mm down to follow the
+correctly seated module; the hidden screw pockets now match 21 x 23 mm. Its
+exterior, 22.4 x 12 mm aperture size, chamfer, side knobs and vertical stops
+remain. The actual active-screen face is centred in the aperture. Native cover
+contacts are zero; tiny screw-to-PCB/copper seating overlaps remain. All 14 OLED
+features, 21 cover features and owner cover mates are healthy. Detailed evidence
+is in `oled-mount-alignment-check.json`. The face-down print STL and ZIP are
+refreshed; physical friction fit remains a print test.
+
+![OLED centred on the unchanged mount](oled-aligned-front.png)
+
+![Corrected OLED and mount, oblique](oled-aligned-oblique.png)
 
 ## Servicing
 

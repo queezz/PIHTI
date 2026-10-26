@@ -601,5 +601,6 @@
       "verification": "oled-sleeve-trial-check.json",
       "print_export": "3D-printing/modular-sensor-box/sensor-box-oled-sleeve.stl"
     }
-  ]
+  ],
+  "oled_mount_alignment": "oled-mount-alignment-check.json"
 }

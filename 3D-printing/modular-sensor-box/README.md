@@ -66,3 +66,7 @@ The panel meshes were subsequently rotated and translated for face-down
 printing, without remeshing or changing their geometry. The OLED sleeve was
 exported from a rigidly transformed temporary solid with its front face down. Their exact rigid
 transforms are recorded in the manifest. Native CAD models remain unchanged.
+
+The sleeve window and concealed screw pockets were aligned to the corrected OLED
+on 2026-10-27. The unchanged printed mount supplies the authoritative 21 x 23 mm
+hole pattern. Its outer size and snug-fit knobs/stops are retained.

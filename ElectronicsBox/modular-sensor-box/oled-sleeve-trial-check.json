@@ -10,28 +10,7 @@
   "outer_face_above_glass_mm": 1.4999999999999998,
   "friction_on": "printed holder sidewalls, not PCB",
   "fit_interference_mm": 0.05000000000000001,
-  "contacts": [
-    {
-      "one": "OLED sleeve trial",
-      "two": "SS ISO 4762 M2 x 4:4",
-      "volume_mm3": 0.3142860321710192
-    },
-    {
-      "one": "OLED sleeve trial",
-      "two": "SS ISO 4762 M2 x 4:3",
-      "volume_mm3": 0.3142860321711723
-    },
-    {
-      "one": "OLED sleeve trial",
-      "two": "SS ISO 4762 M2 x 4:1",
-      "volume_mm3": 0.720358383651067
-    },
-    {
-      "one": "OLED sleeve trial",
-      "two": "oled-screen-mount:1",
-      "volume_mm3": 65.62737143516868
-    }
-  ],
+  "contacts": [],
   "key_parameters": {
     "holder_clearance": "0,3 mm",
     "wall_thickness": "0,8 mm",
@@ -264,5 +243,6 @@
     "additional_horizontal_squish_total_mm": 1,
     "additional_projection_per_side_mm": 0.5
   },
-  "fixture_note": "Owner now locates the cover with three healthy mates; they were preserved. Current fixture has source-holder and M2 contacts; this is not a verified physical-fit model. A temporary placement trial was restored."
+  "fixture_note": "Superseded: corrected shared OLED to the authoritative 21 x 23 mm mount pattern, centred PCB on mount, aligned four screws and cover pockets. See oled-mount-alignment-check.json; current cover contacts are zero.",
+  "oled_mount_alignment": "oled-mount-alignment-check.json"
 }
