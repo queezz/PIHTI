@@ -92,6 +92,7 @@ and clearance cuts update through the parameter.
 | `sensor-box-upper-mount-spacer.ipt` | Upper rod spacer and panel receiver; four instances |
 | `sensor-box-lower-mount-spacer.ipt` | Lower rod spacer and panel receiver; four instances |
 | `SensorBox-panel-fit.iam` | Mechanical inspection fixture using shared existing parts |
+| `sensor-box-oled-cover-trial.ipt` | Optional low-lip friction-fit cover trial; excluded from the print bundle |
 
 The fit fixture references unchanged enclosure and frame parts from
 `../esp32-ambient-logger/`; it does not copy them into this folder. The existing
@@ -110,6 +111,50 @@ height, face thickness and screw clearance have named parameters. Mount
 spacer length, rod clearance and screw pilot diameter also have named parameters.
 The return profiles and offsets remain separately editable; changing the
 box envelope requires reviewing those sketches and the fit assembly too.
+
+## OLED cover design trial
+
+Queezz requested a friction-fit display cover that hides the terminals and
+bolts without burying the screen (owner, 2026-10-26). The optional
+`OLED cover trial` occurrence is visible in the fit assembly; hide it to view
+the previous uncovered assembly. Existing parts and the finished STL bundle
+are unchanged.
+
+- A 22.4 x 12 mm viewing opening exposes the modeled 21.56 x 11.22 mm screen.
+  The bevelled inner lip stands 0.7 mm above the glass. The surrounding face
+  rises 1.5 mm above the glass to conceal the screw heads.
+- There is 0.3 mm nominal glass clearance. Four hidden screw pockets and a
+  terminal pocket leave a 0.8 mm roof over the hardware. The cover does not
+  press on the glass or modify the original OLED mounting fit.
+- The skirt slips over the PCB perimeter. Four local pads grip its side edges
+  below the glass, with gentle 0.15 mm lead-ins and 0.05 mm nominal interference.
+  Clearance elsewhere is 0.4 mm. Press on and pull off normal to the OLED face.
+- Native checks show only the four intended pad contacts (0.315 mm3 total),
+  all below the PCB front face. Setting pad interference to zero eliminates
+  every cover contact; glass, bolts, terminals and mount remain clear.
+- This is a design trial, not a physically validated friction fit. Tune the
+  pad interference after a test print with the actual module.
+
+Key parameters genuinely drive the native features:
+
+| Parameter | Initial value | Controls |
+| --- | ---: | --- |
+| `screen_lip_height` | 0.7 mm | Actual aperture lip above glass, through the bevel |
+| `fit_interference` | 0.05 mm | Four PCB-edge friction pads |
+| `side_clearance` | 0.4 mm | Skirt clearance away from the pads |
+| `wall_thickness` | 0.8 mm | Outside skirt wall |
+| `roof_thickness` | 0.8 mm | Material over bolt and terminal pockets |
+| `glass_gap` | 0.3 mm | Clearance above the screen |
+| `window_width`, `window_height` | 22.4 x 12 mm | Viewing aperture |
+
+`screen_lip_height` was tested at 0.6 mm and restored to 0.7 mm. Fit details
+and native feature health are recorded in `oled-cover-trial-check.json`.
+
+![Cover trial, oblique](oled-cover-trial-oblique.png)
+
+![Cover trial from the front](oled-cover-trial-front.png)
+
+![Underside friction pads and hardware clearances](oled-cover-trial-underside.png)
 
 ## Servicing
 

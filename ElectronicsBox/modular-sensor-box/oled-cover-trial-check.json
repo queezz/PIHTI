@@ -1,0 +1,155 @@
+{
+  "status": "design trial; friction fit not print-tested",
+  "source_module": "ElectronicsBox/esp32-ambient-logger/STEPs/OLED-128x64-0.96.ipt",
+  "pcb_center_in_module_mm": [
+    -34.330390627576,
+    -4.373987034035625,
+    0
+  ],
+  "view_window_mm": [
+    22.4,
+    12.000000000000002
+  ],
+  "measured_active_area_mm": [
+    21.560000000000002,
+    11.22
+  ],
+  "screen_lip_above_glass_mm": 0.6999999999999997,
+  "outer_face_above_glass_mm": 1.5,
+  "glass_clearance_mm": 0.3,
+  "side_clearance_mm": 0.4,
+  "local_friction_interference_mm": 0.05000000000000001,
+  "contacts": [
+    {
+      "one": "OLED cover trial",
+      "two": "OLED-128x64-0.96:1",
+      "volume_mm3": 0.31500000000007355
+    }
+  ],
+  "existing_cad_hashes_preserved": true,
+  "feature_health": [
+    [
+      "Cover envelope",
+      11778
+    ],
+    [
+      "Rounded outside corners",
+      11778
+    ],
+    [
+      "Underside cavity",
+      11778
+    ],
+    [
+      "Constant-wall inner corners",
+      11778
+    ],
+    [
+      "OLED viewing opening",
+      11778
+    ],
+    [
+      "Window corner radius",
+      11778
+    ],
+    [
+      "Low viewing lip bevel",
+      11778
+    ],
+    [
+      "Hidden screw head pockets",
+      11778
+    ],
+    [
+      "Hidden terminal clearance",
+      11778
+    ],
+    [
+      "PCB edge friction pad -1 -4",
+      11778
+    ],
+    [
+      "PCB edge friction pad -1 4",
+      11778
+    ],
+    [
+      "PCB edge friction pad 1 -4",
+      11778
+    ],
+    [
+      "PCB edge friction pad 1 4",
+      11778
+    ],
+    [
+      "Gentle lead ins on PCB friction pads",
+      11778
+    ]
+  ],
+  "pad_lead_in_mm": 0.15,
+  "zero_interference_parameter_trial_contacts": 0,
+  "contact_regions_in_cover_coordinates_mm": [
+    [
+      [
+        -13.350000000000012,
+        2.5000000000000155,
+        -0.9999999999999964
+      ],
+      [
+        -13.299999999999999,
+        5.500000000000025,
+        -0.4499999999999646
+      ]
+    ],
+    [
+      [
+        13.3,
+        -5.499999999999988,
+        -0.9999999999999792
+      ],
+      [
+        13.350000000000005,
+        -2.49999999999998,
+        -0.44999999999996654
+      ]
+    ],
+    [
+      [
+        13.3,
+        2.5000000000000155,
+        -0.9999999999999825
+      ],
+      [
+        13.350000000000005,
+        5.50000000000002,
+        -0.44999999999996765
+      ]
+    ],
+    [
+      [
+        -13.350000000000012,
+        -5.499999999999985,
+        -0.9999999999999888
+      ],
+      [
+        -13.299999999999997,
+        -2.49999999999998,
+        -0.44999999999996376
+      ]
+    ]
+  ],
+  "contacts_only_four_pcb_pads": true,
+  "screen_lip_height_drives_geometry": true,
+  "screen_lip_height_trial_mm": 0.6,
+  "window_bevel_expression": "cover_top - screen_height - screen_lip_height",
+  "key_parameters": {
+    "side_clearance": "0,4 mm",
+    "wall_thickness": "0,8 mm",
+    "glass_gap": "0,3 mm",
+    "bolt_clearance": "0,2 mm",
+    "roof_thickness": "0,8 mm",
+    "window_width": "22,4 mm",
+    "window_height": "12 mm",
+    "screen_lip_height": "0,7 mm",
+    "fit_interference": "0,05 mm"
+  }
+}

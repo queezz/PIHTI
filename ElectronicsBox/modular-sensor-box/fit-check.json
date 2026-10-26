@@ -584,5 +584,13 @@
       }
     }
   },
-  "final_print_finishing_note": "Owner final finishing and frame edits resolved the earlier ear-root contacts. Final seated check has only the preserved snug OLED contact; sleeve and panel/card travel are clear."
+  "final_print_finishing_note": "Owner final finishing and frame edits resolved the earlier ear-root contacts. Final seated check has only the preserved snug OLED contact; sleeve and panel/card travel are clear.",
+  "optional_design_trials": [
+    {
+      "occurrence": "OLED cover trial",
+      "part": "sensor-box-oled-cover-trial.ipt",
+      "status": "unprinted design trial; excluded from final print bundle",
+      "verification": "oled-cover-trial-check.json"
+    }
+  ]
 }
