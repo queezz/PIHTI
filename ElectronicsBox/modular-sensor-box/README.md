@@ -157,52 +157,39 @@ and native feature health are recorded in `oled-cover-trial-check.json`.
 
 ![Underside friction pads and hardware clearances](oled-cover-trial-underside.png)
 
-## Holder-aligned OLED sleeve trial
+## Holder-aligned OLED sleeve
 
-Queezz requested one continuous housing covering the whole holder and clarified
-that its angle must follow `oled-screen-mount`, rather than simply extending
-the first cap (owner, 2026-10-26). `OLED sleeve trial` is the active optional
-occurrence in the fit fixture. The first cap remains hidden for comparison.
+The sleeve covers the original holder and conceals the hardware. Its walls follow
+the holder axis and the front matches the OLED tilt. The 22.4 x 12 mm viewing
+opening and 0.7 mm low lip remain unchanged. The outer front edge is a 0.6 mm
+chamfer driven by `front_edge_chamfer`.
 
-- Sidewalls follow the printed holder axis; the rear edge is parallel to the
-  front panel, with a 0.15 mm gap. The front retains the measured OLED 20 degree
-  tilt. This forms a complete hollow wedge covering the original holder.
-- The rounded 34.2 x 32.1 mm footprint is centred laterally on the proven
-  screw-hole pattern, with equal 5.9 mm side borders around the viewing opening.
-  The CAD holder is offset 1.05 mm from that pattern and differs from the
-  photographed printed holder. Photo scaling against the 23.1 mm screw pitch
-  estimates 31.8–32.0 mm holder width (about ±0.5 mm uncertainty). The editable
-  `printed_holder_width` uses 32 mm, with 0.3 mm clearance per side. Walls remain
-  0.8 mm. No hole positions changed. Four pads grip the printed holder,
-  rather than the PCB, with 0.05 mm nominal interference and 0.15 mm lead-ins.
-  Installation is along the holder axis, normal to the front panel.
-- The 22.4 x 12 mm opening and low 0.7 mm bevelled lip remain. The surrounding
-  face stands 1.5 mm above the glass; hidden screw and terminal pockets retain
-  clearance. The original OLED, holder and panel fit are unchanged. A face-down
-  sleeve STL is now included in the print bundle.
-- Key parameters include `holder_clearance`, `wall_thickness`, `panel_gap`,
-  `fit_interference`, `glass_gap`, `roof_thickness`, `screen_lip_height`,
-  `window_width`, `window_height`, `front_edge_chamfer`, `holder_oled_offset` and
-  `sleeve_center_x` and `printed_holder_width`. These explicitly control
-  lateral centring and the estimated actual holder width.
+The owner physically tuned the width and reported about 2 mm vertical play
+(2026-10-27). That feedback supersedes the earlier photo-derived 32 mm estimate.
+The owner's 30 mm cavity and 31.6 mm external width are retained. The side grips first centred the owner's 29.6 mm opening, correcting a
+0.15 mm lateral bias. At the owner's further request, each knob now projects
+0.5 mm more inward, giving a 28.6 mm horizontal opening with faces at X=±14.3 mm.
 
-Queezz added five printability chamfer/fillet features and confirmed that the
-physical mount is symmetric and the existing hole positions are correct
-(owner photo, 2026-10-26). All 21 native features remain healthy after centring, making the grips symmetric
-and replacing `Soft continuous front edge` with a 0.6 mm chamfer,
-including all six owner finishing features (the latest is `Chamfer6`). Hardware pockets and the screen opening
-were kept in place. The four pads now mirror about the bolt pattern, with inner tips at
-X=±15.95 mm and nominal 0.05 mm grip on the estimated printed holder. Native
-seated clearance checks find no screen or hardware collisions. Source-holder
-contact (0.6845 mm3) reflects its mismatched envelope and cannot validate the
-physical fit. Earlier installation checks predate this grip correction. Earlier zero-interference and lip parameter trials predate the owner
-finishing; a zero-pad perturbation no longer regenerates that finishing. The
-final 0.05 mm pad interference and 0.7 mm lip are restored and healthy.
-Details are in `oled-sleeve-trial-check.json`. Physical sleeve fit testing is pending.
+Two matching internal stops project 1 mm inward from the top and bottom walls.
+They reduce the vertical opening from 30.6 to 28.6 mm while retaining the finished
+outer shape. Key `vertical_fit_reduction` controls the total 2 mm take-up;
+`vertical_grip_span` reports the resulting opening. `side_grip_span` drives the
+centred side opening. Stops span 22 mm across and use the existing pad station
+and height. All existing owner features, hole pockets and screen opening remain.
 
-![Holder sleeve, oblique](oled-sleeve-trial-oblique.png)
+All 21 current features are healthy. Native sketch coordinates verify mirrored
+side grips and top/bottom stops. The current mate-controlled assembly has source-holder and M2 contacts.
+Owner mates were preserved; the fixture does not establish physical clearance.
+The next print remains the decisive fit check. Earlier CAD and photo assumptions are
+historical evidence in `oled-sleeve-trial-check.json`.
 
-![Holder sleeve showing wedge angle](oled-sleeve-trial-side.png)
+The high-resolution `sensor-box-oled-sleeve.stl` and complete ZIP in the linked
+print bundle are refreshed, display face down at Z=0. The hidden first cap trial
+is retained as a separate part for historical comparison; it is not printed.
+
+![Current sleeve, exterior](oled-sleeve-trial-oblique.png)
+
+![Symmetric internal grips and vertical play stops](oled-sleeve-trial-inside.png)
 
 ## Servicing
 
@@ -253,7 +240,3 @@ checks and source hashes are in the linked print export manifest.
 ![USB and SD rear access](rear-access.png)
 
 ![Owner-finished spacer with direct screw pilot](plain-spacer.png)
-
-The sleeve print export is `sensor-box-oled-sleeve.stl` in the linked print
-bundle, with the display face down at Z=0. `front_edge_chamfer` is the key
-parameter controlling the 0.6 mm outer front chamfer.

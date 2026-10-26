@@ -38,8 +38,9 @@ remains a separate STL; do not print a separate grip file.
   are 11 mm (front) and 19 mm (back).
 - The OLED sleeve STL lies display-face down at Z = 0, cavity and grips up.
   Its outer front edge is a 0.6 mm chamfer; print size is approximately
-  34.2 x 35.71 x 15.54 mm in this orientation. Holder fit is photo-derived
-  and still needs a test print.
+  31.6 x 35.71 x 15.54 mm in this orientation. The owner's width adjustment is retained with symmetric enlarged side knobs and
+  two 1 mm internal stops taking up vertical play. This revised fit needs
+  a test print.
 - Other parts retain native CAD orientation and placement. Orient those parts
   and place them on the build plate in the slicer; the retainer in particular
   retains its original offset coordinates.

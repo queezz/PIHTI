@@ -605,44 +605,44 @@
     {
       "file": "sensor-box-oled-sleeve.stl",
       "source": "ElectronicsBox/modular-sensor-box/sensor-box-oled-sleeve-trial.ipt",
-      "source_sha256": "01facb805f35e94b4dce2364c9d517a64643808bb3574982b2bd50d9bf0efd0b",
+      "source_sha256": "ad224123eace1fa0b1f9d56b84e560f2d02a054b750526b4b47401e5ce232bfb",
       "body": null,
       "quantity_per_box": 1,
-      "status": "photo-derived friction-fit trial; physical fit pending",
+      "status": "owner-fit revision: 28.6 mm horizontal grip opening, 28.6 mm vertical opening; physical retest pending",
       "native_bounds_mm": [
         [
-          -17.10000000000001,
-          -17.24471261771224,
-          -4.440892098500626e-15
+          -15.800000000000008,
+          -17.24471261771223,
+          2.220446049250313e-15
         ],
         [
-          17.1,
-          18.4648500949596,
-          15.541579713971283
+          15.799999999999994,
+          18.464850094959612,
+          15.54157971397129
         ]
       ],
-      "native_volume_mm3": 1928.4621158820246,
-      "stl_sha256": "0ae84df3e0aee6d9506404bb595f820ce42c15471b9ea17c14a2f983f971991c",
-      "bytes": 266384,
+      "native_volume_mm3": 1878.7021721788706,
+      "stl_sha256": "170258a44901dbf159f7335267dc7f8b91535ef5ecdbc04ce57962c7f772373e",
+      "bytes": 278284,
       "orientation": "Display outer face down at Z=0; hollow holder cavity and grips upward.",
       "native_to_print_transform_mm": [
         [
           1.0,
-          2.0203554282224935e-16,
-          -1.2741334176585347e-16,
+          2.0202061229862513e-16,
+          -1.274543630423695e-16,
           1.0499999999999945
         ],
         [
-          2.334292381389021e-16,
-          -0.9396926207859086,
-          0.34202014332566893,
-          -3.5350450178606345
+          2.3342923813890197e-16,
+          -0.9396926207859081,
+          0.34202014332566866,
+          -3.5350450178606314
         ],
         [
-          -5.0672805664767686e-17,
-          -0.34202014332566866,
-          -0.9396926207859081,
-          13.934779782689537
+          -5.067280566476772e-17,
+          -0.3420201433256687,
+          -0.9396926207859083,
+          13.934779782689542
         ],
         [
           0.0,
@@ -652,34 +652,35 @@
         ]
       ],
       "verification": {
-        "triangles": 5326,
+        "triangles": 5564,
         "watertight": true,
         "consistent_winding": true,
         "positive_volume": true,
         "mesh_bounds_mm": [
           [
-            -17.100000381469727,
+            -15.800000190734863,
             -17.244712829589844,
-            -9.492427189335823e-15
+            -2.1691554514369866e-15
           ],
           [
-            17.100000381469727,
+            15.800000190734863,
             18.4648494720459,
             15.541579246520996
           ]
         ],
         "dimensions_mm": [
-          34.20000076293945,
+          31.600000381469727,
           35.70956230163574,
-          15.541579246521005
+          15.541579246520998
         ],
-        "max_bounds_difference_mm": 6.229137028412879e-07,
-        "mesh_volume_mm3": 1928.4138608521298,
-        "relative_volume_difference": 2.5022544906317444e-05,
-        "flat_bed_contact_area_mm2": 760.4537639592704
+        "max_bounds_difference_mm": 6.229137134994289e-07,
+        "mesh_volume_mm3": 1878.6245361139052,
+        "relative_volume_difference": 4.13243068087677e-05,
+        "flat_bed_contact_area_mm2": 674.4807889755125
       }
     }
   ],
   "native_bounds_method": "Inventor SurfaceBody.PreciseRangeBox",
-  "verification": "Eleven STL files validated. Existing ten mesh hashes unchanged. OLED sleeve is closed, consistently wound, positive volume and face-down; friction fit awaits physical test. Case retains two touching original body meshes."
+  "verification": "Eleven STL files validated. Existing ten mesh hashes unchanged. OLED sleeve is closed, consistently wound, positive volume and face-down; friction fit awaits physical test. Case retains two touching original body meshes.",
+  "last_updated": "2026-10-27"
 }

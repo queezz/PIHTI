@@ -4,6 +4,13 @@ Shipped archive milestones only. PIHTI does not yet have a formal release/versio
 contract, so entries are dated rather than assigned software versions. Git history
 remains authoritative for exact file changes.
 
+## 2026-10-27
+
+- Centred the owner's snug OLED sleeve grips and enlarged all four side knobs
+  another 0.5 mm inward per side. Added matching 1 mm internal top/bottom stops
+  to take up vertical play. Both grip openings are 28.6 mm. Refreshed the validated
+  face-down sleeve STL and complete print ZIP, retaining other bundle meshes.
+
 ## 2026-10-26
 
 - Replaced the OLED sleeve outer-front fillet with a 0.6 mm chamfer and

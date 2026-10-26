@@ -597,7 +597,7 @@
       "occurrence": "OLED sleeve trial",
       "part": "sensor-box-oled-sleeve-trial.ipt",
       "visible": true,
-      "status": "photo-derived friction-fit trial; face-down STL included in print bundle",
+      "status": "owner-fit revision: symmetric larger knobs, 2 mm vertical take-up, face-down STL refreshed",
       "verification": "oled-sleeve-trial-check.json",
       "print_export": "3D-printing/modular-sensor-box/sensor-box-oled-sleeve.stl"
     }

@@ -13,8 +13,23 @@
   "contacts": [
     {
       "one": "OLED sleeve trial",
+      "two": "SS ISO 4762 M2 x 4:4",
+      "volume_mm3": 0.3142860321710192
+    },
+    {
+      "one": "OLED sleeve trial",
+      "two": "SS ISO 4762 M2 x 4:3",
+      "volume_mm3": 0.3142860321711723
+    },
+    {
+      "one": "OLED sleeve trial",
+      "two": "SS ISO 4762 M2 x 4:1",
+      "volume_mm3": 0.720358383651067
+    },
+    {
+      "one": "OLED sleeve trial",
       "two": "oled-screen-mount:1",
-      "volume_mm3": 0.6845464819570427
+      "volume_mm3": 65.62737143516868
     }
   ],
   "key_parameters": {
@@ -31,7 +46,12 @@
     "fit_interference": "0,05 mm",
     "holder_oled_offset": "1,05 mm",
     "sleeve_center_x": "-holder_oled_offset",
-    "printed_holder_width": "32 mm"
+    "printed_holder_width": "30 mm",
+    "side_grip_span": "28,6 mm",
+    "vertical_fit_reduction": "2 mm",
+    "vertical_stop_width": "22 mm",
+    "vertical_stop_thickness": "vertical_fit_reduction / 2 ul + pad_overlap",
+    "vertical_grip_span": "cavity_depth - vertical_fit_reduction"
   },
   "feature_health": [
     [
@@ -91,14 +111,6 @@
       11778
     ],
     [
-      "Holder grip lead ins",
-      11778
-    ],
-    [
-      "Chamfer3",
-      11778
-    ],
-    [
       "Fillet5",
       11778
     ],
@@ -116,6 +128,14 @@
     ],
     [
       "Chamfer6",
+      11778
+    ],
+    [
+      "Lower symmetric vertical play stop",
+      11778
+    ],
+    [
+      "Upper symmetric vertical play stop",
       11778
     ]
   ],
@@ -135,7 +155,8 @@
       "Fillet6"
     ],
     "datum": "existing proven M2 screw-hole pattern; owner confirms physical holder symmetric",
-    "holder_pad_contact_positions_preserved": true
+    "holder_pad_contact_positions_preserved": true,
+    "status": "Historical intermediate dimensions; superseded by owner fit revision."
   },
   "parameter_test_note": "Earlier zero-pad and lip perturbation checks predate owner finishing. A zero-pad trial after finishing did not regenerate; restored 0.05 mm fit and all 20 final features are healthy.",
   "photo_measurement": {
@@ -185,7 +206,8 @@
         ]
       }
     ],
-    "cad_holder_mismatch": "Source holder envelope is offset and differs from photographed printed holder. Contact against that envelope does not validate real friction fit."
+    "cad_holder_mismatch": "Source holder envelope is offset and differs from photographed printed holder. Contact against that envelope does not validate real friction fit.",
+    "status": "Historical image estimate; superseded by owner fit revision."
   },
   "travel_check_note": "Earlier travel evidence predates symmetric photo-based grips; it is not a fit proof for the photographed holder.",
   "front_edge": {
@@ -194,5 +216,53 @@
     "distance_mm": 0.6,
     "parameter": "front_edge_chamfer"
   },
-  "print_export": "3D-printing/modular-sensor-box/sensor-box-oled-sleeve.stl"
+  "print_export": "3D-printing/modular-sensor-box/sensor-box-oled-sleeve.stl",
+  "owner_fit_revision_2026_10_27": {
+    "basis": "Owner reduced cavity width to 30 mm and reports about 2 mm vertical play; photo estimate superseded by owner fit.",
+    "preserved_side_grip_span_mm": 29.6,
+    "symmetric_side_pads_mm": [
+      [
+        "Left holder grip -4",
+        -15.049999999999997,
+        -14.3
+      ],
+      [
+        "Left holder grip 4",
+        -15.049999999999997,
+        -14.3
+      ],
+      [
+        "Right holder grip -4",
+        14.300000000000002,
+        15.05
+      ],
+      [
+        "Right holder grip 4",
+        14.300000000000002,
+        15.05
+      ]
+    ],
+    "symmetric_vertical_stops_mm": [
+      [
+        "Lower vertical play stop profile",
+        -15.35,
+        -14.299999999999999
+      ],
+      [
+        "Upper vertical play stop profile",
+        14.299999999999999,
+        15.35
+      ]
+    ],
+    "vertical_take_up_total_mm": 2,
+    "vertical_clear_span_mm": 28.6,
+    "original_cavity_height_mm": 30.6,
+    "outer_shape_retained": true,
+    "original_finish_features_preserved": true,
+    "screen_opening_and_holes_unchanged": true,
+    "final_side_grip_span_mm": 28.6,
+    "additional_horizontal_squish_total_mm": 1,
+    "additional_projection_per_side_mm": 0.5
+  },
+  "fixture_note": "Owner now locates the cover with three healthy mates; they were preserved. Current fixture has source-holder and M2 contacts; this is not a verified physical-fit model. A temporary placement trial was restored."
 }
