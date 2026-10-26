@@ -5,7 +5,7 @@
   "rear_edge_parallel_to_front_panel": true,
   "measured_oled_angle_deg": 20,
   "panel_gap_mm": 0.15,
-  "holder_clearance_mm": 0.25,
+  "holder_clearance_mm": 0.3,
   "screen_lip_above_glass_mm": 0.7,
   "outer_face_above_glass_mm": 1.4999999999999998,
   "friction_on": "printed holder sidewalls, not PCB",
@@ -14,11 +14,11 @@
     {
       "one": "OLED sleeve trial",
       "two": "oled-screen-mount:1",
-      "volume_mm3": 0.5462112883481303
+      "volume_mm3": 0.6845464819570427
     }
   ],
   "key_parameters": {
-    "holder_clearance": "0,25 mm",
+    "holder_clearance": "0,3 mm",
     "wall_thickness": "0,8 mm",
     "panel_gap": "0,15 mm",
     "glass_gap": "0,3 mm",
@@ -30,7 +30,8 @@
     "top_edge_radius": "0,6 mm",
     "fit_interference": "0,05 mm",
     "holder_oled_offset": "1,05 mm",
-    "sleeve_center_x": "-holder_oled_offset"
+    "sleeve_center_x": "-holder_oled_offset",
+    "printed_holder_width": "32 mm"
   },
   "feature_health": [
     [
@@ -115,80 +116,6 @@
     ]
   ],
   "existing_parts_unchanged": true,
-  "installation_travel": [
-    {
-      "offset_mm": 0,
-      "contacts": [
-        {
-          "one": "OLED sleeve trial",
-          "two": "oled-screen-mount:1",
-          "volume_mm3": 0.5462112883481303
-        }
-      ]
-    },
-    {
-      "offset_mm": 0.2,
-      "contacts": [
-        {
-          "one": "OLED sleeve trial",
-          "two": "oled-screen-mount:1",
-          "volume_mm3": 0.5462112883481303
-        }
-      ]
-    },
-    {
-      "offset_mm": 0.5,
-      "contacts": [
-        {
-          "one": "OLED sleeve trial",
-          "two": "oled-screen-mount:1",
-          "volume_mm3": 0.5462112883481302
-        }
-      ]
-    },
-    {
-      "offset_mm": 1,
-      "contacts": [
-        {
-          "one": "OLED sleeve trial",
-          "two": "oled-screen-mount:1",
-          "volume_mm3": 0.5462112883481041
-        }
-      ]
-    },
-    {
-      "offset_mm": 2,
-      "contacts": [
-        {
-          "one": "OLED sleeve trial",
-          "two": "oled-screen-mount:1",
-          "volume_mm3": 0.5330696623232509
-        }
-      ]
-    },
-    {
-      "offset_mm": 5,
-      "contacts": [
-        {
-          "one": "OLED sleeve trial",
-          "two": "oled-screen-mount:1",
-          "volume_mm3": 0.2516296668229443
-        }
-      ]
-    },
-    {
-      "offset_mm": 10,
-      "contacts": []
-    },
-    {
-      "offset_mm": 15,
-      "contacts": []
-    },
-    {
-      "offset_mm": 20,
-      "contacts": []
-    }
-  ],
   "finished_print_manifest_sources_and_meshes_unchanged": true,
   "symmetry_correction": {
     "measured_oled_center_in_holder_x_mm": -1.05,
@@ -206,5 +133,55 @@
     "datum": "existing proven M2 screw-hole pattern; owner confirms physical holder symmetric",
     "holder_pad_contact_positions_preserved": true
   },
-  "parameter_test_note": "Earlier zero-pad and lip perturbation checks predate owner finishing. A zero-pad trial after finishing did not regenerate; restored 0.05 mm fit and all 20 final features are healthy."
+  "parameter_test_note": "Earlier zero-pad and lip perturbation checks predate owner finishing. A zero-pad trial after finishing did not regenerate; restored 0.05 mm fit and all 20 final features are healthy.",
+  "photo_measurement": {
+    "source": "owner photograph 2026-10-26; actual symmetric mount, correct holes",
+    "calibration_screw_pitch_mm": [
+      23.1,
+      23.56
+    ],
+    "method": "Manual bolt centre and edge picks; planar projective rectification. Holder edge lies behind bolt-head plane, so values are estimates.",
+    "estimated_width_samples_mm": [
+      31.81,
+      31.95,
+      31.91
+    ],
+    "estimated_uncertainty_mm": 0.5,
+    "design_printed_holder_width_mm": 32,
+    "clearance_per_side_mm": 0.3,
+    "fit_interference_per_side_mm": 0.05,
+    "hole_positions_unchanged": true,
+    "pads": [
+      {
+        "name": "Left holder grip -4",
+        "x_relative_bolt_centre_mm": [
+          -16.349999999999998,
+          -15.95
+        ]
+      },
+      {
+        "name": "Left holder grip 4",
+        "x_relative_bolt_centre_mm": [
+          -16.349999999999998,
+          -15.95
+        ]
+      },
+      {
+        "name": "Right holder grip -4",
+        "x_relative_bolt_centre_mm": [
+          15.950000000000003,
+          16.35
+        ]
+      },
+      {
+        "name": "Right holder grip 4",
+        "x_relative_bolt_centre_mm": [
+          15.950000000000003,
+          16.35
+        ]
+      }
+    ],
+    "cad_holder_mismatch": "Source holder envelope is offset and differs from photographed printed holder. Contact against that envelope does not validate real friction fit."
+  },
+  "travel_check_note": "Earlier travel evidence predates symmetric photo-based grips; it is not a fit proof for the photographed holder."
 }

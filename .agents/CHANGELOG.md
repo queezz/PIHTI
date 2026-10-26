@@ -6,6 +6,10 @@ remains authoritative for exact file changes.
 
 ## 2026-10-26
 
+- Used the owner photo and correct screw pattern to estimate a symmetric
+  32 mm printed OLED holder. Mirrored the sleeve grips and added an editable
+  printed-holder width with 0.3 mm side clearance; physical fit remains a trial.
+
 - Centred the OLED holder sleeve on the proven screw-hole pattern, correcting
   unequal side borders while preserving all five owner-added finishing features,
   hole locations and the viewing aperture. Finished print exports remain unchanged.

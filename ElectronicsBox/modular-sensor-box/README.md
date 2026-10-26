@@ -169,9 +169,11 @@ occurrence in the fit fixture. The first cap remains hidden for comparison.
   tilt. This forms a complete hollow wedge covering the original holder.
 - The rounded 34.2 x 32.1 mm footprint is centred laterally on the proven
   screw-hole pattern, with equal 5.9 mm side borders around the viewing opening.
-  The CAD holder is offset 1.05 mm from that pattern; the cavity accommodates
-  it without moving any holes. Minimum walls remain 0.8 mm; minimum nominal
-  holder clearance remains 0.25 mm. Four pads grip the printed holder,
+  The CAD holder is offset 1.05 mm from that pattern and differs from the
+  photographed printed holder. Photo scaling against the 23.1 mm screw pitch
+  estimates 31.8–32.0 mm holder width (about ±0.5 mm uncertainty). The editable
+  `printed_holder_width` uses 32 mm, with 0.3 mm clearance per side. Walls remain
+  0.8 mm. No hole positions changed. Four pads grip the printed holder,
   rather than the PCB, with 0.05 mm nominal interference and 0.15 mm lead-ins.
   Installation is along the holder axis, normal to the front panel.
 - The 22.4 x 12 mm opening and low 0.7 mm bevelled lip remain. The surrounding
@@ -181,15 +183,18 @@ occurrence in the fit fixture. The first cap remains hidden for comparison.
 - Key parameters include `holder_clearance`, `wall_thickness`, `panel_gap`,
   `fit_interference`, `glass_gap`, `roof_thickness`, `screen_lip_height`,
   `window_width`, `window_height`, `top_edge_radius`, `holder_oled_offset` and
-  `sleeve_center_x`. The last two explicitly control lateral centring.
+  `sleeve_center_x` and `printed_holder_width`. These explicitly control
+  lateral centring and the estimated actual holder width.
 
 Queezz added five printability chamfer/fillet features and confirmed that the
 physical mount is symmetric and the existing hole positions are correct
-(owner photo, 2026-10-26). All 20 native features remain healthy after centring,
+(owner photo, 2026-10-26). All 20 native features remain healthy after centring and making the grips symmetric,
 including those five finishing features. Hardware pockets and the screen opening
-were kept in place. Contact is limited to the holder pads (0.5462 mm3 total).
-Sliding outward at 0, 0.2, 0.5, 1, 2, 5, 10, 15 and 20 mm finds no other
-collisions. Earlier zero-interference and lip parameter trials predate the owner
+were kept in place. The four pads now mirror about the bolt pattern, with inner tips at
+X=±15.95 mm and nominal 0.05 mm grip on the estimated printed holder. Native
+seated clearance checks find no screen or hardware collisions. Source-holder
+contact (0.6845 mm3) reflects its mismatched envelope and cannot validate the
+physical fit. Earlier installation checks predate this grip correction. Earlier zero-interference and lip parameter trials predate the owner
 finishing; a zero-pad perturbation no longer regenerates that finishing. The
 final 0.05 mm pad interference and 0.7 mm lip are restored and healthy.
 Details are in `oled-sleeve-trial-check.json`. Physical sleeve fit testing is pending.
