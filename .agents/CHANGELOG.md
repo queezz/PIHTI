@@ -6,6 +6,11 @@ remains authoritative for exact file changes.
 
 ## 2026-10-26
 
+- Added a full OLED holder sleeve trial with holder-aligned sidewalls, a
+  panel-parallel rear edge and the original tilted display face. Friction
+  pads engage the printed holder; the low viewing lip and existing fits remain.
+  Native travel checks clear; physical fit testing is pending.
+
 - Added an optional low-lip OLED cover trial: concealed hardware, PCB-edge
   friction pads and a 0.7 mm bevelled viewing lip. Existing parts and the
   finished print bundle remain unchanged; physical fit testing is pending.

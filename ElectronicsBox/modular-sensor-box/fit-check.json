@@ -590,7 +590,15 @@
       "occurrence": "OLED cover trial",
       "part": "sensor-box-oled-cover-trial.ipt",
       "status": "unprinted design trial; excluded from final print bundle",
-      "verification": "oled-cover-trial-check.json"
+      "verification": "oled-cover-trial-check.json",
+      "visible": false
+    },
+    {
+      "occurrence": "OLED sleeve trial",
+      "part": "sensor-box-oled-sleeve-trial.ipt",
+      "visible": true,
+      "status": "unprinted holder-aligned sleeve trial; excluded from final print bundle",
+      "verification": "oled-sleeve-trial-check.json"
     }
   ]
 }

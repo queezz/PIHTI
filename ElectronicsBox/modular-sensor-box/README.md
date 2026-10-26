@@ -92,6 +92,7 @@ and clearance cuts update through the parameter.
 | `sensor-box-upper-mount-spacer.ipt` | Upper rod spacer and panel receiver; four instances |
 | `sensor-box-lower-mount-spacer.ipt` | Lower rod spacer and panel receiver; four instances |
 | `SensorBox-panel-fit.iam` | Mechanical inspection fixture using shared existing parts |
+| `sensor-box-oled-sleeve-trial.ipt` | Active holder-aligned full sleeve trial; excluded from the print bundle |
 | `sensor-box-oled-cover-trial.ipt` | Optional low-lip friction-fit cover trial; excluded from the print bundle |
 
 The fit fixture references unchanged enclosure and frame parts from
@@ -116,8 +117,8 @@ box envelope requires reviewing those sketches and the fit assembly too.
 
 Queezz requested a friction-fit display cover that hides the terminals and
 bolts without burying the screen (owner, 2026-10-26). The optional
-`OLED cover trial` occurrence is visible in the fit assembly; hide it to view
-the previous uncovered assembly. Existing parts and the finished STL bundle
+`OLED cover trial` occurrence is retained but hidden in the fit assembly.
+The newer holder sleeve described below is visible. Existing parts and the finished STL bundle
 are unchanged.
 
 - A 22.4 x 12 mm viewing opening exposes the modeled 21.56 x 11.22 mm screen.
@@ -155,6 +156,38 @@ and native feature health are recorded in `oled-cover-trial-check.json`.
 ![Cover trial from the front](oled-cover-trial-front.png)
 
 ![Underside friction pads and hardware clearances](oled-cover-trial-underside.png)
+
+## Holder-aligned OLED sleeve trial
+
+Queezz requested one continuous housing covering the whole holder and clarified
+that its angle must follow `oled-screen-mount`, rather than simply extending
+the first cap (owner, 2026-10-26). `OLED sleeve trial` is the active optional
+occurrence in the fit fixture. The first cap remains hidden for comparison.
+
+- Sidewalls follow the printed holder axis; the rear edge is parallel to the
+  front panel, with a 0.15 mm gap. The front retains the measured OLED 20 degree
+  tilt. This forms a complete hollow wedge covering the original holder.
+- The rounded 32.1 x 32.1 mm footprint has 0.8 mm walls and 0.25 mm nominal
+  clearance around the 30 mm holder. Four pads grip the printed holder,
+  rather than the PCB, with 0.05 mm nominal interference and 0.15 mm lead-ins.
+  Installation is along the holder axis, normal to the front panel.
+- The 22.4 x 12 mm opening and low 0.7 mm bevelled lip remain. The surrounding
+  face stands 1.5 mm above the glass; hidden screw and terminal pockets retain
+  clearance. The original OLED, holder, panel fit and finished print bundle
+  are unchanged.
+- Key parameters include `holder_clearance`, `wall_thickness`, `panel_gap`,
+  `fit_interference`, `glass_gap`, `roof_thickness`, `screen_lip_height`,
+  `window_width`, `window_height` and `top_edge_radius`.
+
+All 15 native features are healthy. Contact is limited to the holder pads
+(1.125 mm3 total); setting interference to zero removes all contacts. Sliding
+the sleeve outward at 0, 0.2, 0.5, 1, 2, 5, 10, 15 and 20 mm finds no other
+collisions. The lip driver was tested at 0.6 mm and restored to 0.7 mm.
+Details are in `oled-sleeve-trial-check.json`. Physical fit testing is pending.
+
+![Holder sleeve, oblique](oled-sleeve-trial-oblique.png)
+
+![Holder sleeve showing wedge angle](oled-sleeve-trial-side.png)
 
 ## Servicing
 

@@ -1,0 +1,173 @@
+{
+  "status": "design trial; not print-tested",
+  "follows_part": "ElectronicsBox/esp32-ambient-logger/oled-screen-mount.ipt",
+  "walls_parallel_to_holder_axis": true,
+  "rear_edge_parallel_to_front_panel": true,
+  "measured_oled_angle_deg": 20,
+  "panel_gap_mm": 0.15,
+  "holder_clearance_mm": 0.25,
+  "screen_lip_above_glass_mm": 0.7,
+  "outer_face_above_glass_mm": 1.4999999999999998,
+  "friction_on": "printed holder sidewalls, not PCB",
+  "fit_interference_mm": 0.05000000000000001,
+  "contacts": [
+    {
+      "one": "OLED sleeve trial",
+      "two": "oled-screen-mount:1",
+      "volume_mm3": 1.1249999999999996
+    }
+  ],
+  "key_parameters": {
+    "holder_clearance": "0,25 mm",
+    "wall_thickness": "0,8 mm",
+    "panel_gap": "0,15 mm",
+    "glass_gap": "0,3 mm",
+    "bolt_clearance": "0,2 mm",
+    "roof_thickness": "0,8 mm",
+    "screen_lip_height": "0,7 mm",
+    "window_width": "22,4 mm",
+    "window_height": "12 mm",
+    "top_edge_radius": "0,6 mm",
+    "fit_interference": "0,05 mm"
+  },
+  "feature_health": [
+    [
+      "Continuous holder-aligned wedge",
+      11778
+    ],
+    [
+      "Hollow wedge around unchanged holder",
+      11778
+    ],
+    [
+      "Inner holder-clearance corners",
+      11778
+    ],
+    [
+      "Rounded sleeve corners following holder",
+      11778
+    ],
+    [
+      "Soft continuous front edge",
+      11778
+    ],
+    [
+      "OLED aperture through sleeve face",
+      11778
+    ],
+    [
+      "OLED aperture corner radius",
+      11778
+    ],
+    [
+      "Low screen lip bevel",
+      11778
+    ],
+    [
+      "Concealed screw pockets",
+      11778
+    ],
+    [
+      "Concealed terminal pocket",
+      11778
+    ],
+    [
+      "Printed holder friction pad -1 -4",
+      11778
+    ],
+    [
+      "Printed holder friction pad -1 4",
+      11778
+    ],
+    [
+      "Printed holder friction pad 1 -4",
+      11778
+    ],
+    [
+      "Printed holder friction pad 1 4",
+      11778
+    ],
+    [
+      "Holder grip lead ins",
+      11778
+    ]
+  ],
+  "existing_parts_unchanged": true,
+  "zero_interference_contacts": [],
+  "lip_parameter_test_mm": 0.6,
+  "installation_travel": [
+    {
+      "offset_mm": 0,
+      "contacts": [
+        {
+          "one": "OLED sleeve trial",
+          "two": "oled-screen-mount:1",
+          "volume_mm3": 1.1249999999999754
+        }
+      ]
+    },
+    {
+      "offset_mm": 0.2,
+      "contacts": [
+        {
+          "one": "OLED sleeve trial",
+          "two": "oled-screen-mount:1",
+          "volume_mm3": 1.1249999999999754
+        }
+      ]
+    },
+    {
+      "offset_mm": 0.5,
+      "contacts": [
+        {
+          "one": "OLED sleeve trial",
+          "two": "oled-screen-mount:1",
+          "volume_mm3": 1.1249999999999734
+        }
+      ]
+    },
+    {
+      "offset_mm": 1,
+      "contacts": [
+        {
+          "one": "OLED sleeve trial",
+          "two": "oled-screen-mount:1",
+          "volume_mm3": 1.1249999999999754
+        }
+      ]
+    },
+    {
+      "offset_mm": 2,
+      "contacts": [
+        {
+          "one": "OLED sleeve trial",
+          "two": "oled-screen-mount:1",
+          "volume_mm3": 1.0347349789331985
+        }
+      ]
+    },
+    {
+      "offset_mm": 5,
+      "contacts": [
+        {
+          "one": "OLED sleeve trial",
+          "two": "oled-screen-mount:1",
+          "volume_mm3": 0.4515173113635176
+        }
+      ]
+    },
+    {
+      "offset_mm": 10,
+      "contacts": []
+    },
+    {
+      "offset_mm": 15,
+      "contacts": []
+    },
+    {
+      "offset_mm": 20,
+      "contacts": []
+    }
+  ],
+  "finished_print_manifest_sources_and_meshes_unchanged": true
+}
