@@ -6,6 +6,11 @@ remains authoritative for exact file changes.
 
 ## 2026-10-26
 
+- Exported the owner-finished sensor box as eleven validated high-resolution
+  millimetre STLs and a complete ZIP with quantities and source hashes. Finished
+  true named 4 mm ear controls on both panels; final frame and withdrawal
+  checks clear apart from the intentional snug OLED seat.
+
 - Reused the complete proven rear panel face and all four finished openings
   in the removable-panel variant. Native solid comparison matches the ready
   part, while retaining the new ears and documenting their existing root

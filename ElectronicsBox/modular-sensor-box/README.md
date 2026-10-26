@@ -11,9 +11,9 @@ intentional wire space and must remain (owner, 2026-10-26).
 
 One, two or three interaction buttons may later control the screen or change
 pages. Button selection, button openings and printed covers are deferred.
-The front now carries the existing OLED and its mount. Rear openings provide
-the original USB, SD, power and thermocouple openings, with their proven edge
-finishes. Power and thermocouple hardware remain excluded from the fixture.
+The front carries the existing OLED and its mount. Rear access uses the owner's
+final retained ready-panel opening geometry and finishing. Power and
+thermocouple hardware remain excluded from the fixture.
 
 ## Prototype mounting design
 
@@ -49,10 +49,17 @@ finishes. Power and thermocouple hardware remain excluded from the fixture.
 
 The front inner face remains at y = 50 mm; the rear inner face is at
 y = -45 mm. The shelf ends at y = 45 mm, preserving the 5 mm front wire gap.
-Front returns reach 8 mm inward; rear returns reach 16 mm inward. Return
-thickness is 3.3 mm so the inner faces meet the plain 7 mm spacer faces while
-the outer screw seating faces stay in place. The middle of the front wire
-gap remains clear.
+Front returns reach 8 mm inward; rear returns reach 16 mm inward. Both panels
+now have 4 mm ears, growing outward from fixed spacer-contact faces. The key
+user parameter `ear_thickness` directly drives the width of all four return
+profiles, the screw clearance depth and the outer clearance plane. It replaces
+`tab_thickness`, which had only driven the clearance cut, not the profiles.
+The middle of the front wire gap remains clear. Screw seating faces in the
+current fit assembly are at x = +/-34 mm.
+
+The fit fixture uses grounded components. If `ear_thickness` is changed later,
+update its screw positions to the new outer faces; the individual part's ears
+and clearance cuts update through the parameter.
 
 ## Display and rear access
 
@@ -61,18 +68,20 @@ gap remains clear.
   30 x 30 mm opening, 2 mm corner radii and 0.5 mm entry chamfers, matching
   the original panel. No OLED or mount geometry was changed. Do not enlarge
   this opening for clearance (owner, 2026-10-26).
-- The complete flat rear face is transferred from
-  `../esp32-ambient-logger/temp-logger-back-plate-v2.ipt`, including all four
-  original openings, their chamfers and fillets, and both perimeter finishes.
-  The source is the owner's printed, working panel (owner, 2026-10-26).
+- Rear opening geometry was transferred from
+  `../esp32-ambient-logger/temp-logger-back-plate-v2.ipt`, including its
+  chamfers, fillets and perimeter finishes. The donor is the owner's printed,
+  working panel (owner, 2026-10-26). The current native part includes the owner's
+  subsequent retained opening tools and final finishing; it is the print source.
   Do not replace those openings with estimated rectangles or resize their fits.
 - Exact native solid cutters preserve the original opening surfaces in the
   new part; the consumed `Exact ready opening` features and their final cut
   are a geometry snapshot of the ready panel. The new removable ears and their
   owner finishing are retained. The source panel is not modified.
-- A native solid intersection comparison confirms the entire flat face matches
-  the source within 0.000001 mm3. The modeled SD card clears the original SD
-  opening through a 20 mm withdrawal, ending fully outside the rear panel.
+- The original whole-face transfer was verified against the donor within
+  0.000001 mm3 before later owner edits. The final source hashes are in the
+  print manifest. The modeled SD card clears the retained SD opening through
+  a 20 mm withdrawal, ending fully outside the rear panel.
 
 ## Files and reuse
 
@@ -113,20 +122,27 @@ The sleeve must be removed for screw access. A change from the logger's old
 captured ears to these mount spacers requires an initial sandwich rebuild;
 subsequent panel changes do not.
 
+## Finished print exports
+
+The current, owner-finished parts and shared printed components are exported
+in [`3D-printing/modular-sensor-box`](../../3D-printing/modular-sensor-box/README.md).
+That bundle's source hashes and mesh validation identify the exact final print
+geometry. Earlier fit comparisons below describe the development checks;
+the owner's later finishing is retained in the final exports.
+
 ## Verification
 
-Native checks and dimensions are recorded in `fit-check.json`.
+Native checks and dimensions are recorded in `fit-check.json`. Final printing
+checks and source hashes are in the linked print export manifest.
 
 - All new part features are healthy; the saved fit assembly reopens with
   resolved references. Original logger CAD files remain unchanged.
 - Panel withdrawal was checked at 0, 2, 10 and 30 mm outward, with panel screws
   removed and the sandwich left fixed. The OLED, mount and M2 screws travel
   with the front panel, which remains clear.
-- The owner's existing 3 mm rear ear-root chamfers contact the upper/lower
-  sandwich plates near the seated position, about 23.76 mm3 per plate. These
-  contacts lie on the inward ears, outside the copied face, and were preserved.
-  The rear panel is clear at 10 and 30 mm withdrawal. Review the ear roots
-  before printing; the proven face/opening geometry does not need alteration.
+- Earlier rear ear-root contacts were cleared by the owner's final finishing
+  and frame edits. The final seated assembly check has only the intentional
+  snug OLED contact; sleeve fit and panel/card withdrawal are clear.
 - SD withdrawal was checked at 0, 5, 10 and 20 mm through the rear opening.
 - The new mounts clear the existing internal boards. The unchanged sleeve
   clears the assembled frame, panels, hardware and retained electronics at

@@ -1,0 +1,551 @@
+{
+  "date": "2026-10-26",
+  "units": "mm",
+  "format": "binary STL",
+  "resolution": "Inventor High preset",
+  "translator_options": {
+    "ExportUnits": 5,
+    "Resolution": 0,
+    "OutputFileType": 0,
+    "ExportFileStructure": 0,
+    "AllowMoveMeshNode": false,
+    "ExportColor": false
+  },
+  "translator_options_reference": "https://help.autodesk.com/cloudhelp/2022/ENU/Inventor-API/files/TranslatorSettings.htm",
+  "front_ear_thickness_mm": 4,
+  "rear_ear_thickness_mm": 4,
+  "orientation": "Native CAD coordinates; orient and place on the bed in the slicer.",
+  "enclosure": "Exported separately as the original named solid bodies: case, retainer and grip.",
+  "files": [
+    {
+      "file": "sensor-box-front-panel.stl",
+      "source": "ElectronicsBox/modular-sensor-box/sensor-box-front-panel.ipt",
+      "source_sha256": "b13172db2020b5a596dadb1df5bb9effd5ef1fdb59b7b16f4843065b1cf354ee",
+      "body": null,
+      "quantity_per_box": 1,
+      "native_bounds_mm": [
+        [
+          -37.0,
+          -8.0,
+          -30.0
+        ],
+        [
+          37.0,
+          3.0000000000000004,
+          30.0
+        ]
+      ],
+      "native_volume_mm3": 11304.369627401467,
+      "stl_sha256": "5fa236e0c506337b24e9fb54c2624b5a812737c79d61403fbbd57b42fe99f308",
+      "bytes": 166484,
+      "verification": {
+        "triangles": 3328,
+        "watertight": true,
+        "consistent_winding": true,
+        "positive_volume": true,
+        "mesh_bounds_mm": [
+          [
+            -37.0,
+            -8.0,
+            -30.0
+          ],
+          [
+            37.0,
+            3.0,
+            30.0
+          ]
+        ],
+        "dimensions_mm": [
+          74.0,
+          11.0,
+          60.0
+        ],
+        "max_bounds_difference_mm": 4.440892098500626e-16,
+        "mesh_volume_mm3": 11304.215997442401,
+        "relative_volume_difference": 1.3590316322793532e-05
+      }
+    },
+    {
+      "file": "sensor-box-back-panel.stl",
+      "source": "ElectronicsBox/modular-sensor-box/sensor-box-back-panel.ipt",
+      "source_sha256": "2bb42cf68dbbaa4cbde8d800868fc535c718f7c20339ea30c7c055d7c4fe0aef",
+      "body": null,
+      "quantity_per_box": 1,
+      "native_bounds_mm": [
+        [
+          -37.0,
+          -16.0,
+          -30.0
+        ],
+        [
+          37.0,
+          3.0000000000000004,
+          30.0
+        ]
+      ],
+      "native_volume_mm3": 14469.23924792914,
+      "stl_sha256": "2b1e0105d323c4c273f01619e57be53814b6678acf3c7481d3a2068d6da375df",
+      "bytes": 273884,
+      "verification": {
+        "triangles": 5476,
+        "watertight": true,
+        "consistent_winding": true,
+        "positive_volume": true,
+        "mesh_bounds_mm": [
+          [
+            -37.0,
+            -16.0,
+            -30.0
+          ],
+          [
+            37.0,
+            3.0,
+            30.0
+          ]
+        ],
+        "dimensions_mm": [
+          74.0,
+          19.0,
+          60.0
+        ],
+        "max_bounds_difference_mm": 4.440892098500626e-16,
+        "mesh_volume_mm3": 14468.774145634894,
+        "relative_volume_difference": 3.2144212026341636e-05
+      }
+    },
+    {
+      "file": "sensor-box-upper-mount-spacer.stl",
+      "source": "ElectronicsBox/modular-sensor-box/sensor-box-upper-mount-spacer.ipt",
+      "source_sha256": "1bd9e6cdc0a4bf1fac10bdd6539d6d269780205ec12618d30a1bd2b6e1b28dce",
+      "body": null,
+      "quantity_per_box": 4,
+      "native_bounds_mm": [
+        [
+          -3.5,
+          -9.5,
+          0.0
+        ],
+        [
+          3.5000000000000018,
+          3.4999999999999987,
+          17.49
+        ]
+      ],
+      "native_volume_mm3": 1304.9444395468781,
+      "stl_sha256": "edf89677ef4b3ad7b7ad274b15f92f1cc6ed2bd95e85cc137bf92d9033dd15fa",
+      "bytes": 273084,
+      "verification": {
+        "triangles": 5460,
+        "watertight": true,
+        "consistent_winding": true,
+        "positive_volume": true,
+        "mesh_bounds_mm": [
+          [
+            -3.5,
+            -9.5,
+            0.0
+          ],
+          [
+            3.5,
+            3.5,
+            17.489999771118164
+          ]
+        ],
+        "dimensions_mm": [
+          7.0,
+          13.0,
+          17.489999771118164
+        ],
+        "max_bounds_difference_mm": 2.2888183437430598e-07,
+        "mesh_volume_mm3": 1304.9723887088667,
+        "relative_volume_difference": 2.1417894234830195e-05
+      }
+    },
+    {
+      "file": "sensor-box-lower-mount-spacer.stl",
+      "source": "ElectronicsBox/modular-sensor-box/sensor-box-lower-mount-spacer.ipt",
+      "source_sha256": "2e20ca1023c6ea3024163f081e72dcd9014fe993b70047a0c266ac4bd6fddc03",
+      "body": null,
+      "quantity_per_box": 4,
+      "native_bounds_mm": [
+        [
+          -3.5,
+          -9.5,
+          0.0
+        ],
+        [
+          3.5000000000000018,
+          3.4999999999999987,
+          24.000000000000004
+        ]
+      ],
+      "native_volume_mm3": 1808.737783359776,
+      "stl_sha256": "ed6796c813c39b8c1ca5bbbe1cee3f243233a71a2f052114b04e26e3b6b79e66",
+      "bytes": 280084,
+      "verification": {
+        "triangles": 5600,
+        "watertight": true,
+        "consistent_winding": true,
+        "positive_volume": true,
+        "mesh_bounds_mm": [
+          [
+            -3.5,
+            -9.5,
+            0.0
+          ],
+          [
+            3.5,
+            3.5,
+            24.0
+          ]
+        ],
+        "dimensions_mm": [
+          7.0,
+          13.0,
+          24.0
+        ],
+        "max_bounds_difference_mm": 3.552713678800501e-15,
+        "mesh_volume_mm3": 1808.763714144795,
+        "relative_volume_difference": 1.4336398154315508e-05
+      }
+    },
+    {
+      "file": "modular-box-base-plate.stl",
+      "source": "ElectronicsBox/esp32-ambient-logger/temp-logger-base-plate-v2.ipt",
+      "source_sha256": "00d42867f3723b94cb143d30ede3b68fd4183a34ca50f7c9c078f415dd68f47d",
+      "body": null,
+      "quantity_per_box": 2,
+      "native_bounds_mm": [
+        [
+          -45.0,
+          -35.0,
+          0.0
+        ],
+        [
+          50.0,
+          35.0,
+          3.0000000000000004
+        ]
+      ],
+      "native_volume_mm3": 7363.207618220986,
+      "stl_sha256": "257f62fac91d0272e6f952627ce67377281b41b05301bdecbab9827259ef7b1f",
+      "bytes": 172884,
+      "verification": {
+        "triangles": 3456,
+        "watertight": true,
+        "consistent_winding": true,
+        "positive_volume": true,
+        "mesh_bounds_mm": [
+          [
+            -45.0,
+            -35.0,
+            0.0
+          ],
+          [
+            50.0,
+            35.0,
+            3.0
+          ]
+        ],
+        "dimensions_mm": [
+          95.0,
+          70.0,
+          3.0
+        ],
+        "max_bounds_difference_mm": 4.440892098500626e-16,
+        "mesh_volume_mm3": 7363.714527733376,
+        "relative_volume_difference": 6.884357180633356e-05
+      }
+    },
+    {
+      "file": "modular-box-shelf.stl",
+      "source": "ElectronicsBox/esp32-ambient-logger/temp-logger-shelf-v2.ipt",
+      "source_sha256": "69f4436cfcd636e4a111a1970c53e19987b0f10c18ab5892de20fc98d54f4556",
+      "body": null,
+      "quantity_per_box": 1,
+      "native_bounds_mm": [
+        [
+          -45.0,
+          -32.50000000000001,
+          0.0
+        ],
+        [
+          45.0,
+          32.49999999999999,
+          9.000000000000002
+        ]
+      ],
+      "native_volume_mm3": 12604.345236073335,
+      "stl_sha256": "dbedb5fa9b59832e0e08724c4110fd27bdf20ab3aaf06ee238fd173290220a5d",
+      "bytes": 391884,
+      "verification": {
+        "triangles": 7836,
+        "watertight": true,
+        "consistent_winding": true,
+        "positive_volume": true,
+        "mesh_bounds_mm": [
+          [
+            -45.0,
+            -32.5,
+            0.0
+          ],
+          [
+            45.0,
+            32.5,
+            9.0
+          ]
+        ],
+        "dimensions_mm": [
+          90.0,
+          65.0,
+          9.0
+        ],
+        "max_bounds_difference_mm": 7.105427357601002e-15,
+        "mesh_volume_mm3": 12602.543507596924,
+        "relative_volume_difference": 0.00014294502750173625
+      }
+    },
+    {
+      "file": "modular-box-short-spacer.stl",
+      "source": "ElectronicsBox/esp32-ambient-logger/shaft-10mm.ipt",
+      "source_sha256": "6d121076dd4f3868fdbe22605eae30e0d2bf1edc4ea327f95e4fc1269ae0b340",
+      "body": null,
+      "quantity_per_box": 4,
+      "native_bounds_mm": [
+        [
+          -3.5000000000000004,
+          -3.500000000000001,
+          0.0
+        ],
+        [
+          3.499999999999999,
+          3.5,
+          3.0000000000000004
+        ]
+      ],
+      "native_volume_mm3": 93.0587614034027,
+      "stl_sha256": "f48b9a6ede1a9577feaccde42c7a9d755f4a260bb54525c3cf51e45dea9df88e",
+      "bytes": 140184,
+      "verification": {
+        "triangles": 2802,
+        "watertight": true,
+        "consistent_winding": true,
+        "positive_volume": true,
+        "mesh_bounds_mm": [
+          [
+            -3.5,
+            -3.5,
+            0.0
+          ],
+          [
+            3.5,
+            3.5,
+            3.0
+          ]
+        ],
+        "dimensions_mm": [
+          7.0,
+          7.0,
+          3.0
+        ],
+        "max_bounds_difference_mm": 8.881784197001252e-16,
+        "mesh_volume_mm3": 93.05948343671986,
+        "relative_volume_difference": 7.75889670431238e-06
+      }
+    },
+    {
+      "file": "modular-box-oled-mount.stl",
+      "source": "ElectronicsBox/esp32-ambient-logger/oled-screen-mount.ipt",
+      "source_sha256": "90efa3acda3d479b3c62ce805ff26e04b5e6e164c3fa2eb510bd245e587c0d94",
+      "body": null,
+      "quantity_per_box": 1,
+      "native_bounds_mm": [
+        [
+          -18.0,
+          -18.000000000000004,
+          -0.4448944351632035
+        ],
+        [
+          18.0,
+          18.0,
+          15.863191942669733
+        ]
+      ],
+      "native_volume_mm3": 2485.115156314934,
+      "stl_sha256": "d438bc01aa818ab2f451a95bbdebe1db47699afb1e5bdda88351bf15931b17a7",
+      "bytes": 437384,
+      "verification": {
+        "triangles": 8746,
+        "watertight": true,
+        "consistent_winding": true,
+        "positive_volume": true,
+        "mesh_bounds_mm": [
+          [
+            -18.0,
+            -18.0,
+            -0.4448944330215454
+          ],
+          [
+            18.0,
+            18.0,
+            15.863191604614258
+          ]
+        ],
+        "dimensions_mm": [
+          36.0,
+          36.0,
+          16.308086037635803
+        ],
+        "max_bounds_difference_mm": 3.3805547516863044e-07,
+        "mesh_volume_mm3": 2485.311346693716,
+        "relative_volume_difference": 7.894619220496927e-05
+      }
+    },
+    {
+      "file": "modular-box-case.stl",
+      "source": "ElectronicsBox/esp32-ambient-logger/enclosure.ipt",
+      "source_sha256": "73d54465075fb74d53bc47b5ba84db88abd0b32f78a77472d010f9e91b5f1ac1",
+      "body": "case",
+      "quantity_per_box": 1,
+      "native_bounds_mm": [
+        [
+          -33.1,
+          -40.50000000000001,
+          0.0
+        ],
+        [
+          33.10000000000001,
+          40.099999999999994,
+          110.0
+        ]
+      ],
+      "native_volume_mm3": 87748.5537002735,
+      "stl_sha256": "238f92042668e0b8ae379df6623d236da83d247d2d03ce2d6f01fd06f1e6f6db",
+      "bytes": 8067484,
+      "verification": {
+        "triangles": 161348,
+        "watertight": true,
+        "consistent_winding": true,
+        "positive_volume": true,
+        "mesh_bounds_mm": [
+          [
+            -33.099998474121094,
+            -40.5,
+            0.0
+          ],
+          [
+            33.099998474121094,
+            40.099998474121094,
+            110.0
+          ]
+        ],
+        "dimensions_mm": [
+          66.19999694824219,
+          80.5999984741211,
+          110.0
+        ],
+        "max_bounds_difference_mm": 1.5258789147765128e-06,
+        "mesh_volume_mm3": 87739.46002456093,
+        "relative_volume_difference": 0.00010363334014183618
+      }
+    },
+    {
+      "file": "modular-box-retainer.stl",
+      "source": "ElectronicsBox/esp32-ambient-logger/enclosure.ipt",
+      "source_sha256": "73d54465075fb74d53bc47b5ba84db88abd0b32f78a77472d010f9e91b5f1ac1",
+      "body": "retainer",
+      "quantity_per_box": 1,
+      "native_bounds_mm": [
+        [
+          -31.17573593128808,
+          -38.17573593128809,
+          105.24142135623728
+        ],
+        [
+          31.17573593128807,
+          38.175735931288095,
+          108.75857864376269
+        ]
+      ],
+      "native_volume_mm3": 2507.5364919008266,
+      "stl_sha256": "d337f49b47ba3cb40032ab5f25ef3a5bd3f58e09a7e3bd92e07cc2d3ee271a5a",
+      "bytes": 61684,
+      "verification": {
+        "triangles": 1232,
+        "watertight": true,
+        "consistent_winding": true,
+        "positive_volume": true,
+        "mesh_bounds_mm": [
+          [
+            -31.175735473632812,
+            -38.17573547363281,
+            105.24142456054688
+          ],
+          [
+            31.175735473632812,
+            38.17573547363281,
+            108.75857543945312
+          ]
+        ],
+        "dimensions_mm": [
+          62.351470947265625,
+          76.35147094726562,
+          3.51715087890625
+        ],
+        "max_bounds_difference_mm": 3.2043095927747345e-06,
+        "mesh_volume_mm3": 2507.3831724168126,
+        "relative_volume_difference": 6.114347069691823e-05
+      }
+    },
+    {
+      "file": "modular-box-grip.stl",
+      "source": "ElectronicsBox/esp32-ambient-logger/enclosure.ipt",
+      "source_sha256": "73d54465075fb74d53bc47b5ba84db88abd0b32f78a77472d010f9e91b5f1ac1",
+      "body": "grip",
+      "quantity_per_box": 1,
+      "native_bounds_mm": [
+        [
+          -34.099999999999994,
+          20.099999999999994,
+          4.0
+        ],
+        [
+          34.099999999999994,
+          30.099999999999998,
+          106.0
+        ]
+      ],
+      "native_volume_mm3": 3867.5515679989635,
+      "stl_sha256": "227cc5173b1dfcf216258217d47bb0eed76df7a4b9090d6887d0a3c53312906b",
+      "bytes": 203284,
+      "verification": {
+        "triangles": 4064,
+        "watertight": true,
+        "consistent_winding": true,
+        "positive_volume": true,
+        "mesh_bounds_mm": [
+          [
+            -34.099998474121094,
+            20.100000381469727,
+            4.0
+          ],
+          [
+            34.099998474121094,
+            30.100000381469727,
+            106.0
+          ]
+        ],
+        "dimensions_mm": [
+          68.19999694824219,
+          10.0,
+          102.0
+        ],
+        "max_bounds_difference_mm": 1.5258789005656581e-06,
+        "mesh_volume_mm3": 3864.502554993782,
+        "relative_volume_difference": 0.0007883574275802636
+      }
+    }
+  ],
+  "native_bounds_method": "Inventor SurfaceBody.PreciseRangeBox",
+  "verification": "All files passed binary structure, finite geometry, watertightness, winding, scale/bounds and volume checks against the native Inventor solids."
+}

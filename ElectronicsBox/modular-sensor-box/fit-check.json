@@ -20,33 +20,11 @@
   "back_removal": [
     {
       "travel_mm": 0,
-      "contacts": [
-        {
-          "one": "sensor-box-back-panel",
-          "two": "temp-logger-base-plate-v2:2",
-          "volume_mm3": 23.759250099373745
-        },
-        {
-          "one": "sensor-box-back-panel",
-          "two": "temp-logger-base-plate-v2:1",
-          "volume_mm3": 23.758876864526947
-        }
-      ]
+      "contacts": []
     },
     {
       "travel_mm": 2,
-      "contacts": [
-        {
-          "one": "sensor-box-back-panel",
-          "two": "temp-logger-base-plate-v2:2",
-          "volume_mm3": 0.10012469453248878
-        },
-        {
-          "one": "sensor-box-back-panel",
-          "two": "temp-logger-base-plate-v2:1",
-          "volume_mm3": 0.10012352566906392
-        }
-      ]
+      "contacts": []
     },
     {
       "travel_mm": 10,
@@ -112,7 +90,7 @@
   },
   "front_return_length_mm": 8,
   "rear_return_length_mm": 16,
-  "return_thickness_mm": 3.3,
+  "return_thickness_mm": 4,
   "front_screw_y_mm": 45,
   "rear_screw_y_mm": -32,
   "front_wire_gap_mm": 5,
@@ -302,23 +280,23 @@
         11778
       ],
       [
+        "Chamfer4",
+        11778
+      ],
+      [
+        "Chamfer5",
+        11778
+      ],
+      [
+        "Fillet4",
+        11778
+      ],
+      [
         "Fillet3",
         11778
       ],
       [
-        "Chamfer2",
-        11778
-      ],
-      [
         "Exact ready opening 1",
-        11778
-      ],
-      [
-        "Exact ready opening 2",
-        11778
-      ],
-      [
-        "Exact ready opening 3",
         11778
       ],
       [
@@ -331,6 +309,14 @@
       ],
       [
         "Ready panel inner perimeter chamfer 0.5 mm",
+        11778
+      ],
+      [
+        "Chamfer6",
+        11778
+      ],
+      [
+        "Chamfer7",
         11778
       ]
     ],
@@ -389,6 +375,10 @@
       ],
       [
         "Chamfer3",
+        11778
+      ],
+      [
+        "Chamfer4",
         11778
       ]
     ],
@@ -538,17 +528,61 @@
     "outside_aperture_region_before_perimeter_match_symmetric_difference_mm3": 0.0,
     "mount_preservation_note": "Original root finishing preserved; subsequent added perimeter chamfer only changes the flat plate, y >= 0 in part coordinates."
   },
-  "rear_withdrawal_clear_at_all_checked_positions": false,
-  "known_rear_ear_root_contacts": [
+  "rear_withdrawal_clear_at_all_checked_positions": true,
+  "known_rear_ear_root_contacts": [],
+  "final_print_exports": "3D-printing/modular-sensor-box/export-manifest.json",
+  "final_print_native_contacts": [
     {
-      "one": "sensor-box-back-panel",
-      "two": "temp-logger-base-plate-v2:2",
-      "volume_mm3": 23.759250099373745
-    },
-    {
-      "one": "sensor-box-back-panel",
-      "two": "temp-logger-base-plate-v2:1",
-      "volume_mm3": 23.758876864526947
+      "one": "sensor-box-front-panel",
+      "two": "oled-screen-mount:1",
+      "volume_mm3": 44.62868683766513
     }
-  ]
+  ],
+  "final_print_sleeve_contacts": [],
+  "final_ear_thickness_mm": 4,
+  "installed_screw_seating_x_mm": [
+    -34,
+    34
+  ],
+  "final_named_ear_control": {
+    "front": {
+      "name": "ear_thickness",
+      "value_mm": 4.0,
+      "key": true,
+      "width_expressions": {
+        "Left lower removable return profile": [
+          "ear_thickness"
+        ],
+        "Left upper removable return profile": [
+          "ear_thickness"
+        ],
+        "Right lower removable return profile": [
+          "ear_thickness"
+        ],
+        "Right upper removable return profile": [
+          "ear_thickness"
+        ]
+      }
+    },
+    "back": {
+      "name": "ear_thickness",
+      "value_mm": 4.0,
+      "key": true,
+      "width_expressions": {
+        "Left lower removable return profile": [
+          "ear_thickness"
+        ],
+        "Left upper removable return profile": [
+          "ear_thickness"
+        ],
+        "Right lower removable return profile": [
+          "ear_thickness"
+        ],
+        "Right upper removable return profile": [
+          "ear_thickness"
+        ]
+      }
+    }
+  },
+  "final_print_finishing_note": "Owner final finishing and frame edits resolved the earlier ear-root contacts. Final seated check has only the preserved snug OLED contact; sleeve and panel/card travel are clear."
 }
