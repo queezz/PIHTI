@@ -31,9 +31,12 @@ separately as case, retainer and grip.
 ## Slicer setup
 
 - Interpret coordinates as millimetres, at 100% scale.
-- Files retain native CAD orientation and placement. Orient each part and
-  place it on the build plate in the slicer; the retainer and grip in particular
-  retain their original offset coordinates.
+- Front and back panel STLs already lie outside-face down at Z = 0, with
+  the mounting ears pointing upward. Their footprints are 74 x 60 mm; heights
+  are 11 mm (front) and 19 mm (back).
+- Other parts retain native CAD orientation and placement. Orient those parts
+  and place them on the build plate in the slicer; the retainer and grip in
+  particular retain their original offset coordinates.
 - Both panels have 4 mm ears. The named `ear_thickness` parameter drives all
   four ear profiles and their screw-clearance depth in each native panel.
 - Spacer screw pilots are 2.5 mm for the owner's direct M3-in-plastic approach.
@@ -47,3 +50,7 @@ Inventor High preset, binary STL, explicit millimetre units, one file per solid
 or single-body part, no colour data, and no movement of internal mesh nodes.
 The exporter options are documented in the
 [Autodesk translator reference](https://help.autodesk.com/cloudhelp/2022/ENU/Inventor-API/files/TranslatorSettings.htm).
+
+The panel meshes were subsequently rotated and translated for face-down
+printing, without remeshing or changing their geometry. Their exact rigid
+transforms are recorded in the manifest. Native CAD models remain unchanged.

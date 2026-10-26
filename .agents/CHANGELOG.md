@@ -6,6 +6,9 @@ remains authoritative for exact file changes.
 
 ## 2026-10-26
 
+- Corrected both panel STL orientations to lie outside-face down at Z = 0,
+  ears up. Updated the validated print ZIP without changing CAD or mesh detail.
+
 - Exported the owner-finished sensor box as eleven validated high-resolution
   millimetre STLs and a complete ZIP with quantities and source hashes. Finished
   true named 4 mm ear controls on both panels; final frame and withdrawal

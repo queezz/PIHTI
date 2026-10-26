@@ -14,7 +14,7 @@
   "translator_options_reference": "https://help.autodesk.com/cloudhelp/2022/ENU/Inventor-API/files/TranslatorSettings.htm",
   "front_ear_thickness_mm": 4,
   "rear_ear_thickness_mm": 4,
-  "orientation": "Native CAD coordinates; orient and place on the bed in the slicer.",
+  "orientation": "Front and back panels lie outside-face down on Z=0 with ears up. Other files retain native CAD orientation and placement.",
   "enclosure": "Exported separately as the original named solid bodies: case, retainer and grip.",
   "files": [
     {
@@ -36,7 +36,7 @@
         ]
       ],
       "native_volume_mm3": 11304.369627401467,
-      "stl_sha256": "5fa236e0c506337b24e9fb54c2624b5a812737c79d61403fbbd57b42fe99f308",
+      "stl_sha256": "c941718e4521069b2dc0b67f8a4432435d3cd3894653b6e03332d5b97c447173",
       "bytes": 166484,
       "verification": {
         "triangles": 3328,
@@ -46,24 +46,67 @@
         "mesh_bounds_mm": [
           [
             -37.0,
-            -8.0,
-            -30.0
+            -30.0,
+            0.0
           ],
           [
             37.0,
-            3.0,
-            30.0
+            30.0,
+            11.0
           ]
         ],
         "dimensions_mm": [
           74.0,
-          11.0,
-          60.0
+          60.0,
+          11.0
         ],
         "max_bounds_difference_mm": 4.440892098500626e-16,
-        "mesh_volume_mm3": 11304.215997442401,
-        "relative_volume_difference": 1.3590316322793532e-05
-      }
+        "mesh_volume_mm3": 11304.215998286454,
+        "relative_volume_difference": 1.3590241656717686e-05,
+        "bounds_compared_against": "Native precise bounds after the recorded rigid print-orientation transform.",
+        "rigid_transform_roundtrip_max_error_mm": 4.76837158203125e-07,
+        "bed_contact_area_mm2": 3333.9493164462783,
+        "z_min_mm": 0.0
+      },
+      "orientation": "Outside panel face flat on Z=0; ears point upward.",
+      "cad_to_stl_transform_mm": [
+        [
+          1.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          1.0,
+          0.0
+        ],
+        [
+          0.0,
+          -1.0,
+          0.0,
+          3.0
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "expected_print_bounds_mm": [
+        [
+          -37.0,
+          -30.0,
+          -4.440892098500626e-16
+        ],
+        [
+          37.0,
+          30.0,
+          11.0
+        ]
+      ]
     },
     {
       "file": "sensor-box-back-panel.stl",
@@ -84,7 +127,7 @@
         ]
       ],
       "native_volume_mm3": 14469.23924792914,
-      "stl_sha256": "2b1e0105d323c4c273f01619e57be53814b6678acf3c7481d3a2068d6da375df",
+      "stl_sha256": "c37126bd69cbeb74b2788e382a925165ed680c90706910a2e723d29695b828e7",
       "bytes": 273884,
       "verification": {
         "triangles": 5476,
@@ -94,24 +137,67 @@
         "mesh_bounds_mm": [
           [
             -37.0,
-            -16.0,
-            -30.0
+            -30.0,
+            0.0
           ],
           [
             37.0,
-            3.0,
-            30.0
+            30.0,
+            19.0
           ]
         ],
         "dimensions_mm": [
           74.0,
-          19.0,
-          60.0
+          60.0,
+          19.0
         ],
         "max_bounds_difference_mm": 4.440892098500626e-16,
-        "mesh_volume_mm3": 14468.774145634894,
-        "relative_volume_difference": 3.2144212026341636e-05
-      }
+        "mesh_volume_mm3": 14468.774145775265,
+        "relative_volume_difference": 3.21442023249738e-05,
+        "bounds_compared_against": "Native precise bounds after the recorded rigid print-orientation transform.",
+        "rigid_transform_roundtrip_max_error_mm": 9.5367431640625e-07,
+        "bed_contact_area_mm2": 3973.5820441577807,
+        "z_min_mm": 0.0
+      },
+      "orientation": "Outside panel face flat on Z=0; ears point upward.",
+      "cad_to_stl_transform_mm": [
+        [
+          1.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          1.0,
+          0.0
+        ],
+        [
+          0.0,
+          -1.0,
+          0.0,
+          3.0
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "expected_print_bounds_mm": [
+        [
+          -37.0,
+          -30.0,
+          -4.440892098500626e-16
+        ],
+        [
+          37.0,
+          30.0,
+          19.0
+        ]
+      ]
     },
     {
       "file": "sensor-box-upper-mount-spacer.stl",
@@ -547,5 +633,5 @@
     }
   ],
   "native_bounds_method": "Inventor SurfaceBody.PreciseRangeBox",
-  "verification": "All files passed binary structure, finite geometry, watertightness, winding, scale/bounds and volume checks against the native Inventor solids."
+  "verification": "All files validated; both panel STL orientations were corrected by a rigid rotation and translation without remeshing or changing CAD."
 }
