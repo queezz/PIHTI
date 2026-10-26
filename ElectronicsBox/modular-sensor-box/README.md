@@ -160,8 +160,10 @@ and native feature health are recorded in `oled-cover-trial-check.json`.
 ## Holder-aligned OLED sleeve
 
 The sleeve covers the original holder and conceals the hardware. Its walls follow
-the holder axis and the front matches the OLED tilt. The 22.4 x 12 mm viewing
-opening and 0.7 mm low lip remain unchanged. The outer front edge is a 0.6 mm
+the holder axis and the front matches the OLED tilt. The viewing opening is
+now 22.4 x 13.5 mm: its top edge was raised
+1.5 mm for visibility from above, with its bottom and width fixed. The low-lip
+bevel is retained. The outer front edge is a 0.6 mm
 chamfer driven by `front_edge_chamfer`.
 
 The owner physically tuned the width and reported about 2 mm vertical play
@@ -174,12 +176,16 @@ Two matching internal stops project 1 mm inward from the top and bottom walls.
 They reduce the vertical opening from 30.6 to 28.6 mm while retaining the finished
 outer shape. Key `vertical_fit_reduction` controls the total 2 mm take-up;
 `vertical_grip_span` reports the resulting opening. `side_grip_span` drives the
-centred side opening. Stops span 22 mm across and use the existing pad station
-and height. All existing owner features, hole pockets and screen opening remain.
+centred side opening. Stops span 22 mm across. The upper stop now starts 0.65 mm farther
+rearward, at Z=4.3 mm in the sleeve frame, so it reaches the short upper mount
+wall. Its key `upper_grip_rear_gap` is 0.15 mm; the lower stop stays in place.
+Existing owner finishing and screw pockets remain.
 
 All 21 current features are healthy. Native sketch coordinates verify mirrored
-side grips and top/bottom stops. The corrected OLED and current cover have no cover contacts in the native
-assembly check. Owner cover mates were preserved. The next print remains the
+side grips and equal inward projection of the top/bottom stops. The upper stop
+has its own depth station to suit the shorter upper wall. The visibility-independent
+BRep check finds no OLED, screw or front-panel overlap; intended mount contact
+remains. Owner cover mates were preserved. The next print remains the
 decisive friction-fit check. Earlier CAD and photo assumptions are
 historical evidence in `oled-sleeve-trial-check.json`.
 
@@ -190,6 +196,15 @@ is retained as a separate part for historical comparison; it is not printed.
 ![Current sleeve, exterior](oled-sleeve-trial-oblique.png)
 
 ![Symmetric internal grips and vertical play stops](oled-sleeve-trial-inside.png)
+
+The current upper-grip/window revision is measured in
+`oled-upper-grip-window-check.json`. Independent BRep intersections verify
+clearance to the OLED, four M2 screws and front panel. Intended contact with
+the mount remains; the isolated upper rib intersects the modeled mount by
+7.18 mm3 versus 1.57 mm3 before. This measures geometry, not holding force.
+`window_top_extension` controls the top-only enlargement. The hidden terminal
+pocket's unused lower portion was trimmed 0.6 mm to preserve its 0.4 mm chamfer;
+modeled terminal clearance remains. All 21 features are healthy.
 
 ## OLED reference model corrected to the proven mount
 
@@ -204,10 +219,12 @@ connector and all eight bodies remain. The PCB is centred on the sloping mount
 seat, with its underside on that plane. All four bore axes match the mount
 within numerical precision. The four M2 screws follow those corrected axes.
 
-The cover's aperture and terminal pocket moved 0.40321 mm down to follow the
-correctly seated module; the hidden screw pockets now match 21 x 23 mm. Its
-exterior, 22.4 x 12 mm aperture size, chamfer, side knobs and vertical stops
-remain. The actual active-screen face is centred in the aperture. Native cover
+The cover's original 12 mm aperture and terminal pocket moved 0.40321 mm down
+to follow the correctly seated module; the later top-only 1.5 mm window extension
+is intentional. At the alignment baseline, the hidden screw pockets now match 21 x 23 mm. Its
+exterior, chamfer and side-knob dimensions remain. The actual active-screen face
+was centred in the 12 mm baseline aperture; the current opening extends farther
+above it for oblique viewing. Native cover
 contacts are zero; tiny screw-to-PCB/copper seating overlaps remain. All 14 OLED
 features, 21 cover features and owner cover mates are healthy. Detailed evidence
 is in `oled-mount-alignment-check.json`. The face-down print STL and ZIP are

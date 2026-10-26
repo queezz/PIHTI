@@ -70,3 +70,7 @@ transforms are recorded in the manifest. Native CAD models remain unchanged.
 The sleeve window and concealed screw pockets were aligned to the corrected OLED
 on 2026-10-27. The unchanged printed mount supplies the authoritative 21 x 23 mm
 hole pattern. Its outer size and snug-fit knobs/stops are retained.
+
+Latest cover: the window grows 1.5 mm upward only (22.4 x 13.5 mm), and the
+upper grip sits 0.65 mm closer to the panel to engage the short mount wall.
+The face-down STL and this ZIP include both changes; grip needs a physical retest.

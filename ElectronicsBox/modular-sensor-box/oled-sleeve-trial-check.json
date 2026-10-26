@@ -10,7 +10,13 @@
   "outer_face_above_glass_mm": 1.4999999999999998,
   "friction_on": "printed holder sidewalls, not PCB",
   "fit_interference_mm": 0.05000000000000001,
-  "contacts": [],
+  "contacts": [
+    {
+      "one": "OLED sleeve trial",
+      "two": "oled-screen-mount:1",
+      "volume_mm3": 71.23808814938545
+    }
+  ],
   "key_parameters": {
     "holder_clearance": "0,3 mm",
     "wall_thickness": "0,8 mm",
@@ -20,7 +26,7 @@
     "roof_thickness": "0,8 mm",
     "screen_lip_height": "0,7 mm",
     "window_width": "22,4 mm",
-    "window_height": "12 mm",
+    "window_height": "window_base_height + window_top_extension",
     "front_edge_chamfer": "0,6 mm",
     "fit_interference": "0,05 mm",
     "holder_oled_offset": "1,05 mm",
@@ -30,7 +36,10 @@
     "vertical_fit_reduction": "2 mm",
     "vertical_stop_width": "22 mm",
     "vertical_stop_thickness": "vertical_fit_reduction / 2 ul + pad_overlap",
-    "vertical_grip_span": "cavity_depth - vertical_fit_reduction"
+    "vertical_grip_span": "cavity_depth - vertical_fit_reduction",
+    "window_top_extension": "1,5 mm",
+    "upper_grip_rear_gap": "0,15 mm",
+    "upper_grip_start": "base_height + upper_grip_rear_gap"
   },
   "feature_health": [
     [
@@ -244,5 +253,7 @@
     "additional_projection_per_side_mm": 0.5
   },
   "fixture_note": "Superseded: corrected shared OLED to the authoritative 21 x 23 mm mount pattern, centred PCB on mount, aligned four screws and cover pockets. See oled-mount-alignment-check.json; current cover contacts are zero.",
-  "oled_mount_alignment": "oled-mount-alignment-check.json"
+  "oled_mount_alignment": "oled-mount-alignment-check.json",
+  "upper_grip_window_revision": "oled-upper-grip-window-check.json",
+  "contact_method": "Visibility-independent transient BRep intersection. Only the mount contacts the sleeve; intentional fit contact is not a holding-force validation."
 }

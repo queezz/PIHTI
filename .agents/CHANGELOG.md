@@ -6,6 +6,10 @@ remains authoritative for exact file changes.
 
 ## 2026-10-27
 
+- Moved the OLED sleeve upper grip rearward onto the short mount wall and
+  enlarged only the display window top by 1.5 mm. Preserved grip spans and
+  finishing, verified hardware clearance with BRep, and refreshed face-down STL/ZIP.
+
 - Corrected the downloaded OLED to the proven mount's 21 x 23 mm hole pattern
   and centred its PCB on the unchanged mount. Aligned four screws and the cover
   window/pockets, retaining snug-fit features; refreshed the face-down print ZIP.

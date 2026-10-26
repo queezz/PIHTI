@@ -605,10 +605,10 @@
     {
       "file": "sensor-box-oled-sleeve.stl",
       "source": "ElectronicsBox/modular-sensor-box/sensor-box-oled-sleeve-trial.ipt",
-      "source_sha256": "40df0a8c03c8bec537410114f8dfb9496cc730e4dadb434b37e723060bac9329",
+      "source_sha256": "586bfbbede0afdd98ddcc9c957f190e68213530b45226d33f4dfff6c1d2c1790",
       "body": null,
       "quantity_per_box": 1,
-      "status": "window and screw pockets matched to mount-corrected OLED; snug-fit knobs/stops retained; physical retest pending",
+      "status": "top edge raised 1.5 mm; upper grip moved 0.65 mm rearward; physical retest pending",
       "native_bounds_mm": [
         [
           -15.800000000000008,
@@ -621,9 +621,9 @@
           15.54157971397129
         ]
       ],
-      "native_volume_mm3": 1878.7021721788706,
-      "stl_sha256": "76d19866028a65e7298ed712a076ac25af69677fb93b408de6a9432ac2d49f0a",
-      "bytes": 278284,
+      "native_volume_mm3": 1840.7652265864776,
+      "stl_sha256": "896984882ea5bb41c332127a0ba549f0123264ea028cb50cb1479c01d716770b",
+      "bytes": 276884,
       "orientation": "Display outer face down at Z=0; hollow holder cavity and grips upward.",
       "native_to_print_transform_mm": [
         [
@@ -652,7 +652,7 @@
         ]
       ],
       "verification": {
-        "triangles": 5564,
+        "triangles": 5536,
         "watertight": true,
         "consistent_winding": true,
         "positive_volume": true,
@@ -674,9 +674,9 @@
           15.541579246520998
         ],
         "max_bounds_difference_mm": 6.229137134994289e-07,
-        "mesh_volume_mm3": 1878.6245319986745,
-        "relative_volume_difference": 4.132649727341709e-05,
-        "flat_bed_contact_area_mm2": 674.4807784268396
+        "mesh_volume_mm3": 1840.6844609357424,
+        "relative_volume_difference": 4.387612801930982e-05,
+        "flat_bed_contact_area_mm2": 638.4807786585261
       }
     }
   ],

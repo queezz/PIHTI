@@ -602,5 +602,6 @@
       "print_export": "3D-printing/modular-sensor-box/sensor-box-oled-sleeve.stl"
     }
   ],
-  "oled_mount_alignment": "oled-mount-alignment-check.json"
+  "oled_mount_alignment": "oled-mount-alignment-check.json",
+  "upper_grip_window_revision": "oled-upper-grip-window-check.json"
 }

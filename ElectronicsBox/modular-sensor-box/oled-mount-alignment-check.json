@@ -144,5 +144,8 @@
   "native_hole_pitch_verified_mm": [
     21.0,
     23.0
-  ]
+  ],
+  "subsequent_top_only_window_extension_mm": 1.5,
+  "active_screen_to_window_centre_error_mm_note": "The recorded zero centre error applies to the original centred 12 mm aperture. Current 13.5 mm opening extends 1.5 mm above that baseline; bottom remains fixed.",
+  "current_upper_grip_window_revision": "oled-upper-grip-window-check.json"
 }

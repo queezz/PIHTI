@@ -1,0 +1,143 @@
+{
+  "window_before_mm": {
+    "width": 22.4,
+    "height": 12.000000000000002,
+    "bottom": -4.473210807734536,
+    "top": 7.526789192265466
+  },
+  "window_after_mm": {
+    "width": 22.4,
+    "height": 13.5,
+    "bottom": -4.473210807734536,
+    "top": 9.026789192265465
+  },
+  "upper_rib_start_before_mm": 4.95,
+  "upper_rib_start_after_mm": 4.300000000000001,
+  "upper_rib_end_after_mm": 6.300000000000001,
+  "upper_rib_mount_intersection_before_after_mm3": [
+    1.5678550677507954,
+    7.178586753447963
+  ],
+  "side_grip_span_mm": 28.6,
+  "vertical_grip_span_mm": 28.599999999999998,
+  "mount_unchanged": true,
+  "feature_health": [
+    [
+      "Continuous holder-aligned wedge",
+      11778
+    ],
+    [
+      "Hollow wedge around unchanged holder",
+      11778
+    ],
+    [
+      "Inner holder-clearance corners",
+      11778
+    ],
+    [
+      "Rounded sleeve corners following holder",
+      11778
+    ],
+    [
+      "Soft continuous front edge",
+      11778
+    ],
+    [
+      "OLED aperture through sleeve face",
+      11778
+    ],
+    [
+      "OLED aperture corner radius",
+      11778
+    ],
+    [
+      "Low screen lip bevel",
+      11778
+    ],
+    [
+      "Concealed screw pockets",
+      11778
+    ],
+    [
+      "Concealed terminal pocket",
+      11778
+    ],
+    [
+      "Printed holder friction pad -1 -4",
+      11778
+    ],
+    [
+      "Printed holder friction pad -1 4",
+      11778
+    ],
+    [
+      "Printed holder friction pad 1 -4",
+      11778
+    ],
+    [
+      "Printed holder friction pad 1 4",
+      11778
+    ],
+    [
+      "Fillet5",
+      11778
+    ],
+    [
+      "Chamfer5",
+      11778
+    ],
+    [
+      "Chamfer4",
+      11778
+    ],
+    [
+      "Fillet6",
+      11778
+    ],
+    [
+      "Chamfer6",
+      11778
+    ],
+    [
+      "Lower symmetric vertical play stop",
+      11778
+    ],
+    [
+      "Upper symmetric vertical play stop",
+      11778
+    ]
+  ],
+  "visibility_independent_brep_intersections": [
+    {
+      "occurrence": "sensor-box-front-panel",
+      "volume_mm3": 0
+    },
+    {
+      "occurrence": "OLED-128x64-0.96:1",
+      "volume_mm3": 0
+    },
+    {
+      "occurrence": "SS ISO 4762 M2 x 4:1",
+      "volume_mm3": 0
+    },
+    {
+      "occurrence": "SS ISO 4762 M2 x 4:2",
+      "volume_mm3": 0
+    },
+    {
+      "occurrence": "SS ISO 4762 M2 x 4:3",
+      "volume_mm3": 0
+    },
+    {
+      "occurrence": "SS ISO 4762 M2 x 4:4",
+      "volume_mm3": 0
+    },
+    {
+      "occurrence": "oled-screen-mount:1",
+      "volume_mm3": 71.23808814938545
+    }
+  ],
+  "header_pocket_lower_trim_mm": 0.6,
+  "header_pocket_final_height_mm": 3.4,
+  "upper_grip_panel_gap_mm": 0.15
+}
