@@ -597,8 +597,9 @@
       "occurrence": "OLED sleeve trial",
       "part": "sensor-box-oled-sleeve-trial.ipt",
       "visible": true,
-      "status": "unprinted holder-aligned sleeve trial; excluded from final print bundle",
-      "verification": "oled-sleeve-trial-check.json"
+      "status": "photo-derived friction-fit trial; face-down STL included in print bundle",
+      "verification": "oled-sleeve-trial-check.json",
+      "print_export": "3D-printing/modular-sensor-box/sensor-box-oled-sleeve.stl"
     }
   ]
 }

@@ -27,7 +27,7 @@
     "screen_lip_height": "0,7 mm",
     "window_width": "22,4 mm",
     "window_height": "12 mm",
-    "top_edge_radius": "0,6 mm",
+    "front_edge_chamfer": "0,6 mm",
     "fit_interference": "0,05 mm",
     "holder_oled_offset": "1,05 mm",
     "sleeve_center_x": "-holder_oled_offset",
@@ -113,6 +113,10 @@
     [
       "Fillet6",
       11778
+    ],
+    [
+      "Chamfer6",
+      11778
     ]
   ],
   "existing_parts_unchanged": true,
@@ -183,5 +187,12 @@
     ],
     "cad_holder_mismatch": "Source holder envelope is offset and differs from photographed printed holder. Contact against that envelope does not validate real friction fit."
   },
-  "travel_check_note": "Earlier travel evidence predates symmetric photo-based grips; it is not a fit proof for the photographed holder."
+  "travel_check_note": "Earlier travel evidence predates symmetric photo-based grips; it is not a fit proof for the photographed holder.",
+  "front_edge": {
+    "feature": "Soft continuous front edge",
+    "type": "ChamferFeature",
+    "distance_mm": 0.6,
+    "parameter": "front_edge_chamfer"
+  },
+  "print_export": "3D-printing/modular-sensor-box/sensor-box-oled-sleeve.stl"
 }

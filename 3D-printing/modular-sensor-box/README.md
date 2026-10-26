@@ -21,6 +21,7 @@ source hashes and mesh checks are in `export-manifest.json`.
 | `modular-box-oled-mount.stl` | 1 |
 | `modular-box-case.stl` (includes grips) | 1 |
 | `modular-box-retainer.stl` | 1 |
+| `sensor-box-oled-sleeve.stl` (friction-fit trial) | 1 |
 
 Double the quantities for two complete boxes. The four `sensor-box-*` files
 are the new panels and mounting spacers; the remaining files are the shared
@@ -35,6 +36,10 @@ remains a separate STL; do not print a separate grip file.
 - Front and back panel STLs already lie outside-face down at Z = 0, with
   the mounting ears pointing upward. Their footprints are 74 x 60 mm; heights
   are 11 mm (front) and 19 mm (back).
+- The OLED sleeve STL lies display-face down at Z = 0, cavity and grips up.
+  Its outer front edge is a 0.6 mm chamfer; print size is approximately
+  34.2 x 35.71 x 15.54 mm in this orientation. Holder fit is photo-derived
+  and still needs a test print.
 - Other parts retain native CAD orientation and placement. Orient those parts
   and place them on the build plate in the slicer; the retainer in particular
   retains its original offset coordinates.
@@ -57,5 +62,6 @@ The exporter options are documented in the
 [Autodesk translator reference](https://help.autodesk.com/cloudhelp/2022/ENU/Inventor-API/files/TranslatorSettings.htm).
 
 The panel meshes were subsequently rotated and translated for face-down
-printing, without remeshing or changing their geometry. Their exact rigid
+printing, without remeshing or changing their geometry. The OLED sleeve was
+exported from a rigidly transformed temporary solid with its front face down. Their exact rigid
 transforms are recorded in the manifest. Native CAD models remain unchanged.

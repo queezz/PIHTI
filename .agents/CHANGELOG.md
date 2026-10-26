@@ -6,6 +6,10 @@ remains authoritative for exact file changes.
 
 ## 2026-10-26
 
+- Replaced the OLED sleeve outer-front fillet with a 0.6 mm chamfer and
+  included its validated high-resolution STL in the print ZIP, display face
+  down at Z=0. Preserved all six owner finishing features and ten existing STLs.
+
 - Used the owner photo and correct screw pattern to estimate a symmetric
   32 mm printed OLED holder. Mirrored the sleeve grips and added an editable
   printed-holder width with 0.3 mm side clearance; physical fit remains a trial.

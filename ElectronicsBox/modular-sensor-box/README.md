@@ -92,7 +92,7 @@ and clearance cuts update through the parameter.
 | `sensor-box-upper-mount-spacer.ipt` | Upper rod spacer and panel receiver; four instances |
 | `sensor-box-lower-mount-spacer.ipt` | Lower rod spacer and panel receiver; four instances |
 | `SensorBox-panel-fit.iam` | Mechanical inspection fixture using shared existing parts |
-| `sensor-box-oled-sleeve-trial.ipt` | Active holder-aligned full sleeve trial; excluded from the print bundle |
+| `sensor-box-oled-sleeve-trial.ipt` | Active holder-aligned full sleeve trial; face-down STL in print bundle |
 | `sensor-box-oled-cover-trial.ipt` | Optional low-lip friction-fit cover trial; excluded from the print bundle |
 
 The fit fixture references unchanged enclosure and frame parts from
@@ -178,18 +178,19 @@ occurrence in the fit fixture. The first cap remains hidden for comparison.
   Installation is along the holder axis, normal to the front panel.
 - The 22.4 x 12 mm opening and low 0.7 mm bevelled lip remain. The surrounding
   face stands 1.5 mm above the glass; hidden screw and terminal pockets retain
-  clearance. The original OLED, holder, panel fit and finished print bundle
-  are unchanged.
+  clearance. The original OLED, holder and panel fit are unchanged. A face-down
+  sleeve STL is now included in the print bundle.
 - Key parameters include `holder_clearance`, `wall_thickness`, `panel_gap`,
   `fit_interference`, `glass_gap`, `roof_thickness`, `screen_lip_height`,
-  `window_width`, `window_height`, `top_edge_radius`, `holder_oled_offset` and
+  `window_width`, `window_height`, `front_edge_chamfer`, `holder_oled_offset` and
   `sleeve_center_x` and `printed_holder_width`. These explicitly control
   lateral centring and the estimated actual holder width.
 
 Queezz added five printability chamfer/fillet features and confirmed that the
 physical mount is symmetric and the existing hole positions are correct
-(owner photo, 2026-10-26). All 20 native features remain healthy after centring and making the grips symmetric,
-including those five finishing features. Hardware pockets and the screen opening
+(owner photo, 2026-10-26). All 21 native features remain healthy after centring, making the grips symmetric
+and replacing `Soft continuous front edge` with a 0.6 mm chamfer,
+including all six owner finishing features (the latest is `Chamfer6`). Hardware pockets and the screen opening
 were kept in place. The four pads now mirror about the bolt pattern, with inner tips at
 X=±15.95 mm and nominal 0.05 mm grip on the estimated printed holder. Native
 seated clearance checks find no screen or hardware collisions. Source-holder
@@ -252,3 +253,7 @@ checks and source hashes are in the linked print export manifest.
 ![USB and SD rear access](rear-access.png)
 
 ![Owner-finished spacer with direct screw pilot](plain-spacer.png)
+
+The sleeve print export is `sensor-box-oled-sleeve.stl` in the linked print
+bundle, with the display face down at Z=0. `front_edge_chamfer` is the key
+parameter controlling the 0.6 mm outer front chamfer.
