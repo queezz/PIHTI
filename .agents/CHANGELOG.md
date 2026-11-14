@@ -6,6 +6,10 @@ remains authoritative for exact file changes.
 
 ## 2026-11-14
 
+- Shipped `pihti-dedup` 0.35.0: expand and select STEP assembly branches,
+  mix selections across levels, and save and recall named drawing groups
+  independently of simulation metadata.
+
 - Shipped `pihti-dedup` 0.34.5: retry dense STEP display meshes at coarser
   tolerances before rejecting them. Hayashi's optics setup fits the existing
   viewer limit without dropping parts or changing the export geometry.

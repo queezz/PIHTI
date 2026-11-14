@@ -37,6 +37,13 @@ def register(app, root, mirror, guard, *, background=False):
     views = Blueprint("simulation", __name__)
     cache = OrderedDict()
     display_store = cache_root(root) / "appearance-meshes"
+    drawing_path = root / "simulation" / "drawing-groups.json"
+
+    def read_drawing_groups():
+        try:
+            return json.loads(drawing_path.read_text(encoding="utf-8"))
+        except FileNotFoundError:
+            return {}
     jobs = DisplayJobs(root, mirror.root) if background else None
     app.extensions["pihti_display_jobs"] = jobs
 
@@ -194,8 +201,10 @@ def register(app, root, mirror, guard, *, background=False):
                     row["appearances"] = [
                         {**face, "colour": entry["colour"]} for face in span["appearances"]
                     ]
+            groups = read_drawing_groups().get(source, {})
             response = jsonify(
-                parts=rows, source_hash=digest, revision=prep.map_revision(mapping), units="mm"
+                parts=rows, source_hash=digest, revision=prep.map_revision(mapping), units="mm",
+                drawing_groups=groups, drawing_revision=prep.map_revision(groups),
             )
             response.set_etag(hashlib.sha256(response.get_data()).hexdigest())
             response.headers["Cache-Control"] = "private, no-cache"
@@ -226,6 +235,45 @@ def register(app, root, mirror, guard, *, background=False):
             response.headers["Cache-Control"] = "no-store"
             return response
         except (ValueError, OSError, ImportError) as exc:
+            return jsonify(error=str(exc)), 422
+
+    @views.post("/simulation/drawing-group")
+    def drawing_group():
+        refused = guard(request)
+        if refused is not None:
+            return refused
+        payload = request.get_json(silent=True)
+        try:
+            if not isinstance(payload, dict) or not isinstance(payload.get("source"), str):
+                raise ValueError("Choose a model first.")
+            source = payload["source"]
+            name = payload.get("name")
+            if not isinstance(name, str) or not name.strip() or len(name.strip()) > 100:
+                raise ValueError("Enter a group name (1–100 characters).")
+            name = name.strip()
+            record, digest = load(source, with_mesh=True, payload=False)
+            if digest != payload.get("source_hash"):
+                return jsonify(error="STEP changed. Reload the model."), 409
+            members = payload.get("members")
+            if members is not None:
+                keys = {part.key for part in record[0] if part.stable}
+                if not isinstance(members, list) or not members or any(
+                    not isinstance(key, str) or key not in keys for key in members
+                ):
+                    raise ValueError("Select parts with unique occurrence names.")
+                members = list(dict.fromkeys(members))
+            with prep.LOCK:
+                document = read_drawing_groups()
+                groups = document.setdefault(source, {})
+                if prep.map_revision(groups) != payload.get("revision"):
+                    return jsonify(error="Drawing groups changed. Reload before saving."), 409
+                if members is None:
+                    groups.pop(name, None)
+                else:
+                    groups[name] = members
+                _store_display(drawing_path, (json.dumps(document, indent=2, ensure_ascii=False) + "\n").encode())
+            return jsonify(groups=groups, revision=prep.map_revision(groups))
+        except (ValueError, OSError, ImportError, DisplayPending) as exc:
             return jsonify(error=str(exc)), 422
 
     @views.post("/simulation/map")

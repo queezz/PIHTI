@@ -414,12 +414,13 @@
       if (pick) gl.disable(gl.DITHER); else gl.enable(gl.DITHER);
       var baseAt = gl.getUniformLocation(program, "uBase");
       if (mesh.parts) {
+        var hasSelection = !pick && mesh.parts.some(function(p){return p.selected;});
         mesh.parts.forEach(function (part, index) {
           if (part.hidden) return;
           (pick ? [part] : part.appearances || [part]).forEach(function(face) {
           var rgb = face.colour || part.colour || BASE;
           if (pick) { var id = index + 1; rgb = [(id & 255) / 255, ((id >> 8) & 255) / 255, ((id >> 16) & 255) / 255]; }
-          else if (mesh.parts.some(function(p){return p.selected;}) && !part.selected) rgb = rgb.map(function(v){return v * 0.45;});
+          else if (hasSelection && !part.selected) rgb = rgb.map(function(v){return v * 0.45;});
           gl.uniform3fv(baseAt, rgb);
           gl.drawArrays(gl.TRIANGLES, face.start, face.count);
           });
@@ -464,7 +465,7 @@
       var box = canvas.getBoundingClientRect(); var pixel = new Uint8Array(4);
       gl.readPixels(Math.floor((event.clientX-box.left)*canvas.width/box.width), Math.floor((box.bottom-event.clientY)*canvas.height/box.height), 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, pixel);
       var id = pixel[0] + (pixel[1] << 8) + (pixel[2] << 16) - 1;
-      render(); if (id >= 0 && id < mesh.parts.length) options.onPick(id);
+      render(); if (id >= 0 && id < mesh.parts.length) options.onPick(id, event);
     });
     canvas.addEventListener("pointerdown", function (event) {
       if (!mesh) return;

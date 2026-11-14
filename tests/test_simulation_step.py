@@ -397,3 +397,33 @@ def test_worker_stop_kills_windows_launcher_tree(monkeypatch):
     )
     display_worker._stop(Process())
     assert calls == [["taskkill", "/PID", "12345", "/T", "/F"]]
+
+
+
+def test_drawing_groups_survive_reload_without_changing_simulation_map(tmp_path):
+    from pihti_dedup.web import create_app
+
+    fixture_step(tmp_path / "drawing.step")
+    app = create_app(tmp_path)
+    client = app.test_client()
+    query = {"source": "drawing.step"}
+    model = client.get("/simulation/model", query_string=query).get_json()
+    members = [part["key"] for part in model["parts"]]
+    payload = {
+        **query, "source_hash": model["source_hash"], "revision": model["drawing_revision"],
+        "name": "Optics support", "members": members,
+    }
+    headers = {"X-PIHTI-Token": app.config["FORM_TOKEN"]}
+    assert client.post("/simulation/drawing-group", json=payload).status_code == 403
+    response = client.post("/simulation/drawing-group", json=payload, headers=headers)
+    assert response.status_code == 200
+    assert client.post("/simulation/drawing-group", json=payload, headers=headers).status_code == 409
+    reopened = create_app(tmp_path).test_client().get("/simulation/model", query_string=query).get_json()
+    assert reopened["drawing_groups"] == {"Optics support": members}
+    assert reopened["revision"] == model["revision"]
+    assert not (tmp_path / prep.MAP_PATH).exists()
+    removed = client.post(
+        "/simulation/drawing-group", headers=headers,
+        json={**payload, "members": None, "revision": reopened["drawing_revision"]},
+    )
+    assert removed.get_json()["groups"] == {}

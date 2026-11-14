@@ -16,12 +16,27 @@
       <a href="{{ url_for('step_mirror_page') }}">STEP mirror</a>
     </section>
     <section class="rail-card">
+      <h2>Drawing groups</h2>
+      <p class="rail-note" id="sim-selection" role="status">No parts selected</p>
+      <label><input type="checkbox" id="sim-multi"> Add to selection</label>
+      <p class="rail-note">Click parts in the model or list. Ctrl/⌘-click also adds or removes a part.</p>
+      <button type="button" class="rail-action" id="sim-clear" disabled>Clear selection</button>
+      <label class="field">Saved groups<select id="sim-groups"><option value="">Choose a group</option></select></label>
+      <form id="sim-group-form">
+        <label class="field">Group name<input name="group_name" maxlength="100" required></label>
+        <button type="submit" class="rail-action" id="sim-group-save" disabled>Save drawing group</button>
+        <button type="button" class="rail-action" id="sim-group-delete" disabled>Remove saved group</button>
+      </form>
+    </section>
+    <section class="rail-card">
       <h2>Selected part</h2>
       <p id="sim-original" class="rail-note">Select in the model or parts list.</p>
       <form id="sim-edit"><fieldset id="sim-fields" disabled>
         <label class="field">Name<input name="name" required maxlength="200"></label>
+        <details><summary>Simulation fields</summary>
         <label class="field">Material<input name="material" maxlength="200" placeholder="e.g. Kapton"></label>
         <label class="field">Electrical role<select name="role">{% for role, colour in roles.items() %}<option value="{{ role }}" data-colour="{{ colour }}">{{ role or 'Unassigned' }}</option>{% endfor %}</select></label>
+        </details>
         <label class="field">Colour<input type="color" name="colour" value="#cbd0d6"></label>
         <button class="rail-action" type="submit" id="sim-save" disabled>Save part</button>
       </fieldset></form>
@@ -34,13 +49,13 @@
     </section>
   </aside>
   <section class="work-main">
-    <header class="page-bar"><strong>STEP viewer</strong><span id="sim-summary" class="muted">Open → select → name & colour → export</span></header>
+    <header class="page-bar"><strong>STEP viewer</strong><span id="sim-summary" class="muted">Select parts and save named drawing groups</span></header>
     <div class="sim-viewport"><canvas id="sim-canvas" aria-label="STEP assembly, drag to rotate and click to select"></canvas><p id="sim-empty">{% if available %}Choose an assembly or part from the STEP mirror.{% else %}STEP editing needs the simulation extra installed.{% endif %}</p></div>
     <p class="rail-note">Drag to rotate · wheel to zoom · Shift-drag to pan · double-click to fit</p>
   </section>
   <aside class="rail-side rail-tree">
-    <section class="rail-card"><h2>View</h2><button type="button" class="rail-action" id="sim-fit">Fit model</button>{{ mesh_tools(preview=false) }}<label><input type="checkbox" id="sim-isolate"> Selected part only</label><p class="rail-note">Section cuts the view only. Click the same axis again to cut from the side you are viewing.</p></section>
-    <section class="rail-card"><h2>Parts</h2><label class="field">Find parts<input type="search" id="sim-find"></label><div id="sim-parts"></div></section>
+    <section class="rail-card"><h2>View</h2><button type="button" class="rail-action" id="sim-fit">Fit model</button>{{ mesh_tools(preview=false) }}<label><input type="checkbox" id="sim-isolate"> Selected parts only</label><p class="rail-note">Section cuts the view only. Click the same axis again to cut from the side you are viewing.</p></section>
+    <section class="rail-card"><h2>Assemblies &amp; parts</h2><label class="field">Find parts or assemblies<input type="search" id="sim-find"></label><div id="sim-parts"></div></section>
     <section class="rail-card"><h2>Status</h2><p id="sim-status" role="status" aria-live="polite">Ready</p><p class="rail-note">Coordinates: original · mesh/export: mm</p></section>
   </aside>
 </main>
