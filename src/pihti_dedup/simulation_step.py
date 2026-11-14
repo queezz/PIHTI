@@ -298,6 +298,7 @@ def mesh(parts):
     import numpy as np
     from OCP.BRep import BRep_Tool
     from OCP.BRepMesh import BRepMesh_IncrementalMesh
+    from OCP.BRepTools import BRepTools
     from OCP.TopAbs import TopAbs_FACE, TopAbs_REVERSED
     from OCP.TopExp import TopExp_Explorer
     from OCP.TopLoc import TopLoc_Location
@@ -305,9 +306,30 @@ def mesh(parts):
 
     from pihti_dedup.mesh_cache import HEADER, MAGIC, MAX_TRIANGLES, MESH_FORMAT_VERSION
 
+    # Check the budget before expanding triangles into Python coordinates.
+    # Clear cached tessellation before retrying: OCC otherwise keeps finer faces.
+    for attempt, (linear, angular) in enumerate(((0.01, 0.15), (0.1, 0.35), (0.5, 0.65), (2.0, 1.0))):
+        if attempt:
+            for part in parts:
+                BRepTools.Clean_s(part.shape)
+        total = 0
+        for part in parts:
+            BRepMesh_IncrementalMesh(part.shape, linear, False, angular, True)
+            faces = TopExp_Explorer(part.shape, TopAbs_FACE)
+            while faces.More():
+                poly = BRep_Tool.Triangulation_s(TopoDS.Face(faces.Current()), TopLoc_Location())
+                if poly is not None:
+                    total += poly.NbTriangles()
+                faces.Next()
+            if total > MAX_TRIANGLES:
+                break
+        else:
+            break
+    else:
+        raise ValueError("assembly is too large for the viewer")
+
     blocks, ranges, count = [], [], 0
     for part in parts:
-        BRepMesh_IncrementalMesh(part.shape, 0.01, False, 0.15, True)
         faces = TopExp_Explorer(part.shape, TopAbs_FACE)
         triangles = []
         appearances, face_index = [], 0
@@ -328,8 +350,6 @@ def mesh(parts):
                             for point in [poly.Node(n).Transformed(transform) for n in nodes]
                         ]
                     )
-                    if count + len(triangles) > MAX_TRIANGLES:
-                        raise ValueError("assembly is too large for the viewer")
             face_colour = (
                 part.face_colours[face_index] if face_index < len(part.face_colours) else None
             )

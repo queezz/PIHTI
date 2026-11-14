@@ -178,6 +178,26 @@ def test_face_appearances_and_viewport_tessellation(tmp_path):
     assert read_header(data)[1] > 150
 
 
+def test_dense_step_mesh_retries_without_dropping_occurrences(monkeypatch):
+    pytest.importorskip("OCP")
+    from OCP.BRepPrimAPI import BRepPrimAPI_MakeCylinder
+
+    from pihti_dedup import mesh_cache
+
+    parts = [
+        prep.Part(str(i), "Cylinder", [str(i)], BRepPrimAPI_MakeCylinder(10, 20).Shape(), "#112233")
+        for i in range(2)
+    ]
+    fine = mesh_cache.read_header(prep.mesh(parts)[0])[1]
+    monkeypatch.setattr(mesh_cache, "MAX_TRIANGLES", fine // 2)
+    data, spans = prep.mesh(parts)
+    count = mesh_cache.read_header(data)[1]
+    assert 0 < count <= fine // 2
+    assert len(spans) == 2 and all(span["count"] for span in spans)
+    assert spans[1]["start"] == spans[0]["count"]
+    assert sum(span["count"] for span in spans) == count * 3
+
+
 def test_solid_colour_inheritance_and_face_override(tmp_path):
     pytest.importorskip("OCP")
     from OCP.BRep import BRep_Builder

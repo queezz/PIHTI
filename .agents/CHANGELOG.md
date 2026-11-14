@@ -4,6 +4,12 @@ Shipped archive milestones only. PIHTI does not yet have a formal release/versio
 contract, so entries are dated rather than assigned software versions. Git history
 remains authoritative for exact file changes.
 
+## 2026-11-14
+
+- Shipped `pihti-dedup` 0.34.5: retry dense STEP display meshes at coarser
+  tolerances before rejecting them. Hayashi's optics setup fits the existing
+  viewer limit without dropping parts or changing the export geometry.
+
 ## 2026-10-27
 
 - Moved the OLED sleeve upper grip rearward onto the short mount wall and

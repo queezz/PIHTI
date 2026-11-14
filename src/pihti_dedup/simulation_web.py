@@ -66,7 +66,7 @@ def register(app, root, mirror, guard, *, background=False):
             # service restarts. Saved overrides are applied separately below.
             stat = path.stat()
             stamp = hashlib.sha256(
-                f"appearance-v1:{mesh_cache.MAX_TRIANGLES}:{source}:{path}:{stat.st_mtime_ns}:{stat.st_size}".encode()
+                f"appearance-v2:{mesh_cache.MAX_TRIANGLES}:{source}:{path}:{stat.st_mtime_ns}:{stat.st_size}".encode()
             ).hexdigest()
             metadata = display_store / stamp[:2] / (stamp + ".json")
             binary = metadata.with_suffix(".mesh")
@@ -216,7 +216,7 @@ def register(app, root, mirror, guard, *, background=False):
             if request.args.get("hash") != digest:
                 return jsonify(error="STEP changed. Reload the model."), 409
             response = send_file(io.BytesIO(record[1]), mimetype="application/octet-stream")
-            response.set_etag(digest + "-appearance-v1")
+            response.set_etag(digest + "-appearance-v2")
             response.headers["Cache-Control"] = "private, max-age=31536000, immutable"
             return response.make_conditional(request)
         except DisplayPending:
