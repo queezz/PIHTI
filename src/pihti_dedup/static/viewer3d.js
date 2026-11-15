@@ -201,7 +201,7 @@
     var model = await response.json();
     var key = 'appearance:'+source+':'+model.source_hash+':'+model.revision;
     if (memo.has(key)) return memo.get(key);
-    var pending = fetch('/simulation/mesh?source='+encodeURIComponent(source)+'&hash='+model.source_hash, {signal:signal}).then(async function(response){
+    var pending = fetch('/simulation/mesh?source='+encodeURIComponent(source)+'&hash='+model.source_hash+'&format='+encodeURIComponent(model.mesh_format), {signal:signal}).then(async function(response){
       if(!response.ok) throw new Error('STEP changed; reload the preview.');
       if(onSize)onSize(Number(response.headers.get('content-length'))||0);
       var mesh=parse(await response.arrayBuffer());

@@ -4,6 +4,12 @@ Shipped archive milestones only. PIHTI does not yet have a formal release/versio
 contract, so entries are dated rather than assigned software versions. Git history
 remains authoritative for exact file changes.
 
+## 2026-11-16
+
+- Shipped `pihti-dedup` 0.35.1: start large STEP assemblies at a practical
+  preview tolerance so slow fine tessellation cannot stall the first pass.
+  Mark historical export skips as neutral and show when a later export succeeded.
+
 ## 2026-11-14
 
 - Shipped `pihti-dedup` 0.35.0: expand and select STEP assembly branches,

@@ -1585,6 +1585,9 @@ def test_every_attempt_is_logged_with_its_full_path(tmp_path: Path) -> None:
     ]
     assert recent[1]["outcome"] == "failed: the translator failed"
     assert recent[0]["kind"] == SKIPPED_OPEN
+    assert not recent[0]["superseded"]
+    mirror.log_attempt("Frame/frame.iam", EXPORTED)
+    assert mirror.recent()[1]["superseded"]
 
 
 def test_the_log_rotates_at_five_megabytes_and_keeps_one(

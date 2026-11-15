@@ -299,7 +299,7 @@ window.addEventListener('DOMContentLoaded', function () {
 
       model=await answer(await window.PihtiViewer3D.fetchDisplayModel(sourceName));
 
-      var response=await fetch('/simulation/mesh?source='+encodeURIComponent(sourceName)+'&hash='+model.source_hash);
+      var response=await fetch('/simulation/mesh?source='+encodeURIComponent(sourceName)+'&hash='+model.source_hash+'&format='+encodeURIComponent(model.mesh_format));
 
       if(!response.ok) await answer(response);
 

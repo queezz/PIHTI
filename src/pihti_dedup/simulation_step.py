@@ -308,7 +308,11 @@ def mesh(parts):
 
     # Check the budget before expanding triangles into Python coordinates.
     # Clear cached tessellation before retrying: OCC otherwise keeps finer faces.
-    for attempt, (linear, angular) in enumerate(((0.01, 0.15), (0.1, 0.35), (0.5, 0.65), (2.0, 1.0))):
+    tolerances = ((0.1, 0.35), (0.5, 0.65), (2.0, 1.0))
+    # Fine meshing can itself time out before a triangle budget check.
+    if len(parts) < 200:
+        tolerances = ((0.01, 0.15),) + tolerances
+    for attempt, (linear, angular) in enumerate(tolerances):
         if attempt:
             for part in parts:
                 BRepTools.Clean_s(part.shape)

@@ -17,6 +17,8 @@ from pihti_dedup import simulation_step as prep
 from pihti_dedup.cache_root import cache_root
 from pihti_dedup.display_worker import DisplayJobs, DisplayPending
 
+DISPLAY_FORMAT = "appearance-v3"
+
 
 class DisplayRefusal(ValueError):
     """A file-state-specific geometry limit already measured on this machine."""
@@ -73,7 +75,7 @@ def register(app, root, mirror, guard, *, background=False):
             # service restarts. Saved overrides are applied separately below.
             stat = path.stat()
             stamp = hashlib.sha256(
-                f"appearance-v2:{mesh_cache.MAX_TRIANGLES}:{source}:{path}:{stat.st_mtime_ns}:{stat.st_size}".encode()
+                f"{DISPLAY_FORMAT}:{mesh_cache.MAX_TRIANGLES}:{source}:{path}:{stat.st_mtime_ns}:{stat.st_size}".encode()
             ).hexdigest()
             metadata = display_store / stamp[:2] / (stamp + ".json")
             binary = metadata.with_suffix(".mesh")
@@ -205,6 +207,7 @@ def register(app, root, mirror, guard, *, background=False):
             response = jsonify(
                 parts=rows, source_hash=digest, revision=prep.map_revision(mapping), units="mm",
                 drawing_groups=groups, drawing_revision=prep.map_revision(groups),
+                mesh_format=DISPLAY_FORMAT,
             )
             response.set_etag(hashlib.sha256(response.get_data()).hexdigest())
             response.headers["Cache-Control"] = "private, no-cache"
@@ -225,7 +228,7 @@ def register(app, root, mirror, guard, *, background=False):
             if request.args.get("hash") != digest:
                 return jsonify(error="STEP changed. Reload the model."), 409
             response = send_file(io.BytesIO(record[1]), mimetype="application/octet-stream")
-            response.set_etag(digest + "-appearance-v2")
+            response.set_etag(digest + "-" + DISPLAY_FORMAT)
             response.headers["Cache-Control"] = "private, max-age=31536000, immutable"
             return response.make_conditional(request)
         except DisplayPending:

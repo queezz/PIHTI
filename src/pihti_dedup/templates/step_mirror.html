@@ -78,12 +78,12 @@
       </section>
 
       <section class="doctor-panel standard-group" id="sec-recent">
-        <header><div><h2>Last exports</h2><small class="problem-kind">export.log, newest first</small></div><strong>{{ recent|length }}</strong></header>
+        <header><div><h2>Export history</h2><small class="problem-kind">Past attempts, newest first</small></div><strong>{{ recent|length }}</strong></header>
         <div class="doctor-list">
           {% for line in recent %}
-          <div class="doctor-row mirror-log{% if line.kind not in ('exported', 'closed-leftover') %} is-failed{% endif %}">
+          <div class="doctor-row mirror-log{% if not line.superseded and line.kind not in ('exported', 'closed-leftover', 'skipped-open-in-inventor') %} is-failed{% endif %}">
             <span><time datetime="{{ line.at }}">{{ line.at[:16]|replace('T', ' ') }}</time></span>
-            <span><strong>{{ line.path|winpath }}</strong><small>{{ line.outcome }}{% if line.kind in ('needs-doctor', 'closed-leftover') and line.detail %}: {{ line.detail }}{% endif %}</small></span>
+            <span><strong>{{ line.path|winpath }}</strong><small>{% if line.kind == 'skipped-open-in-inventor' %}Skipped: open in Inventor at the time{% else %}{{ line.outcome }}{% endif %}{% if line.kind in ('needs-doctor', 'closed-leftover') and line.detail %}: {{ line.detail }}{% endif %}{% if line.superseded and line.kind != 'exported' %} · exported later{% endif %}</small></span>
             <b>{{ '%.1f'|format(line.seconds or 0) }} s</b>
           </div>
           {% else %}<p class="doctor-empty">Nothing exported yet.</p>{% endfor %}
@@ -146,7 +146,7 @@
           <a class="rail-navrow" href="#sec-ready"><span>Ready to export</span><strong>{{ exportable }}</strong></a>
           <a class="rail-navrow" href="#sec-doctor"><span>Blocked</span><strong>{{ needs_doctor|length }}</strong></a>
           <a class="rail-navrow" href="#sec-later"><span>Doctor later</span><strong>{{ doctor_later|length }}</strong></a>
-          <a class="rail-navrow" href="#sec-recent"><span>Last exports</span><strong>{{ recent|length }}</strong></a>
+          <a class="rail-navrow" href="#sec-recent"><span>Export history</span><strong>{{ recent|length }}</strong></a>
         </nav>
       </section>
     </aside>

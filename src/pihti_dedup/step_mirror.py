@@ -843,11 +843,16 @@ class StepMirror:
         if len(data) >= LOG_TAIL_BYTES and lines:
             lines = lines[1:]  # the first line was cut by the seek
         recent: list[dict] = []
+        exported: set[str] = set()
         for text in reversed(lines):
             fields = text.split("\t")
             if len(fields) != 5:
                 continue
             when, kind, seconds, path, detail = fields
+            key = path.replace("\\", "/").casefold()
+            superseded = key in exported
+            if kind == "exported":
+                exported.add(key)
             try:
                 spent = float(seconds)
             except ValueError:
@@ -859,6 +864,7 @@ class StepMirror:
                     "path": path,
                     "outcome": outcome,
                     "kind": kind,
+                    "superseded": superseded,
                     "seconds": spent,
                     "detail": detail,
                 }
