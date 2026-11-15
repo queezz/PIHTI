@@ -50,7 +50,7 @@
   </aside>
   <section class="work-main">
     <header class="page-bar"><strong>STEP viewer</strong><span id="sim-summary" class="muted">Select parts and save named drawing groups</span></header>
-    <div class="sim-viewport"><canvas id="sim-canvas" aria-label="STEP assembly, drag to rotate and click to select"></canvas><p id="sim-empty">{% if available %}Choose an assembly or part from the STEP mirror.{% else %}STEP editing needs the simulation extra installed.{% endif %}</p></div>
+    <div class="sim-viewport"><canvas id="sim-canvas" aria-label="STEP assembly, drag to rotate and click to select"></canvas><div id="sim-load-panel"><progress id="sim-progress" aria-label="Loading STEP model" hidden></progress><p id="sim-empty" role="status">{% if available %}Choose an assembly or part from the STEP mirror.{% else %}STEP editing needs the simulation extra installed.{% endif %}</p><small id="sim-elapsed" hidden></small><button type="button" class="button" id="sim-retry" hidden>Retry load</button></div></div>
     <p class="rail-note">Drag to rotate · wheel to zoom · Shift-drag to pan · double-click to fit</p>
   </section>
   <aside class="rail-side rail-tree">

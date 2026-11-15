@@ -6,6 +6,9 @@ remains authoritative for exact file changes.
 
 ## 2026-11-16
 
+- Shipped `pihti-dedup` 0.35.2: show STEP preview preparation and download
+  stages with elapsed time, and give failed loads a clear message and Retry.
+
 - Shipped `pihti-dedup` 0.35.1: start large STEP assemblies at a practical
   preview tolerance so slow fine tessellation cannot stall the first pass.
   Mark historical export skips as neutral and show when a later export succeeded.

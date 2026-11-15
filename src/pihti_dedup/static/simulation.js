@@ -276,6 +276,25 @@ window.addEventListener('DOMContentLoaded', function () {
 
   }
 
+  var loadPanel = document.getElementById('sim-load-panel');
+  var loadMessage = document.getElementById('sim-empty');
+  var progress = document.getElementById('sim-progress');
+  var elapsed = document.getElementById('sim-elapsed');
+  var retry = document.getElementById('sim-retry');
+
+  function loadStage(message) {
+    loadMessage.textContent = message;
+    say(message);
+  }
+
+  retry.addEventListener('click', function () {
+    if (!Array.from(source.options).some(function (option) { return option.value === sourceName; })) {
+      source.add(new Option(sourceName, sourceName));
+    }
+    source.value = sourceName;
+    open();
+  });
+
   async function open() {
 
     if (opening || groupBusy || partBusy || !source.value) return;
@@ -289,21 +308,32 @@ window.addEventListener('DOMContentLoaded', function () {
 
     document.getElementById('sim-save').disabled=true;
 
-    document.getElementById('sim-empty').hidden=false; document.getElementById('sim-empty').textContent='Loading STEP…';
+    loadPanel.hidden = false; progress.hidden = false; elapsed.hidden = false; retry.hidden = true;
+    var started = performance.now();
+    function tick() { elapsed.textContent = Math.floor((performance.now() - started) / 1000) + ' s elapsed'; }
+    tick();
+    var clock = setInterval(tick, 1000);
+    var controller = new AbortController();
+    // The server serializes at most two 120-second preparation jobs.
+    var deadline = setTimeout(function () { controller.abort(); }, 270000);
+    loadStage('Preparing the STEP preview…');
 
-    if(viewer) viewer.clear(); list(); say('Reading STEP…');
+    if(viewer) viewer.clear(); list();
 
     var modelUrl=new URL(location.href); modelUrl.searchParams.set('source',sourceName); history.replaceState(null,'',modelUrl.pathname+modelUrl.search);
 
     try {
 
-      model=await answer(await window.PihtiViewer3D.fetchDisplayModel(sourceName));
+      model=await answer(await window.PihtiViewer3D.fetchDisplayModel(sourceName, controller.signal));
 
-      var response=await fetch('/simulation/mesh?source='+encodeURIComponent(sourceName)+'&hash='+model.source_hash+'&format='+encodeURIComponent(model.mesh_format));
+      loadStage('Downloading the display mesh…');
+      var response=await fetch('/simulation/mesh?source='+encodeURIComponent(sourceName)+'&hash='+model.source_hash+'&format='+encodeURIComponent(model.mesh_format), {signal:controller.signal});
 
       if(!response.ok) await answer(response);
 
-      var mesh=window.PihtiViewer3D.parse(await response.arrayBuffer());
+      var bytes = await response.arrayBuffer();
+      loadStage('Rendering the assembly…');
+      var mesh=window.PihtiViewer3D.parse(bytes);
 
       if(ticket!==generation) return;
 
@@ -317,7 +347,7 @@ window.addEventListener('DOMContentLoaded', function () {
 
       viewer.show(mesh,{up:meshUp}); ready=true; syncTools(); updateGroups();
 
-      document.getElementById('sim-empty').hidden=true;
+      loadPanel.hidden = true;
 
       form.dataset.dirty='false'; document.getElementById('sim-summary').textContent=sourceName.split('/').pop()+' · '+parts.length+' parts · mm'; document.getElementById('sim-summary').title=sourceName;
 
@@ -325,9 +355,18 @@ window.addEventListener('DOMContentLoaded', function () {
 
       say('Click a part in the model or the parts list.');
 
-    } catch(error) { say(error.message); document.getElementById('sim-empty').textContent=error.message; }
-
-    finally { opening=false; document.getElementById('sim-open').disabled=!source.value; }
+    } catch(error) {
+      ready = false; syncTools();
+      var reason = controller.signal.aborted ? 'The viewer stopped waiting for the preview.'
+        : error instanceof TypeError ? 'The connection to the STEP viewer was interrupted.'
+        : error.message;
+      loadStage('Could not open the model. ' + reason);
+      retry.hidden = false;
+    } finally {
+      clearInterval(clock); clearTimeout(deadline);
+      progress.hidden = true; elapsed.hidden = true;
+      opening=false; document.getElementById('sim-open').disabled=!source.value;
+    }
 
   }
 
