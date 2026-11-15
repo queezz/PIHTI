@@ -27,6 +27,7 @@
       {{ page_bar([{'name': 'STEP mirror'}]) }}
 
       {% if single_notice %}<p class="metadata-notice doctor-notice" role="status">{{ single_notice }}</p>{% endif %}
+      {% if retry_path %}<p><a class="button" href="{{ url_for('part_page', relative_path=retry_path) }}">Open file and export again</a></p>{% endif %}
       <section class="doctor-panel standard-group" id="sec-ready">
         <header><div><h2>Ready to export</h2><small class="problem-kind">Safe to open without an Inventor prompt</small></div><strong>{{ exportable }}</strong></header>
         <div class="doctor-list">

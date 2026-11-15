@@ -6,6 +6,10 @@ remains authoritative for exact file changes.
 
 ## 2026-11-16
 
+- Shipped `pihti-dedup` 0.36.0: explicitly export the saved Inventor assembly
+  model states as separate STEP copies and open them by name in the viewer.
+  Export failure notices link back to the file even if its prior mirror is current.
+
 - Shipped `pihti-dedup` 0.35.2: show STEP preview preparation and download
   stages with elapsed time, and give failed loads a clear message and Retry.
 

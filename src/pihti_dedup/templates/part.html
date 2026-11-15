@@ -126,7 +126,7 @@
           <div><dt>Modified</dt><dd>{{ mtime_ns|filetime }}</dd></div>
           {% if step %}<div><dt>STEP</dt><dd>{% if step.state == 'missing' %}Missing{% elif step.state == 'stale' %}Stale · {{ step.step_mtime_ns|minutetime }}{% else %}Current · {{ step.step_mtime_ns|minutetime }}{% endif %}</dd></div>{% endif %}
         </dl>
-        {% if step and step.state != 'current' %}
+        {% if step %}
         {% if step.blocker_reason %}
         <p class="part-note step-problem">References <code>{{ step.blocker_name }}</code>: {{ step.blocker_reason }}.</p>
         <p class="step-export-card"><a class="copy-path" href="{{ step.doctor_url }}">Resolve in Doctor</a></p>
@@ -134,9 +134,21 @@
         <form class="step-export-card" method="post" action="{{ url_for('part_step_export', relative_path=path) }}">
           <input type="hidden" name="token" value="{{ form_token }}">
           <input type="hidden" name="origin" value="part">
-          <button class="copy-path" type="submit">{{ 'Re-export STEP' if step.state == 'stale' else 'Export STEP' }}</button>
+          <button class="copy-path" type="submit">{{ 'Export STEP' if step.state == 'missing' else 'Re-export STEP' }}</button>
         </form>
-        {% else %}<p class="part-note muted step-export-card">Open Inventor to export</p>{% endif %}
+        {% elif step.state != 'current' %}<p class="part-note muted step-export-card">Open Inventor to export</p>{% endif %}
+        {% endif %}
+        {% if step and step.available and suffix|lower == '.iam' and not step.blocker_reason %}
+        <form class="step-export-card" method="post" action="{{ url_for('part_step_export_states', relative_path=path) }}">
+          <input type="hidden" name="token" value="{{ form_token }}">
+          <button class="copy-path" type="submit">Export all model states</button>
+          <p class="part-note muted">Save and close this assembly in Inventor first.</p>
+        </form>
+        {% endif %}
+        {% if step and step.model_states %}
+        <ul>{% for key, member in step.model_states.items() %}
+          <li><a href="{{ url_for('simulation.page', source=path ~ '::' ~ key) }}">{{ member[0] }}</a></li>
+        {% endfor %}</ul>
         {% endif %}
         {% if signals %}
         <ul class="file-marks" aria-label="What the catalog knows about this file">

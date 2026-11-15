@@ -669,7 +669,8 @@ def export_temporary(target: Path) -> Path:
 
 
 def export_copy(
-    session: Session, source: Path, target: Path, *, timeout: float = DEFAULT_TIMEOUT
+    session: Session, source: Path, target: Path, *, timeout: float = DEFAULT_TIMEOUT,
+    model_state: str | None = None,
 ) -> ExportResult:
     """Export `source` to `target` through Inventor; never raises.
 
@@ -689,9 +690,16 @@ def export_copy(
     def work(application: Any, run: _Run) -> str:
         if path_key(source) in _open_paths(application, run):
             return SKIPPED_OPEN
-        document = application.Documents.Open(str(source), False)
+        if model_state is None:
+            document = application.Documents.Open(str(source), False)
+        else:
+            options = application.TransientObjects.CreateNameValueMap()
+            options.Add("ModelState", model_state)
+            document = application.Documents.OpenWithOptions(str(source), options, False)
         try:
             run.tick()
+            if model_state is not None and document.ModelStateName != model_state:
+                raise ValueError(f"Inventor did not open model state {model_state!r}")
             document.SaveAs(str(temporary), True)
             run.tick()
         finally:
@@ -718,6 +726,21 @@ def export_copy(
         _discard(temporary)
         return done(f"failed: {_reason(exc)}")
     return done(EXPORTED)
+
+
+def assembly_model_states(session: Session, source: Path, project: Path) -> tuple[str, ...]:
+    """Read the saved state names without opening or switching the assembly."""
+    def read(application: Any, run: _Run) -> tuple[str, ...]:
+        active = application.DesignProjectManager.ActiveDesignProject.FullFileName
+        if path_key(active) != path_key(project):
+            raise ValueError("Activate PIHTI.ipj in Inventor before exporting.")
+        run.tick()
+        return tuple(application.FileManager.GetModelStates(str(source)))
+
+    try:
+        return session.run(read, timeout=PROBE_TIMEOUT)
+    except Exception as exc:  # noqa: BLE001 - report COM failures to the caller
+        raise ValueError(f"Could not read model states: {_reason(exc)}") from exc
 
 
 def _discard(path: Path) -> None:

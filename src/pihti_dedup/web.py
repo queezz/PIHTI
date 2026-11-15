@@ -4110,6 +4110,7 @@ def create_app(
                 "step_mtime_ns": state.step_mtime_ns,
                 "source_mtime_ns": stat.st_mtime_ns,
                 "available": blocked is None and _session() is not None,
+                "model_states": mirror.current_model_states(relative),
                 "blocker_name": blocked[0] if blocked else "",
                 "blocker_reason": blocked[1] if blocked else "",
                 "doctor_url": url_for(
@@ -4742,6 +4743,31 @@ def create_app(
             )
         )
 
+    @app.post("/part/<path:relative_path>/step-export-states")
+    def part_step_export_states(relative_path: str):
+        refused = _guard(request)
+        if refused is not None:
+            return refused
+        source = workspace_file(root, relative_path)
+        if source is None or source.suffix.lower() != ".iam":
+            return Response("Choose a workspace assembly.", status=404)
+        relative = source.relative_to(root).as_posix()
+        session = _session()
+        outcomes = {}
+        error = ""
+        try:
+            if session is None or mirror_batch.active():
+                raise ValueError("Open Inventor or wait for the current export to finish.")
+            mirror.close_leftovers(session)
+            outcomes = mirror.export_model_states(session, relative)
+        except (ValueError, OSError, RuntimeError) as exc:
+            error = str(exc)
+        return render_template(
+            "step_states.html", version=__version__, path=relative, outcomes=outcomes,
+            error=error, members=mirror.current_model_states(relative),
+            form_token=app.config["FORM_TOKEN"],
+        ), 422 if error else 200
+
     def _mirror_counts(status) -> dict[str, int]:
         return {
             "current": len(status.current),
@@ -4783,7 +4809,9 @@ def create_app(
             )
         single_notice = ""
         step_code = request.args.get("step", "")
-        step_file = request.args.get("file", "").replace("\\", "/").rsplit("/", 1)[-1]
+        step_path = request.args.get("file", "").replace("\\", "/")
+        step_file = step_path.rsplit("/", 1)[-1]
+        retry_source = workspace_file(root, step_path) if step_code in {"timeout", "open", "failed"} else None
         if step_code in STEP_TOASTS and step_file:
             single_notice = STEP_TOASTS[step_code].format(name=step_file)
         verified = request.args.get("verified", "").replace("\\", "/")
@@ -4804,6 +4832,7 @@ def create_app(
             location=str(mirror.root),
             created=mirror.root.is_dir(),
             recent=mirror.recent(),
+            retry_path=retry_source.relative_to(root).as_posix() if retry_source else None,
             leftovers=mirror.pending_close(),
             inventor_version=session.version if session is not None else None,
             background=refresh_seconds > 0,

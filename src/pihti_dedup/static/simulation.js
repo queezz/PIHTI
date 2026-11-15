@@ -48,6 +48,11 @@ window.addEventListener('DOMContentLoaded', function () {
   syncTools();
 
   var sources = JSON.parse(document.getElementById('sim-sources').textContent);
+  var stateNames = JSON.parse(document.getElementById('sim-state-names').textContent);
+  function sourceLabel(path, full) {
+    var file = path.split('::')[0];
+    return (full ? file : file.split('/').pop()) + (stateNames[path] ? ' · ' + stateNames[path] : '');
+  }
   var folder = '', fileFind = document.getElementById('sim-file-find');
   var allFolders = document.getElementById('sim-all-folders');
   function parent(path) { return path.includes('/') ? path.slice(0,path.lastIndexOf('/')) : ''; }
@@ -69,9 +74,9 @@ window.addEventListener('DOMContentLoaded', function () {
   }
   function filterFiles() {
     var selectedSource=source.value, query=fileFind.value.trim().toLowerCase();
-    var matches=sources.filter(function(path){return (allFolders.checked || (query ? path.startsWith(folder ? folder+'/' : '') : parent(path)===folder)) && path.toLowerCase().includes(query);});
+    var matches=sources.filter(function(path){return (allFolders.checked || (query ? path.startsWith(folder ? folder+'/' : '') : parent(path)===folder)) && sourceLabel(path, true).toLowerCase().includes(query);});
     source.replaceChildren(new Option(matches.length ? 'Choose a file' : 'No matching files',''));
-    matches.forEach(function(path){source.add(new Option(allFolders.checked || query ? path : path.split('/').pop(),path));});
+    matches.forEach(function(path){source.add(new Option(sourceLabel(path, allFolders.checked || query),path));});
     if(matches.includes(selectedSource)) source.value=selectedSource;
     document.getElementById('sim-file-count').textContent=matches.length+(matches.length===1?' file':' files');
     document.getElementById('sim-open').disabled=!source.value || opening;
@@ -349,7 +354,7 @@ window.addEventListener('DOMContentLoaded', function () {
 
       loadPanel.hidden = true;
 
-      form.dataset.dirty='false'; document.getElementById('sim-summary').textContent=sourceName.split('/').pop()+' · '+parts.length+' parts · mm'; document.getElementById('sim-summary').title=sourceName;
+      form.dataset.dirty='false'; document.getElementById('sim-summary').textContent=sourceLabel(sourceName, false)+' · '+parts.length+' parts · mm'; document.getElementById('sim-summary').title=sourceLabel(sourceName, true);
 
       document.querySelectorAll('[data-sim-export]').forEach(function(b){b.disabled=false;}); list();
 
@@ -403,7 +408,7 @@ window.addEventListener('DOMContentLoaded', function () {
 
     button.disabled=true; say('Preparing STEP…');
 
-    try {var response=await fetch('/simulation/export',{method:'POST',body:data});if(!response.ok)await answer(response);var url=URL.createObjectURL(await response.blob());var a=document.createElement('a');a.href=url;a.download=sourceName.split('/').pop().replace(/\.(iam|ipt|step|stp)$/i,'')+'-prepared.zip';a.click();setTimeout(function(){URL.revokeObjectURL(url);},30000);say('Export prepared.');}
+    try {var response=await fetch('/simulation/export',{method:'POST',body:data});if(!response.ok)await answer(response);var url=URL.createObjectURL(await response.blob());var a=document.createElement('a');a.href=url;a.download=sourceLabel(sourceName, false).replace(/[<>:"/\\|?*]/g, '-').replace(/\.(iam|ipt|step|stp)$/i,'')+'-prepared.zip';a.click();setTimeout(function(){URL.revokeObjectURL(url);},30000);say('Export prepared.');}
 
     catch(error){say(error.message);}finally{button.disabled=false;}
 

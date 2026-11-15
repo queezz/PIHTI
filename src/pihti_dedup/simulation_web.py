@@ -52,9 +52,17 @@ def register(app, root, mirror, guard, *, background=False):
     def source_path(source):
         if not source or "\\" in source:
             abort(404)
-        path = (root / source).resolve()
+        relative, separator, state = source.partition("::")
+        path = (root / relative).resolve()
         if not path.is_relative_to(root) or not path.is_file():
             abort(404)
+        if separator:
+            if path.relative_to(root).as_posix() != relative:
+                abort(404)
+            member = mirror.current_model_states(relative).get(state)
+            if member is None:
+                raise ValueError("This model state needs a current STEP. Export model states again.")
+            return member[1].resolve()
         if path.suffix.lower() in {".ipt", ".iam"}:
             stat = path.stat()
             target = mirror.current_step(source, stat.st_mtime_ns, stat.st_size)
@@ -164,7 +172,16 @@ def register(app, root, mirror, guard, *, background=False):
     @views.get("/simulation")
     def page():
         sources = []
+        state_names = {}
         if mirror.root.is_dir():
+            for manifest in mirror.root.rglob("*.step-model-states/states.json"):
+                relative = manifest.parent.relative_to(mirror.root).as_posix().removesuffix(
+                    ".step-model-states"
+                )
+                for key, (name, _) in mirror.current_model_states(relative).items():
+                    identifier = relative + "::" + key
+                    sources.append(identifier)
+                    state_names[identifier] = name
             for step in sorted(mirror.root.rglob("*.step")):
                 relative = step.relative_to(mirror.root).as_posix()
                 source = relative[:-5]
@@ -184,6 +201,7 @@ def register(app, root, mirror, guard, *, background=False):
             workspace=root.name,
             version=__version__,
             sources=sources,
+            state_names=state_names,
             roles=prep.ROLES,
             available=bool(importlib.util.find_spec("OCP")),
             form_token=app.config["FORM_TOKEN"],
@@ -322,7 +340,7 @@ def register(app, root, mirror, guard, *, background=False):
                 io.BytesIO(output),
                 mimetype="application/zip",
                 as_attachment=True,
-                download_name=Path(source).stem + "-prepared.zip",
+                download_name=Path(source.partition("::")[0]).stem + "-prepared.zip",
             )
         except (ValueError, OSError, ImportError) as exc:
             return jsonify(error=str(exc)), 422

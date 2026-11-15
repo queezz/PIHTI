@@ -2098,3 +2098,43 @@ def test_the_viewer_job_yields_to_the_page_batch(tmp_path: Path) -> None:
     assert [entry[1] for entry in app.log if entry[0] == "open"] == [
         "old.ipt", "mid.ipt", "frame.iam", "new.ipt"
     ]
+
+
+
+def test_model_state_exports_use_explicit_members_and_keep_the_base_mirror(tmp_path, monkeypatch):
+    from types import SimpleNamespace
+
+    root = make_workspace(tmp_path / "PIHTI")
+    mirror = StepMirror(root)
+    app = fake_for(root)
+    app.DesignProjectManager = SimpleNamespace(
+        ActiveDesignProject=SimpleNamespace(FullFileName=str(root / "PIHTI.ipj"))
+    )
+    app.FileManager = type("FileManager", (), {
+        "GetModelStates": lambda self, path: ("[Primary]", "Boron Hayashi", "Permeation")
+    })()
+    open_options = app.Documents._open_with_options
+
+    def open_member(path, options, visible):
+        doc = open_options(path, options, visible)
+        doc.ModelStateName = options.values["ModelState"]
+        return doc
+
+    monkeypatch.setattr(app.Documents, "_open_with_options", open_member)
+    relative = "Frame/frame.iam"
+    session = fake_session(app)
+    assert mirror.export(session, relative).exported
+    base = mirror.target(relative)
+    original = base.read_bytes()
+    assert mirror.export_model_states(session, relative) == dict.fromkeys(
+        ("[Primary]", "Boron Hayashi", "Permeation"), EXPORTED
+    )
+    variants = mirror.current_model_states(relative)
+    assert {name for name, path in variants.values() if path.is_file()} == {
+        "[Primary]", "Boron Hayashi", "Permeation"
+    }
+    assert base.read_bytes() == original
+    assert [record[2]["ModelState"] for record in app.log if record[0] == "open-options"
+            and "ModelState" in record[2]] == ["[Primary]", "Boron Hayashi", "Permeation"]
+    (root / relative).write_bytes(b"changed assembly")
+    assert mirror.current_model_states(relative) == {}

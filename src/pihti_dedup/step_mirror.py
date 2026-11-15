@@ -62,9 +62,11 @@ queue, the command line's rules, on its own thread; the job yields to it).
 
 from __future__ import annotations
 
+import hashlib
 import json
 import logging
 import os
+import tempfile
 import threading
 import time
 import xml.etree.ElementTree as ElementTree
@@ -1064,6 +1066,73 @@ class StepMirror:
 
         item = self.state(relative, mtime_ns, size)
         return self.target(relative) if item.state == CURRENT else None
+
+    def _model_states_dir(self, relative: str) -> Path:
+        target = self.target(relative)
+        return target.with_name(target.name + "-model-states")
+
+    def current_model_states(self, relative: str) -> dict[str, tuple[str, Path]]:
+        """Return current member names and STEP paths, indexed by opaque ID."""
+        if not in_scope(relative) or not relative.lower().endswith(".iam"):
+            return {}
+        directory = self._model_states_dir(relative)
+        if not directory.resolve().is_relative_to(self.root.resolve()):
+            return {}
+        try:
+            source = (self.workspace / relative).stat()
+            manifest = json.loads((directory / "states.json").read_text(encoding="utf-8"))
+            if manifest["source"] != [source.st_mtime_ns, source.st_size]:
+                return {}
+            result = {}
+            for name in manifest["states"]:
+                key = hashlib.sha256(name.encode()).hexdigest()
+                path = directory / (key + ".step")
+                if path.is_file() and path.resolve().is_relative_to(self.root.resolve()):
+                    result[key] = (name, path)
+            return result
+        except (OSError, KeyError, ValueError, TypeError, AttributeError):
+            return {}
+
+    def export_model_states(self, session: Session, relative: str) -> dict[str, str]:
+        """Export saved assembly configurations separately from the ordinary mirror."""
+        if not in_scope(relative) or not relative.lower().endswith(".iam"):
+            raise ValueError("Model state export requires a workspace assembly.")
+        source = self.workspace / relative
+        stat = source.stat()
+        blocked = self.blocker(relative)
+        if blocked:
+            raise ValueError(blocked[1])
+        states = inventor_session.assembly_model_states(session, source, self.workspace / "PIHTI.ipj")
+        if not states:
+            raise ValueError("Inventor reported no saved model states.")
+        directory = self._model_states_dir(relative)
+        if not directory.resolve().is_relative_to(self.root.resolve()):
+            raise ValueError("Model state destination is outside the mirror.")
+        self.ensure_root()
+        directory.mkdir(parents=True, exist_ok=True)
+        outcomes = {}
+        for name in states:
+            key = hashlib.sha256(name.encode()).hexdigest()
+            target = directory / (key + ".step")
+            result = inventor_session.export_copy(session, source, target, model_state=name)
+            outcomes[name] = result.outcome
+            if result.outcome == inventor_session.TIMED_OUT:
+                self._remember_leftover(relative)
+            if result.outcome in (inventor_session.SKIPPED_OPEN, inventor_session.TIMED_OUT):
+                break
+        after = source.stat()
+        if (after.st_mtime_ns, after.st_size) != (stat.st_mtime_ns, stat.st_size):
+            raise ValueError("Assembly changed during export. Save it and export again.")
+        exported = [name for name, outcome in outcomes.items() if outcome == inventor_session.EXPORTED]
+        if exported:
+            with tempfile.NamedTemporaryFile(dir=directory, delete=False, mode="w", encoding="utf-8") as file:
+                temporary = Path(file.name)
+                json.dump({"source": [stat.st_mtime_ns, stat.st_size], "states": exported}, file)
+            try:
+                _replace_with_retry(temporary, directory / "states.json")
+            finally:
+                temporary.unlink(missing_ok=True)
+        return {name: outcomes.get(name, "not attempted") for name in states}
 
     def status(self, inventory) -> MirrorStatus:
         """Every mirrored document in `inventory`, memoised per inventory snapshot.

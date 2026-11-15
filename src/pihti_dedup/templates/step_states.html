@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% block title %}Model state exports · PIHTI{% endblock %}
+{% block body %}
+<main class="page">
+  <section class="rail-card">
+    <h1>Model state exports</h1>
+    <p>{{ path|winpath }}</p>
+    {% if error %}<p class="metadata-error" role="alert">{{ error }}</p>{% endif %}
+    {% if outcomes %}
+    <ul>{% for name, outcome in outcomes.items() %}
+      <li><strong>{{ name }}</strong> · {{ 'Open in Inventor. Save and close the assembly, then retry.' if outcome == 'skipped-open-in-inventor' else 'Inventor timed out. Check it for a prompt, then retry.' if outcome == 'timeout' else outcome }}</li>
+    {% endfor %}</ul>
+    {% endif %}
+    {% if members %}
+    <h2>Open a mirrored state</h2>
+    <ul>{% for key, member in members.items() %}
+      <li><a href="{{ url_for('simulation.page', source=path ~ '::' ~ key) }}">{{ member[0] }}</a></li>
+    {% endfor %}</ul>
+    {% endif %}
+    <form method="post" action="{{ url_for('part_step_export_states', relative_path=path) }}">
+      <input type="hidden" name="token" value="{{ form_token }}">
+      <button class="button" type="submit">Export model states again</button>
+    </form>
+    <a class="button" href="{{ url_for('part_page', relative_path=path) }}">Back to assembly</a>
+  </section>
+</main>
+{% endblock %}
