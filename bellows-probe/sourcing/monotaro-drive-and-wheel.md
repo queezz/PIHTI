@@ -20,7 +20,7 @@ Use the [current basket checklist](../monotaro-basket.md) for purchasing. The ba
 | [00327853](https://www.monotaro.com/p/0032/7853/) | NTN 6001ZZ, 12 × 28 × 8 mm | 2 | ¥329 |
 | [00346945](https://www.monotaro.com/p/0034/6945/) | NTN 51101, one-direction thrust bearing, 12 × 26 × 9 mm | 2 | ¥789 |
 
-Buy the wheel rather than machining the previous Ø50 mm prototype: it comes with a folding rotating grip and gives more leverage. The [IMAO drawing](https://www.imao.co.jp/files/ja/pdf/ash.pdf) specifies Ø123 mm, Ø12 H8 boss bore and 22 mm boss engagement. Ask for the **ASH125-M** equivalent or manufacturer M5 retaining-hole machining; the plain ASH125 basket line does not establish hub retention. Confirm the shaft flat/retention and bore fit after receipt. The plain wheel is modeled as an envelope, not vendor CAD.
+Select the plain ASH125, MonotaRO 02033236. The [IMAO drawing](https://www.imao.co.jp/files/ja/pdf/ash.pdf) specifies Ø123 mm, Ø12 H8 boss bore and 22 mm boss engagement. The owner supplies the purchased wheel to the shop for a radial M5 × 0.8 retaining hole in the steel boss, halfway along the bore and aligned to the shaft flat. Fit one M5 × 12 flat-point set screw. Confirm bore fit and contact after receipt. The wheel solid is a catalog envelope.
 
 The supplied screw stock needs Ø12 journals, a flat for the wheel screw and a tapped vessel-side end. One TR16 nut drives the rear carriage. The second purchased nut is a spare. The vessel-side KF end is fixed and the middle floats. The two bellows span 135–485 mm each, giving 700 mm of rear travel. The rear guide pair is centered under the clamp. The nominal rail-end margin is 15.6 mm at full retraction with the corrected flange datums.
 
@@ -35,7 +35,7 @@ The basket screenshot lacks the following installation hardware and shop parts.
 | Table to profiles and backing plates | 20 DIN 7991 M5 × 16 flat-head screws and 12 M5 T-slot nuts to match the actual profiles |
 | Screw supports to table | 4 ISO 4762 M6 × 75 class 10.9 screws, 4 full-height M6 class 10 nuts and 4 hardened 6.6 × 18 × 2 mm washers |
 | Round nut housing and keeper | 2 M5 × 40 housing screws and 4 M4 × 12 keeper screws |
-| Handwheel and axial retainer | 1 M5 wheel retaining screw, 1 M5 end-retainer screw, 1 Ø12 × Ø35 × 15 split shaft collar, axial shims as required |
+| Handwheel and axial retainer | 1 M5 × 12 flat-point wheel set screw, 1 M5 × 10 ISO 4762 class 12.9 axial screw, 1 Ø12 × Ø35 × 15 split shaft collar, axial shims as required |
 | Fabrication | Nut housing and keeper, two support blocks, turned spacer and retaining washer, and plate/foot stock if required |
 
 MonotaRO lists [M6 × 16 small-head screws, 41519703](https://www.monotaro.com/p/4151/9703/), Ø8.5 mm head, 2 per pack, same-day dispatch on the listing. Order 18 packs if the lab has none. Other candidates are [M5 × 35 screws, 42807317](https://www.monotaro.com/p/4280/7317/) and [Ø12 split collar, 06943316](https://www.monotaro.com/p/0694/3316/). Confirm collar holding capacity and required-quantity dispatch before ordering.

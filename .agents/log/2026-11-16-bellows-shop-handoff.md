@@ -1,0 +1,7 @@
+# Show the bellows retainer and shop supply split
+
+- Added the axial M5 × 10 cap screw to the bed with a seated insert constraint on the vessel-end retaining washer. The selected purchase spec is ISO 4762 class 12.9. Inventor measured 6.48 mm nominal projection into the shaft and cleared all nine sampled combinations of the two stages. Restored the saved pose and limits. Check actual usable thread, bottom clearance, endplay and allowable thrust at assembly.
+- Selected the MonotaRO ASH125 (02033236). The owner supplies the wheel for one radial M5 × 0.8 tap in the steel boss, aligned with the shaft flat. Sheet 15 specifies the M5 × 12 flat-point set screw. The catalog wheel envelope remains the assembly representation.
+- Revised the cover and drive sheets and added sheet 15 to the native A4 drawing. The 15-sheet PDF identifies shop-supplied stock and custom parts, owner-supplied catalog hardware, and the owner-supplied nut, screw and wheel that need machining. Sheet 12 is the separate rear TR16 keeper, and sheet 15 gives its assembly order. Receiving status remains separate.
+- Verified the saved screw occurrence, its insert constraint, and the four live hardened-washer references. Recorded the new exact false byte-scan washer name after the assembly save and confirmed a fresh STEP precheck passes. Released task-owned background Inventor documents.
+- Rendered and reviewed the changed PDF sheets. Verified the scoped diff for whitespace and reused the same session's 528-test and Ruff results for unchanged tooling.

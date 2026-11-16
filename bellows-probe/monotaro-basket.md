@@ -11,6 +11,7 @@ Use these order codes in MonotaRO Quick Order. Quantities are for one stage asse
 | [44848072](https://www.monotaro.com/p/4484/8072/) | 1 working + 1 optional spare | TR16 × 3 right-hand round nut. Mill flats to 25 mm across on the working nut. |
 | [00327853](https://www.monotaro.com/p/0032/7853/) | 2 | NTN 6001ZZ radial bearing, 12 × 28 × 8 mm. |
 | [00346945](https://www.monotaro.com/p/0034/6945/) | 2 | NTN 51101 thrust bearing, 12 × 26 × 9 mm. Fit in opposite directions. |
+| [02033236](https://www.monotaro.com/p/0203/3236/) | 1 | IMAO ASH125 folding-grip wheel. Bring it to the shop for the radial M5 × 0.8 retaining hole through the steel boss into the Ø12 H8 bore. |
 
 ## Add if not in stock
 
@@ -23,15 +24,16 @@ Use these order codes in MonotaRO Quick Order. Quantities are for one stage asse
 | M6 ISO 4032 class 10 and 6.6 × 18 × 2 mm hardened washers | 4 of each | Match the modeled thrust-support stack. |
 | M5 × 20, M5 × 40 and M4 × 12 ISO 4762 | 8, 2 and 4 pieces | Flange clamps, nut saddle and keeper respectively. |
 | M5 T-slot nut | 12 pieces | Match the actual 30 × 30 profiles. |
+| [81136994](https://www.monotaro.com/p/8113/6994/) | 1 piece | M5 × 10 ISO 4762 class 12.9 axial retaining screw. Use stock if available. Listed pack is 80. |
+| [39281776](https://www.monotaro.com/p/3928/1776/) | 1 piece | M5 × 12 flat-point socket set screw for the wheel. Use stock if available. Listed pack is 100. |
 
 ## Confirm before ordering
 
 | Order code or spec | Quantity | Confirmation |
 | --- | ---: | --- |
 | [34850654](https://www.monotaro.com/p/3485/0654/) | 2 | Ask SBC/MonotaRO to confirm the loose SBI20FL blocks match the K1 rail sets. Alternatively quote two factory-matched three-block sets. SBC lists 78.8 mm block length and MonotaRO lists 79.8 mm. Verify the delivered dimensions and grease-fitting envelope. [SBC drawing](https://www.sbclinear.co.jp/products/linearail/sbifl.html) · [MonotaRO set table](https://www.monotaro.com/g/00248818/) |
-| [02033236](https://www.monotaro.com/p/0203/3236/) | 1 | Plain ASH125. Ask for ASH125-M or quote boss machining with the Ø12 H8 bore and radial M5 retention matched to the shaft flat. [IMAO drawing](https://www.imao.co.jp/files/on-cat/pdf/jp/ash.pdf) |
 | [06943316](https://www.monotaro.com/p/0694/3316/) | 1 | Ø12 split collar candidate. Confirm axial holding force and the contact diameter against the 51101 shaft washer. |
-| Shaft-end retainer, wheel set screw and shims | 1 retainer, 1 set screw, shims as fitted | Select after confirming usable axial M5 thread, grip, hub machining, allowable thrust and assembled endplay. |
+| Axial shims | As fitted | Measure assembled endplay before selecting thickness. |
 
 ## Remove if still in the basket
 
