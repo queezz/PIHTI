@@ -1,0 +1,6 @@
+# Add bore centerlines and tune the shop PDF strokes
+
+- Added model-linked dash-dot bisectors in BP-MON-12, -13 and -14 through the keeper, spacer and retaining-washer bores, including the two sectioned M4 clearance holes. Added the axis of the blind M5 tap in BP-MON-10. Kept the hole callouts.
+- Rotated the wheel-flat section view to make the actual flat horizontal and show where the M5 set screw bears. The part and cut plane were unchanged. Checked all fabrication dimensions remain attached and all drawing references resolve.
+- Exported the full 17-page A4 color set from Inventor with line weights enabled. Postprocessed pages 5–17 as vectors, mapping 0.54, 0.72, 1.08, 1.44, 1.98 and 3.42 pt to 0.39, 0.48, 0.63, 0.88, 1.16 and 1.55 pt. The saved IDW retains the native styles. Checked the resulting PDF operators, selected rendered sheets and the table hole rings. The first four pages retain the original export streams.
+- The PDF was complete and verified while Inventor still held an open transaction. The native drawing save was refused during that transaction. A later attempt to stop the active render interrupted the owner's Inventor session. Ceased all Inventor access. The PDF contains the revised centerlines and section orientation. Check the saved IDW before using it to regenerate that PDF.
