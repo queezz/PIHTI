@@ -268,3 +268,23 @@ the October 22 CAD work; an old test count does not prove today's tree passes.
 If pytest's usual basetemp has Windows permission errors, use a fresh unique
 machine-local temp directory rather than deleting or changing permissions on
 an unchecked path. Record the actual result.
+
+## Project templates and edge finishing
+
+Use the [PIHTI Inventor templates](../PIHTI%20Templates/README.md) for new
+documents. Pass the template path explicitly for automation. Part and assembly
+templates use mm, g and s. Use the JIS IDW or DWG template for new drawings.
+
+In a part transaction, select the current solid's exposed edges by geometry.
+Add the plan corner rounds first, then select the updated outside perimeter
+for the edge break. Verify feature health, overall dimensions, retained
+seating and locating faces, and fastener access before saving. Regenerate the
+referencing drawing and recheck the assembly positions affected by the edit.
+
+## Mechanical drawing review
+
+Use [JIS B 0001](https://webdesk.jsa.or.jp/books/W11M0090/index/?bunsyo_id=JIS+B+0001%3A2019) for mechanical drawings and its references JIS Z 8311 for sheet layout and JIS Z 8317-1 for dimensioning. Use the repo's A4 metric format. Dimension mating spans directly and use a centerline to show symmetry. Use center marks for drilled patterns and a hatched section where it clarifies depths or seats.
+
+Build drill, tap, counterbore, and countersink patterns with native Inventor Hole features driven by sketch points on the entry face. Check the entry and throat diameters and the cut direction on the solid. Compare the selected screw's seating cone at the intended installed height and test for interference. Actual head diameter at the chamfer is different from the theoretical seat diameter.
+
+Place section lines through the actual feature centers and constrain the line in the parent view sketch. Keep arrows, labels, dimension text, and leaders clear of one another. Check the native drawing after model regeneration for detached dimensions. Review every affected sheet at A4 before issuing fabrication files.
