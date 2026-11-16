@@ -6,6 +6,10 @@ remains authoritative for exact file changes.
 
 ## 2026-11-17
 
+- The bellows shop set now opens with a parts sheet. Ballooned isometrics
+  number every part to manufacture by its drawing number, with a parts table.
+  The sourcing list moved to the back as an owner reference.
+
 - Reworked the bellows table plate as a broken view, with the rail hole pitch
   and pattern dimensions shown explicitly. Thinned the colour isometric edges
   and cleared the annotation overlaps an automated check found.
