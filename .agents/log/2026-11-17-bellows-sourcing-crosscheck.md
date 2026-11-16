@@ -75,3 +75,28 @@ and stacks match them:
      lists it.
 6. Minor: the Ø6 / CBORE Ø12 × 6.5 clamp-screw holes in the feet are larger
    than standard M5 sizes (Ø5.5 / Ø9.5). They work as drawn.
+
+## Applied (queezz approved)
+
+1. BP-MON-10: the overall length now reads `(1000)` as a reference
+   dimension, with the note "FACE BOTH ENDS. (1000) IS THE SUPPLIED STOCK
+   LENGTH; JOURNALS FROM FACED ENDS."
+2. BP-MON-08: the pocket depth carries `25 +0.2/+0.1` in the drawing. The
+   part model stays at 25.
+3. BP-MON-05: the note reads "2 × M5 × 0.8 FROM UNDERSIDE / THREAD 9 DEEP /
+   PILOT Ø4.2 × 11.5 DEEP". The part models the holes as plain pilot cuts, not
+   Hole features, so the thread depth exists only on the drawing. The M5×40
+   tip stops 2.5 mm short of the thread end.
+4. BP-MON-01 reads "18 packs of 2 (36 pcs)" for 41519703.
+5. `sourcing/monotaro-sbc-guides.md` now describes the six separate 15 mm
+   guide spacers and points to the basket for the mounting hardware.
+   `pihti-dedup notes check` raises nothing for it; its two remaining
+   findings are in unrelated `_2026` READMEs.
+
+- Reopened the saved IDW: no missing references; 112 dimensions and 38
+  centerlines attached; clean. The overlap check is clean on the edited
+  sheets.
+- Thinned the shop PDF with `pdf-strokes --pages 4-17` (97 widths); its text
+  is identical to the raw export. Inventor was back to zero documents.
+- Unchanged and still for queezz: finding 6, material grades, bearing-seat and
+  journal fits, and the rail-pitch tolerance.

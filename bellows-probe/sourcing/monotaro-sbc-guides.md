@@ -21,7 +21,7 @@ The [MonotaRO set family](https://www.monotaro.com/g/00248818/) lists both lengt
 
 Subtotal ¥58,756 before tax, ¥11,200 below the slim-block package. Check the estimated arrival for both quantities and the K1 compatibility of the loose blocks before purchase. The public dispatch estimate is not an account-specific arrival date. Buying separate SBI20 rails (34851135) and six FL blocks would total ¥58,148 before tax with the same listed rail dispatch window.
 
-The confirmed basket has two FL sets and two loose blocks. At 175 mm rail spacing the 63 mm flanges extend 11.5 mm past each side of the 215 mm plate. The Inventor review uses six FL envelopes, integral 15 mm pads in the three feet and the 53 × 40 mm M5 block pattern. The table has 36 M6 tap pilots for the rails. Rail, block and plate-to-profile mounting hardware are absent from the basket. Confirm supplied fasteners and check head diameter, grip length and thread engagement against the physical hardware.
+The confirmed basket has two FL sets and two loose blocks. At 175 mm rail spacing the 63 mm flanges extend 11.5 mm past each side of the 215 mm plate. The Inventor review uses six FL envelopes on six separate 15 mm guide spacers (BP-MON-06) under the three feet, and the 53 × 40 mm M5 block pattern. The table has 36 M6 tapped holes for the rails. Rail, block and plate-to-profile mounting hardware is listed in the [basket checklist](../monotaro-basket.md). Confirm supplied fasteners and check head diameter, grip length and thread engagement against the physical hardware.
 
 The slim-block package below is the fallback if the wider flange cannot be accommodated.
 
