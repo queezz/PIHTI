@@ -312,6 +312,12 @@
       "material": "",
       "role": "",
       "colour": "#d53939"
+    },
+    "[\"Hayashi-probe/hayashi-setup-with-optics.iam\",[\"hayashi-setup-with-optics\",\"LIBS分光系:1\",\"チューブレンズ_縮尺変更:1\"]]": {
+      "name": "Telescope for focusing LIBS laser beam",
+      "material": "",
+      "role": "",
+      "colour": "#b2b2b2"
     }
   }
 }
