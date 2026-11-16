@@ -37,4 +37,4 @@ Use these order codes in MonotaRO Quick Order. Quantities are for one stage asse
 
 Remove the superseded end-supported guide parts when buying SBC. Set [76060767](https://www.monotaro.com/p/7606/0767/) NB shafts, [04725902](https://www.monotaro.com/p/0472/5902/) SS20 holders and [33032343](https://www.monotaro.com/p/3303/2343/) SC20UU blocks to zero.
 
-Existing bellows, flange clamps and vacuum hardware are reused in the model. Verify the physical flange register and bellows travel before releasing the machining drawings.
+Existing bellows, flange clamps and vacuum hardware are reused in the model. The required stroke was confirmed on the previous stage iteration. Check the physical flange register and clamp fit before releasing the machining drawings.
