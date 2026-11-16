@@ -10,6 +10,8 @@ for:
 date: 2026-11-13
 ---
 
+Use the [current basket checklist](../monotaro-basket.md) for purchasing. The basket prices below record the supplied quote.
+
 | Order code | Part | Qty | Unit, before tax (supplied basket) |
 |---|---|---:|---:|
 | [02033236](https://www.monotaro.com/p/0203/3236/) | IMAO ASH125, folding-grip handwheel | 1 | ¥4,898 |
@@ -30,9 +32,9 @@ The basket screenshot lacks the following installation hardware and shop parts.
 |---|---|
 | Guides to table | 36 M6 × 16 small-head socket screws for Ø9.5 mm counterbores, nominal 8 mm engagement |
 | Guide blocks to feet | 24 M5 × 35 socket screws, nominal 5 mm engagement |
-| Table to profiles | 12 flush M5 screws and 12 M5 T-slot nuts to match the actual profiles |
-| Screw supports to table | 4 M6 socket screws, confirm length and thread engagement |
-| Round nut housing and keeper | 2 M5 housing screws, 4 M4 keeper screws, 1 M5 dog-point screw |
+| Table to profiles and backing plates | 20 DIN 7991 M5 × 16 flat-head screws and 12 M5 T-slot nuts to match the actual profiles |
+| Screw supports to table | 4 ISO 4762 M6 × 75 class 10.9 screws, 4 full-height M6 class 10 nuts and 4 hardened 6.6 × 18 × 2 mm washers |
+| Round nut housing and keeper | 2 M5 × 40 housing screws and 4 M4 × 12 keeper screws |
 | Handwheel and axial retainer | 1 M5 wheel retaining screw, 1 M5 end-retainer screw, 1 Ø12 × Ø35 × 15 split shaft collar, axial shims as required |
 | Fabrication | Nut housing and keeper, two support blocks, turned spacer and retaining washer, and plate/foot stock if required |
 
