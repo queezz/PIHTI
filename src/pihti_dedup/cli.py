@@ -209,7 +209,31 @@ def build_parser() -> argparse.ArgumentParser:
         help="Read-only check for marker drift, missing summaries, bad sidecars, and bad sourcing notes",
     )
     notes_check.add_argument("workspace", nargs="?", default=".")
+
+    strokes = subparsers.add_parser(
+        "pdf-strokes",
+        help="Thin the line widths of an Inventor PDF export on chosen pages",
+    )
+    strokes.add_argument("source", help="PDF as exported by Inventor")
+    strokes.add_argument("target", help="New PDF to write; the source stays untouched")
+    strokes.add_argument(
+        "--pages", required=True, help="1-based pages to thin, e.g. 5-17 or 1,3,5-7"
+    )
     return parser
+
+
+def _pdf_strokes(args: argparse.Namespace) -> int:
+    from pihti_dedup.pdf_strokes import PdfStrokeError, remap_strokes
+
+    try:
+        result = remap_strokes(Path(args.source), Path(args.target), args.pages)
+    except (PdfStrokeError, OSError) as exc:
+        print(f"error: {exc}; nothing written", file=sys.stderr)
+        return 2
+    for page, count in sorted(result.remapped.items()):
+        print(f"  page {page}: {count} line widths thinned")
+    print(f"wrote {result.target} ({result.total} line widths on {len(result.remapped)} pages)")
+    return 0
 
 
 def _print_summary(inventory) -> None:
@@ -807,6 +831,8 @@ def _print_notes_check(result: CheckResult) -> None:
 
 def main(argv: Sequence[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
+    if args.command == "pdf-strokes":
+        return _pdf_strokes(args)
     try:
         workspace = resolve_workspace(args.workspace)
     except WorkspaceError as exc:

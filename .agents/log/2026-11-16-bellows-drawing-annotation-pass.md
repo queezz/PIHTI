@@ -67,8 +67,9 @@
   - No unexpected widths and no images on those pages.
   - Text identical to the raw export, page boxes unchanged, pages 1–4
     pixel-identical.
-  The rewrite used a standard-library script in the session scratch folder;
-  it is not committed. Inventor was back to zero documents after the export.
+  The rewrite is now `pihti-dedup pdf-strokes`
+  ([2026-11-17 log](2026-11-17-pdf-strokes-command.md)). Inventor was back to
+  zero documents after the export.
 - No tooling changed, so the pytest and Ruff gates do not apply.
 
 ## Not done

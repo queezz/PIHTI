@@ -687,6 +687,16 @@ and never commits it. Deleting an option or an attachment is not built;
 delete the files yourself. The `notes check` gate also reports a sourcing
 note that does not parse or whose status is not one of the five.
 
+### Shop PDF line weights
+
+Inventor's PDF export draws JIS drawing lines heavily enough to blot small
+holes at A4. `pihti-dedup pdf-strokes <export.pdf> <shop.pdf> --pages 5-17`
+writes a copy with thinner lines on those pages only (0.54 → 0.39 pt up to
+3.42 → 1.55 pt) and leaves the export untouched. It refuses rather than guesses
+on anything unexpected: a page with an embedded picture, such as a shaded
+isometric, an unknown line width, or a PDF Inventor did not write. In those
+cases it writes nothing.
+
 ---
 
 ## Local documentation environment

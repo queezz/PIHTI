@@ -4,6 +4,13 @@ Shipped archive milestones only. PIHTI does not yet have a formal release/versio
 contract, so entries are dated rather than assigned software versions. Git history
 remains authoritative for exact file changes.
 
+## 2026-11-17
+
+- Shipped `pihti-dedup` 0.37.0: `pdf-strokes` thins the line widths of an
+  Inventor PDF export on chosen pages and writes a new file. It refuses image
+  pages, unknown widths and PDFs Inventor did not write, and writes nothing on
+  refusal. It reproduces the bellows shop PDF byte for byte.
+
 ## 2026-11-16
 
 - Annotated the bellows shop drawing for machining. It now has native section
