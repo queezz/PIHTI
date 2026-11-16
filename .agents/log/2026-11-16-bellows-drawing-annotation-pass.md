@@ -59,9 +59,16 @@
   110 dimensions or 40 centerlines was detached. The drawing was clean and was
   closed.
 - Rendered all 17 sheets of the final review export at A4 and checked them.
-  The export is in the session scratch folder. The Git-excluded
-  `bellows-probe/Bellows-Monotaro-A4-JIS.pdf` was not overwritten and is now
-  older than the IDW.
+- At queezz's request, re-exported the Git-excluded
+  `bellows-probe/Bellows-Monotaro-A4-JIS.pdf` from the saved IDW. Applied the
+  same documented stroke mapping as before to pages 5–17:
+  - 96 width operators changed (0.54/0.72/1.08/1.44/1.98/3.42 pt to
+    0.39/0.48/0.63/0.88/1.16/1.55 pt), matching the parsed count on each page.
+  - No unexpected widths and no images on those pages.
+  - Text identical to the raw export, page boxes unchanged, pages 1–4
+    pixel-identical.
+  The rewrite used a standard-library script in the session scratch folder;
+  it is not committed. Inventor was back to zero documents after the export.
 - No tooling changed, so the pytest and Ruff gates do not apply.
 
 ## Not done
