@@ -6,6 +6,10 @@ remains authoritative for exact file changes.
 
 ## 2026-11-17
 
+- Reworked the bellows table plate as a broken view, with the rail hole pitch
+  and pattern dimensions shown explicitly. Thinned the colour isometric edges
+  and cleared the annotation overlaps an automated check found.
+
 - Shipped `pihti-dedup` 0.37.0: `pdf-strokes` thins the line widths of an
   Inventor PDF export on chosen pages and writes a new file. It refuses image
   pages, unknown widths and PDFs Inventor did not write, and writes nothing on
