@@ -6,6 +6,11 @@ remains authoritative for exact file changes.
 
 ## 2026-11-16
 
+- Annotated the bellows shop drawing for machining. It now has native section
+  labels, axes in sections and patterns, and dimensions in place of prose on
+  the thrust block, nut saddle, lead screw and middle foot. The lead screw is
+  a broken view, and each title block carries the part name.
+
 - Archived the Monotaro bellows drive and machining review drawings, metric JIS
   Inventor templates, logger enclosure updates, and the Hayashi optics setup.
 
