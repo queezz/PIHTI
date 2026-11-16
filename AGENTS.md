@@ -71,6 +71,12 @@ not defaults to apply to an edited model.
 ## Invariants
 
 - Open `PIHTI.ipj` before opening Inventor assemblies or parts.
+- For Inventor automation, record which documents are already loaded before opening files.
+  In a finally block, release invisible opens acquired by the task and close
+  task-owned documents once saved or verified clean, including on error.
+  Close parents before dependencies. Preserve visible documents, pre-existing
+  documents, and unsaved edits. Check for remaining task-owned background
+  documents before reporting completion.
 - The project workspace is `.` and `UsingUniqueFilenames` is `Yes`. Treat a
   repeated CAD filename anywhere in the workspace as an Inventor-resolution
   concern even when the files differ.

@@ -11,6 +11,13 @@ existing external `~/.venvs/pihti-dedup` Python environment and its `comtypes`.
 Read the available Computer Use skill before Windows automation, as required
 by that skill. Do not create a repository venv for CAD work.
 
+For a how-to, handoff, or commit of existing files, work from the saved files
+and session evidence. Treat any live Inventor command as owner activity unless
+the current operation launched it. An `Archon:Render` command can be an active
+owner render. Stopping it while diagnosing an export interrupted the owner's
+render and Inventor session. Save the native drawing before starting a PDF
+export so a translator delay leaves the native changes on disk.
+
 Record Git status, affected documents' dirty states, initial relationship
 health, occurrence transforms, grounding and flexibility. Verify PIHTI.ipj
 before opening CAD. Select documents by full path: the owner changes tabs
@@ -288,3 +295,25 @@ Use [JIS B 0001](https://webdesk.jsa.or.jp/books/W11M0090/index/?bunsyo_id=JIS+B
 Build drill, tap, counterbore, and countersink patterns with native Inventor Hole features driven by sketch points on the entry face. Check the entry and throat diameters and the cut direction on the solid. Compare the selected screw's seating cone at the intended installed height and test for interference. Actual head diameter at the chamfer is different from the theoretical seat diameter.
 
 Place section lines through the actual feature centers and constrain the line in the parent view sketch. Keep arrows, labels, dimension text, and leaders clear of one another. Check the native drawing after model regeneration for detached dimensions. Review every affected sheet at A4 before issuing fabrication files.
+
+### Assembly positions for drawings
+
+1. Record the active positional representation, occurrence transforms and the operating constraints. Use a transaction for trial moves. Verify solved positions numerically, then restore the primary pose and constraint limits.
+2. In the bellows stage, changing the offset override of a limit-enabled flush constraint left the carriage at its previous position. Two additional flush constraints using the same work-plane proxies fixed the required drawing poses. They are suppressed in Primary. Each drawing representation suppresses the operating travel constraints, enables the fixed-position constraints and supplies their offsets. Test both stage transforms and return to Primary before saving.
+3. Pass the representation name as `PositionalRepresentation` in the `AddBaseView` options map. Check each view's `ActivePositionalRepresentation`. Use equal scales and align a fixed model point with `ModelToSheetSpace` when showing two poses. Set an explicit camera up vector and verify the bed is below the clamps in the finished view. Use the model's actual up axis. A transient camera accepted `Eye`, `Target` and `UpVector`; setting the arbitrary orientation enum on the camera failed. Pass the camera to `AddBaseView` with the arbitrary orientation enum instead.
+4. Use `BrowserPane.Reorder` on the drawing's Model browser nodes to move whole sheets. Check both `DrawingDocument.Sheets` and the exported PDF. Refer to drawings by their stable IDs so page reordering does not invalidate the shop notes.
+
+### Section views and bore centerlines
+
+- Activate the sheet before enumerating annotations. Inventor returned empty collections for some unloaded sheets until activation. Restore the starting sheet after inspection.
+- Place a section sketch on its parent view. Project the measured model point with `ModelToSheetSpace`, then use `SheetToSketchSpace` for the sketch line endpoints. Ground the line and generate the native section. For a short axial detail, the cutting-line length controls the length of the resulting section. Break automatic alignment with `Aligned = False` before positioning a section independently.
+- A diameter leader and a dash-dot centerline are separate annotations. Attach a diameter or hole callout to the circular edge. In the section, use `Sheet.Centerlines.AddBisector` with geometry intents on the two parallel bore edges. Verify the bisected axis and its layer. Extend the endpoints enough for the dash pattern to show while leaving clearance to dimensions. The bellows sections used the existing Centerline (ISO) layer.
+- Inspect the actual chord in a section through a shaft flat. If the flat has no specified clocking datum, rotate the displayed section so the flat reads horizontally. Preserve the cut plane and part orientation. Attach the set-screw leader to the flat edge and verify it after rotating the view.
+- Use `HoleThreadNotes.Add` when a native Hole and Thread Note is needed. Inventor accepted eligible extruded bores. Its default note showed inches even though the drawing dimensions were metric. Pass the JIS metric dimension style, set `UsePartUnits = False` and inspect the displayed note before relying on it. This option is independent of the centerline.
+
+### PDF export and publishing
+
+- **Save the native drawing before starting the PDF translator.** End the editing transaction and write the changed IDW with `Save2(False)`. Check the file save counter or the timestamp and confirm the drawing is clean. In the bellows review, the translator produced a complete PDF but held an internal transaction long enough to block the native save.
+- Export all sheets using the PDF translator and set `All_Color_AS_Black = 0` for color views. `Remove_Line_Weights = 1` makes the strokes uniform. Keep it at 0 when the shop set needs distinct weights for outlines, dimensions and centerlines.
+- When the exporter draws small holes too heavily, remap the existing vector stroke widths in the PDF. On the bellows fabrication pages, the PDF used standalone width operators at the start of content-stream lines, sometimes followed by other operators. A bounded rewrite changed only the six observed stroke widths. Verify the matched count against parsed PDF `w` operators, reject unexpected widths or embedded graphics on the pages being remapped, and compare the unchanged content, page boxes and extracted text. Keep the cover and color assembly views as exported. Render the table-plate holes and section centerlines at A4 to verify legibility. See the [tested width mapping](log/2026-11-16-bellows-centerlines-and-pdf-weights.md).
+- Check for pre-existing and newly opened documents before and after visual exports. Release task-owned invisible handles and close clean, unreferenced parents first. Closing a parent can release dependencies and invalidate their COM handles, so re-enumerate before acting on the next set. Leave visible, pre-existing or dirty owner documents open.
