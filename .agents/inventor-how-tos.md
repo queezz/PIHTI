@@ -296,6 +296,18 @@ Build drill, tap, counterbore, and countersink patterns with native Inventor Hol
 
 Place section lines through the actual feature centers and constrain the line in the parent view sketch. Keep arrows, labels, dimension text, and leaders clear of one another. Check the native drawing after model regeneration for detached dimensions. Review every affected sheet at A4 before issuing fabrication files.
 
+### House style from shop-accepted drawings
+
+`Drawings-PDFs/` holds sets that were submitted to the shop and fabricated, made with the same JIS A4 template. Match them. Do not copy the prose-heavy style of the 2026-11 bellows set ([review](log/2026-11-16-bellows-drawing-shop-readability-review.md)).
+
+- Put one part on each sheet at the largest standard scale that fits. Top left gives the circled item number and part name, then material (`SUS`, `A5052`), thickness for plate parts and quantity (`Amount: 3 items`). The title-block name field carries the part name.
+- The first sheet is a shaded isometric with balloons and a native parts list (ITEM, QTY, PART NUMBER) plus one material line. It carries no assembly prose.
+- Section views are labelled `A-A ( 2 : 1 )` above the view. The cutting line carries only the letter.
+- Every bore, revolved feature, hole pattern and symmetric outline gets a centerline or center mark in plan and in section. The centerline states symmetry; a note does not.
+- Dimension geometry on the views. Diameters go on the section; threads are leader notes such as `M3x0.5 - 6H`; chamfers and radii are leader notes such as `C0.5` and `R2`. Give a tolerance only where fit matters and write the limits: `Ø18 h10 (18.00/17.93)`, `Ø45.15 - 45.30`.
+- Sheet text is limited to material, thickness, quantity and the occasional office note, in Japanese where it addresses the office. Anything geometric is a dimension.
+- The accepted sets carry no revision letters or review status. Long parts use a break view with end details rather than full-length views at tiny scale.
+
 ### Assembly positions for drawings
 
 1. Record the active positional representation, occurrence transforms and the operating constraints. Use a transaction for trial moves. Verify solved positions numerically, then restore the primary pose and constraint limits.
