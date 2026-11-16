@@ -1,0 +1,6 @@
+# Match the bellows feet to the guide spacers
+
+- Shortened the front, middle, and rear flat carriage feet along the rails from 79.8 to 56.8 mm, centered to match the steel-body spacer footprint. Retained the 238 mm cross-rail span, 15 mm thickness, holes, and middle relief. Updated shop sheets 3–5 and moved the rear 238 mm dimension clear of its leader.
+- All nine Inventor poses checked out, comprising both ends and midpoint of each independent bellows stage. No overlap over 0.001 mm³ between the checked moving and fixed modules or between the two moving modules. Restored the original pose and limits. Verified saved references and attached dimensions. Reviewed the three changed PDF pages and verified the other eleven render identically.
+- Verified four bed occurrences and the direct reference to the shared hardened M6 washer in Inventor. The saved file contained another unmatched byte-scan string ending in `g-washer.ipt`. Recorded the exact Inventor-verified false match in the reference ledger. A fresh mirror precheck passed and a normal export reached the open-document guard. Export the bed when the owner closes the open assembly or its parent.
+- No task-owned background documents remained. Reused the same session's 528-test and Ruff gate results for unchanged tooling and checked the scoped diff for whitespace.
