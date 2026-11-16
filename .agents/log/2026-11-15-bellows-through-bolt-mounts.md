@@ -1,0 +1,7 @@
+# Through-fasten the thrust support blocks
+
+- Used four project-local ISO 4762 M6 × 75 class 10.9 screws, full-height ISO 4032 M6 class 10 steel nuts, and 6.6 × 18 × 2 mm hardened steel washers. Backing plate M6 holes are now Ø6.6 through. Nominal protrusion beyond the nut is 3.8 mm.
+- The 50 N grip case gives 2.53 N·m. Rounded up the estimated 2.95 kN screw thrust to 3.0 kN and applied a 1.5 factor to obtain 4.5 kN at one support. The 30 mm shaft height and 10 mm tipping arm give 6.75 kN external tension and 2.25 kN shear per screw for symmetric sharing. Adding 7 kN upper assumed preload and using the M6 tensile stress area for both components gives 711 MPa equivalent stress versus 830 MPa bolt proof stress. Nut proof load is 20.9 kN. Verify preload, load sharing, backing alloy and contact before release.
+- At the 50 N frictionless reference of 5.29 kN the same factored check gives approximately 862 MPa including the assumed preload, above proof. The grip force and thread friction are operating assumptions. The analysis does not establish a safe force at a jam, or qualify the rest of the lead screw train.
+- Each nut has a straight approach from below in the bed model with 27 mm radial clearance to the nearest extrusion. Verify installation access beneath the complete desk.
+- Inventor solved 225 sampled combinations of the two bellows stages across the 700 mm rear stroke and found no overlap in the checked module pairs. Added the reinforced thrust mount sheet to the review IDW.

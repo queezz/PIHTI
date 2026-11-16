@@ -6,4 +6,5 @@ tags: []
 supersedes: ''
 seeded_from_iproperties: 2026-10-07
 hero: true
+featured: true
 ---

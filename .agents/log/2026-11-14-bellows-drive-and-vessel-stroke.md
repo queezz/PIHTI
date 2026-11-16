@@ -1,0 +1,6 @@
+# Detail the rear drive and check vessel clearance
+
+- Saved the TR16 housing and keeper, nut anti-rotation pocket, two opposed 51101 seats, wheel-end split collar, captive vessel-end spacer and washer, and ASH125 radial retaining screw and shaft flat in the MonotaRO review. Added drive details to the drawing.
+- Inserted trial copies in the native vessel coordinate frame under an abortable Inventor transaction. With the KF front fixed, sampled independent bellows travel in 25 mm increments over both 350 mm stage ranges for 225 configurations. The tested external drive, supports and guides cleared. Probe components interfered with the gate valve flange, gate/mesh and plasma-box window mesh holders.
+- A separate 1 mm refinement found no sampled probe overlap at 147 mm and the first modeled screw/flange overlap at 148 mm from full retraction. This is a CAD contact result, not an operating travel limit. The trial did not actuate the gate or sweep the bellows stand-in geometry. The owner assembly returned to 27 occurrences and a clean save state.
+- Updated the basket list with quantities and MonotaRO links. Verify collar thrust rating and physical endplay, fastener fits and vessel gate/mesh operating geometry before release.

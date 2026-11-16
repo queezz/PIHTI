@@ -1,0 +1,7 @@
+# Repair the rear drive and check the open gate
+
+- Rebuilt the holder fastener features and extended the rear foot bridge under the M5 pattern. Moved keeper screw rows below the mating plane. Inventor reported no failed active features on the six changed parts.
+- Enlarged the thrust spacer and retaining washer to Ø22, increased the spacer to 3 mm for 0.52 mm nominal stand-off from the shaft end, and lengthened the Ø12 journals to 71 and 31 mm for 1 mm nominal radial bearing shoulder clearance at either end. Set and measure actual endplay during test assembly.
+- In the vessel frame, rotated the swing gate and mesh 90° around the measured spindle. With the KF front fixed and middle floating, sampled 64 combinations across the two independent 350 mm stage ranges. Followed with a dedicated 2 mm probe scan over 700 mm and a separate four-position fit check with the repaired rear foot and holder. No tested external clash; bellows deformation and physical gate travel remain unverified.
+- From retraction, the probe screws overlapped fixed CF70 flanges at sampled positions 148–160 and 186–198 mm. Plasma-box mesh holder 2 first intersected at 262 mm and holder 1 at 338 mm. Both mesh holders overlapped the pipe at 700 mm. Gate and gate mesh gave no sampled overlap at the modeled 90° pose.
+- Keep the drawing in review until the fixed vessel geometry is reconciled with the operating configuration and the resulting insertion path is checked.

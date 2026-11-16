@@ -11,3 +11,5 @@ date: 2026-09-25
 ---
 
 ![image](attachments/20260925-185052-image.png)
+
+Archived supported-round-rail geometry reference. See the [MonotaRO guide selection](monotaro-sbc-guides.md) for the current buying list and CAD variant.

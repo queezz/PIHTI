@@ -12,6 +12,8 @@ date: 2026-09-25
 
 https://www.amazon.co.jp/dp/B07LF9CC18
 
+Archived TEN-HIGH SBR20 × 1,000 mm listing. See the [MonotaRO guide selection](monotaro-sbc-guides.md) for the current buying list and fit comparison.
+
 ![image](attachments/20260925-184542-image.png)
 
 ![image](attachments/20260925-184612-image.png)
