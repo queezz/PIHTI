@@ -1,8 +1,8 @@
 # Ballooned parts sheet for the bellows shop set
 
 - Goal: queezz asked for the parts to manufacture to be numbered on an
-  isometric, in the style of the shop-accepted sets. He also noted that the
-  sourcing list on sheet 1 is mostly for him and for reference.
+  isometric, in the style of the shop-accepted sets. queezz also noted that
+  the sourcing list on sheet 1 is mostly for queezz and for reference.
 - Inventor had no documents open at the start. The IDW was opened invisibly
   and saved before the export, then saved again after it, because the new
   table recalculates during export. Zero documents were open at handoff.

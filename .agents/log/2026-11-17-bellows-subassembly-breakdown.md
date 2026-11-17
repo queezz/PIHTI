@@ -80,9 +80,9 @@ the totals; the script asserts this before building the table.
 ## Revised the same day: names instead of letters, number = page
 
 queezz could not read the A–D letters and did not find them on the part
-sheets. He also asked what `BP-MON` means: "Bellows Probe, MonotaRO", a prefix
-Codex invented that appears nowhere on the drawings. He chose "number = page"
-from three options. He also said the shop understands "Material" and "Qty", so
+sheets. queezz also asked what `BP-MON` means: "Bellows Probe, MonotaRO", a prefix
+Codex invented that appears nowhere on the drawings. queezz chose "number = page"
+from three options and said the shop understands "Material" and "Qty", so
 no 材質 or 数量 was added.
 
 - **Subassemblies by name.** The letter captions and the A–D columns were

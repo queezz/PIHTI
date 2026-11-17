@@ -52,6 +52,6 @@
 - Cover: queezz asked whether to number the parts to manufacture. The
   recommendation is a balloon isometric with a native parts list as sheet 1,
   following the shop-accepted sets, with the sourcing list moved to the back
-  for owner reference. Awaiting his go-ahead.
+  for owner reference. Awaiting queezz's go-ahead.
 - Unchanged owner decisions: material grades, the bearing-seat and journal
   fits, the rail-hole pitch tolerance, and a sheet for the ASH125 wheel tap.
