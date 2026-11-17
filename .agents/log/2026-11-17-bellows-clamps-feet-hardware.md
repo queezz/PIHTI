@@ -195,3 +195,20 @@ queezz asked for the how-to to be updated. Added, with evidence from this log:
 - Drawing notes: `Precision`, which side leader-note text lands on, full
   diameter lines, slot dimensions.
 - Verification that tolerates documents the owner already has open.
+
+## Posted to fleet
+
+At queezz's request, letter `20261117-bd4864d5-4947d0` went from `cad/.` to
+`code/fleet`. It carries the owner rulings that reach beyond this repository:
+
+- party names, and that 工作室 makes the parts while Kuzmin assembles;
+- no invented codes;
+- sections instead of hidden holes;
+- one part per page;
+- the complete buy list and fastener naming;
+- slots for adjustment;
+- square clocking;
+- balloon leaders.
+
+It also carries the transferable Inventor COM lessons. Fleet records post
+activity in its own commits.
