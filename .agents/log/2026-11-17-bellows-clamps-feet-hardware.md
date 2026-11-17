@@ -128,3 +128,34 @@
   bolts.
 - Earlier owner decisions stand: material grades, fits, and the rail-pitch
   tolerance, now eased by the slots.
+
+## Follow-up: the drive nut's mounting
+
+queezz asked whether the nut that drives the stage hangs on 2 M5 screws. It
+does:
+
+- **Load path:** screw → TR16 nut (No. 11) → keeper (No. 14, 4 × M4) →
+  saddle (No. 10) → 2 × M5 → rear foot (No. 07).
+- **Load:** the vacuum force, estimated at 0.4–0.5 kN from the flange bore
+  Ø63.5 and the Ø83 counterbore. It always pulls the rear carriage toward the
+  middle.
+- **Capacity:** friction, at about 4 kN preload per screw, holds about
+  1.6 kN, roughly 3–4× the load. Prying adds about 0.25 kN, because the saddle
+  pivots about the edge 25.5 mm from the screws.
+- **Weak spot:** the M5s engaged only 6.5 mm (1.3D) in the aluminium foot.
+
+Applied, as recommended:
+
+- `monotaro-rear-flat-carriage-plate.ipt`: the saddle pilots ("Saddle M5 tap
+  pilots through") now run through all 15 mm.
+- `fasteners/bellows-ISO-4762-M5x45.ipt`, from the M5 × 40 template by
+  `SaveAs`, which only the saddle used. The two saddle screws are
+  `M5x45 cap screw - nut saddle n` and engage 11.5 mm; their tips stop 3.5 mm
+  below the foot top.
+- Sheet 07 now reads "2 × M5 × 0.8 THRU, FOR THE NUT SADDLE (No. 10)".
+  Sheet 03 reads "2 × M5 × 45 saddle".
+- The basket splits M5 × 40 (24, guide) from M5 × 45 (2, saddle). The drive
+  sourcing table matches.
+- The bed and main assemblies were updated and saved. The IDW reopens clean:
+  no missing references, all dimensions and centerlines attached. Shop PDF
+  re-exported and thinned (`--pages 4-19`); text identical.

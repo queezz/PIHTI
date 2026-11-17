@@ -20,7 +20,8 @@ Buy every line at the listed quantity; the model uses exactly these. Spare stock
 | Order code or spec | Required quantity | Item |
 | --- | ---: | --- |
 | [41519703](https://www.monotaro.com/p/4151/9703/) | 18 packs of 2 | M6 × 16 small-head rail screws. Ø8.5 mm heads fit the specified Ø9.5 mm rail pockets. |
-| M5 × 40 ISO 4762 | 26 pieces | 24 guide-block screws and 2 nut-saddle screws. A guide screw passes a 1 mm washer, the 15 mm foot slot and the 15 mm spacer, then engages 9 mm of the block's 12 mm through-tapped flange. |
+| M5 × 40 ISO 4762 | 24 pieces | Guide-block screws. Each passes a 1 mm washer, the 15 mm foot slot and the 15 mm spacer, then engages 9 mm of the block's 12 mm through-tapped flange. |
+| M5 × 45 ISO 4762 | 2 pieces | Nut saddle to rear foot. Passes the 33.5 mm saddle and engages 11.5 mm of the foot, which is tapped through. |
 | M5 plain washer, ISO 7089 (Ø10 × 1 mm) | 24 pieces | Under the guide-screw heads on the ±1.5 mm foot slots. |
 | M5 × 16 DIN 7991, 90° | 20 pieces | Flat heads. Twelve secure table to profiles and eight secure backing plates. Verify flush seating against the Ø11.2 mm modeled seats. |
 | M6 × 75 ISO 4762, class 10.9 | 4 pieces | Thrust-support through bolts. [84692179](https://www.monotaro.com/p/8469/2179/) is a 20-pack candidate. Check head and partial-thread length against the stack. |

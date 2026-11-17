@@ -35,7 +35,7 @@ The basket screenshot lacks the following installation hardware and shop parts.
 | Flange clamps | 8 M6 × 20 socket screws, clamp to foot; 8 M8 × 35 socket screws with M8 washers, clamp pinch |
 | Table to profiles and backing plates | 20 DIN 7991 M5 × 16 flat-head screws and 12 M5 T-slot nuts to match the actual profiles |
 | Screw supports to table | 4 ISO 4762 M6 × 75 class 10.9 screws, 4 full-height M6 class 10 nuts and 4 hardened 6.6 × 18 × 2 mm washers |
-| Round nut housing and keeper | 2 M5 × 40 housing screws and 4 M4 × 12 keeper screws |
+| Round nut housing and keeper | 2 M5 × 45 housing screws into the through-tapped rear foot, 11.5 mm engagement, and 4 M4 × 12 keeper screws |
 | Handwheel and axial retainer | 1 M5 × 12 flat-point wheel set screw, 1 M5 × 10 ISO 4762 class 12.9 axial screw, 1 Ø12 × Ø35 × 15 split shaft collar, axial shims as required |
 | Fabrication | Nut housing and keeper, two support blocks, turned spacer and retaining washer, and plate/foot stock if required |
 
