@@ -6,6 +6,14 @@ remains authoritative for exact file changes.
 
 ## 2026-11-17
 
+- The bellows set now draws the flange clamps: two halves, each on its own
+  sheet as a mid-thickness section, and the clamp is an assembly in the
+  model. The feet have ±1.5 mm guide slots for rail spacing and M6
+  clearances; the middle foot's pocket is gone. Screws match the clamp
+  threads (M6 × 20, M8 × 35) and the basket is the complete buy list.
+  Balloon leaders start at the circle edge, and the lead-screw flat reads
+  square.
+
 - Renumbered the bellows shop set so the drawing number is the page number:
   balloon 04 is page 4, and cross-references read "No. 10". The `BP-MON`
   prefix is gone. The parts sheet lists each subassembly's parts under its

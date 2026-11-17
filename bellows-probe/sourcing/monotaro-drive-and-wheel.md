@@ -31,13 +31,14 @@ The basket screenshot lacks the following installation hardware and shop parts.
 | Connection | Quantity and item |
 |---|---|
 | Guides to table | 36 M6 × 16 small-head socket screws for Ø9.5 mm counterbores, nominal 8 mm engagement |
-| Guide blocks to feet | 24 M5 × 35 socket screws, nominal 5 mm engagement |
+| Guide blocks to feet | 24 M5 × 40 socket screws with 24 M5 washers on the ±1.5 mm foot slots, 9 mm engagement in the 12 mm block flange |
+| Flange clamps | 8 M6 × 20 socket screws, clamp to foot; 8 M8 × 35 socket screws with M8 washers, clamp pinch |
 | Table to profiles and backing plates | 20 DIN 7991 M5 × 16 flat-head screws and 12 M5 T-slot nuts to match the actual profiles |
 | Screw supports to table | 4 ISO 4762 M6 × 75 class 10.9 screws, 4 full-height M6 class 10 nuts and 4 hardened 6.6 × 18 × 2 mm washers |
 | Round nut housing and keeper | 2 M5 × 40 housing screws and 4 M4 × 12 keeper screws |
 | Handwheel and axial retainer | 1 M5 × 12 flat-point wheel set screw, 1 M5 × 10 ISO 4762 class 12.9 axial screw, 1 Ø12 × Ø35 × 15 split shaft collar, axial shims as required |
 | Fabrication | Nut housing and keeper, two support blocks, turned spacer and retaining washer, and plate/foot stock if required |
 
-MonotaRO lists [M6 × 16 small-head screws, 41519703](https://www.monotaro.com/p/4151/9703/), Ø8.5 mm head, 2 per pack, same-day dispatch on the listing. Order 18 packs if the lab has none. Other candidates are [M5 × 35 screws, 42807317](https://www.monotaro.com/p/4280/7317/) and [Ø12 split collar, 06943316](https://www.monotaro.com/p/0694/3316/). Confirm collar holding capacity and required-quantity dispatch before ordering.
+MonotaRO lists [M6 × 16 small-head screws, 41519703](https://www.monotaro.com/p/4151/9703/), Ø8.5 mm head, 2 per pack, same-day dispatch on the listing. Order 18 packs if the lab has none. The earlier M5 × 35 guide-screw candidate (42807317) is superseded by M5 × 40 with washers. Another candidate is the [Ø12 split collar, 06943316](https://www.monotaro.com/p/0694/3316/). Confirm collar holding capacity and required-quantity dispatch before ordering.
 
 The review plate ends in a straight edge behind the wheel. Inventor's full grip sweep with a 20 mm radial hand allowance cleared the surrounding solids at the saved pose. Check with the actual handle and intended gloves before machining. Wheel retention, fasteners and plate-to-stand attachments remain fabrication decisions. The current basket subtotal is **¥72,246 before tax** including the SBC flange guides and two 51101 bearings.
