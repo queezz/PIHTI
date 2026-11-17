@@ -159,3 +159,21 @@ Applied, as recommended:
 - The bed and main assemblies were updated and saved. The IDW reopens clean:
   no missing references, all dimensions and centerlines attached. Shop PDF
   re-exported and thinned (`--pages 4-19`); text identical.
+
+## Follow-up: who assembles
+
+queezz clarified that 工作室 makes the parts and may test-fit them, but does
+not assemble; Kuzmin assembles in another building. The set was reworded:
+
+- **03:** the subline reads "Kuzmin assembles; 工作室 makes the parts and may
+  test-fit them", replacing Codex's "REV C / … / Machining review". The wheel
+  block is split into `工作室:` machining (drill, tap, deburr the ASH125 boss)
+  and `Kuzmin:` fitting (align to the flat, set screw, collar, endplay).
+- **01:** "Kuzmin assembles the stage. No. 03 has the assembly sequence …".
+- **02:** the "REV B" leftover is dropped.
+- **16:** "KUZMIN FITS AN M5 × 10 … AT ASSEMBLY (No. 03)" replaces "FIT M5 ×
+  10 …".
+- **19:** "工作室 may test-fit the bearings, nut and wheel in their seats;
+  Kuzmin assembles" replaces "Match the bearing seats …".
+- The how-to house style records the split.
+- The IDW reopens clean; the shop PDF is re-exported, thinned and installed.
