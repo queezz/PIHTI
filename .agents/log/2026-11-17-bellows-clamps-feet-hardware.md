@@ -177,3 +177,21 @@ not assemble; Kuzmin assembles in another building. The set was reworded:
   Kuzmin assembles" replaces "Match the bearing seats …".
 - The how-to house style records the split.
 - The IDW reopens clean; the shop PDF is re-exported, thinned and installed.
+
+## How-to update
+
+queezz asked for the how-to to be updated. Added, with evidence from this log:
+
+- A **Part edits through COM** section covering:
+  - dimension-free sketch edits, holes to slots, through extents and feature
+    deletion;
+  - re-clocking a fixed work plane;
+  - splitting a multi-lump part into derived pieces and an assembly.
+- A **Working inside the owner's open session** section covering stale
+  parents, modal notices and finding dialogs with UI Automation.
+- Fastener size changes through `SaveAs`, thread reset and occurrence naming.
+- Fit rows for the guide, clamp and saddle screws, plus an engagement and
+  vacuum-load rule of thumb.
+- Drawing notes: `Precision`, which side leader-note text lands on, full
+  diameter lines, slot dimensions.
+- Verification that tolerates documents the owner already has open.

@@ -1,6 +1,6 @@
 # Inventor automation how-tos
 
-Verified with running Inventor 2027.1 during October 8–22, 2026. These recipes
+Verified with running Inventor 2027.1 from October 8 to November 17, 2026. These recipes
 supplement AGENTS.md. Old occurrence names, face indices and dimensions must
 be checked against current geometry, not copied blindly into an edited model.
 
@@ -163,8 +163,25 @@ Measure requested physical faces rather than assuming a length parameter
 means overall length. The 65 mm nipple has 65 mm outer-face spacing but a
 62.6632 mm copied tube; the original nipple remains 114 mm.
 
+To change a fastener size everywhere one file is used, save the loaded part
+under the new name with `doc.SaveAs(new_path, False)`, not as a copy. Every
+loaded assembly that referenced it now points at the new file, so constraints
+and transforms are untouched, and the old file stays on disk for other users.
+Then edit the ISO 4762 template's user parameters (`GD`/`NND`/`THREADDIA`,
+`PTC`, `KOD`, `KOH`, `SW`, `INTI`, `NLG`, `GEL`). Reset the cosmetic thread with
+`ThreadFeatures.CreateStandardThreadInfo(False, True, type, "M6x1", "6g")`
+assigned to `ThreadFeature.ThreadInfo`; a stale `M5x0.8` left the thread
+feature sick. A Content Center part keeps `IsContentMember` but still accepts
+the parameter edits, as M10 × 30 → M8 × 35 did. Save the modules that now
+reference the new file.
+
+Name fastener occurrences by size, length, head and job, so the browser
+reads as a parts list: `M5x40 cap screw - SBI block 3`,
+`M6x16 low-head cap screw - rail 12`, `M6x35 hex bolt - bypass branch 4`.
+
 Evidence: [M10 replacement](log/2026-10-22-workspace-m10-bolts.md),
-[independent nipple](log/2026-10-22-cf70-nipple-65mm.md).
+[independent nipple](log/2026-10-22-cf70-nipple-65mm.md),
+[bellows clamps and hardware](log/2026-11-17-bellows-clamps-feet-hardware.md).
 
 ## Rigid joints and reliable origins
 
@@ -236,11 +253,19 @@ and poses afterward. See [bellows envelope](log/2026-10-22-bellows-travel-envelo
 | CF70 tee to tapped adapter | Six local M6x25 hex bolts | [Tee hardware](log/2026-10-22-bypass-tee-fasteners.md) |
 | CF70 through-hole adapter pair | Six M6x35 bolts plus nuts; two 12.7 mm flanges | [Branch hardware/clamp](log/2026-10-22-bypass-branch-bolts-kf-clamp.md) |
 | Front pipe weld flange | Existing PALP/Prototype-PALP-CF70-34-hole-flange.ipt; pipe end at inner land, seal outward | [Weld flange](log/2026-10-22-mizuno-pipe-cf70-weld-flange.md) |
+| SBI20FL block to carriage foot | M5 × 40 + M5 washer through a ±1.5 mm foot slot and a 15 mm spacer; 9 mm into the block's 12 mm through-tapped flange | [Bellows hardware](log/2026-11-17-bellows-clamps-feet-hardware.md) |
+| Flange clamp | M6 × 20 from under the foot, 11.5 mm into a 12 mm M6 thread; M8 × 35 pinch across a 14 mm ear and 5 mm gap, 16 mm engaged | [Bellows hardware](log/2026-11-17-bellows-clamps-feet-hardware.md) |
+| Nut saddle to rear foot | 2 × M5 × 45 into the 15 mm A6061 foot tapped through, 11.5 mm engaged; holds the ~0.45 kN bellows vacuum load by friction with 3–4× margin | [Bellows hardware](log/2026-11-17-bellows-clamps-feet-hardware.md) |
 
 Measure current stacks and distinguish tapped from clearance holes. The weld
 flange's 34 mm bore and pipe's 34 mm OD are a zero-clearance nominal CAD fit;
 shop tolerance and weld preparation were not specified. The bellows surrogate
 tubes are visual/kinematic stand-ins, not telescoping hardware to fabricate.
+
+Aim for at least 2D thread engagement in aluminium. Get engagement from
+occurrence `RangeBox` values in the assembly, not from nominal lengths. A
+bellows under vacuum pulls with roughly atmospheric pressure times its
+effective area; ICF114 bellows give about 0.4–0.5 kN on the drive.
 
 ## Save, validate and hand off
 
@@ -287,6 +312,58 @@ Add the plan corner rounds first, then select the updated outside perimeter
 for the edge break. Verify feature health, overall dimensions, retained
 seating and locating faces, and fastener access before saving. Regenerate the
 referencing drawing and recheck the assembly positions affected by the edit.
+
+## Part edits through COM
+
+Codex-built parts often have sketches with no dimension constraints. Edit
+their geometry directly and prove the result by measurement.
+
+- Record the occurrence origins of the part in the top assembly before the
+  edit and compare afterwards. The carriage feet grew from 238 to 246 mm by
+  moving the end points (`SketchPoint.MoveTo`) at x = ±119 to ±123. The origins
+  stayed put to 0.001 mm.
+- Set `SketchCircle.Radius` to open a clearance hole: Ø6 → Ø6.6 for M6.
+- Holes to slots: delete the circles, then draw each slot in the same sketch
+  as two lines and two `SketchArcs.AddByCenterStartEndPoint` arcs that share
+  the lines' sketch points. Then set
+  `ExtrudeDefinition.Profile = sketch.Profiles.AddForSolid()`. The feature
+  keeps its place in the tree, ahead of fillets and chamfers.
+- `ExtrudeDefinition.SetThroughAllExtent(direction)` turns a blind pilot into
+  a through hole. `Feature.Delete(False, False, False)` removes a feature and
+  its sketch.
+- A feature on a fixed work plane with no datum, such as the lead-screw
+  flat, can be re-clocked. Read the plane's frame with
+  `WorkPlane.GetPosition(origin, xAxis, yAxis)`, using three by-reference
+  outputs as in the proxy recipe. Rotate the three about the shaft axis and
+  call `SetFixed`. Check that the feature is healthy and the volume unchanged.
+- Split a one-body, multi-lump part, such as the flange clamp with its 5 mm
+  gap, into separately drawn pieces without touching the master:
+  1. Create a new part from the PIHTI template.
+  2. `ReferenceComponents.DerivedPartComponents.Add(CreateDefinition(master))`.
+  3. Cut away the other side of the gap with a rectangle on the gap plane,
+     extruded through all, symmetric.
+  4. Check that the pieces' volumes add up to the master's.
+  5. Put the pieces in an assembly, grounded at identity.
+  6. Swap it in with `Occurrence.Replace(assembly_path, False)`. Codex's
+     modules had no constraints, so the transforms carried over exactly.
+- `SurfaceBody` has no `Lumps` property in this API, so count pieces by
+  volume or by range, not by `Lumps`.
+
+### Working inside the owner's open session
+
+- `Documents.Open` returns the already loaded document when the owner has the
+  assembly open. Edits then appear live in the owner's visible windows. Save
+  the edited parts and the modules that changed. Never close the owner's
+  documents. Check `Dirty` on every loaded document before finishing.
+- A part edit can leave parent assemblies stale on disk. Opening the drawing
+  then raises a modal "components … need to be updated" notice, which blocks
+  the COM caller. Open with `SilentOperation = True`, or first open the top
+  assembly, `Update()` it and save the parents that turn dirty.
+- When a COM call hangs, look for a modal dialog. Enumerate Inventor's
+  top-level windows (`user32` `EnumWindows`) and read them with UI
+  Automation. Press the dialog's own button (`InvokePattern`) once you know
+  what it is. Two seen so far: "Publish Inventor File to DWF" during an
+  export inside a transaction, and the update notice above.
 
 ## Mechanical drawing review
 
@@ -363,6 +440,10 @@ The COM helpers from that pass lived in the session scratch folder and are not c
 - Pick curves by model size (`ModelGeometry.Geometry.Radius`) or by projected length divided by the view scale. Use `GeneralDimensions.AddLinear` with center intents (`kCenterPointIntent` = 57860), `AddDiameter` and `AddRadius`. For a diameter measured between section lines, set the text to `Ø<DimensionValue/>`.
 - `Text.Origin` is not the centre of the text. Set it, read `Text.RangeBox` and shift by the difference. Text sits about 0.24 cm above its dimension line. Stack levels 0.8 cm apart; text with parentheses is taller. Where the model carries 144.98 for a nominal 145, set `Precision = 0`.
 - To add a second arrow to a leader note, use `Leader.RootNode.AddLeader` with an object collection holding the new intent; `Leader.AddLeader` failed. Moving a leader note's `Position` bends the leader, and Inventor then rotated multi-line text vertically. Recreate the note with `LeaderNotes.Add([Point2d text, intent], text)` instead. The text lands on the far side of that point from the arrow. Use `<Br/>` to keep long notes inside the border.
+- Round a derived value on the drawing with the dimension's `Precision`, for example 196.18 → `196.2`. Do not retype the text.
+- The text of a new leader note sits on the side opposite the leader's first segment. A leader that runs right puts the text to the left of the anchor, and can push it off the sheet. A `StyleOverride` with only `FontSize` switched a leader note to Arial; add `Font='Tahoma'`.
+- A diameter dimension draws the full diameter line through the centre. Place its text so that line misses notes inside the bore. For half of a split bore, give `R` plus a dimension from the parting face to the arc's `CENTER` intent.
+- Dimension slots between matching ends, using the `CENTER` intents of the same-side arcs. Add a centerline along each slot with `Centerlines.Add(collection of both arc centres)`. Call it out as `8 × SLOT 5.5 × 8.5 THRU`.
 - Use `HoleThreadNotes.Add` when a native Hole and Thread Note is needed. Its default note showed inches on the metric drawing. Pass the JIS metric dimension style, set `UsePartUnits = False` and inspect the note.
 
 ### Long parts and plates
@@ -390,7 +471,7 @@ The COM helpers from that pass lived in the session scratch folder and are not c
 ### Layout check and verification
 
 - Overlap check: collect every dimension's `Text.RangeBox`, `DimensionLine` and extension lines, every note box and leader segment, view labels, and the approximate cutting-letter boxes. Report text overlapping text, and text crossed by another object's line. It found what renders alone missed. It does not cover sketched symbols or tables, so check those in the render.
-- Render every sheet at A4 after each layout pass. Before reporting, reopen the saved drawing invisibly. Check `ReferenceMissing`, every dimension's and centerline's `Attached`, and the dirty state, then close it.
+- Render every sheet at A4 after each layout pass. Before reporting, reopen the saved drawing invisibly with `SilentOperation` on. Check `ReferenceMissing`, every dimension's and centerline's `Attached`, and the dirty state, then close it. Do not assume an empty session: record the documents already loaded and close only those the check opened. If the drawing opens dirty, its referenced assemblies are stale or a table recalculated. Update and save the stale parents or the drawing, then check again until it opens clean.
 
 ### PDF export and publishing
 
