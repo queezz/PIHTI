@@ -6,10 +6,11 @@ remains authoritative for exact file changes.
 
 ## 2026-11-17
 
-- The bellows parts table now breaks quantities down by subassembly view, A to
-  D, so each balloon checks against its subassembly. Every page heading starts
-  with its drawing number. The set names Kuzmin and 工作室 instead of "owner"
-  and "shop".
+- Renumbered the bellows shop set so the drawing number is the page number:
+  balloon 04 is page 4, and cross-references read "No. 10". The `BP-MON`
+  prefix is gone. The parts sheet lists each subassembly's parts under its
+  name, and every part sheet's Qty says where the part goes. The set names
+  Kuzmin and 工作室 instead of "owner" and "shop".
 
 - The bellows shop set now opens with a parts sheet. Ballooned isometrics
   number every part to manufacture by its drawing number, with a parts table.

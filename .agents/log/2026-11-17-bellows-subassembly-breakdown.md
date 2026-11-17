@@ -1,4 +1,4 @@
-# Subassembly breakdown and plain party names in the bellows set
+# Subassembly breakdown, page numbering and plain names in the bellows set
 
 - Goal: queezz asked for every page to start with its number and for a
   subassembly breakdown on the parts sheet, so each balloon number links to
@@ -74,7 +74,60 @@ the totals; the script asserts this before building the table.
 
 ## Open
 
-- Whether to add Japanese labels such as 材質 and 数量 next to Material and
-  Qty. Not done without queezz's terms.
 - Earlier owner decisions stand: material grades, bearing-seat and journal
   fits, and the rail-pitch tolerance.
+
+## Revised the same day: names instead of letters, number = page
+
+queezz could not read the A–D letters and did not find them on the part
+sheets. He also asked what `BP-MON` means: "Bellows Probe, MonotaRO", a prefix
+Codex invented that appears nowhere on the drawings. He chose "number = page"
+from three options. He also said the shop understands "Material" and "Qty", so
+no 材質 or 数量 was added.
+
+- **Subassemblies by name.** The letter captions and the A–D columns were
+  removed. Each view is captioned with its name and its parts listed below:
+  - FRONT CARRIAGE: 05, 08 ×2
+  - MIDDLE CARRIAGE: 06, 08 ×2
+  - REAR CARRIAGE: 07, 08 ×2, 10, 14
+  - BED: 03, 04, 09 ×2, 11, 12, 13 ×2, 15, 16, marked "(with rear carriage)"
+
+  The table is back to No., Part, Qty, Material and Stock. The lists were
+  asserted against the table totals.
+- **Part sheets.** Each Qty line ends with where the part goes:
+  - "Qty: 6 (2 per carriage)"
+  - "Qty: 2 (bed)"
+  - "Qty: 1 (rear carriage)"
+
+  "Aluminum 6061" became "A6061", the JIS name the table already used. This
+  also cleared a new overlap with the thread note on the rear foot sheet.
+- **Renumbered so the drawing number is the page number:**
+
+  | Old | New |
+  | --- | --- |
+  | BP-MON-17, -16, -15 | 01, 02, 03 |
+  | BP-MON-02 to -14 | 04 to 16 |
+  | BP-MON-01 | 17 |
+  | Balloon 15, ASH125 wheel tap | 03, the page with its tap detail |
+
+  - Sheet names, title blocks, headings, balloons and table rows changed in
+    one transaction per sheet. The table is sorted by the new numbers.
+  - Every prose reference now reads `No. nn`, including ranges such as
+    "No. 04 to 10 and 13 to 16". The ASH125 sourcing line now points to
+    No. 03.
+- Repo docs: the how-to house style now states number = page, plain
+  subassembly names, and no invented prefixes or letters.
+  `sourcing/monotaro-sbc-guides.md` cites "No. 08 in the bellows shop set".
+  Earlier logs keep the BP-MON numbers they were written with.
+
+### Verification
+
+- The overlap check is clean on all 17 sheets except the long-standing hit on
+  No. 14: cutting letter A against the 18.5 extension line, not visible in the
+  render.
+- Rendered pages 1, 7 and 17. On page 1 the first bed list ran into the clamp,
+  so it was rewrapped to three lines.
+- Reopened the saved IDW invisibly: no missing references; 112 dimensions and
+  38 centerlines attached; clean. Zero documents were open afterwards.
+- Shop PDF thinned with `pdf-strokes --pages 4-17` (97 widths). Its text is
+  identical to the raw export and contains no "BP-MON".
