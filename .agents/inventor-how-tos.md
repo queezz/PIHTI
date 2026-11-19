@@ -1,6 +1,6 @@
 # Inventor automation how-tos
 
-Verified with running Inventor 2027.1 from October 8 to November 17, 2026. These recipes
+Verified with running Inventor 2027.1 from October 8 to November 19, 2026. These recipes
 supplement AGENTS.md. Old occurrence names, face indices and dimensions must
 be checked against current geometry, not copied blindly into an edited model.
 
@@ -134,6 +134,89 @@ finally:
 Measure again after abort/update. Trial solves sometimes changed free travel
 poses in flexible parents. Restore recorded positions through the driver,
 then restore its original grounding. Never leave temporary grounding in place.
+
+## STL exports for printing
+
+Put requested printable STL files under `3D-printing/`. Keep native design
+files in their hardware folder and link to the printable file from the
+design notes. Give the user the final print-folder link. Avoid duplicate
+STLs with the same filename in the hardware and print folders. Check native
+references before relocating an existing export, as required by AGENTS.md.
+
+**Do not accept Inventor's default STL tessellation without checking it.**
+`Document.SaveAs(path, True)` produced a visibly faceted Ø160 ring with only
+1,822 triangles. Correct units and bounds did not prove adequate resolution.
+Choose explicit fine settings and inspect the resulting curves. Inventor's
+translator settings are documented in
+[Autodesk's translator options](https://help.autodesk.com/cloudhelp/2027/ENU/Inventor-API/files/TranslatorSettings.htm),
+but their STL quality controls must not be assumed to use the same units or
+values as Open Cascade's deflection arguments below.
+
+### Verified fallback using a saved solid STEP
+
+If a current solid STEP already exists, finer tessellation can run entirely
+from disk using the external `pihti-dedup` environment's Open Cascade bindings.
+Do not open Inventor just to change mesh resolution. Confirm the STEP matches
+the intended native revision and check its dimensions. Retessellating an
+existing coarse STL does not recover its original curved surfaces.
+
+The following worked for `PLD/jis80-glass-115-retainer.stp`:
+
+```python
+import math
+from pathlib import Path
+from OCP.STEPControl import STEPControl_Reader
+from OCP.BRepMesh import BRepMesh_IncrementalMesh
+from OCP.StlAPI import StlAPI_Writer
+
+source = Path("PLD/jis80-glass-115-retainer.stp")
+temporary = Path("3D-printing/jis80-glass-115-retainer.fine.stl")
+assert not temporary.exists()
+reader = STEPControl_Reader()
+assert int(reader.ReadFile(str(source))) == 1
+reader.TransferRoots()
+shape = reader.OneShape()
+mesh = BRepMesh_IncrementalMesh(shape, 0.005, False, math.radians(1), True)
+mesh.Perform()
+assert mesh.IsDone()
+writer = StlAPI_Writer()
+writer.ASCIIMode = False
+assert writer.Write(shape, str(temporary))
+# Validate this temporary mesh before replacing the final printable STL.
+```
+
+Here the imported geometry is in millimetres: `0.005` is **absolute linear
+deflection in mm**, `False` disables relative deflection, and the angular
+deflection is **1 degree in radians**. These are verified fine settings for
+this retainer, not Inventor-native centimetre values or universal tolerances
+for every model. Choose tolerances appropriate to the part and print process.
+STL itself has no units; validate the actual coordinates in millimetres.
+
+### Verification before publishing
+
+- Load the exported mesh independently, for example with
+  `pihti_dedup.mesh_render.load_stl`, and compare its bounds with the intended
+  model dimensions. Record the triangle count and file size.
+- Inspect rendered curves or the slicer preview, including mounting holes and
+  glass recesses. Triangle count alone is not a quality criterion.
+- Check mesh topology. In this case, welding coordinates rounded to
+  0.00001 mm and counting undirected triangle edges found exactly two
+  incident triangles at every edge. This checks closed manifold edges;
+  it does not by itself prove absence of self-intersections or correct shape.
+- Where useful, measure chord error against the source radius:
+  `error = radius * (1 - cos(max_segment_angle / 2))`. Measure adjacent
+  angular samples on the actual circular boundary, not arbitrary triangulation
+  diagonals across a planar face.
+- Replace the final STL only after these checks pass. Record export settings
+  and verification in the design notes/handoff, and tell the user to reload
+  an already imported slicer model when replacing a file at the same path.
+
+The refined retainer had 60,552 triangles (3,027,684 bytes), 720 segments on
+its outside circle and maximum outside chord error of 0.000762 mm. Bounds
+remained 160 × 160 × 13 mm. Those are evidence for this export, not minimum
+triangle counts to enforce on unrelated parts.
+
+Evidence: [JIS80 retainer and mesh refinement](log/2026-11-19-jis80-glass-retainer.md).
 
 ## Workspace fasteners and independent copies
 
