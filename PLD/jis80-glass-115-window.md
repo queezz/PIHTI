@@ -28,7 +28,9 @@ The existing glass, gasket and recess geometry are retained.
 
 - `jis80-glass-115-retainer.ipt`: independent native Inventor part.
 - `../3D-printing/jis80-glass-115-retainer.stl`: printable export in millimetres,
-  lip down.
+  lip down. Tessellated from the solid STEP with 0.005 mm linear deflection
+  and 1° angular deflection: 60,552 triangles, 720 outer-circle segments.
+  The checked outer-circle chord error is below 0.001 mm.
 - `jis80-glass-115-retainer.stp`: solid STEP export.
 - `jis80-glass-115-window.iam`: retainer and the existing `glass-115-10.ipt`.
   The adapter and gasket are not modelled in this two-part assembly.

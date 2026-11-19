@@ -30,6 +30,14 @@ metrology; do not describe the bolt pattern as a measured adapter survey.
 - Independent STEP inspection found Ø160 outside, Ø115.4 recess, Ø100
   opening and four Ø12 cylinders at radius 67.5.
 - STL bounds: 160 × 160 × 13 mm. Rendered and inspected both faces.
+- Print-resolution follow-up: the default Inventor STL had only 1,822
+  triangles. Replaced it by tessellating the saved solid STEP with Open
+  Cascade at 0.005 mm absolute linear deflection and 1° angular deflection.
+  New binary STL: 60,552 triangles, 3,027,684 bytes, 720 outer-circle segments.
+  Maximum outer-circle chord error is 0.000762 mm. Bounds remain
+  160 × 160 × 13 mm. After welding coordinates at 0.00001 mm, all 90,828
+  mesh edges have exactly two incident triangles. Inventor was not accessed
+  for this re-export.
 - Minimum nominal radial ligaments: 3.8 mm to recess, 6.5 mm to outside,
   before inherited chamfers. Glass radial clearance is 0.2 mm.
 - Original retainer and assembly SHA-256 unchanged by the copy operations.
