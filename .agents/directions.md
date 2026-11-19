@@ -5,6 +5,13 @@ session evidence in `log/`.
 
 ## Dedup viewer — next review slice
 
+- **Dedicated catalog functionality/performance review requested 2026-11-19.**
+  Start with native PLD parts failing to load interactive 3D despite existing
+  STEP mirrors. Reproduce through the actual browser controls and API, then
+  review mesh generation, cache invalidation, responsiveness, Doctor and
+  background-export failures. Scope and acceptance checks:
+  [catalog-review-next.md](catalog-review-next.md).
+
 - Which of the two temperature-controller folders is the live one,
   `ElectronicsBox/TempController` or `ElectronicsBox/TempController-v2`? They
   share 22 byte-identical files and differ in 63 — awaiting the owner.

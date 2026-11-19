@@ -68,6 +68,16 @@ Before native Inventor assembly editing or COM automation, read
 Its part-specific dimensions and face indices are examples to remeasure,
 not defaults to apply to an edited model.
 
+Every CAD task includes a proactive review of the catalog's Doctor and STEP
+mirror findings. Inspect the affected files and their referring assemblies
+before editing; check loaded reference and feature/relationship health before
+the final native save. Refresh Doctor after saving, and review it again before
+publishing exports or committing. Resolve findings introduced or exposed by
+the affected work; record unrelated pre-existing issues with their evidence.
+Investigate scanner false positives rather than hiding them or creating dummy
+replacement parts. Documentation-only tasks use saved evidence and do not
+require opening Inventor.
+
 ## Invariants
 
 - Open `PIHTI.ipj` before opening Inventor assemblies or parts.

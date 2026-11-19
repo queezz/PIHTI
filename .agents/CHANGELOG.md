@@ -4,6 +4,16 @@ Shipped archive milestones only. PIHTI does not yet have a formal release/versio
 contract, so entries are dated rather than assigned software versions. Git history
 remains authoritative for exact file changes.
 
+## 2026-11-19
+
+- Shipped `pihti-dedup` 0.37.1: Doctor and STEP mirror reference scans
+  reassemble logical OLE streams before extracting filenames. Non-contiguous
+  Inventor storage sectors no longer invent missing sleeve or washer names.
+  Real missing names remain reported; damaged containers report scan errors.
+- CAD work now requires proactive Doctor review before final saves and
+  exports, with a refreshed saved-file check afterward. Documentation-only
+  work does not open Inventor.
+
 ## 2026-11-17
 
 - The bellows set now draws the flange clamps: two halves, each on its own

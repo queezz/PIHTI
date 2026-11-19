@@ -50,6 +50,43 @@ when `Activate()` alone failed. For guarded rename repair, reuse
 [inventor_session.py](../src/pihti_dedup/inventor_session.py) and its existing
 workflow instead of building an alternate reference-rewrite path.
 
+## Doctor review before final saves and exports
+
+Use the catalog's **Doctor** and **STEP mirror** as part of every CAD review;
+do not wait for Kuzmin to point out warnings in a screenshot.
+
+1. Before editing, inspect findings for the target parts/assemblies and their
+   referrers. Record the baseline, including deferred "Doctor later" entries.
+   The STEP mirror CLI offers a saved-file preflight:
+   `python -X utf8 -m pihti_dedup step-mirror status .`. It reports mirror
+   readiness, not a complete native feature/relationship health check.
+2. Before the final native save, check loaded reference descriptors and
+   feature/relationship health through the existing guarded Inventor session.
+   Keep the initial document ownership and dirty-state record. Resolve issues
+   affecting the work instead of exporting around them.
+3. After saving, refresh the catalog scan and review Doctor and STEP mirror
+   again, including the affected parents. The catalog reads saved files and
+   cannot validate unsaved edits. Reopen cleanly when needed and verify that
+   references resolve and intended constraints/features remain healthy.
+4. Before publishing exports or committing, confirm that affected findings
+   are resolved. Report any genuinely unresolved finding with its actual
+   missing name, affected assembly and evidence; do not mark it deferred just
+   to obtain a clean screen. Note unrelated pre-existing findings separately.
+
+An embedded filename is evidence to investigate, not proof of a broken native
+reference. Inventor files are OLE containers with non-contiguous sectors.
+The raw byte scan invented `leeve-6.ipt` and a garbled washer name by scanning
+across physical sector boundaries. `whereused.extract_filenames` now reads
+logical OLE streams first, recovering the real sleeve and washer names.
+Preserve real missing-reference checks and investigate extraction bugs at
+their source. Use the existing Doctor "Recheck Inventor" verification only
+when native evidence supports a fossil reference; do not manually suppress
+unverified names or edit binary CAD strings.
+
+These checks do not authorize interrupting an owner render, stopping a live
+command or closing owner documents. For documentation-only work, use the
+saved catalog evidence without opening Inventor.
+
 ## Units, COM collections and proxies
 
 Native length values and coordinates are centimeters: 15 mm is 1.5 and

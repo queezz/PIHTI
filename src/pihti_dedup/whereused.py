@@ -6,11 +6,12 @@ That makes the useful question "which documents name `bearing.ipt`?", not
 "which documents point at `BoronProbe/parts/bearing.ipt`?", and it is why this
 index is keyed on the casefolded filename.
 
-The reference itself is read out of the referring document's raw bytes. An
+The reference itself is read out of the referring document's logical OLE streams. An
 `.iam`, `.idw`, or `.ipn` stores the path of every document it consumes as a
 UTF-16LE string, so scanning for the UTF-16LE form of a CAD extension and
 walking backwards to the nearest path separator recovers the filename without
-Inventor, COM, or an OLE parse. The same technique identified the authored home
+Inventor or COM. Reassembling the OLE streams first preserves filenames across
+non-contiguous storage sectors. The same technique identified the authored home
 of the BoronProbe bearing parts on 2026-08-05.
 
 Nothing here writes to a CAD file.
@@ -18,14 +19,18 @@ Nothing here writes to a CAD file.
 
 from __future__ import annotations
 
+import io
 import os
 import re
+import struct
 import threading
 from collections import OrderedDict, defaultdict
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Iterable, Iterator
 from urllib.parse import unquote
+
+import olefile
 
 #: Documents that can refer to another document.
 REFERRING_EXTENSIONS = frozenset({".iam", ".idw", ".ipn"})
@@ -82,9 +87,29 @@ def _is_name_char(char: str) -> bool:
 def extract_filenames(data: bytes) -> frozenset[str]:
     """Return every CAD filename embedded in `data` as a UTF-16LE string.
 
-    Only the filename is returned: the stored path is deliberately discarded,
-    because unique-filename resolution ignores it.
+    Reassemble OLE streams before scanning, so non-contiguous sectors cannot
+    truncate a name or splice unrelated property bytes into it. Non-OLE data
+    keeps the plain UTF-16 scan. A damaged OLE container raises OSError rather
+    than returning an apparently complete, but unreliable, reference list.
+
+    Only the filename is returned: unique-filename resolution ignores its path.
     """
+
+    if data.startswith(olefile.MAGIC):
+        try:
+            with olefile.OleFileIO(io.BytesIO(data)) as document:
+                return frozenset(
+                    name
+                    for stream in document.listdir()
+                    for name in _stream_filenames(document.openstream(stream).read())
+                )
+        except (OSError, ValueError, IndexError, struct.error) as exc:
+            raise OSError(f"cannot read OLE reference streams: {exc}") from exc
+    return _stream_filenames(data)
+
+
+def _stream_filenames(data: bytes) -> frozenset[str]:
+    """Scan one contiguous stream without crossing unrelated storage sectors."""
 
     found: set[str] = set()
     for match in _EXTENSION_RE.finditer(data):
