@@ -1,0 +1,235 @@
+{
+  "units": "mm",
+  "linear_deflection_mm": 0.005,
+  "angular_deflection_degrees": 1,
+  "parts": [
+    {
+      "drawing_sheet": 5,
+      "part": "Front carriage foot",
+      "source": "bellows-probe/monotaro-front-flat-carriage-plate.ipt",
+      "stl": "monotaro-front-flat-carriage-plate.stl",
+      "stage_quantity": 1,
+      "fit_test_quantity": 1,
+      "bounds_mm": [
+        246.0,
+        56.8,
+        15.0
+      ],
+      "triangles": 49100,
+      "bytes": 2455084,
+      "sha256": "18b3960acdb8f73cb2f5d37475307341dffca14c905f4e1483e819faae59e619",
+      "source_sha256": "eeed6b9237f635d4a15d8601e9a6266a0353b571c49c1bd839bec1c7762d20c5",
+      "removed_collapsed_triangles": 0,
+      "closed_edges": true
+    },
+    {
+      "drawing_sheet": 6,
+      "part": "Middle carriage foot",
+      "source": "bellows-probe/monotaro-middle-flat-carriage-plate.ipt",
+      "stl": "monotaro-middle-flat-carriage-plate.stl",
+      "stage_quantity": 1,
+      "fit_test_quantity": 1,
+      "bounds_mm": [
+        246.0,
+        56.8,
+        15.0
+      ],
+      "triangles": 60628,
+      "bytes": 3031484,
+      "sha256": "943d49f4c652753ecc841f65102d629101c1d1cd0e31b291bb60d601817e62eb",
+      "source_sha256": "425a073a51a697958f123fd028ddda2089986f4c57b8ac967357c8828c98c65b",
+      "removed_collapsed_triangles": 0,
+      "closed_edges": true
+    },
+    {
+      "drawing_sheet": 7,
+      "part": "Rear carriage foot",
+      "source": "bellows-probe/monotaro-rear-flat-carriage-plate.ipt",
+      "stl": "monotaro-rear-flat-carriage-plate.stl",
+      "stage_quantity": 1,
+      "fit_test_quantity": 1,
+      "bounds_mm": [
+        246.0,
+        56.8,
+        15.0
+      ],
+      "triangles": 54860,
+      "bytes": 2743084,
+      "sha256": "1d033c5f08a07d7f11d4c225537c373a493156ea15480128f9be78e7a61e060c",
+      "source_sha256": "338d013374f881709f5c5da8cf6da7e6a9ed519a6ea1ad6666ea66d7a756c358",
+      "removed_collapsed_triangles": 0,
+      "closed_edges": true
+    },
+    {
+      "drawing_sheet": 8,
+      "part": "Guide spacer",
+      "source": "bellows-probe/SBI20FL-flat-spacer-15.ipt",
+      "stl": "SBI20FL-flat-spacer-15.stl",
+      "stage_quantity": 6,
+      "fit_test_quantity": 1,
+      "bounds_mm": [
+        63.0,
+        56.8,
+        15.0
+      ],
+      "triangles": 24524,
+      "bytes": 1226284,
+      "sha256": "8bd581add2abf53ce167085b0b53c20e336d7120f448f6ae3b6a3bade53b2a3b",
+      "source_sha256": "dd030c02493e066bfc6b29592c43588095ccff37c51fd08bb91196784fdbd9f0",
+      "removed_collapsed_triangles": 0,
+      "closed_edges": true
+    },
+    {
+      "drawing_sheet": 9,
+      "part": "Thrust support block",
+      "source": "bellows-probe/monotaro-thrust-support-block.ipt",
+      "stl": "monotaro-thrust-support-block.stl",
+      "stage_quantity": 2,
+      "fit_test_quantity": 1,
+      "bounds_mm": [
+        62.0,
+        20.0,
+        50.0
+      ],
+      "triangles": 20200,
+      "bytes": 1010084,
+      "sha256": "0256448d8dd82227f0701b56d58ab760c65dd5800a95c3ad76abd12d78cafb6d",
+      "source_sha256": "32cc5ab8897eaeee98d51b2d909b3b4630aeecef9fd3e14264f6184112ba4004",
+      "removed_collapsed_triangles": 0,
+      "closed_edges": true
+    },
+    {
+      "drawing_sheet": 10,
+      "part": "Rear nut saddle",
+      "source": "bellows-probe/monotaro-TR16-nut-holder.ipt",
+      "stl": "monotaro-TR16-nut-holder.stl",
+      "stage_quantity": 1,
+      "fit_test_quantity": 1,
+      "bounds_mm": [
+        50.0,
+        33.5,
+        31.0
+      ],
+      "triangles": 21656,
+      "bytes": 1082884,
+      "sha256": "cb9665c034474a864d0e0fc252d4ebfc1fa06a9f5fada812a5674034a7e082ea",
+      "source_sha256": "0733ab255ad9cd8c7185a512a79786a284885e87ffde89b9f5fb88e76262ebb5",
+      "removed_collapsed_triangles": 0,
+      "closed_edges": true
+    },
+    {
+      "drawing_sheet": 13,
+      "part": "Thrust backing plate",
+      "source": "bellows-probe/monotaro-thrust-backing-plate.ipt",
+      "stl": "monotaro-thrust-backing-plate.stl",
+      "stage_quantity": 2,
+      "fit_test_quantity": 1,
+      "bounds_mm": [
+        99.5,
+        60.0,
+        10.0
+      ],
+      "triangles": 31732,
+      "bytes": 1586684,
+      "sha256": "3c68b0ab00fb73e31e2442b898c7816aba5e3f7f39db2ca06f4bb5cc64652559",
+      "source_sha256": "c087c41a9b2d77de561db1351d9de080be907329b3e4067137b5861e39f71c3f",
+      "removed_collapsed_triangles": 0,
+      "closed_edges": true
+    },
+    {
+      "drawing_sheet": 14,
+      "part": "Rear nut keeper",
+      "source": "bellows-probe/monotaro-TR16-nut-keeper.ipt",
+      "stl": "monotaro-TR16-nut-keeper.stl",
+      "stage_quantity": 1,
+      "fit_test_quantity": 1,
+      "bounds_mm": [
+        50.0,
+        33.5,
+        5.0
+      ],
+      "triangles": 14448,
+      "bytes": 722484,
+      "sha256": "14e9bac2db97e0c2ab423656e4ef3fd4676cb141e04de8a780d53857144f1a9d",
+      "source_sha256": "cc1b22a2c4b5093fd7b842127b9f97c751eeef9de10994bef44993944c6f589c",
+      "removed_collapsed_triangles": 0,
+      "closed_edges": true
+    },
+    {
+      "drawing_sheet": 15,
+      "part": "Thrust spacer",
+      "source": "bellows-probe/monotaro-TR16-end-thrust-spacer.ipt",
+      "stl": "monotaro-TR16-end-thrust-spacer.stl",
+      "stage_quantity": 1,
+      "fit_test_quantity": 1,
+      "bounds_mm": [
+        22.0,
+        22.0,
+        3.0
+      ],
+      "triangles": 5760,
+      "bytes": 288084,
+      "sha256": "69c07b0f12387aa44d031da7b8b74ed247ae9d48be5cdc322fb16d0fe9caa5d2",
+      "source_sha256": "52b8072d609623911b52c5ca3938c153d893c3efe10d696886ac2b1b4266199d",
+      "removed_collapsed_triangles": 0,
+      "closed_edges": true
+    },
+    {
+      "drawing_sheet": 16,
+      "part": "End retaining washer",
+      "source": "bellows-probe/monotaro-TR16-end-retaining-washer.ipt",
+      "stl": "monotaro-TR16-end-retaining-washer.stl",
+      "stage_quantity": 1,
+      "fit_test_quantity": 1,
+      "bounds_mm": [
+        22.0,
+        22.0,
+        3.0
+      ],
+      "triangles": 5760,
+      "bytes": 288084,
+      "sha256": "ebb10d69de35375d906744da2752d5b40a3c655e46804ec080198d6cefd69331",
+      "source_sha256": "363736f29f3e8546df1dcb4377c21a766c84f01f3f0bbe41ead48a54efb660a7",
+      "removed_collapsed_triangles": 0,
+      "closed_edges": true
+    },
+    {
+      "drawing_sheet": 17,
+      "part": "Flange clamp upper",
+      "source": "bellows-probe/flange-clamp-114-upper.ipt",
+      "stl": "flange-clamp-114-upper.stl",
+      "stage_quantity": 4,
+      "fit_test_quantity": 1,
+      "bounds_mm": [
+        196.1747,
+        87.5,
+        20.0
+      ],
+      "triangles": 571692,
+      "bytes": 28584684,
+      "sha256": "e5292d087da450b15ddaa2ec27c2add7e771950d1d2763fbf54ec4e10f3856f4",
+      "source_sha256": "3e1dc90c1df0de87287d14c41e5fccea78430a489d8ef77d426800788339d064",
+      "removed_collapsed_triangles": 0,
+      "closed_edges": true
+    },
+    {
+      "drawing_sheet": 18,
+      "part": "Flange clamp lower",
+      "source": "bellows-probe/flange-clamp-114-lower.ipt",
+      "stl": "flange-clamp-114-lower.stl",
+      "stage_quantity": 4,
+      "fit_test_quantity": 1,
+      "bounds_mm": [
+        196.1747,
+        87.5,
+        20.0
+      ],
+      "triangles": 65200,
+      "bytes": 3260084,
+      "sha256": "dfeae4000cd3726b4eb01b48e15265350d1bc75f169fa3cfbeeb75c0b099a081",
+      "source_sha256": "34c03bf3b48b3ee919766d7cd4e83038bb3baa24fb3890372320d8b3c8e433ab",
+      "removed_collapsed_triangles": 0,
+      "closed_edges": true
+    }
+  ]
+}
