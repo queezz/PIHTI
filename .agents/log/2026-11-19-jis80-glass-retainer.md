@@ -17,6 +17,10 @@ metrology; do not describe the bolt pattern as a measured adapter survey.
   healthy rigid joint, replacing only the retainer in an assembly copy.
 - `PLD/jis80-glass-115-window.md` records dimensions and the supplier source.
 - No original PLD files or unrelated bellows changes were edited.
+- Follow-up: Kuzmin requested the printable STL under `3D-printing/`.
+  Moved it there after checking the PLD and shared-library native files for
+  references to the STL filename (none found), verified SHA-256 unchanged,
+  and updated the file notes. Native models and STEP remain in `PLD/`.
 
 ## Verification
 

@@ -27,7 +27,8 @@ The existing glass, gasket and recess geometry are retained.
 ## Files
 
 - `jis80-glass-115-retainer.ipt`: independent native Inventor part.
-- `jis80-glass-115-retainer.stl`: printable export in millimetres, lip down.
+- `../3D-printing/jis80-glass-115-retainer.stl`: printable export in millimetres,
+  lip down.
 - `jis80-glass-115-retainer.stp`: solid STEP export.
 - `jis80-glass-115-window.iam`: retainer and the existing `glass-115-10.ipt`.
   The adapter and gasket are not modelled in this two-part assembly.
