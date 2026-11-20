@@ -7,10 +7,12 @@ remains authoritative for exact file changes.
 ## 2026-11-21
 
 - Added the Echelle grating-support dimensional mockup as a four-plate
-  Inventor assembly: roof with opening, rectangular base and two profiled
+  Inventor assembly: roof with opening, upright front bottom plate and two profiled
   side plates. Shared stock and envelope parameters drive all three part
   types. Approximate photo dimensions and the unchanged original prototype
-  are documented beside the assembly.
+  are documented beside the assembly. Corrected the initial false floor and
+  beveled roof ends: the window plate has square stock edges, with matching
+  side profiles and open space underneath.
 
 ## 2026-11-19
 
