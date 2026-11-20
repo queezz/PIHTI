@@ -201,19 +201,23 @@
       "stage_quantity": 4,
       "fit_test_quantity": 1,
       "bounds_mm": [
-        196.1747,
+        200.567,
         87.5,
         20.0
       ],
-      "triangles": 571692,
-      "bytes": 28584684,
-      "sha256": "c7eba71fe0c064ea56d7f5d063df44fe28e7699dba569b2b404fc564a893e1b4",
-      "source_sha256": "1aa1a5b8390fcd5d86aec5ce456e5bc93fe13469134699ea387c6b718587dc14",
+      "triangles": 577928,
+      "bytes": 28896484,
+      "sha256": "5e3e888bbe3a3dfccbe2f0036dda351aee197adfe1b7c227cf06dc92eb678df1",
+      "source_sha256": "7465b4af9d9f5998dd7fcc23403fec79f0eca2a53b2bd1e8e2553131c23343f4",
       "removed_collapsed_triangles": 0,
       "closed_edges": true,
       "hand_opening_mm": [
         75,
         15
+      ],
+      "toe_corner_radii_mm": [
+        3,
+        3
       ]
     },
     {
@@ -224,16 +228,20 @@
       "stage_quantity": 4,
       "fit_test_quantity": 1,
       "bounds_mm": [
-        196.1747,
+        200.567,
         87.5,
         20.0
       ],
-      "triangles": 65200,
-      "bytes": 3260084,
-      "sha256": "dfeae4000cd3726b4eb01b48e15265350d1bc75f169fa3cfbeeb75c0b099a081",
-      "source_sha256": "deded49deafd035569c203135d995f7e1430cfdaa7f0231873392f26fd959828",
-      "removed_collapsed_triangles": 0,
-      "closed_edges": true
+      "triangles": 69016,
+      "bytes": 3450884,
+      "sha256": "2645eeff309c5780a1daaf78bf8e71a086d20d9be8e0d06cc92d9b82f300d867",
+      "source_sha256": "f3f929eea2351c6a8d438d62e72a3accedd130abee37a859ea1637bd734fec35",
+      "removed_collapsed_triangles": 2,
+      "closed_edges": true,
+      "toe_corner_radii_mm": [
+        3,
+        3
+      ]
     }
   ]
 }

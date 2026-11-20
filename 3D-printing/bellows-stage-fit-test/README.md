@@ -19,8 +19,8 @@ column lists the installed quantities (25 pieces across these 12 part types).
 | 14 | [Rear nut keeper](monotaro-TR16-nut-keeper.stl) | 1 | 1 | 50 × 33.5 × 5 |
 | 15 | [Thrust spacer](monotaro-TR16-end-thrust-spacer.stl) | 1 | 1 | 22 × 22 × 3 |
 | 16 | [End retaining washer](monotaro-TR16-end-retaining-washer.stl) | 1 | 1 | 22 × 22 × 3 |
-| 17 | [Flange clamp upper](flange-clamp-114-upper.stl) | 1 | 4 | 196.175 × 87.5 × 20 |
-| 18 | [Flange clamp lower](flange-clamp-114-lower.stl) | 1 | 4 | 196.175 × 87.5 × 20 |
+| 17 | [Flange clamp upper](flange-clamp-114-upper.stl) | 1 | 4 | 200.567 × 87.5 × 20 |
+| 18 | [Flange clamp lower](flange-clamp-114-lower.stl) | 1 | 4 | 200.567 × 87.5 × 20 |
 
 ## Printing and fit checks
 
@@ -33,6 +33,8 @@ column lists the installed quantities (25 pieces across these 12 part types).
   drawings for machining specifications.
 - The paired flange clamps retain the designed 5 mm split gap. Print one
   upper and one lower for a single clamp test fit; four pairs serve the stage.
+- Both clamp halves now use **R3 toe corner rounds**, updated 2026-11-20.
+  Their maximum width is 200.567 mm; mounting-hole pitch remains 166 mm.
 - The upper clamp's hand opening was lengthened to **75 mm overall × 15 mm**
   on 2026-11-20. Reload the upper STL if it was already imported into a slicer.
 
