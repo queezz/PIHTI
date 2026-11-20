@@ -12,7 +12,8 @@ remains authoritative for exact file changes.
   types. Approximate photo dimensions and the unchanged original prototype
   are documented beside the assembly. Corrected the initial false floor and
   beveled roof ends: the window plate has square stock edges, with matching
-  side profiles and open space underneath.
+  side profiles and open space underneath. Removed the side toes and extended
+  the window plate about 5 mm to meet the straight side cuts.
 
 ## 2026-11-19
 

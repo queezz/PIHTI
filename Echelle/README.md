@@ -11,7 +11,7 @@ The assembly contains four aluminum plates in three part types:
 
 ![Assembled and exploded support](echelle-grating-support-preview.png)
 
-The envelope is approximately **200 × 103.9 × 140 mm**. Common stock is
+The envelope is approximately **200 × 103.9 × 144.5 mm**. Common stock is
 provisionally **10 mm**; the roof opening is **50 × 100 mm**. These dimensions
 are photo estimates, not measured fabrication dimensions. The **26.5°** angle
 comes from the owner's original sketch. Aluminum 6061 is a reference material;
@@ -19,8 +19,13 @@ the actual alloy is unconfirmed. Fasteners and the adjustment stage are omitted.
 The bottom plate is the broad upright panel at the front/left, not a floor.
 The space underneath stays open. The window plate is rectangular stock with
 outside and opening edges perpendicular to its broad faces. Its normal-cut end
-planes also define the mating ends of the side profiles. The roof plate blank
-is approximately 200 × 147 × 10 mm; the front plate is 200 × 106 × 10 mm.
+planes define the upper mating ends of the side profiles. The sides have a
+straight lower cut without triangular toes. The roof extends 4.986 mm along
+its slope so its lower inside edge meets that cut; its square outside edge
+projects 4.462 mm below the side datum. The roof plate blank is approximately
+200 × 152 × 10 mm; the front plate is 200 × 106 × 10 mm.
+
+![Side cut and square roof edge](echelle-side-cut-review.png)
 
 The reference photos are `IMG_20261120_185315.jpg`, `185451.jpg`, `185502.jpg`,
 `185512.jpg`, `185532.jpg` and `185238.jpg` from the November 2026 phone archive.
@@ -33,6 +38,8 @@ Edit **User Parameters in `echelle-support-base.ipt`** for the common dimensions
 `WindowCentreHeight`. `RoofEndHeight` and `RoofEndDepth` are calculated from the
 normal end plane meeting the arm at `SupportHeight`; they are not independent
 dimensions. The legacy `BaseDepth` parameter now equals `StockThickness`.
+The roof's `RoofLowerExtension` is calculated as
+`StockThickness * tan(RoofAngle)` to keep the lower edges aligned.
 The roof, side part and assembly link those parameters
 through native Inventor parameter tables. Update the assembly after editing.
 Each part retains fully constrained, editable native sketches and extrusions.
