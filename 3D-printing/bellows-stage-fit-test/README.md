@@ -33,6 +33,8 @@ column lists the installed quantities (25 pieces across these 12 part types).
   drawings for machining specifications.
 - The paired flange clamps retain the designed 5 mm split gap. Print one
   upper and one lower for a single clamp test fit; four pairs serve the stage.
+- The upper clamp's hand opening was lengthened to **75 mm overall × 15 mm**
+  on 2026-11-20. Reload the upper STL if it was already imported into a slicer.
 
 ## Scope and provenance
 
