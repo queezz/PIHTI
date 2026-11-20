@@ -4,6 +4,14 @@ Shipped archive milestones only. PIHTI does not yet have a formal release/versio
 contract, so entries are dated rather than assigned software versions. Git history
 remains authoritative for exact file changes.
 
+## 2026-11-21
+
+- Added the Echelle grating-support dimensional mockup as a four-plate
+  Inventor assembly: roof with opening, rectangular base and two profiled
+  side plates. Shared stock and envelope parameters drive all three part
+  types. Approximate photo dimensions and the unchanged original prototype
+  are documented beside the assembly.
+
 ## 2026-11-19
 
 - Shipped `pihti-dedup` 0.37.1: Doctor and STEP mirror reference scans
