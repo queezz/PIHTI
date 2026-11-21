@@ -1,0 +1,222 @@
+{
+  "folder": "Kawabata Probe Mods/screen-membrane",
+  "inventor": "2027.1",
+  "parts": [
+    {
+      "path": "Kawabata Probe Mods/screen-membrane/kawabata-ceramic-bush.ipt",
+      "bodies": 1,
+      "features": [
+        {
+          "name": "Extrusion1",
+          "health": 11778
+        },
+        {
+          "name": "Extrusion2",
+          "health": 11778
+        }
+      ],
+      "volume_mm3": 67.19866686028283,
+      "bounds_mm": [
+        [
+          -3.0000000000000004,
+          0.0,
+          -3.0000000000000004
+        ],
+        [
+          3.0000000000000004,
+          4.0,
+          3.0000000000000004
+        ]
+      ]
+    },
+    {
+      "path": "Kawabata Probe Mods/screen-membrane/kawabata-cf34-flange.ipt",
+      "bodies": 1,
+      "features": [
+        {
+          "name": "Extrusion1",
+          "health": 11778
+        },
+        {
+          "name": "Hole1",
+          "health": 11778
+        },
+        {
+          "name": "Extrusion2",
+          "health": 11778
+        },
+        {
+          "name": "Hole2",
+          "health": 11778
+        }
+      ],
+      "volume_mm3": 3397.561515731604,
+      "bounds_mm": [
+        [
+          -17.0,
+          0.0,
+          -17.0
+        ],
+        [
+          17.0,
+          7.5,
+          17.0
+        ]
+      ]
+    },
+    {
+      "path": "Kawabata Probe Mods/screen-membrane/kawabata-screen-membrane-carrier.ipt",
+      "bodies": 1,
+      "features": [
+        {
+          "name": "Extrusion1",
+          "health": 11778
+        },
+        {
+          "name": "Extrusion2",
+          "health": 11778
+        },
+        {
+          "name": "Hole1",
+          "health": 11778
+        }
+      ],
+      "volume_mm3": 2619.0751094629927,
+      "bounds_mm": [
+        [
+          -17.0,
+          0.0,
+          -17.0
+        ],
+        [
+          17.0,
+          21.0,
+          17.0
+        ]
+      ]
+    },
+    {
+      "path": "Kawabata Probe Mods/screen-membrane/kawabata-ceramic-spacer.ipt",
+      "bodies": 1,
+      "features": [
+        {
+          "name": "Extrusion1",
+          "health": 11778
+        }
+      ],
+      "volume_mm3": 157.4291348622084,
+      "bounds_mm": [
+        [
+          -2.650000000000001,
+          0.0,
+          -2.650000000000001
+        ],
+        [
+          2.650000000000001,
+          10.5,
+          2.650000000000001
+        ]
+      ]
+    },
+    {
+      "path": "Kawabata Probe Mods/screen-membrane/kawabata-membrane.ipt",
+      "bodies": 1,
+      "features": [
+        {
+          "name": "Extrusion1",
+          "health": 11778
+        }
+      ],
+      "volume_mm3": 314.15926535896585,
+      "bounds_mm": [
+        [
+          -10.0,
+          0.0,
+          -10.0
+        ],
+        [
+          10.0,
+          1.0,
+          10.0
+        ]
+      ]
+    }
+  ],
+  "references": [
+    "ContentCenter/Fastners/M3x8-SHCS.ipt",
+    "Kawabata Probe Mods/screen-membrane/kawabata-ceramic-bush.ipt",
+    "Kawabata Probe Mods/screen-membrane/kawabata-ceramic-spacer.ipt",
+    "Kawabata Probe Mods/screen-membrane/kawabata-cf34-flange.ipt",
+    "Kawabata Probe Mods/screen-membrane/kawabata-membrane.ipt",
+    "Kawabata Probe Mods/screen-membrane/kawabata-screen-membrane-carrier.ipt"
+  ],
+  "occurrences": [
+    {
+      "name": "kawabata-cf34-flange:1",
+      "file": "Kawabata Probe Mods/screen-membrane/kawabata-cf34-flange.ipt",
+      "grounded": true
+    },
+    {
+      "name": "kawabata-screen-membrane-carrier:1",
+      "file": "Kawabata Probe Mods/screen-membrane/kawabata-screen-membrane-carrier.ipt",
+      "grounded": false
+    },
+    {
+      "name": "kawabata-ceramic-bush:1",
+      "file": "Kawabata Probe Mods/screen-membrane/kawabata-ceramic-bush.ipt",
+      "grounded": false
+    },
+    {
+      "name": "kawabata-ceramic-spacer:1",
+      "file": "Kawabata Probe Mods/screen-membrane/kawabata-ceramic-spacer.ipt",
+      "grounded": false
+    },
+    {
+      "name": "kawabata-ceramic-bush:2",
+      "file": "Kawabata Probe Mods/screen-membrane/kawabata-ceramic-bush.ipt",
+      "grounded": false
+    },
+    {
+      "name": "kawabata-ceramic-spacer:2",
+      "file": "Kawabata Probe Mods/screen-membrane/kawabata-ceramic-spacer.ipt",
+      "grounded": false
+    },
+    {
+      "name": "kawabata-ceramic-bush:3",
+      "file": "Kawabata Probe Mods/screen-membrane/kawabata-ceramic-bush.ipt",
+      "grounded": false
+    },
+    {
+      "name": "kawabata-ceramic-spacer:3",
+      "file": "Kawabata Probe Mods/screen-membrane/kawabata-ceramic-spacer.ipt",
+      "grounded": false
+    },
+    {
+      "name": "kawabata-membrane:1",
+      "file": "Kawabata Probe Mods/screen-membrane/kawabata-membrane.ipt",
+      "grounded": false
+    },
+    {
+      "name": "SS ISO 4762 M3 x 8:1",
+      "file": "ContentCenter/Fastners/M3x8-SHCS.ipt",
+      "grounded": false
+    },
+    {
+      "name": "SS ISO 4762 M3 x 8:2",
+      "file": "ContentCenter/Fastners/M3x8-SHCS.ipt",
+      "grounded": false
+    },
+    {
+      "name": "SS ISO 4762 M3 x 8:3",
+      "file": "ContentCenter/Fastners/M3x8-SHCS.ipt",
+      "grounded": false
+    }
+  ],
+  "constraints": [
+    {
+      "name": "Mate:2",
+      "health": 11778
+    }
+  ],
+  "saved_native_reopen_verified": true
+}

@@ -89,6 +89,15 @@ saved catalog evidence without opening Inventor.
 
 ## Units, COM collections and proxies
 
+For submission reference repairs, prefer `document.Save2(False)` after native
+health checks: it saves that document without recursively saving referenced
+parts. An assembly `Save()` during the 2026-11-21 Kawabata intake also migrated
+the unchanged shared M3×8 screw. Its geometry was independently proved unchanged
+by zero-volume OpenCascade differences in both directions, but the resave was
+unnecessary. A pending Save Copy As dialog can leave the API able to read
+descriptors while saves/closure stall. Inspect the actual dialog only with the
+owner's current UI permission; do not keep issuing saves or stop active commands.
+
 Native length values and coordinates are centimeters: 15 mm is 1.5 and
 100 mm is 10. Angle values use radians. Prefer expressions like `"100 mm"`.
 Use parameter `.Value` for arithmetic rather than parsing locale-formatted

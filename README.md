@@ -35,6 +35,9 @@ ICF-114 flanges.
 
 ### Probes and diagnostics
 
+`Kawabata Probe Mods/screen-membrane/` — Kawabata's received screen-membrane
+assembly, integrated under `PIHTI.ipj` with shared fasteners and STEP copies.
+
 `BoronProbe/` — insertable boron probe. Multiple head variants (`BoronHead`,
 `BoronProbeHead`), pipe assemblies, and a hybrid configuration for PALP
 (`palp-boron-hybrid`).

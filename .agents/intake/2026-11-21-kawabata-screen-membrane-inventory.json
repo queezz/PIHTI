@@ -1,0 +1,176 @@
+{
+  "folder": "Kawabata Probe Mods/screen-membrane/",
+  "records": [
+    {
+      "path": "Kawabata Probe Mods/screen-membrane/Ceramics-bush.ipt",
+      "name": "Ceramics-bush.ipt",
+      "name_key": "ceramics-bush.ipt",
+      "suffix": ".ipt",
+      "size": 115712,
+      "mtime_ns": 1787124716000000000,
+      "sha256": "eeefb16424d4e18100282d635e7edd303d61d37a1a1294a2da23aecc50e81839",
+      "system": "Kawabata Probe Mods"
+    },
+    {
+      "path": "Kawabata Probe Mods/screen-membrane/Ceramics-spacer.ipt",
+      "name": "Ceramics-spacer.ipt",
+      "name_key": "ceramics-spacer.ipt",
+      "suffix": ".ipt",
+      "size": 90112,
+      "mtime_ns": 1787124686000000000,
+      "sha256": "41d4c1548a6a54162617176379568e39be31479bf92b158f209796684e64253a",
+      "system": "Kawabata Probe Mods"
+    },
+    {
+      "path": "Kawabata Probe Mods/screen-membrane/ICF34_frange.ipt",
+      "name": "ICF34_frange.ipt",
+      "name_key": "icf34_frange.ipt",
+      "suffix": ".ipt",
+      "size": 154624,
+      "mtime_ns": 1787124486000000000,
+      "sha256": "b38326eb214b681e96455fede292b83152ba78f5aa782150aacdc90988605474",
+      "system": "Kawabata Probe Mods"
+    },
+    {
+      "path": "Kawabata Probe Mods/screen-membrane/M3x8-SHCS.ipt",
+      "name": "M3x8-SHCS.ipt",
+      "name_key": "m3x8-shcs.ipt",
+      "suffix": ".ipt",
+      "size": 196608,
+      "mtime_ns": 1715765158000000000,
+      "sha256": "068fe7ab5a0b6915d91d454cff96a17790e36913fcccad140a39396e7133869e",
+      "system": "Kawabata Probe Mods"
+    },
+    {
+      "path": "Kawabata Probe Mods/screen-membrane/Membrane.ipt",
+      "name": "Membrane.ipt",
+      "name_key": "membrane.ipt",
+      "suffix": ".ipt",
+      "size": 179200,
+      "mtime_ns": 1787910044000000000,
+      "sha256": "e51d37ca3c5ddcf5367554261fd7ab6101cc141c690250276038510274f485f0",
+      "system": "Kawabata Probe Mods"
+    },
+    {
+      "path": "Kawabata Probe Mods/screen-membrane/Screen-membrane.iam",
+      "name": "Screen-membrane.iam",
+      "name_key": "screen-membrane.iam",
+      "suffix": ".iam",
+      "size": 198144,
+      "mtime_ns": 1789314142000000000,
+      "sha256": "005e567fa7113ecef87ef12308a8a08ffdd46e507c33a3bce27c84b78d57ad52",
+      "system": "Kawabata Probe Mods"
+    },
+    {
+      "path": "Kawabata Probe Mods/screen-membrane/Screen-membrane.ipj",
+      "name": "Screen-membrane.ipj",
+      "name_key": "screen-membrane.ipj",
+      "suffix": ".ipj",
+      "size": 10176,
+      "mtime_ns": 1795239476000000000,
+      "sha256": "d48c06e2ca7fd4878507b3da5b39d80ac9afbb892c2a7d47720389d59351f1be",
+      "system": "Kawabata Probe Mods"
+    },
+    {
+      "path": "Kawabata Probe Mods/screen-membrane/Screen-membrane.ipt",
+      "name": "Screen-membrane.ipt",
+      "name_key": "screen-membrane.ipt",
+      "suffix": ".ipt",
+      "size": 133120,
+      "mtime_ns": 1787129976000000000,
+      "sha256": "e2c0879a5d23f0567f2d907220f52856f608815286787f6574a73b60918baeff",
+      "system": "Kawabata Probe Mods"
+    }
+  ],
+  "groups": [
+    {
+      "id": "32beb32b3c29e829",
+      "kind": "collision",
+      "title": "Membrane.ipt",
+      "names": [
+        "membrane.ipt",
+        "Membrane.ipt"
+      ],
+      "records": [
+        {
+          "path": "Kawabata Probe Mods/screen-membrane/Membrane.ipt",
+          "name": "Membrane.ipt",
+          "name_key": "membrane.ipt",
+          "suffix": ".ipt",
+          "size": 179200,
+          "mtime_ns": 1787910044000000000,
+          "sha256": "e51d37ca3c5ddcf5367554261fd7ab6101cc141c690250276038510274f485f0",
+          "system": "Kawabata Probe Mods"
+        },
+        {
+          "path": "Miura-membrane-experiments/membrane.ipt",
+          "name": "membrane.ipt",
+          "name_key": "membrane.ipt",
+          "suffix": ".ipt",
+          "size": 100864,
+          "mtime_ns": 1571633044000000000,
+          "sha256": "62184a361de8c5a26c03dd4c96c71aa7f0cc995cfd7fae2b581ec889b3af23e1",
+          "system": "Miura-membrane-experiments"
+        }
+      ],
+      "hashes": [
+        "62184a361de8c5a26c03dd4c96c71aa7f0cc995cfd7fae2b581ec889b3af23e1",
+        "e51d37ca3c5ddcf5367554261fd7ab6101cc141c690250276038510274f485f0"
+      ],
+      "systems": [
+        "Kawabata Probe Mods",
+        "Miura-membrane-experiments"
+      ],
+      "extensions": [
+        ".ipt"
+      ],
+      "cross_folder": true,
+      "redundant_bytes": 0,
+      "characterization": null
+    },
+    {
+      "id": "51a22024dea44bc3",
+      "kind": "exact",
+      "title": "M3x8-SHCS.ipt",
+      "names": [
+        "M3x8-SHCS.ipt"
+      ],
+      "records": [
+        {
+          "path": "ContentCenter/Fastners/M3x8-SHCS.ipt",
+          "name": "M3x8-SHCS.ipt",
+          "name_key": "m3x8-shcs.ipt",
+          "suffix": ".ipt",
+          "size": 196608,
+          "mtime_ns": 1715765158000000000,
+          "sha256": "068fe7ab5a0b6915d91d454cff96a17790e36913fcccad140a39396e7133869e",
+          "system": "ContentCenter"
+        },
+        {
+          "path": "Kawabata Probe Mods/screen-membrane/M3x8-SHCS.ipt",
+          "name": "M3x8-SHCS.ipt",
+          "name_key": "m3x8-shcs.ipt",
+          "suffix": ".ipt",
+          "size": 196608,
+          "mtime_ns": 1715765158000000000,
+          "sha256": "068fe7ab5a0b6915d91d454cff96a17790e36913fcccad140a39396e7133869e",
+          "system": "Kawabata Probe Mods"
+        }
+      ],
+      "hashes": [
+        "068fe7ab5a0b6915d91d454cff96a17790e36913fcccad140a39396e7133869e"
+      ],
+      "systems": [
+        "ContentCenter",
+        "Kawabata Probe Mods"
+      ],
+      "extensions": [
+        ".ipt"
+      ],
+      "cross_folder": true,
+      "redundant_bytes": 196608,
+      "characterization": null
+    }
+  ],
+  "errors": []
+}

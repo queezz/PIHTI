@@ -24,6 +24,9 @@ PIHTI is a single Autodesk Inventor project. The repository root—not the paren
 
 ## Recent submission trees
 
+- `Kawabata Probe Mods/screen-membrane/` — Kawabata's screen-membrane assembly
+  received 2026-11-21, with unique native names and a shared ContentCenter screw.
+
 - `BoronProbe_2026/` — PR #1 and #3 boron-probe development, including rotating,
   non-bellows, and non-rotating variants.
 - `Plasma Vessel_2026/` — PR #1 and #3 system-level integration and local component

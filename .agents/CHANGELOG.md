@@ -6,6 +6,11 @@ remains authoritative for exact file changes.
 
 ## 2026-11-21
 
+- Integrated Kawabata's screen-membrane intake under `PIHTI.ipj`: unique names,
+  repaired native references, shared M3×8 fastener, catalog navigation and six
+  STEP copies. Removed the submission project and Pack-and-Go baggage; saved
+  native dependency, duplicate and geometry evidence alongside the handoff.
+
 - Added the Echelle grating-support dimensional mockup as a four-plate
   Inventor assembly: roof with opening, upright front bottom plate and two profiled
   side plates. Shared stock and envelope parameters drive all three part

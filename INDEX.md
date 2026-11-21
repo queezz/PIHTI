@@ -26,6 +26,7 @@
 | [ElectronicsBox/ThArLamp](ElectronicsBox/ThArLamp/README.md) | `ThArLampCase.iam` |
 | [ElectronicsBox/Win-GPIO-Box](ElectronicsBox/Win-GPIO-Box/README.md) | `wingpio-front-panel.iam` |
 | [Jobin-Yvon](Jobin-Yvon/README.md) | `QHY183-Jobin-Yvon.iam` |
+| [Kawabata Probe Mods/screen-membrane](Kawabata%20Probe%20Mods/screen-membrane/README.md) | `kawabata-screen-membrane.iam` |
 | [LIBS](LIBS/README.md) | `XL430-bracket.iam` |
 | [LIBS/TAS-20605L](LIBS/TAS-20605L/README.md) | `TAS-20605L.iam` |
 | [LIBS/XL430_W250_T](LIBS/XL430_W250_T/README.md) | `XL430_W250_T.iam` |

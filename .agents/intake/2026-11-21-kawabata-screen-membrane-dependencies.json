@@ -1,0 +1,13 @@
+{
+  "schema": "pihti-submission-report/v1",
+  "folder": "Kawabata Probe Mods/screen-membrane",
+  "inventor": "2027.1",
+  "expected_documents": 1,
+  "inventory_complete": true,
+  "documents": [
+    {
+      "path": "Kawabata Probe Mods/screen-membrane/kawabata-screen-membrane.iam",
+      "findings": []
+    }
+  ]
+}
