@@ -1,10 +1,10 @@
 # Bellows stage MonotaRO shopping list
 
-**Order placed:** owner confirmed on 24 November 2026 after the basket audit. The tables below preserve the audited list and proposed changes; no final order receipt was supplied. Assembly details are now on drawing sheets 19–22; sourcing reference is sheet 23.
+**Order placed:** the 24 November 2026 MonotaRO confirmation for order `124033110005` lists 27 lines totaling ¥124,027 including tax. Fleet Post `20261124-2bbe56c3-0289ff` holds the exact handoff. It confirms two rail sets, two loose blocks, 40 small-head rail screws and ten ESCO hardened support washers. The specified BUMAX 109 M6 support nuts (`42209456`) are absent from the confirmation. Confirm the source of the four fitted nuts before assembly. Assembly details are on drawing sheets 19–22 and sourcing is on sheet 23.
 
-Quantities cover one stage. **Order qty** is the number of units or packs to enter in MonotaRO Quick Order. Checked against the owner's two basket screenshots dated 24 November 2026 JST: 25 product lines, ¥112,910 before tax. This document updates the shopping list; the online basket has not been edited. Dispatch is not arrival, and public product pages do not establish stock for the full account-specific order quantity.
+The audit below preserves the proposed basket for one stage. **Order qty** means MonotaRO units or packs. The two basket screenshots dated 24 November 2026 JST showed 25 product lines and ¥112,910 before tax. Dispatch estimates are supplier estimates of shipment timing.
 
-## Changes to make in the pictured basket
+## Proposed changes to the pictured basket
 
 | Action | Order code | Quantity to enter | Result / public dispatch checked 24 November |
 | --- | --- | ---: | --- |
@@ -64,7 +64,7 @@ Axial shims remain an assembly-time selection by measured endplay; no guessed sh
 
 ## Rails and lead screw drive
 
-The tables below give one-stage requirements and baseline pack orders. Use the basket-change table above for this order; do not reduce the owner's other spare quantities to these baseline amounts.
+The tables below give one-stage requirements and baseline pack quantities. The proposed changes above reflect the screenshot audit before the supplier confirmation.
 
 | Item | Needed | Order qty | MonotaRO |
 | --- | ---: | ---: | --- |
@@ -102,7 +102,7 @@ Use the small-head SKU in the Ø9.5 mm rail counterbores. The guide screws pass 
 
 ### Support nut and washer selection
 
-Use [BUMAX 109 M6 nuts, 42209456](https://www.monotaro.com/p/4220/9456/) and [ESCO EA637GP-6 hardened washers, 50122564](https://www.monotaro.com/p/5012/2564/). These are concrete purchasing substitutes, not a claim that the original CAD hardware is identical. Buy 8 of each for four joints and four spares. Ordinary stainless M6 vacuum nuts are not substitutes here.
+Use [BUMAX 109 M6 nuts, 42209456](https://www.monotaro.com/p/4220/9456/) and [ESCO EA637GP-6 hardened washers, 50122564](https://www.monotaro.com/p/5012/2564/). The audit proposed eight of each for four joints and four spares. The washer dimensions differ from the modeled hardware. Reserve the ordinary stainless M6 nuts for the vacuum joints.
 
 - The nut is M6 × 1, 10 mm across flats, 4.9–5.2 mm high. [Yura's BUMAX specification](https://www.yura-sansyo.co.jp/tokuhan/bumax_rokkaku_n.html) gives Class100 proof stress of 1,000 N/mm². At the listed M6 tensile area of 20.1 mm², that is **20.1 kN**, versus the original carbon-steel class-10 assumption of 20.9 kN. Both exceed the saved design case's 13.75 kN per screw (6.75 kN external tension + 7 kN assumed preload). BUMAX 109 is a selected alternative, not an ISO steel class-10 marking claim.
 - The hardened washer is **Ø6.4 × Ø17 × 3 mm**, replacing the modeled Ø6.6 × Ø18 × 2 mm. The extra 1 mm thickness reduces the saved nominal bolt protrusion from 3.8 to **2.8 mm**, using the same maximum 5.2 mm nut height. It still clears an M6 shank. Verify full thread engagement and seating on the actual four joints.
