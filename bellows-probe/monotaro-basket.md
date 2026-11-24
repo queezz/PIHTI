@@ -1,5 +1,7 @@
 # Bellows stage MonotaRO shopping list
 
+**Order placed:** owner confirmed on 24 November 2026 after the basket audit. The tables below preserve the audited list and proposed changes; no final order receipt was supplied. Assembly details are now on drawing sheets 19–22; sourcing reference is sheet 23.
+
 Quantities cover one stage. **Order qty** is the number of units or packs to enter in MonotaRO Quick Order. Checked against the owner's two basket screenshots dated 24 November 2026 JST: 25 product lines, ¥112,910 before tax. This document updates the shopping list; the online basket has not been edited. Dispatch is not arrival, and public product pages do not establish stock for the full account-specific order quantity.
 
 ## Changes to make in the pictured basket

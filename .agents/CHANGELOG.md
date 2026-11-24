@@ -4,6 +4,13 @@ Shipped archive milestones only. PIHTI does not yet have a formal release/versio
 contract, so entries are dated rather than assigned software versions. Git history
 remains authoritative for exact file changes.
 
+## 2026-11-24
+
+- Expanded the MonotaRO bellows-stage drawing set to 23 sheets with native
+  wheel-end and vessel-end sections, under-table support fastening, and rear
+  nut mounting with its keeper removed. Kept fabrication numbers 04–18 stable,
+  refreshed the assembly index and purchasing references, and regenerated both PDFs.
+
 ## 2026-11-21
 
 - Integrated Kawabata's screen-membrane intake under `PIHTI.ipj`: unique names,
