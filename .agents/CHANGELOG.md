@@ -4,6 +4,12 @@ Shipped archive milestones only. PIHTI does not yet have a formal release/versio
 contract, so entries are dated rather than assigned software versions. Git history
 remains authoritative for exact file changes.
 
+## 2026-11-25
+
+- Added the installed MonotaRO apparatus plan and vacuum-path section to
+  sheet 02. The probe now rotates at fixed depth in the assembled stage.
+  Standardized the compact title block and workshop line weights on all 23 sheets.
+
 ## 2026-11-24
 
 - Shipped `pihti-dedup` 0.37.2: workshop PDF thinning can include shaded
