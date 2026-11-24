@@ -6,6 +6,9 @@ remains authoritative for exact file changes.
 
 ## 2026-11-24
 
+- Shipped `pihti-dedup` 0.37.2: workshop PDF thinning can include shaded
+  Inventor sheets while preserving their separate image objects.
+
 - Expanded the MonotaRO bellows-stage drawing set to 23 sheets with native
   wheel-end and vessel-end sections, under-table support fastening, and rear
   nut mounting with its keeper removed. Kept fabrication numbers 04–18 stable,

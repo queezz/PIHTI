@@ -104,6 +104,29 @@ def test_keeps_uncompressed_streams_uncompressed(tmp_path):
     assert b"0.39 w" in decoded
 
 
+def test_thins_shaded_sheet_without_rewriting_image_xobject(tmp_path):
+    source = write(tmp_path, build_pdf([SHEET + b"0.36 w\n/Im1 Do\n"], image_page=1))
+    target = tmp_path / "thin.pdf"
+
+    assert cli.main([
+        "pdf-strokes", str(source), str(target), "--pages", "1", "--allow-image-xobjects"
+    ]) == 0
+
+    before = ClassicPdf(source.read_bytes())
+    after = ClassicPdf(target.read_bytes())
+    assert after.raw(5) == before.raw(5)
+    assert page_widths(after, after.pages()[0]) == {0.39: 1, 1.16: 1, 1.55: 1, 0.36: 1}
+
+
+def test_refuses_inline_image_even_with_image_opt_in(tmp_path):
+    source = write(tmp_path, build_pdf([SHEET + b"BI /W 1 /H 1 /BPC 8 /CS /G ID\nX\nEI\n"]))
+    target = tmp_path / "thin.pdf"
+
+    with pytest.raises(PdfStrokeError, match="inline image"):
+        remap_strokes(source, target, "1", allow_image_xobjects=True)
+    assert not target.exists()
+
+
 @pytest.mark.parametrize(
     "build, pages, message",
     [

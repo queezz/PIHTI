@@ -9,8 +9,8 @@ anything it does not recognise instead of guessing:
   updates and no cross-reference streams;
 - only standalone width operators at the start of a content-stream line, and
   only widths in the mapping; every width operator on a target page must match;
-- no embedded images on a target page, and no content stream shared with a
-  page that stays untouched.
+- inline images and shared page content streams are always refused. Pages
+  with separate image XObjects can be processed when explicitly requested.
 
 Text, page boxes, fonts and every untouched page are copied byte for byte.
 The output is written only after every check passed.
@@ -27,6 +27,7 @@ from pathlib import Path
 # Inventor's exported widths (pt) mapped to the thinner set verified on the
 # bellows shop set at A4 (.agents/log/2026-11-16-bellows-centerlines-and-pdf-weights.md).
 DEFAULT_MAPPING: dict[float, float] = {
+    0.36: 0.36,
     0.54: 0.39,
     0.72: 0.48,
     1.08: 0.63,
@@ -37,6 +38,7 @@ DEFAULT_MAPPING: dict[float, float] = {
 
 _LINE_WIDTH = re.compile(rb"(?m)^(\d*\.?\d+) w(?=\s)")
 _ANY_WIDTH = re.compile(rb"(?<![\w.])(\d*\.?\d+)\s+w\b")
+_INLINE_IMAGE = re.compile(rb"(?<!\S)BI(?!\S)")
 _REF = re.compile(rb"(\d+)\s+0\s+R")
 
 
@@ -216,6 +218,8 @@ def remap_strokes(
     target: Path,
     pages: str,
     mapping: dict[float, float] | None = None,
+    *,
+    allow_image_xobjects: bool = False,
 ) -> StrokeResult:
     """Write `target`: `source` with the widths on `pages` remapped by `mapping`."""
 
@@ -230,7 +234,7 @@ def remap_strokes(
     owners: dict[int, int] = {}
     for number in selected:
         page = all_pages[number - 1]
-        if pdf.has_image(page):
+        if not allow_image_xobjects and pdf.has_image(page):
             raise PdfStrokeError(f"page {number} embeds an image; refusing to rewrite it")
         for num in pdf.contents(page):
             if num in owners:
@@ -244,6 +248,8 @@ def remap_strokes(
     replaced: dict[int, bytes] = {}
     for num, number in owners.items():
         head, start, body, decoded = pdf.stream(num)
+        if _INLINE_IMAGE.search(decoded):
+            raise PdfStrokeError(f"page {number} embeds an inline image in its content stream")
         every = [float(w) for w in _ANY_WIDTH.findall(decoded)]
         unknown = sorted({w for w in every if w not in mapping})
         if unknown:

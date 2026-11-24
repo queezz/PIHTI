@@ -219,6 +219,9 @@ def build_parser() -> argparse.ArgumentParser:
     strokes.add_argument(
         "--pages", required=True, help="1-based pages to thin, e.g. 5-17 or 1,3,5-7"
     )
+    strokes.add_argument(
+        "--allow-image-xobjects", action="store_true", help="Allow shaded views stored as separate images"
+    )
     return parser
 
 
@@ -226,7 +229,10 @@ def _pdf_strokes(args: argparse.Namespace) -> int:
     from pihti_dedup.pdf_strokes import PdfStrokeError, remap_strokes
 
     try:
-        result = remap_strokes(Path(args.source), Path(args.target), args.pages)
+        result = remap_strokes(
+            Path(args.source), Path(args.target), args.pages,
+            allow_image_xobjects=args.allow_image_xobjects,
+        )
     except (PdfStrokeError, OSError) as exc:
         print(f"error: {exc}; nothing written", file=sys.stderr)
         return 2

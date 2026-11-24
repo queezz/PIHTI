@@ -18,7 +18,7 @@ in both published PDFs.
 To retain those links on re-export, run the stages in this order:
 
 1. Export all 23 native sheets to a temporary unlinked PDF (`<raw.pdf>`).
-2. Run `pihti-dedup pdf-strokes <raw.pdf> <temporary-thin.pdf> --pages 4-18`.
+2. Run `pihti-dedup pdf-strokes <raw.pdf> <temporary-thin.pdf> --pages 1-23 --allow-image-xobjects`.
 3. With an external Python environment containing `pypdf`, run
    `python bellows-probe/add-monotaro-pdf-links.py <temporary-thin.pdf> bellows-probe/Bellows-Monotaro-A4-JIS-man.pdf`.
 
