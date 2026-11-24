@@ -1,6 +1,6 @@
 """Add sourcing links AFTER Inventor export and pdf-strokes (requires pypdf).
 
-Usage: python add-monotaro-pdf-links.py thin.pdf Bellows-Monotaro-A4-JIS-man.pdf
+Usage: python add-monotaro-pdf-links.py thin.pdf Bellows-Monotaro-A4-JIS.pdf
 The adjacent manifest records native note bounds as fractions of the sheet.
 Regenerate those bounds if the sourcing-page layout changes.
 """

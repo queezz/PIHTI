@@ -12,20 +12,18 @@ The Inventor bed contains the threaded nut and the rear driven carriage subassem
 
 Sheet 01 indexes fabrication sheets 04–18. The purchased ASH125 is separate:
 only its radial M5 tap is made by the shop, following assembly sheet 03.
-Sheet 23 is the Japanese supply reference; blue order codes link to MonotaRO
-in both published PDFs.
+Sheet 23 is the Japanese supply reference. The workshop PDF is
+[`Bellows-Monotaro-A4-JIS.pdf`](Bellows-Monotaro-A4-JIS.pdf). Its blue order
+codes link to MonotaRO.
 
 To retain those links on re-export, run the stages in this order:
 
-1. Export all 23 native sheets to a temporary unlinked PDF (`<raw.pdf>`).
+1. Export all 23 native sheets to a temporary unlinked PDF (`<raw.pdf>`) in scratch.
 2. Run `pihti-dedup pdf-strokes <raw.pdf> <temporary-thin.pdf> --pages 1-23 --allow-image-xobjects`.
 3. With an external Python environment containing `pypdf`, run
-   `python bellows-probe/add-monotaro-pdf-links.py <temporary-thin.pdf> bellows-probe/Bellows-Monotaro-A4-JIS-man.pdf`.
-
-4. Run the same link helper on `<raw.pdf>` to publish
-   `bellows-probe/Bellows-Monotaro-A4-JIS.pdf` with its original line weights.
+   `python bellows-probe/add-monotaro-pdf-links.py <temporary-thin.pdf> bellows-probe/Bellows-Monotaro-A4-JIS.pdf`.
 
 The helper verifies the codes, links and unchanged page text. The adjacent
 `monotaro-pdf-links.json` stores normalized native note bounds: regenerate
-those bounds if sheet 23 moves its order codes. Do not feed the linked PDF
-back through the line-weight pass. Keep the unlinked Inventor export temporary; both public filenames must contain links.
+those bounds if sheet 23 moves its order codes. Use the temporary Inventor
+export as the input to the line-weight pass.

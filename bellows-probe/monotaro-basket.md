@@ -130,7 +130,7 @@ The older basket allowance was 16 M6 × 35 bolts and 16 nuts. These packs still 
 
 ## Desk plate rail-hole check
 
-Measured the current Inventor plate and both installed rail envelopes. Compared the 36 hole axes directly with the [shop drawing, sheet 04](Bellows-Monotaro-A4-JIS-man.pdf#page=4), the [exact rail set](https://www.monotaro.com/p/3304/0156/) and [SBC's SBI-FL dimensions](https://www.sbclinear.co.jp/products/linearail/sbifl.html).
+Measured the current Inventor plate and both installed rail envelopes. Compared the 36 hole axes directly with the [shop drawing, sheet 04](Bellows-Monotaro-A4-JIS.pdf#page=4), the [exact rail set](https://www.monotaro.com/p/3304/0156/) and [SBC's SBI-FL dimensions](https://www.sbclinear.co.jp/products/linearail/sbifl.html).
 
 | Dimension | Verified nominal |
 | --- | --- |

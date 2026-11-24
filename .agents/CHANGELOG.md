@@ -6,6 +6,9 @@ remains authoritative for exact file changes.
 
 ## 2026-11-25
 
+- Balanced the small fabrication views and consolidated the bellows set into
+  one workshop PDF at `bellows-probe/Bellows-Monotaro-A4-JIS.pdf`.
+
 - Added the installed MonotaRO apparatus plan and vacuum-path section to
   sheet 02. The probe now rotates at fixed depth in the assembled stage.
   Standardized the compact title block and workshop line weights on all 23 sheets.
